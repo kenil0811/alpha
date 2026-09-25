@@ -25,6 +25,7 @@ LIVE_COMMANDS = {
     "F03": "just qualify-sandbox (real macOS sandbox probes) + desktop fixture run (native)",
     "F04": "just qualify-assistant (opt-in live route; three request families)",
     "F06": "rendered checks: kit-fixture.html against a development Core, and `just kit-reference`",
+    "F07": "just qualify-build repair | limit | generate  (opt-in live builder route)",
 }
 
 # Ticket -> ordered list of (label, argv). Only tickets with real implemented checks appear.
@@ -93,6 +94,24 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
                 "integration",
             ],
         ),
+    ],
+    "F07": [
+        ("check", ["just", "check"]),
+        ("toolchain-locks", ["just", "verify-locks"]),
+        (
+            "test-verification",
+            [
+                "uv",
+                "run",
+                "pytest",
+                "tests/integration/test_candidate_verification.py",
+                "tests/integration/test_builds.py",
+                "-q",
+                "-m",
+                "integration",
+            ],
+        ),
+        ("test-integration-regression", ["just", "test-integration"]),
     ],
     "F02": [
         ("check", ["just", "check"]),
