@@ -70,9 +70,11 @@
       }
     },
     "F03": {
-      "status": "pending",
+      "status": "in_progress",
       "implementation_ref": null,
-      "notes": [],
+      "notes": [
+        "Started 2026-09-25 after F01 completion. F02 blocked on founder inputs (BYOK key, spend ceiling, OpenCode approval)."
+      ],
       "checks": {
         "F03.C01": {
           "result": "pending"
