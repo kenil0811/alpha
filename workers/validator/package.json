@@ -1,0 +1,13 @@
+{
+  "name": "@alpha/validator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trusted UI render checks for App candidates (F07): loads a candidate's sealed static UI in headless Chromium inside a sandboxed frame, relays its bridge requests to Core over stdio, and reports rendered states.",
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/ui_check.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.62.0"
+  }
+}

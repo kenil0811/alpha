@@ -18,3 +18,5 @@ export type { RecordQuery } from "./record_query";
 export type { Run } from "./run";
 export type { RunEvent } from "./run_event";
 export type { SolutionBrief } from "./solution_brief";
+export type { ValidationPlan } from "./validation_plan";
+export type { VerificationReport } from "./verification_report";

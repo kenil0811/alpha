@@ -29,12 +29,12 @@ class ModelRoute:
 
 
 # Initial qualification defaults from Prototype_Scope_and_Acceptance section 7: 12 minutes per
-# attempt, 30 minutes total; automatic repair arrives with F07 (0 here).
+# attempt, 30 minutes total including repair, at most two automatic repair attempts.
 DEFAULT_BUDGET = {
-    "max_turns": 40,
+    "max_turns": 60,
     "max_attempt_seconds": 720,
     "max_total_seconds": 1800,
-    "max_repair_attempts": 0,
+    "max_repair_attempts": 2,
 }
 
 ROUTES: dict[str, ModelRoute] = {
@@ -73,12 +73,14 @@ class ModelGateway:
         enabled_routes: frozenset[str],
         *,
         max_attempt_seconds: int | None = None,
+        max_total_seconds: int | None = None,
     ) -> None:
         self._store = store
         self._enabled = enabled_routes
         self._max_attempt_seconds = max_attempt_seconds or int(
             DEFAULT_BUDGET["max_attempt_seconds"]
         )
+        self._max_total_seconds = max_total_seconds or int(DEFAULT_BUDGET["max_total_seconds"])
         store.execute_script(
             """
                 CREATE TABLE IF NOT EXISTS model_usage (
@@ -135,7 +137,7 @@ class ModelGateway:
         return BuildBudget(
             max_turns=int(DEFAULT_BUDGET["max_turns"]),
             max_attempt_seconds=self._max_attempt_seconds,
-            max_total_seconds=int(DEFAULT_BUDGET["max_total_seconds"]),
+            max_total_seconds=max(self._max_total_seconds, 1),
             max_repair_attempts=int(DEFAULT_BUDGET["max_repair_attempts"]),
             max_cost_usd=max_cost_usd,
             cost_basis=route.cost_basis,

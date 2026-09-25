@@ -23,7 +23,7 @@ from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.data.apps import AppRegistry
 from alpha.data.store import RecordService
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
-from alpha.execution.app_runs import AppRunService
+from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.profiles import ProfileInventory
 from alpha.models.runtime import AppModelService
@@ -40,6 +40,7 @@ class AppPlatform:
     broker: CapabilityBroker
     registry: AppRegistry
     runs: AppRunService
+    binder: HandlerBinder
     fixture_apps_dir: Path | None = None
 
     def close(self) -> None:

@@ -320,6 +320,38 @@ class ProfileInventory:
             )
         return installed
 
+    def verified(self, profile_id: str) -> InstalledProfile:
+        """`ready`, plus a fresh check of the installation's bytes. Used where identity must be
+        exact right now (candidate validation, activation), not just as it was at startup. Any
+        difference quarantines the profile, which also stops new runs on it."""
+        installed = self.ready(profile_id)
+        profile, installation, problems = verify_profile_dir(installed.location)
+        if profile is None or profile.profile_id != profile_id:
+            problems = problems or ["the installation no longer holds this profile"]
+            self._quarantine(profile_id, problems)
+        else:
+            self._register(profile, installed.location, installation, problems)
+        current = self.ready_or_none(profile_id)
+        if current is None:
+            row = self.get(profile_id)
+            raise unavailable(
+                f"runtime profile {profile_id!r} changed on disk and is quarantined",
+                reason=row.reason if row else None,
+            )
+        return current
+
+    def ready_or_none(self, profile_id: str) -> InstalledProfile | None:
+        installed = self.get(profile_id)
+        return installed if installed and installed.state is InstallationState.READY else None
+
+    def _quarantine(self, profile_id: str, problems: list[str]) -> None:
+        with self._store.transaction() as conn:
+            conn.execute(
+                """UPDATE profile_installations SET state = ?, reason = ?, updated_at = ?,
+                   verified_at = NULL WHERE profile_id = ?""",
+                (InstallationState.QUARANTINED.value, "; ".join(problems), _now(), profile_id),
+            )
+
     def default_app_profile(self) -> InstalledProfile | None:
         """The ready App/Task compute profile new Apps target (newest registered)."""
         rows = self._store.query(

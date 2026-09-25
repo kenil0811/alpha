@@ -6,8 +6,9 @@ digest, runtime profile and dependency manifest, then launches the App worker wi
 profile's interpreter. The worker gets a per-run workload token on stdin; the result is checked
 against the declared output schema before the run can succeed.
 
-Handler validation at install time uses the same worker in `validate` mode: a disposable process
-imports each handler and checks its signature. Candidate modules are never imported into Core.
+Handler validation (HandlerBinder) uses the same worker in `validate` mode: a disposable process
+scans every import, imports each handler and checks its signature. Candidate modules are never
+imported into Core.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from alpha_contracts.broker import WORKER_PROTOCOL_VERSION
 from alpha_contracts.runs import AppOwner, ExecutionSnapshot, Run, RunLimits, RunOrigin
 from jsonschema import Draft202012Validator
 
-from alpha.capabilities.errors import OperationFailed, forbidden, invalid
+from alpha.capabilities.errors import OperationFailed, conflict, forbidden, invalid
 from alpha.data.apps import AppRegistry
 from alpha.execution.broker import CapabilityBroker, RunGrant
 from alpha.execution.coordinator import DispatchSpec, RunCoordinator, input_digest
@@ -57,7 +58,6 @@ class AppRunService:
         broker: CapabilityBroker,
         *,
         timezone: str,
-        validation_timeout_seconds: int = 60,
     ) -> None:
         self._coordinator = coordinator
         self._supervisor = supervisor
@@ -65,7 +65,6 @@ class AppRunService:
         self._inventory = inventory
         self._broker = broker
         self._timezone = timezone
-        self._validation_timeout = validation_timeout_seconds
 
     @property
     def timezone(self) -> str:
@@ -97,6 +96,15 @@ class AppRunService:
         if problems:
             raise invalid(f"the input for {action_id} is not valid", problems=problems)
         profile = self._inventory.ready(version.runtime_profile_id)
+        if (
+            version.dependency_manifest.runtime_profile_manifest_sha256
+            != profile.profile.manifest_sha256
+        ):
+            # Validation, activation and invocation must agree on one profile identity.
+            raise conflict(
+                f"{app_id}'s Version was validated against a different profile manifest than "
+                f"the installed {profile.profile_id}; it will not run on a substitute"
+            )
         owner = AppOwner(app_id=app_id, release_id=version.release_id, action_id=action_id)
         snapshot = ExecutionSnapshot(
             worker_profile="app",
@@ -154,10 +162,21 @@ class AppRunService:
             owner=owner, origin=origin, snapshot=snapshot, payload=payload, spec=spec
         )
 
+
+class HandlerBinder:
+    """Disposable workers on an exact runtime profile that look at a sealed Version without
+    running an action: bind its handlers (and scan its imports), or run its own tests. Candidate
+    modules are never imported into Core."""
+
+    def __init__(self, supervisor: WorkerSupervisor, timeout_seconds: int = 60) -> None:
+        self._supervisor = supervisor
+        self._validation_timeout = timeout_seconds
+
     def validate_handlers(
         self, version_dir: Path, source: AppSource, profile: InstalledProfile
-    ) -> list[dict[str, Any]]:
-        """Resolve every declared handler in a disposable worker on the exact profile."""
+    ) -> dict[str, Any]:
+        """Scan imports and resolve every declared handler in a disposable worker on the exact
+        profile. Returns the worker's report ({"actions": [...], "imports": {...}})."""
         job = {
             "protocol": WORKER_PROTOCOL_VERSION,
             "mode": "validate",
@@ -186,10 +205,44 @@ class AppRunService:
             except json.JSONDecodeError:
                 continue
             if message.get("kind") == "result":
-                return list(message.get("output", {}).get("actions", []))
+                output = message.get("output", {})
+                return {
+                    "actions": list(output.get("actions", [])),
+                    "imports": output.get("imports"),
+                }
             if message.get("kind") == "error":
                 raise invalid(f"the package could not be loaded: {message.get('message')}")
         raise invalid("the validation worker produced no report")
+
+    def run_candidate_tests(
+        self, version_dir: Path, profile: InstalledProfile, timeout_seconds: int = 60
+    ) -> dict[str, Any]:
+        """The package's own tests/, run on the exact profile. Supplementary evidence only."""
+        job = {
+            "protocol": WORKER_PROTOCOL_VERSION,
+            "mode": "tests",
+            "version_dir": str(version_dir),
+        }
+        handle = self._supervisor.launch(
+            "app", f"tests-{version_dir.name}-{_suffix()}", python=profile.python
+        )
+        try:
+            try:
+                stdout, stderr = handle.process.communicate(
+                    input=json.dumps(job) + "\n", timeout=timeout_seconds
+                )
+            except subprocess.TimeoutExpired:
+                return {"present": True, "ok": False, "error": f"tests ran over {timeout_seconds}s"}
+        finally:
+            self._supervisor.terminate(handle)
+        for line in stdout.splitlines():
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if message.get("kind") == "result":
+                return dict(message.get("output", {}))
+        return {"present": True, "ok": False, "error": (stderr or "no report")[-1000:]}
 
 
 def _suffix() -> str:

@@ -3,8 +3,11 @@
 The starting shape of a generated App. The builder copies this directory into its workspace and
 fills it in; it is a bootstrap and composition example, not a copy of any shared package.
 
-- `app.yaml.template`: the source contract (Current Release Specification §3). `{{...}}` markers
-  are filled by the platform: the exact runtime profile ID, the App id and name.
+- `app.yaml.template`: the source contract (Current Release Specification §3). The platform
+  fills the exact profile markers (`{{RUNTIME_PROFILE}}`, `{{SDK_VERSION}}`,
+  `{{UI_BUILD_PROFILE}}`, `{{KIT_VERSION}}`, `{{BRIDGE_VERSION}}`) when it prepares a build
+  workspace; the builder fills the App id, name and purpose.
+- `APP_CONTRACT.md`: the builder-facing summary of every `app.yaml` field and rule.
 - `src/app_code/handlers.py`: action handlers. Import only `alpha_sdk` and the standard library;
   `ctx.records`, `ctx.artifacts` and `ctx.models` are the only ways to reach data.
 - `ui/src/main.tsx`: optional custom UI. Import only `react`, `react-dom` and `@alpha/ui-kit`

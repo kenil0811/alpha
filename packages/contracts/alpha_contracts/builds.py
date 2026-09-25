@@ -49,6 +49,7 @@ class FailureCategory(StrEnum):
     CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
     PLATFORM_ERROR = "platform_error"
+    DEPENDENCY_UNSUPPORTED = "dependency_unsupported"
 
 
 class CostBasis(StrEnum):

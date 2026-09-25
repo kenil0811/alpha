@@ -1,0 +1,247 @@
+{
+  "$defs": {
+    "BuildResultStatus": {
+      "enum": [
+        "candidate",
+        "failed",
+        "cancelled"
+      ],
+      "title": "BuildResultStatus",
+      "type": "string"
+    },
+    "CheckResult": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "type": "boolean"
+        },
+        "stage": {
+          "maxLength": 32,
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "summary": {
+          "maxLength": 1000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "stage",
+        "status",
+        "summary"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    },
+    "CheckStatus": {
+      "enum": [
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "DependencyQualificationRequest": {
+      "additionalProperties": false,
+      "description": "A bounded request to qualify a package outside the installed profile. Recording it never\nchanges a shared environment; a new profile must be built and qualified first.",
+      "properties": {
+        "found_in": {
+          "enum": [
+            "app.yaml modules",
+            "import"
+          ],
+          "type": "string"
+        },
+        "package": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 300,
+          "type": "string"
+        },
+        "runtime_profile_id": {
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "where": {
+          "maxLength": 300,
+          "type": "string"
+        }
+      },
+      "required": [
+        "package",
+        "found_in",
+        "where",
+        "runtime_profile_id",
+        "reason"
+      ],
+      "title": "DependencyQualificationRequest",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "type": "string"
+    },
+    "attempt_number": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "build_id": {
+      "type": "string"
+    },
+    "builder_status": {
+      "$ref": "#/$defs/BuildResultStatus"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "dependency_manifest_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "environment": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "lineage": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "package_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "qualification_requests": {
+      "items": {
+        "$ref": "#/$defs/DependencyQualificationRequest"
+      },
+      "type": "array"
+    },
+    "runtime_profile_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "supplementary": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "type": "array"
+    },
+    "ui_build_profile_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "unresolved_limits": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "version_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "build_id",
+    "attempt_id",
+    "attempt_number",
+    "lineage",
+    "builder_status",
+    "passed"
+  ],
+  "title": "VerificationReport",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import secrets
 import subprocess
 import sys
@@ -80,34 +79,17 @@ DEFAULT_GOAL = {
 
 
 def start_core(data_dir: Path, token: str, log_path: Path) -> tuple[subprocess.Popen[str], int]:
-    env = {
-        "ALPHA_DATA_DIR": str(data_dir),
-        "ALPHA_SESSION_TOKEN": token,
-        "ALPHA_ALLOWED_ORIGINS": "http://localhost:1420",
-        "ALPHA_ENABLED_MODEL_ROUTES": "claude-code-cli,fake",
-        "ALPHA_BUILDER_PATH": (
-            "/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin"
-        ),
-        "ALPHA_BUILDER_HOME": os.environ["HOME"],
-        "ALPHA_WATCH_PARENT": "1",
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONUNBUFFERED": "1",
-    }
-    process = subprocess.Popen(
-        [sys.executable, "-m", "alpha.main"],
-        stdout=subprocess.PIPE,
-        stderr=log_path.open("w", encoding="utf-8"),
-        env=env,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
-    assert process.stdout is not None
-    for line in process.stdout:
-        if line.startswith("ALPHA_CORE_READY "):
-            return process, int(json.loads(line[len("ALPHA_CORE_READY ") :])["port"])
-        if line.startswith("ALPHA_CORE_ERROR "):
-            raise SystemExit(line)
-    raise SystemExit("core did not start")
+    """Since F07 a build targets installed profiles and is verified as an App Version: publish
+    fresh profiles beside the data and start Core exactly as the F07 live qualification does."""
+    sys.path.insert(0, str(REPO_ROOT))
+    from evals.qualify_build import publish_profiles
+    from evals.qualify_build import start_core as start_live_core
+    from tests.integration.build_harness import render_packages
+
+    profiles = data_dir.parent / "profiles"
+    publish_profiles(profiles)
+    seeds = render_packages(data_dir.parent / "seeds")
+    return start_live_core(data_dir, token, log_path, profiles, seeds)
 
 
 def cli_tree_pids() -> list[int]:
@@ -323,7 +305,7 @@ def main() -> int:
                 "status": invoke.status_code,
                 "response": invoke.json(),
             }
-            observed = invoke.json().get("output", {}).get("calls", [{}])[0].get("output")
+            observed = invoke.json().get("output")
             record["held_out_invoke"]["matches_expected"] = observed == held["expected"]
             print(
                 f"held-out invoke: observed={observed} expected={held['expected']} "
@@ -331,7 +313,7 @@ def main() -> int:
             )
             attempt = build["attempts"][-1]
             workspace = data_dir / "builds" / attempt["workspace_ref"]
-            for name in ("package.index.json", "validation.report.json", "harness.argv.json"):
+            for name in ("verification.report.json", "harness.argv.json"):
                 path = workspace / name
                 if path.is_file():
                     record[name] = json.loads(path.read_text())

@@ -1,6 +1,9 @@
 """F02 control checks with the deterministic fake harness: lifecycle, validation, failure
 classification, cancellation with descendants, restart behaviour, usage retention.
-The fake harness proves controls only; generation quality is proven by the live route."""
+The fake harness proves controls only; generation quality is proven by the live route.
+
+Since F07 every build targets the installed App runtime profile and every candidate is sealed
+and verified as an App Version, so these tests run Core with real profiles."""
 
 from __future__ import annotations
 
@@ -15,7 +18,13 @@ from typing import Any
 import httpx
 import pytest
 
-from tests.integration.conftest import CoreProcess, pid_alive, start_core, wait_until_dead
+from tests.integration.build_harness import start_build_core
+from tests.integration.conftest import (
+    BuildProfiles,
+    CoreProcess,
+    pid_alive,
+    wait_until_dead,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -27,6 +36,23 @@ SUMMARIZE_EXAMPLES = [
     },
     {"action_id": "summarize", "input": {"text": ""}, "expected": {"words": 0, "characters": 0}},
 ]
+
+
+@pytest.fixture
+def core(build_core: CoreProcess) -> CoreProcess:
+    """Builds need the installed runtime profile; this module's Core has one."""
+    return build_core
+
+
+def start_core(
+    data_dir: Path,
+    profiles: BuildProfiles,
+    packages: Path,
+    *,
+    token: str | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> CoreProcess:
+    return start_build_core(data_dir, profiles.root, packages, extra_env, token=token)
 
 
 def submit(
@@ -99,24 +125,23 @@ def test_fake_build_is_validated_sealed_and_invocable(core: CoreProcess, data_di
     assert final["state"] == "ready", final
     candidate = final["candidate"]
     assert candidate["actions"] == ["summarize"]
-    assert candidate["source_digest"].startswith("sha256:")
+    assert len(candidate["package_sha256"]) == 64 and candidate["activated"] is False
     assert final["validation"]["passed"] is True
     assert final["attempts"][0]["status"] == "candidate"
     assert final["attempts"][0]["usage"]["cost_basis"] == "unavailable"
 
-    workspace = data_dir / "builds" / final["attempts"][0]["workspace_ref"]
-    assert (workspace / "package.index.json").is_file()
-    index = json.loads((workspace / "package.index.json").read_text())
-    assert [f["path"] for f in index["files"]] == ["app.yaml", "src/word_stats.py"]
-    assert not (workspace / "package" / "src" / "__pycache__").exists()
-    normalized = [
-        e for e in build_events(core, created["build_id"]) if e["kind"] == "validation.normalized"
+    # The candidate is a sealed App Version: bytecode residue never enters it.
+    version = data_dir / "builds" / candidate["version_ref"]
+    index = json.loads((version / "package.index.json").read_text())
+    assert [f["path"] for f in index["files"]] == [
+        "app.yaml",
+        "dependencies/python/requirements.lock",
+        "dependency.manifest.json",
+        "src/word_stats.py",
     ]
-    assert (
-        normalized
-        and "src/__pycache__/word_stats.cpython-313.pyc" in normalized[0]["payload"]["removed"]
-    )
-    assert (workspace / "validation.report.json").is_file()
+    assert not any("__pycache__" in str(p) for p in version.rglob("*"))
+    workspace = data_dir / "builds" / final["attempts"][0]["workspace_ref"]
+    assert (workspace / "verification.report.json").is_file()
     assert (data_dir / "builds" / created["build_id"] / "brief.r1.json").is_file()
 
     kinds = [e["kind"] for e in build_events(core, created["build_id"])]
@@ -128,15 +153,19 @@ def test_fake_build_is_validated_sealed_and_invocable(core: CoreProcess, data_di
         for e in build_events(core, created["build_id"])
         if e["kind"] == "validation.check"
     ]
-    assert all(c["passed"] for c in checks) and len(checks) >= 5
+    assert all(c["status"] == "passed" for c in checks) and len(checks) >= 7
 
+    # Invoking a ready candidate runs the real handler in its preview, never the person's data.
     with core.client() as client:
         response = client.post(
             f"/api/builds/{created['build_id']}/invoke",
             json={"action_id": "summarize", "input": {"text": "alpha beta"}},
         )
-    assert response.status_code == 200, response.text
-    assert response.json()["output"]["calls"][0]["output"] == {"words": 2, "characters": 10}
+        assert response.status_code == 200, response.text
+        assert client.get("/api/apps").json()["apps"] == []
+    body = response.json()
+    assert body["preview"] is True and body["state"] == "succeeded"
+    assert body["output"] == {"words": 2, "characters": 10}
 
     # usage row retained in the control store
     conn = sqlite3.connect(data_dir / "control.sqlite")
@@ -162,18 +191,18 @@ def test_harness_failure_never_becomes_a_candidate(core: CoreProcess) -> None:
     assert final["terminal_reason"] == "harness_failed"
     assert final["candidate"] is None
     assert final["attempts"][0]["status"] == "failed"
+    assert len(final["attempts"]) == 1, "a harness failure is not repaired"
 
 
-def test_claimed_success_without_package_is_rejected(core: CoreProcess) -> None:
+def test_claimed_success_without_a_package_is_rejected(core: CoreProcess) -> None:
+    # The harness writes nothing; the workspace still holds the untouched template.
     created = submit(core, "fake:claims_success")
     final = wait_for_build(core, created["build_id"], {"ready", "failed", "cancelled"})
-    assert final["state"] == "failed"
-    assert final["failure_category"] == "no_package"
-    assert final["validation"]["checks"][0] == {
-        "check": "package_present",
-        "passed": False,
-        "detail": None,
-    }
+    assert final["state"] == "failed" and final["candidate"] is None
+    assert final["terminal_reason"] == "repair_limit_reached"
+    assert final["failure_category"] == "invalid_package"
+    contract = next(c for c in final["validation"]["checks"] if c["id"] == "package.contract")
+    assert contract["status"] == "failed"
 
 
 def test_missing_handler_is_caught_by_real_binding(core: CoreProcess) -> None:
@@ -181,11 +210,9 @@ def test_missing_handler_is_caught_by_real_binding(core: CoreProcess) -> None:
     final = wait_for_build(core, created["build_id"], {"ready", "failed", "cancelled"})
     assert final["state"] == "failed"
     assert final["failure_category"] == "validation_failed"
-    binding = next(
-        c for c in final["validation"]["checks"] if c["check"] == "acceptance:summarize:binding"
-    )
-    assert binding["passed"] is False
-    assert "has no attribute 'summarize'" in binding["detail"]["message"]
+    binding = next(c for c in final["validation"]["checks"] if c["id"] == "handlers.bind")
+    assert binding["status"] == "failed"
+    assert "has no attribute 'summarize'" in binding["summary"]
 
 
 def test_independent_expected_outputs_govern_validation(core: CoreProcess) -> None:
@@ -200,9 +227,9 @@ def test_independent_expected_outputs_govern_validation(core: CoreProcess) -> No
     final = wait_for_build(core, created["build_id"], {"ready", "failed", "cancelled"})
     assert final["state"] == "failed"
     assert final["failure_category"] == "validation_failed"
-    check = next(c for c in final["validation"]["checks"] if c["check"] == "acceptance:summarize:0")
-    assert check["passed"] is False
-    assert check["detail"]["observed"] == {"words": 2, "characters": 7}
+    check = next(c for c in final["validation"]["checks"] if c["id"] == "behavior.example_1.run")
+    assert check["status"] == "failed"
+    assert check["detail"]["output"] == {"words": 2, "characters": 7}
     with core.client() as client:
         assert (
             client.post(
@@ -271,8 +298,15 @@ def test_one_builder_at_a_time_and_waiting_builds_queue(core: CoreProcess) -> No
     assert final["attempts"][0]["started_at"] >= first_end
 
 
-def test_attempt_deadline_is_enforced_outside_the_harness(data_dir: Path) -> None:
-    core = start_core(data_dir, extra_env={"ALPHA_BUILD_MAX_ATTEMPT_SECONDS": "2"})
+def test_attempt_deadline_is_enforced_outside_the_harness(
+    data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
+) -> None:
+    core = start_core(
+        data_dir,
+        build_profiles,
+        build_packages,
+        extra_env={"ALPHA_BUILD_MAX_ATTEMPT_SECONDS": "2"},
+    )
     try:
         created = submit(core, "fake:hang")
         final = wait_for_build(
@@ -286,8 +320,10 @@ def test_attempt_deadline_is_enforced_outside_the_harness(data_dir: Path) -> Non
         core.stop()
 
 
-def test_restart_interrupts_running_build_and_does_not_revive_it(data_dir: Path) -> None:
-    first = start_core(data_dir)
+def test_restart_interrupts_running_build_and_does_not_revive_it(
+    data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
+) -> None:
+    first = start_core(data_dir, build_profiles, build_packages)
     created = submit(first, "fake:hang")
     tool_use = wait_for_build_event(first, created["build_id"], "harness.harness.tool_use")
     child_pid = int(tool_use["payload"]["child_pid"])
@@ -298,7 +334,7 @@ def test_restart_interrupts_running_build_and_does_not_revive_it(data_dir: Path)
         "orphaned builder tree should still be alive"
     )
 
-    second = start_core(data_dir, token=first.token)
+    second = start_core(data_dir, build_profiles, build_packages, token=first.token)
     try:
         record = get_build(second, created["build_id"])
         assert record["state"] == "failed"

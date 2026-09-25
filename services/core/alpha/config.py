@@ -35,6 +35,16 @@ class CoreSettings:
     app_model_route: str = "fake"
     timezone: str = "UTC"
     dev_fixture_apps_dir: Path | None = None
+    # F07 build pipeline: platform resources (templates, UI build tool, UI render check), the
+    # pinned Node for trusted UI tools and the pinned headless browser for render checks.
+    platform_resources: Path | None = None
+    node_binary: Path | None = None
+    ui_browser: Path | None = None
+    build_max_total_seconds: int | None = None
+    fake_builder_packages: Path | None = None
+    # Qualification only: packages a build may start from instead of a first builder attempt,
+    # so a real repair of a known defect can be reproduced. The desktop host never sets it.
+    dev_seed_packages_dir: Path | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> CoreSettings:
@@ -64,6 +74,11 @@ class CoreSettings:
         timezone = env.get("ALPHA_TIMEZONE") or local_timezone()
         fixtures = env.get("ALPHA_DEV_FIXTURE_APPS_DIR")
         profiles = env.get("ALPHA_PROFILES_DIR")
+
+        def path(name: str) -> Path | None:
+            value = env.get(name)
+            return Path(value) if value else None
+
         return cls(
             data_dir=data_dir,
             session_token=token,
@@ -83,6 +98,16 @@ class CoreSettings:
                 if env.get("ALPHA_BUILD_MAX_ATTEMPT_SECONDS")
                 else None
             ),
+            build_max_total_seconds=(
+                int(env["ALPHA_BUILD_MAX_TOTAL_SECONDS"])
+                if env.get("ALPHA_BUILD_MAX_TOTAL_SECONDS")
+                else None
+            ),
+            platform_resources=path("ALPHA_PLATFORM_RESOURCES"),
+            node_binary=path("ALPHA_NODE"),
+            ui_browser=path("ALPHA_UI_BROWSER"),
+            fake_builder_packages=path("ALPHA_FAKE_BUILDER_PACKAGES"),
+            dev_seed_packages_dir=path("ALPHA_DEV_SEED_PACKAGES_DIR"),
         )
 
     @property

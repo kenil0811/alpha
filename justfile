@@ -89,3 +89,7 @@ bundle-core:
 # Run the desktop app in development (Vite shell + Tauri host + bundled Core).
 dev: bundle-core
     pnpm --filter @alpha/desktop tauri dev
+
+# Opt-in live F07 qualification on the Claude Code CLI route: repair | limit | generate.
+qualify-build scenario:
+    uv run python evals/qualify_build.py --scenario {{scenario}}

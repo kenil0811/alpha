@@ -17,11 +17,13 @@ from typing import IO
 
 @dataclass(frozen=True)
 class WorkerProfile:
-    """A registered worker definition. `module` is executed with the platform interpreter."""
+    """A registered worker definition. Python profiles run `module` with an interpreter; Node
+    profiles run a trusted script with the platform's pinned Node."""
 
     name: str
     module: str
     description: str
+    runtime: str = "python"
 
 
 SYNTHETIC_PROFILE = WorkerProfile(
@@ -34,10 +36,14 @@ BUILDER_PROFILE = WorkerProfile(
     module="alpha.workers.builder",
     description="Runs a builder harness in a leased workspace; emits normalized events.",
 )
-CANDIDATE_RUNNER_PROFILE = WorkerProfile(
-    name="candidate_runner",
-    module="alpha.workers.candidate_runner",
-    description="Disposable process that resolves and executes a candidate action handler.",
+UI_VALIDATOR_PROFILE = WorkerProfile(
+    name="ui_validator",
+    module="",
+    description=(
+        "Trusted UI render check: drives a candidate's sealed static UI in headless Chromium and "
+        "relays its bridge requests to Core over stdio. Never imports candidate Python."
+    ),
+    runtime="node",
 )
 APP_PROFILE = WorkerProfile(
     name="app",
@@ -137,7 +143,7 @@ class WorkerSupervisor:
         self._grace = grace_seconds
         self._profiles: dict[str, WorkerProfile] = {
             p.name: p
-            for p in (SYNTHETIC_PROFILE, BUILDER_PROFILE, CANDIDATE_RUNNER_PROFILE, APP_PROFILE)
+            for p in (SYNTHETIC_PROFILE, BUILDER_PROFILE, UI_VALIDATOR_PROFILE, APP_PROFILE)
         }
 
     @property
@@ -160,10 +166,18 @@ class WorkerSupervisor:
         *,
         extra_env: dict[str, str] | None = None,
         python: Path | None = None,
+        node: tuple[Path, Path] | None = None,
     ) -> WorkerHandle:
         """Launch a registered profile. `python` selects a runtime profile's exact interpreter
-        (App workers); platform workers use Core's own interpreter."""
+        (App workers); platform workers use Core's own interpreter. Node profiles need
+        `node=(node binary, script)`."""
         profile = self.profile(profile_name)
+        if profile.runtime == "node":
+            if node is None:
+                raise ValueError(f"{profile.name} needs a Node binary and script")
+            argv = [str(node[0]), str(node[1])]
+        else:
+            argv = [str(python or self._python), "-I", "-B", "-m", profile.module]
         scratch = self._scratch_root / job_id
         scratch.mkdir(parents=True, exist_ok=False)
         env = {
@@ -179,7 +193,7 @@ class WorkerSupervisor:
         if extra_env:
             env.update(extra_env)
         process = subprocess.Popen(
-            [str(python or self._python), "-I", "-B", "-m", profile.module],
+            argv,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

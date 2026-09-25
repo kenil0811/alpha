@@ -11,7 +11,8 @@ export type FailureCategory =
   | "validation_failed"
   | "cancelled"
   | "interrupted"
-  | "platform_error";
+  | "platform_error"
+  | "dependency_unsupported";
 export type BuildResultStatus = "candidate" | "failed" | "cancelled";
 export type CostBasis = "provider_reported" | "subscription_unmetered" | "unavailable";
 

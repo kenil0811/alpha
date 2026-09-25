@@ -50,10 +50,14 @@ files = [
     "services/core/alpha",
     "tools",
     "tests",
+    "evals",
 ]
-exclude = ["docs/"]
+# Fixture App packages are generated-code stand-ins that run inside App runtime profiles, not
+# platform code; their own tests import modules only present in a sealed Version.
+exclude = ["docs/", "tests/fixtures/builds/"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/contracts/tests", "packages/app-sdk/tests", "services/core/tests", "tests"]
 addopts = "-p no:cacheprovider"
+norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "venv", "fixtures"]
 markers = ["integration: exercises real processes/SQLite/transport"]

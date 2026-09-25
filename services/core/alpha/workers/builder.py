@@ -7,8 +7,10 @@ touches the control store, live data or any release.
 
 Job shape (JSON):
   {"request": <BuildRequest>, "harness": "fake" | "claude-code-cli", "workspace": "<dir>",
-   "goal": str, "instructions": str, "acceptance_examples": [...], "model": str,
-   "platform_python": "<path>"}
+   "goal": str, "instructions": str, "model": str, "candidate_python": "<path>",
+   "targets": {...}, "fake_packages_dir": "<dir>" | null}
+
+The workspace was materialized by Core (package/, reference/, PLAN.md, REPAIR.md on a repair).
 """
 
 from __future__ import annotations
@@ -32,11 +34,11 @@ def emit(message: dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
-def select_harness(name: str, platform_python: Path) -> BuilderHarness:
+def select_harness(name: str, candidate_python: Path) -> BuilderHarness:
     if name == "fake":
         return FakeHarness()
     if name == "claude-code-cli":
-        return ClaudeCliHarness(platform_python=platform_python)
+        return ClaudeCliHarness(candidate_python=candidate_python)
     raise ValueError(f"unknown harness: {name}")
 
 
@@ -45,7 +47,8 @@ def main() -> int:
     try:
         job = json.loads(raw)
         request = BuildRequest.model_validate(job["request"])
-        harness = select_harness(str(job["harness"]), Path(str(job["platform_python"])))
+        candidate_python = Path(str(job["candidate_python"]))
+        harness = select_harness(str(job["harness"]), candidate_python)
     except Exception as exc:  # invalid job is a failed attempt, reported honestly
         emit({"kind": "error", "code": "invalid_job", "message": str(exc)})
         return 2
@@ -55,8 +58,10 @@ def main() -> int:
         workspace=Path(str(job["workspace"])),
         goal=str(job.get("goal", "")),
         instructions=str(job.get("instructions", "")),
-        acceptance_examples=list(job.get("acceptance_examples", [])),
         model=str(job.get("model", "default")),
+        candidate_python=candidate_python,
+        targets={str(k): str(v) for k, v in (job.get("targets") or {}).items()},
+        fake_packages_dir=job.get("fake_packages_dir"),
     )
     capabilities = harness.capabilities()
     emit({"kind": "progress", "stage": "capabilities", "capabilities": capabilities.__dict__})

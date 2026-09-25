@@ -530,6 +530,18 @@
           ],
           "default": null
         },
+        "build_profile": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "entry": {
           "anyOf": [
             {

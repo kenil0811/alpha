@@ -301,6 +301,7 @@ export interface UiDeclaration {
    */
   actions?: string[];
   bridge_version?: string | null;
+  build_profile?: string | null;
   entry?: string | null;
   kit_version?: string | null;
   /**

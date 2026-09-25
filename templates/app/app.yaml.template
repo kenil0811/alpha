@@ -3,7 +3,7 @@ app_id: "{{APP_ID}}"
 name: "{{APP_NAME}}"
 description: "{{ONE_SENTENCE_PURPOSE}}"
 runtime_profile: "{{RUNTIME_PROFILE}}"
-sdk_version: "0.1.0"
+sdk_version: "{{SDK_VERSION}}"
 capabilities: [records]
 collections:
   - name: items
@@ -28,6 +28,10 @@ actions:
       required: [id, revision]
       properties: {id: {type: string}, revision: {type: integer}}
 ui:
+  entry: ui/src/main.tsx
+  build_profile: "{{UI_BUILD_PROFILE}}"
+  kit_version: "{{KIT_VERSION}}"
+  bridge_version: "{{BRIDGE_VERSION}}"
   views:
     - id: items.recent
       collection: items

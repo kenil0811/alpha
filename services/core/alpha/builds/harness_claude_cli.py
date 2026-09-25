@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -41,24 +42,34 @@ from alpha.builds.harness import (
     HarnessOutcome,
 )
 
-PACKAGE_CONTRACT = """You are building a small pure Python package for the Alpha platform.
+PACKAGE_CONTRACT = """You are building an Alpha App: a small tool a nontechnical person will use
+to get real work done. Work ONLY inside the current directory.
 
-Write ONLY inside the directory `package/` of the current working directory. Required layout:
-- package/app.yaml — declarative contract (contract_version '0.2', app_id, name, description,
-  runtime_profile: platform-runtime-3.13.9, sdk_version: none, and `actions`).
-- package/src/<module>.py — plain Python 3.13 with no third-party imports and no I/O, network,
-  subprocess, environment or file access. Pure functions only.
-- Optional package/tests/ — supplementary tests (not the acceptance evidence).
+Edit the App package in package/. It starts from the platform template, or from your previous
+attempt when REPAIR.md exists. Read these files first:
+- PLAN.md: the independent checks the platform runs against your package, through real action
+  runs and a real browser. They alone decide success; editing PLAN.md changes nothing.
+- REPAIR.md (only on a repair): the checks your previous attempt failed, with the evidence.
+  feedback/ holds screenshots of failed screen checks.
+- reference/APP_CONTRACT.md: every app.yaml field and rule.
+- reference/SDK.md: the only API your Python may use (ctx.records, ctx.artifacts, ctx.models).
+- reference/UI_KIT.md: the components your screen must be built from.
 
-Each action in app.yaml has: id, title, description, handler (module:function inside src/),
-input_schema and output_schema (JSON Schema objects with explicit required fields),
-capability_requirements: [], effect_class: none, invocable_from: [assistant],
-timeout_seconds, retry_class: pure.
-
-The function must accept keyword arguments matching input_schema properties and return a dict
-matching output_schema. Verify your code compiles with the platform interpreter given below.
-Do not modify anything outside package/. Do not create git repositories. Finish by stating the
-action id(s) you implemented.
+Rules:
+- package/app.yaml must keep the exact platform values listed below. Choose app_id (lowercase
+  letters, digits, - or _), name and description yourself, in the person's words.
+- Python in package/src/ imports only the standard library, alpha_sdk and the package's own
+  modules. No file, network, subprocess or environment access: data only through ctx.
+- Every action a screen uses must list ui in invocable_from and appear under ui.actions; every
+  list the screen reads must be a view under ui.views.
+- The screen (package/ui/src/main.tsx) imports only react, react-dom/client, @alpha/ui-kit,
+  @alpha/ui-kit/styles.css and its own files. Use kit components; use Form, never <form>.
+  Label fields and buttons exactly as PLAN.md names them.
+- Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
+  dependencies/. Extra packages are not available and are never installed.
+- Check your Python compiles with the platform interpreter given below
+  (<python> -m py_compile <file>). Optional supplementary tests go in package/tests/ (unittest).
+- Do not create git repositories. Finish with one sentence naming the actions and the screen.
 """
 
 
@@ -70,6 +81,7 @@ class ClaudeCliSession:
     started_at: float
     result_message: dict[str, Any] | None = None
     stderr_tail: list[str] = field(default_factory=list)
+    stderr_thread: threading.Thread | None = None
     cancelled: bool = False
     saw_auth_error: bool = False
     lines_seen: int = 0
@@ -80,11 +92,11 @@ class ClaudeCliHarness:
         self,
         *,
         claude_binary: str | None = None,
-        platform_python: Path | None = None,
+        candidate_python: Path | None = None,
         config_home_strategy: str = "user_default_settings_ignored",
     ) -> None:
         self._binary = claude_binary or shutil.which("claude") or "claude"
-        self._python = platform_python or Path(sys.executable)
+        self._python = candidate_python or Path(sys.executable)
         self._strategy = config_home_strategy
 
     def capabilities(self) -> HarnessCapabilities:
@@ -187,12 +199,29 @@ class ClaudeCliHarness:
             ),
             encoding="utf-8",
         )
-        return ClaudeCliSession(
+        session = ClaudeCliSession(
             session_ref=f"claude-cli-{process.pid}",
             process=process,
             config_home=config_home,
             started_at=time.monotonic(),
         )
+
+        def drain() -> None:
+            # Read stderr while the CLI runs: a full pipe would otherwise stall it.
+            stream = process.stderr
+            if stream is None:
+                return
+            tail = ""
+            try:
+                for chunk in iter(lambda: stream.read(4096), ""):
+                    tail = (tail + chunk)[-4000:]
+            except (OSError, ValueError):
+                pass
+            session.stderr_tail = tail.splitlines()[-40:]
+
+        session.stderr_thread = threading.Thread(target=drain, daemon=True)
+        session.stderr_thread.start()
+        return session
 
     def events(self, session: ClaudeCliSession) -> Iterator[HarnessEvent]:
         assert session.process.stdout is not None
@@ -211,10 +240,8 @@ class ClaudeCliHarness:
                 continue
             yield from self._normalize(session, message)
         session.process.wait()
-        if session.process.stderr is not None:
-            tail = session.process.stderr.read()[-4000:]
-            if tail:
-                session.stderr_tail = tail.splitlines()[-40:]
+        if session.stderr_thread is not None:
+            session.stderr_thread.join(timeout=5)
 
     def cancel(self, session: ClaudeCliSession) -> None:
         session.cancelled = True
@@ -289,13 +316,24 @@ class ClaudeCliHarness:
     # ----- helpers -----------------------------------------------------------------------
 
     def _prompt(self, inputs: HarnessInputs) -> str:
-        examples = json.dumps(inputs.acceptance_examples, indent=2)
+        exact = "\n".join(f"- {key}: {value}" for key, value in sorted(inputs.targets.items()))
+        ui_note = (
+            "- ui.entry: ui/src/main.tsx (with ui.build_profile, ui.kit_version and "
+            "ui.bridge_version as above)"
+            if "ui_build_profile" in inputs.targets
+            else "- no UI build profile is installed: build without a custom screen"
+        )
+        repair = (inputs.workspace / "REPAIR.md").is_file()
         return (
             f"{PACKAGE_CONTRACT}\nPlatform interpreter: {self._python}\n\n"
-            f"GOAL (from the user, plain language):\n{inputs.goal}\n\n"
-            f"ADDITIONAL INSTRUCTIONS:\n{inputs.instructions}\n\n"
-            "ACCEPTANCE EXAMPLES (inputs and expected outputs your function must satisfy):\n"
-            f"{examples}\n"
+            f"Exact platform values for app.yaml:\n{exact}\n{ui_note}\n\n"
+            f"GOAL (from the person, plain language):\n{inputs.goal}\n\n"
+            f"ADDITIONAL INSTRUCTIONS:\n{inputs.instructions or '(none)'}\n\n"
+            + (
+                "This is a REPAIR attempt: start by reading REPAIR.md, then fix package/.\n"
+                if repair
+                else "Start by reading PLAN.md and the reference/ files.\n"
+            )
         )
 
     def _normalize(

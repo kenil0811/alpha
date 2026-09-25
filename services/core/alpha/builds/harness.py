@@ -40,8 +40,13 @@ class HarnessInputs:
     workspace: Path
     goal: str
     instructions: str
-    acceptance_examples: list[dict[str, Any]]
     model: str
+    # Interpreter of the App runtime profile the candidate must run on (for compile checks).
+    candidate_python: Path
+    # Exact profile identities the package must name: runtime_profile, sdk_version and, when a
+    # UI profile is installed, ui_build_profile, kit_version, bridge_version.
+    targets: dict[str, str] = field(default_factory=dict)
+    fake_packages_dir: str | None = None
 
 
 @dataclass

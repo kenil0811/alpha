@@ -27,11 +27,15 @@ from alpha.api.app import create_app, shutting_down
 from alpha.api.apps_routes import AppPlatform
 from alpha.artifacts.service import ArtifactService
 from alpha.assistant.service import AssistantService
-from alpha.builds.service import BuildService
+from alpha.builds.preview import PreviewDeps
+from alpha.builds.service import BuildPipeline, BuildService
+from alpha.builds.toolchain import PlatformResources, UiToolchain
+from alpha.builds.ui_check import UiRenderCheck
+from alpha.builds.verify import CandidateVerifier
 from alpha.config import ConfigError, CoreSettings
 from alpha.data.apps import AppRegistry
 from alpha.data.store import RecordService
-from alpha.execution.app_runs import AppRunService
+from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.profiles import ProfileInventory
@@ -62,43 +66,58 @@ def build(
         workspace_id=settings.workspace_id,
         default_timeout_seconds=settings.default_timeout_seconds,
     )
+    report = coordinator.reconcile_on_startup()
+    if report:
+        log.warning("reconciled %d interrupted run(s) on startup: %s", len(report), report)
     gateway = ModelGateway(
         store,
         settings.enabled_model_routes,
         max_attempt_seconds=settings.build_max_attempt_seconds,
+        max_total_seconds=settings.build_max_total_seconds,
     )
-    builds = BuildService(
-        store,
-        supervisor,
-        gateway,
-        builds_root=settings.builds_root,
-        platform_python=settings.worker_python,
-        builder_path=settings.builder_path,
-        builder_home=settings.builder_home,
-        instance_id=coordinator.instance_id,
-    )
-    report = coordinator.reconcile_on_startup()
-    if report:
-        log.warning("reconciled %d interrupted run(s) on startup: %s", len(report), report)
-    build_report = builds.reconcile_on_startup()
-    if build_report:
-        log.warning(
-            "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
-        )
     inference = StructuredInference(
         gateway,
         claude_binary="claude",
         tool_path=settings.builder_path,
         home=settings.builder_home,
     )
+    toolchain = ui_toolchain(settings)
+    platform = build_app_platform(
+        settings, store, coordinator, supervisor, gateway, inference, toolchain
+    )
+    builds = BuildService(
+        store,
+        supervisor,
+        gateway,
+        build_pipeline(settings, platform, supervisor, gateway, inference, toolchain),
+        builds_root=settings.builds_root,
+        builder_path=settings.builder_path,
+        builder_home=settings.builder_home,
+        instance_id=coordinator.instance_id,
+    )
+    build_report = builds.reconcile_on_startup()
+    if build_report:
+        log.warning(
+            "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
+        )
     assistant = AssistantService(store, gateway, inference, default_route=settings.assistant_route)
-    platform = build_app_platform(settings, store, coordinator, supervisor, gateway, inference)
     app = create_app(settings, store, coordinator, builds, gateway, assistant, platform)
     return app, store, coordinator, builds
 
 
 def _append(store: ControlStore, run_id: str, kind: str, payload: dict[str, Any]) -> None:
     store.append_event(run_id, kind, payload)
+
+
+def ui_toolchain(settings: CoreSettings) -> UiToolchain | None:
+    """The trusted UI tools, when the host configured Node and the platform resources."""
+    if settings.node_binary is None or settings.platform_resources is None:
+        return None
+    return UiToolchain(
+        node=settings.node_binary,
+        resources=PlatformResources(settings.platform_resources),
+        browser=settings.ui_browser,
+    )
 
 
 def build_app_platform(
@@ -108,6 +127,7 @@ def build_app_platform(
     supervisor: WorkerSupervisor,
     gateway: ModelGateway,
     inference: StructuredInference,
+    toolchain: UiToolchain | None = None,
 ) -> AppPlatform:
     """F05 services: profile inventory, App records/artifacts/models, broker and App runs."""
     inventory = ProfileInventory(store, settings.profiles_dir)
@@ -129,21 +149,19 @@ def build_app_platform(
     revoked = broker.revoke_all_on_startup()
     if revoked:
         log.info("revoked %d workload token(s) left by a previous Core", revoked)
-    runs_holder: dict[str, AppRunService] = {}
+    binder = HandlerBinder(supervisor)
     registry = AppRegistry(
         store,
         inventory,
         records,
         settings.versions_root,
-        validator=lambda version_dir, source, profile: runs_holder["runs"].validate_handlers(
-            version_dir, source, profile
-        ),
+        validator=binder.validate_handlers,
+        ui_builder=toolchain.build_ui if toolchain else None,
     )
     registry.reconcile_on_startup()
     runs = AppRunService(
         coordinator, supervisor, registry, inventory, broker, timezone=settings.timezone
     )
-    runs_holder["runs"] = runs
     return AppPlatform(
         inventory=inventory,
         records=records,
@@ -152,7 +170,42 @@ def build_app_platform(
         broker=broker,
         registry=registry,
         runs=runs,
+        binder=binder,
         fixture_apps_dir=settings.dev_fixture_apps_dir,
+    )
+
+
+def build_pipeline(
+    settings: CoreSettings,
+    platform: AppPlatform,
+    supervisor: WorkerSupervisor,
+    gateway: ModelGateway,
+    inference: StructuredInference,
+    toolchain: UiToolchain | None,
+) -> BuildPipeline:
+    """F07: verify candidates in isolated previews on the exact profiles, then activate."""
+    preview = PreviewDeps(
+        supervisor=supervisor,
+        inventory=platform.inventory,
+        handler_validator=platform.binder.validate_handlers,
+        models=lambda store: AppModelService(store, gateway, inference, settings.app_model_route),
+        timezone=settings.timezone,
+    )
+    verifier = CandidateVerifier(
+        platform.registry,
+        platform.binder,
+        preview,
+        UiRenderCheck(supervisor, platform.inventory, toolchain) if toolchain else None,
+        toolchain.build_ui if toolchain else None,
+    )
+    return BuildPipeline(
+        inventory=platform.inventory,
+        registry=platform.registry,
+        verifier=verifier,
+        preview=preview,
+        resources=PlatformResources(settings.platform_resources or settings.data_dir / "missing"),
+        fake_packages_dir=settings.fake_builder_packages,
+        seed_packages_dir=settings.dev_seed_packages_dir,
     )
 
 

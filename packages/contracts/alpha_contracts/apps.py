@@ -143,6 +143,16 @@ class AppSource(ContractModel):
                 unknown = sorted(view.mentioned_fields() - known)
                 if unknown:
                     raise ValueError(f"ui view {view.id} names unknown fields {unknown}")
+            if self.ui.entry is not None:
+                if self.ui.entry != "ui/src/main.tsx":
+                    raise ValueError("ui.entry must be ui/src/main.tsx")
+                missing = [
+                    name
+                    for name in ("build_profile", "kit_version", "bridge_version")
+                    if getattr(self.ui, name) is None
+                ]
+                if missing:
+                    raise ValueError(f"a ui entry needs exact {missing}")
             for action_id in self.ui.actions:
                 ui_action = self.action(action_id)
                 if ui_action is None:
@@ -218,6 +228,9 @@ class UiDeclaration(ContractModel):
     the bridge grant from it and Core enforces the views."""
 
     entry: str | None = Field(default=None, max_length=200)
+    # The qualified UI build profile the entry is compiled against, and the exact kit and bridge
+    # versions it expects (Current Release Specification §3). Required with an entry.
+    build_profile: str | None = Field(default=None, max_length=64)
     kit_version: str | None = Field(default=None, max_length=32)
     bridge_version: str | None = Field(default=None, max_length=32)
     views: list[ViewSpec] = Field(default_factory=list, max_length=32)

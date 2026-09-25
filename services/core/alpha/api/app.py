@@ -14,17 +14,26 @@ from typing import TYPE_CHECKING, Any
 from alpha_contracts import CONTRACT_VERSION
 from alpha_contracts.builds import BuildEvent
 from alpha_contracts.runs import Run, RunEvent, RunOrigin
+from alpha_contracts.verification import ValidationPlan
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from alpha import __version__
 from alpha.api.auth import make_auth_middleware
 from alpha.assistant.service import AssistantService, ConversationRecord
 from alpha.assistant.service import ConflictError as AssistantBusy
-from alpha.builds.service import AcceptanceExample, BuildNotReady, BuildRecord, BuildService
+from alpha.builds.service import (
+    AcceptanceExample,
+    BuildNotReady,
+    BuildRecord,
+    BuildService,
+    SeedUnavailable,
+    plan_from_examples,
+)
 from alpha.capabilities.catalog import catalog_entries
+from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
@@ -74,13 +83,28 @@ class RunList(BaseModel):
 
 
 class BuildSubmission(BaseModel):
+    """A build request. The validation plan is the independent acceptance evidence; the F02
+    form (`acceptance_examples`) is converted into one."""
+
     model_config = ConfigDict(extra="forbid")
 
     goal: str = Field(min_length=1, max_length=4000)
-    acceptance_examples: list[AcceptanceExample] = Field(min_length=1, max_length=20)
+    validation_plan: ValidationPlan | None = None
+    acceptance_examples: list[AcceptanceExample] = Field(default_factory=list, max_length=20)
     instructions: str = Field(default="", max_length=4000)
     route_id: str = Field(default="fake", max_length=64)
     max_cost_usd: float | None = Field(default=None, ge=0)
+    # Qualification only (ALPHA_DEV_SEED_PACKAGES_DIR): start from a known package.
+    seed_package: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def _one_plan(self) -> BuildSubmission:
+        if (self.validation_plan is None) == (not self.acceptance_examples):
+            raise ValueError("give exactly one of validation_plan or acceptance_examples")
+        return self
+
+    def plan(self) -> ValidationPlan:
+        return self.validation_plan or plan_from_examples(self.acceptance_examples)
 
 
 class BuildList(BaseModel):
@@ -280,12 +304,13 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
         try:
             return builds.submit(
                 goal=body.goal,
-                acceptance_examples=body.acceptance_examples,
+                plan=body.plan(),
                 instructions=body.instructions,
                 route_id=body.route_id,
                 max_cost_usd=body.max_cost_usd,
+                seed_package=body.seed_package,
             )
-        except RouteUnavailable as exc:
+        except (RouteUnavailable, SeedUnavailable) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/builds", response_model=BuildList)
@@ -318,12 +343,35 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
 
     @app.post("/api/builds/{build_id}/invoke")
     def invoke_candidate(build_id: str, body: InvokeRequest) -> dict[str, Any]:
+        """Run a ready candidate's action in its preview (never the person's data)."""
         try:
             return builds.invoke(build_id, body.action_id, body.input)
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail="build_not_found") from exc
         except BuildNotReady as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OperationFailed as exc:
+            raise HTTPException(
+                status_code=HTTP_STATUS.get(exc.code, 500), detail=exc.as_error()
+            ) from exc
+
+    @app.post("/api/builds/{build_id}/activate")
+    def activate_candidate(build_id: str) -> dict[str, Any]:
+        """Install a ready candidate's exact sealed bytes (rechecked) as the App's Version."""
+        try:
+            return builds.activate(build_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+        except BuildNotReady as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OperationFailed as exc:
+            raise HTTPException(
+                status_code=HTTP_STATUS.get(exc.code, 500), detail=exc.as_error()
+            ) from exc
+
+    @app.get("/api/dependency-requests")
+    def dependency_requests(build_id: str | None = None) -> dict[str, Any]:
+        return {"requests": builds.dependency_requests(build_id)}
 
 
 def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None:

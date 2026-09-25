@@ -256,3 +256,42 @@ def app_core(tmp_path: Path, data_dir: Path, app_profile: Any) -> Iterator[AppCo
         yield AppCore(core=proc, profile=app_profile, fixtures=fixtures, installs=installs)
     finally:
         proc.stop()
+
+
+# ----- F07: runtime + UI build profiles, fake-builder packages ----------------------------
+
+
+@dataclass
+class BuildProfiles:
+    root: Path
+    runtime: Any
+    ui: dict[str, Any]
+
+
+@pytest.fixture(scope="session")
+def build_profiles(app_profile: Any) -> BuildProfiles:
+    """The session's App runtime profile plus a UI build profile published beside it."""
+    from tests.integration.build_harness import build_ui_profile
+
+    ui = build_ui_profile(app_profile.root)
+    return BuildProfiles(root=app_profile.root, runtime=app_profile, ui=ui)
+
+
+@pytest.fixture(scope="session")
+def build_packages(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    from tests.integration.build_harness import render_packages
+
+    return render_packages(tmp_path_factory.mktemp("fake-packages"))
+
+
+@pytest.fixture
+def build_core(
+    data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
+) -> Iterator[CoreProcess]:
+    from tests.integration.build_harness import start_build_core
+
+    proc = start_build_core(data_dir, build_profiles.root, build_packages)
+    try:
+        yield proc
+    finally:
+        proc.stop()

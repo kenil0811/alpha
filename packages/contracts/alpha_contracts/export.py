@@ -28,6 +28,7 @@ from alpha_contracts.records import (
     RecordQuery,
 )
 from alpha_contracts.runs import Run, RunEvent
+from alpha_contracts.verification import ValidationPlan, VerificationReport
 
 PUBLISHED: dict[str, type[BaseModel]] = {
     "run": Run,
@@ -50,6 +51,8 @@ PUBLISHED: dict[str, type[BaseModel]] = {
     "capability_call": CapabilityCall,
     "capability_reply": CapabilityReply,
     "model_estimate": ModelEstimate,
+    "validation_plan": ValidationPlan,
+    "verification_report": VerificationReport,
 }
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"

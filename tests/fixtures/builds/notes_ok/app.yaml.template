@@ -1,0 +1,54 @@
+contract_version: "0.2"
+app_id: notes-fixture
+name: Notes (fixture)
+description: A neutral list of short notes, used to qualify candidate verification.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "{{SDK_VERSION}}"
+capabilities: [records]
+collections:
+  - name: notes
+    fields:
+      - {name: title, kind: text, required: true, max_length: 300}
+      - {name: noted_on, kind: date, required: true}
+actions:
+  - id: add_note
+    title: Add a note
+    description: Save one note dated today.
+    handler: notes_app.handlers:add_note
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties: {title: {type: string, minLength: 1}}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}}
+  - id: count_notes
+    title: Count notes
+    description: How many notes are saved.
+    handler: notes_app.handlers:count_notes
+    invocable_from: [manual, assistant]
+    effect_class: none
+    capability_requirements: [records]
+    input_schema: {type: object, properties: {}}
+    output_schema:
+      type: object
+      required: [count]
+      properties: {count: {type: integer}}
+ui:
+  entry: ui/src/main.tsx
+  build_profile: "{{UI_BUILD_PROFILE}}"
+  kit_version: "{{KIT_VERSION}}"
+  bridge_version: "{{BRIDGE_VERSION}}"
+  views:
+    - id: notes.recent
+      collection: notes
+      fields: [title, noted_on]
+      sortable: [created_at]
+      default_order: [{field: created_at, direction: desc}]
+      max_limit: 50
+  actions: [add_note]

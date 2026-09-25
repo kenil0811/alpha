@@ -6,7 +6,9 @@ stdout becomes the protocol stream; anything the handler prints goes to stderr, 
 cannot forge protocol messages by printing.
 
 Modes:
-  validate  import every declared handler and check its signature against the input schema
+  validate  scan every import, then import every declared handler and check its signature
+            against the input schema
+  tests     run the package's own tests/ with unittest (supplementary evidence only)
   invoke    run one action handler with a Context and emit its JSON result
 """
 
@@ -19,12 +21,15 @@ import json
 import os
 import sys
 import traceback
+import unittest
 from pathlib import Path
 from typing import Any, TextIO
 
 from alpha_sdk._channel import PROTOCOL_VERSION, PipeChannel
 from alpha_sdk.context import Context, RunInfo
 from alpha_sdk.errors import OperationError
+
+from alpha_app_worker.scan import scan
 
 
 def _emit(stream: TextIO, message: dict[str, Any]) -> None:
@@ -79,7 +84,10 @@ def check_signature(function: Any, input_schema: dict[str, Any]) -> list[str]:
     return problems
 
 
-def run_validate(job: dict[str, Any], proto: TextIO) -> int:
+def run_validate(job: dict[str, Any], proto: TextIO, src: Path) -> int:
+    # Scan before importing anything: an undeclared import is reported as such, not as whatever
+    # error importing it happens to raise.
+    imports = scan(src)
     report: list[dict[str, Any]] = []
     for action in job.get("actions", []):
         entry: dict[str, Any] = {"id": action.get("id"), "handler": action.get("handler")}
@@ -94,7 +102,37 @@ def run_validate(job: dict[str, Any], proto: TextIO) -> int:
             entry["ok"] = False
             entry["problems"] = [f"{type(exc).__name__}: {exc}"[:500]]
         report.append(entry)
-    _emit(proto, {"kind": "result", "output": {"actions": report}})
+    _emit(proto, {"kind": "result", "output": {"actions": report, "imports": imports}})
+    return 0
+
+
+def run_tests(version_dir: Path, proto: TextIO) -> int:
+    """Candidate-authored tests: useful signal for repair, never acceptance evidence."""
+    tests = version_dir / "tests"
+    if not tests.is_dir():
+        _emit(proto, {"kind": "result", "output": {"present": False, "ran": 0, "ok": True}})
+        return 0
+    sys.path.insert(0, str(tests))
+    stream = io.StringIO()
+    suite = unittest.TestLoader().discover(str(tests), pattern="test*.py", top_level_dir=str(tests))
+    result = unittest.TextTestRunner(stream=stream, verbosity=1).run(suite)
+    _emit(
+        proto,
+        {
+            "kind": "result",
+            "output": {
+                "present": True,
+                "ran": result.testsRun,
+                "ok": result.wasSuccessful(),
+                "failures": [
+                    {"test": str(test), "detail": text[-1200:]}
+                    for test, text in (result.failures + result.errors)[:10]
+                ],
+                "skipped": len(result.skipped),
+                "log_tail": stream.getvalue()[-3000:],
+            },
+        },
+    )
     return 0
 
 
@@ -198,7 +236,9 @@ def main() -> int:
     sys.path.insert(0, str(src))
     mode = job.get("mode")
     if mode == "validate":
-        return run_validate(job, proto)
+        return run_validate(job, proto, src)
+    if mode == "tests":
+        return run_tests(src.parent, proto)
     if mode == "invoke":
         return run_invoke(job, proto, replies)
     _emit(proto, {"kind": "error", "code": "bad_job", "message": f"unknown mode {mode!r}"})
