@@ -43,8 +43,8 @@ pnpm --filter @alpha/ui-bridge test
 
  Test Files  1 passed (1)
       Tests  10 passed (10)
-   Start at  17:58:52
-   Duration  226ms (tests 69%, transform 23%, import 6%, worker 2%)
+   Start at  17:59:24
+   Duration  225ms (tests 68%, transform 23%, import 7%, worker 2%)
 
 pnpm --filter @alpha/desktop test
 
@@ -59,18 +59,18 @@ alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
 
  Test Files  4 passed (4)
       Tests  12 passed (12)
-   Start at  17:58:52
-   Duration  1.60s (environment 48%, tests 33%, setup 13%, transform 5%, import 1%)
+   Start at  17:59:25
+   Duration  1.54s (environment 48%, tests 34%, setup 11%, transform 6%, import 1%)
 
 alpha.main INFO shutdown: interrupted runs []
 === test-ui: exit 0
 
 === required checks for F03 (from task_state.json; helper-audited bookkeeping)
-  F03.C01   native       pending  (native evidence required)
-  F03.C02   integration  pending  (automated here)
-  F03.C03   native       pending  (native evidence required)
+  F03.C01   native       passed   (native evidence required)
+  F03.C02   integration  passed   (automated here)
+  F03.C03   native       passed   (native evidence required)
   Note: native/live/rendered/review/user checks are not run by this command.
   Live check command (explicit opt-in): just qualify-sandbox (real macOS sandbox probes) + desktop fixture run (native)
 
 verify-ticket F03: automated checks passed
-exit=$?
+exit=0

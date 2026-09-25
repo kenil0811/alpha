@@ -89,7 +89,7 @@
     },
     "F03": {
       "status": "complete",
-      "implementation_ref": "2b5c1238f89a328aa2c20f541af2772e1f2f31a6+fixture-host-changes-committed-next",
+      "implementation_ref": "7cde5d4ba10a6d47c136f38920c3f5d4642cce43",
       "notes": [
         "Feasibility only; F20 gaps recorded in F03.C03. Own-origin generated UI via alpha-ui:// protocol adopted after srcdoc inherited the shell CSP. Self-review."
       ],
@@ -104,7 +104,7 @@
         "F03.C02": {
           "result": "passed",
           "evidence_path": "docs/development/evidence/F03.C02.md",
-          "evidence_sha256": "1c4a83b79314d3f935b3db92f297304cc37d02fca42724ede5f3c6d8b8ae6db8",
+          "evidence_sha256": "ebe6ee68303afae842589901a7a0ca7db98c6d3f12d396761b52d4ef631e86ab",
           "evidence_kind": "integration",
           "environment": "macOS 26.6.2 (25G83) arm64; Tauri 2.11.6 debug .app (WKWebView); sandbox-runtime 0.0.77 on sandbox-exec; CPython 3.13.9"
         },
