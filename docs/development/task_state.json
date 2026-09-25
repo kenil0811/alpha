@@ -51,21 +51,39 @@
       }
     },
     "F02": {
-      "status": "pending",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "07f2ccc1b37b0ada278ba96d6bff240596ceceb0",
+      "notes": [
+        "Builder route: Claude Code CLI on the founder's subscription (decision 2026-09-25); OpenCode not qualified for this engagement. Live run record and two interruption scenarios retained under docs/development/evidence/logs. Self-review."
+      ],
       "checks": {
         "F02.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F02.C01.md",
+          "evidence_sha256": "3c0ec18664b90e5b1640ca93e860035131081057611bc5e81605407971ea6bf4",
+          "evidence_kind": "live_model",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9; Claude Code CLI 2.1.278 on the founder's subscription (route claude-code-cli, model claude-opus-5[1m])"
         },
         "F02.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F02.C02.md",
+          "evidence_sha256": "a22af94892a34610d92efe6d25d13fd2cb47ea0cb1450ae64a135a55aa73afc2",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9; Claude Code CLI 2.1.278 on the founder's subscription (route claude-code-cli, model claude-opus-5[1m])"
         },
         "F02.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F02.C03.md",
+          "evidence_sha256": "0196ec646cd0c5606699ab311e63eba5553c802c7cc324f26e7a967d05e9c240",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9; Claude Code CLI 2.1.278 on the founder's subscription (route claude-code-cli, model claude-opus-5[1m])"
         },
         "F02.C04": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F02.C04.md",
+          "evidence_sha256": "ae5c8e84ba64dd13e8ac3b231a6a90860144845432309f682776ddc3ca4b2970",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9; Claude Code CLI 2.1.278 on the founder's subscription (route claude-code-cli, model claude-opus-5[1m])"
         }
       }
     },

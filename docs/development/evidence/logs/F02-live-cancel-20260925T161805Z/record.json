@@ -1,0 +1,520 @@
+{
+  "commit": "07f2ccc1b37b0ada278ba96d6bff240596ceceb0",
+  "started_at": "20260925T161805Z",
+  "spec": {
+    "goal": "I keep a list of expenses as text lines like '2026-09-03 groceries 42.50' and '2026-09-04 fuel 61.10'. I want something that tells me the total per category and the overall total, ignoring lines it cannot understand.",
+    "instructions": "Implement exactly one action with id 'summarize_expenses' taking a single string argument 'lines' (newline-separated). Return an object with 'totals' (mapping category to a number rounded to 2 decimals), 'overall' (number rounded to 2 decimals) and 'ignored' (count of lines that could not be parsed). A parsable line is: ISO date, one or more spaces, a single-word category, one or more spaces, a decimal amount.",
+    "acceptance_examples": [
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10\n2026-09-05 groceries 7.25"
+        },
+        "expected": {
+          "totals": {
+            "groceries": 49.75,
+            "fuel": 61.1
+          },
+          "overall": 110.85,
+          "ignored": 0
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "not a line\n2026-09-06 coffee 3.40\n\n2026-09-07 coffee 3.6"
+        },
+        "expected": {
+          "totals": {
+            "coffee": 7.0
+          },
+          "overall": 7.0,
+          "ignored": 1
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": ""
+        },
+        "expected": {
+          "totals": {},
+          "overall": 0.0,
+          "ignored": 0
+        }
+      }
+    ],
+    "held_out_invoke": {
+      "action_id": "summarize_expenses",
+      "input": {
+        "lines": "2026-09-10 rent 1200\n2026-09-11 groceries 15.5\nbad\n2026-09-12 rent 0.5"
+      },
+      "expected": {
+        "totals": {
+          "rent": 1200.5,
+          "groceries": 15.5
+        },
+        "overall": 1216.0,
+        "ignored": 1
+      }
+    }
+  },
+  "routes": [
+    {
+      "route_id": "fake",
+      "provider": "fake",
+      "model": "none",
+      "cost_basis": "unavailable",
+      "harness": "fake",
+      "live": false,
+      "enabled": true,
+      "notes": [
+        "deterministic control fixture; proves lifecycle only"
+      ]
+    },
+    {
+      "route_id": "claude-code-cli",
+      "provider": "anthropic-claude-code-cli",
+      "model": "default",
+      "cost_basis": "subscription_unmetered",
+      "harness": "claude-code-cli",
+      "live": true,
+      "enabled": true,
+      "notes": [
+        "founder decision 2026-09-25: subscription login owned by the CLI; internal use only",
+        "reported cost is a provider-equivalent estimate, not a charge"
+      ]
+    }
+  ],
+  "build_after": {
+    "build_id": "build_b61f748467b545548bf08a344df4392c",
+    "state": "cancelled",
+    "goal": "I keep a list of expenses as text lines like '2026-09-03 groceries 42.50' and '2026-09-04 fuel 61.10'. I want something that tells me the total per category and the overall total, ignoring lines it cannot understand.",
+    "instructions": "Implement exactly one action with id 'summarize_expenses' taking a single string argument 'lines' (newline-separated). Return an object with 'totals' (mapping category to a number rounded to 2 decimals), 'overall' (number rounded to 2 decimals) and 'ignored' (count of lines that could not be parsed). A parsable line is: ISO date, one or more spaces, a single-word category, one or more spaces, a decimal amount.",
+    "acceptance_examples": [
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10\n2026-09-05 groceries 7.25"
+        },
+        "expected": {
+          "totals": {
+            "groceries": 49.75,
+            "fuel": 61.1
+          },
+          "overall": 110.85,
+          "ignored": 0
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "not a line\n2026-09-06 coffee 3.40\n\n2026-09-07 coffee 3.6"
+        },
+        "expected": {
+          "totals": {
+            "coffee": 7.0
+          },
+          "overall": 7.0,
+          "ignored": 1
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": ""
+        },
+        "expected": {
+          "totals": {},
+          "overall": 0.0,
+          "ignored": 0
+        }
+      }
+    ],
+    "route_id": "claude-code-cli",
+    "harness": "claude-code-cli",
+    "budget": {
+      "max_turns": 40,
+      "max_attempt_seconds": 720,
+      "max_total_seconds": 1800,
+      "max_repair_attempts": 0,
+      "max_cost_usd": null,
+      "cost_basis": "subscription_unmetered"
+    },
+    "brief_ref": "build_b61f748467b545548bf08a344df4392c.brief.r1",
+    "created_at": "2026-09-25T16:18:05.772821Z",
+    "updated_at": "2026-09-25T16:18:10.918924Z",
+    "finished_at": "2026-09-25T16:18:10.918844Z",
+    "terminal_reason": "cancelled_by_user",
+    "failure_category": "cancelled",
+    "attempts": [
+      {
+        "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+        "number": 1,
+        "status": "cancelled",
+        "failure_category": "cancelled",
+        "workspace_ref": "build_b61f748467b545548bf08a344df4392c/attempt-1",
+        "started_at": "2026-09-25T16:18:05.774032Z",
+        "finished_at": "2026-09-25T16:18:10.889764Z",
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "turns": 0,
+          "duration_ms": 0,
+          "cost_usd": null,
+          "cost_basis": "unavailable",
+          "models": {}
+        },
+        "harness_exit": {
+          "exit_code": 0,
+          "descendant_cleanup": {
+            "pgid": 82923,
+            "grace_seconds": 2.0,
+            "sigterm_sent": false,
+            "already_gone": true
+          },
+          "stderr_tail": ""
+        }
+      }
+    ],
+    "candidate": null,
+    "validation": null,
+    "latest_sequence": 14
+  },
+  "summary": {
+    "scenario": "cancel",
+    "tool_use_seen": true,
+    "tree_before": [
+      82923,
+      82925
+    ],
+    "cancel_status": 200,
+    "tree_alive_after": [],
+    "state_after": "cancelled",
+    "terminal_reason": "cancelled_by_user",
+    "attempt_status": "cancelled",
+    "passed": true
+  },
+  "events": [
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_8a875be0b7ba4b51ae57ef84e58ad05c",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": null,
+      "sequence": 1,
+      "kind": "build.queued",
+      "occurred_at": "2026-09-25T16:18:05.773364Z",
+      "payload": {
+        "route_id": "claude-code-cli"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_b0c7301ac0dc4ee8ae4a5b964aa56fe7",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 2,
+      "kind": "build.attempt_started",
+      "occurred_at": "2026-09-25T16:18:05.774487Z",
+      "payload": {
+        "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+        "harness": "claude-code-cli",
+        "number": 1
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_b2351426892244629d9d0951703978d0",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 3,
+      "kind": "builder.capabilities",
+      "occurred_at": "2026-09-25T16:18:05.879537Z",
+      "payload": {
+        "capabilities": {
+          "cancel": true,
+          "name": "claude-code-cli",
+          "notes": [
+            "subscription login owned by the CLI; platform cannot inject a scoped credential",
+            "config home strategy: user_default_settings_ignored"
+          ],
+          "resume": false,
+          "structured_events": true,
+          "usage_reporting": true,
+          "version": "2.1.278"
+        }
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a5a3a4a701484f6daf8fbdeabcea9410",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 4,
+      "kind": "builder.harness_started",
+      "occurred_at": "2026-09-25T16:18:05.882488Z",
+      "payload": {
+        "session_ref": "claude-cli-82925"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_0f4e2795ab5945699d1f3d9b2d0e192f",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 5,
+      "kind": "harness.harness.started",
+      "occurred_at": "2026-09-25T16:18:05.882726Z",
+      "payload": {
+        "harness": "claude-code-cli",
+        "pid": 82925
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_75002d2cc0cb4277bfc09f069616a230",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 6,
+      "kind": "harness.harness.system",
+      "occurred_at": "2026-09-25T16:18:06.160964Z",
+      "payload": {
+        "model": "claude-opus-5[1m]",
+        "permission_mode": "acceptEdits",
+        "subtype": "init",
+        "tools": [
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ]
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_7243e2d2b35f4da39133a232f27d1362",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 7,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-25T16:18:09.495004Z",
+      "payload": {
+        "input": {
+          "command": "pwd && ls -a"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f023d4349e8f4a40bdf22aeaedf92931",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 8,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-25T16:18:09.566945Z",
+      "payload": {
+        "is_error": false,
+        "preview": "/Users/kenil/Desktop/dev/alpha/alpha-platform/docs/development/evidence/logs/F02-live-cancel-20260925T161805Z/data/builds/build_b61f748467b545548bf08a344df4392c/attempt-1\n.\n..\n.claude-home\nharness.argv.json\npackage"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_4ef48b9099eb448198c6a7aed43df5e9",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 9,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-25T16:18:10.674199Z",
+      "payload": {
+        "input": {
+          "command": "/Users/kenil/Desktop/dev/alpha/alpha-platform/.venv/bin/python -VV"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_203ffcc78e2140ddbd058d117eb022bb",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 10,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-25T16:18:10.682367Z",
+      "payload": {
+        "is_error": true,
+        "preview": "Permission for this tool use was denied. It requires approval, and this session has no approval surface \u2014 nobody can answer a permission prompt here \u2014 so it was denied automatically. The action was NOT performed; do not claim it succeeded, and do not retry it: this action, and anything else that req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_459dc44d9ac84b0dad0f1462789c890a",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 11,
+      "kind": "harness.harness.message",
+      "occurred_at": "2026-09-25T16:18:10.684657Z",
+      "payload": {
+        "type": "rate_limit_event"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_07a96086700240e38da184381bc8dfe2",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 12,
+      "kind": "builder.result",
+      "occurred_at": "2026-09-25T16:18:10.875965Z",
+      "payload": {
+        "summary": {
+          "exit_code": 143,
+          "failure_category": "cancelled",
+          "final_text": "",
+          "harness": "claude-code-cli",
+          "harness_version": "2.1.278",
+          "status": "cancelled"
+        }
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_4749d6625f6145829e7cbc6f16a31c5f",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+      "sequence": 13,
+      "kind": "builder.exited",
+      "occurred_at": "2026-09-25T16:18:10.889266Z",
+      "payload": {
+        "descendant_cleanup": {
+          "already_gone": true,
+          "grace_seconds": 2.0,
+          "pgid": 82923,
+          "sigterm_sent": false
+        },
+        "exit_code": 0,
+        "stderr_tail": ""
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_b347665fbbd04d74b8d911eafb36ec8c",
+      "build_id": "build_b61f748467b545548bf08a344df4392c",
+      "attempt_id": null,
+      "sequence": 14,
+      "kind": "build.cancelled",
+      "occurred_at": "2026-09-25T16:18:10.918924Z",
+      "payload": {
+        "termination": [
+          {
+            "grace_seconds": 2.0,
+            "pgid": 82923,
+            "sigkill_sent": false,
+            "sigterm_sent": true
+          }
+        ]
+      }
+    }
+  ],
+  "build": {
+    "build_id": "build_b61f748467b545548bf08a344df4392c",
+    "state": "cancelled",
+    "goal": "I keep a list of expenses as text lines like '2026-09-03 groceries 42.50' and '2026-09-04 fuel 61.10'. I want something that tells me the total per category and the overall total, ignoring lines it cannot understand.",
+    "instructions": "Implement exactly one action with id 'summarize_expenses' taking a single string argument 'lines' (newline-separated). Return an object with 'totals' (mapping category to a number rounded to 2 decimals), 'overall' (number rounded to 2 decimals) and 'ignored' (count of lines that could not be parsed). A parsable line is: ISO date, one or more spaces, a single-word category, one or more spaces, a decimal amount.",
+    "acceptance_examples": [
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10\n2026-09-05 groceries 7.25"
+        },
+        "expected": {
+          "totals": {
+            "groceries": 49.75,
+            "fuel": 61.1
+          },
+          "overall": 110.85,
+          "ignored": 0
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": "not a line\n2026-09-06 coffee 3.40\n\n2026-09-07 coffee 3.6"
+        },
+        "expected": {
+          "totals": {
+            "coffee": 7.0
+          },
+          "overall": 7.0,
+          "ignored": 1
+        }
+      },
+      {
+        "action_id": "summarize_expenses",
+        "input": {
+          "lines": ""
+        },
+        "expected": {
+          "totals": {},
+          "overall": 0.0,
+          "ignored": 0
+        }
+      }
+    ],
+    "route_id": "claude-code-cli",
+    "harness": "claude-code-cli",
+    "budget": {
+      "max_turns": 40,
+      "max_attempt_seconds": 720,
+      "max_total_seconds": 1800,
+      "max_repair_attempts": 0,
+      "max_cost_usd": null,
+      "cost_basis": "subscription_unmetered"
+    },
+    "brief_ref": "build_b61f748467b545548bf08a344df4392c.brief.r1",
+    "created_at": "2026-09-25T16:18:05.772821Z",
+    "updated_at": "2026-09-25T16:18:10.918924Z",
+    "finished_at": "2026-09-25T16:18:10.918844Z",
+    "terminal_reason": "cancelled_by_user",
+    "failure_category": "cancelled",
+    "attempts": [
+      {
+        "attempt_id": "attempt_aa9af0f651e844a1b50a127333797a6d",
+        "number": 1,
+        "status": "cancelled",
+        "failure_category": "cancelled",
+        "workspace_ref": "build_b61f748467b545548bf08a344df4392c/attempt-1",
+        "started_at": "2026-09-25T16:18:05.774032Z",
+        "finished_at": "2026-09-25T16:18:10.889764Z",
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "turns": 0,
+          "duration_ms": 0,
+          "cost_usd": null,
+          "cost_basis": "unavailable",
+          "models": {}
+        },
+        "harness_exit": {
+          "exit_code": 0,
+          "descendant_cleanup": {
+            "pgid": 82923,
+            "grace_seconds": 2.0,
+            "sigterm_sent": false,
+            "already_gone": true
+          },
+          "stderr_tail": ""
+        }
+      }
+    ],
+    "candidate": null,
+    "validation": null,
+    "latest_sequence": 14
+  }
+}

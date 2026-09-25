@@ -1,0 +1,3 @@
+alpha.main WARNING reconciled 1 interrupted build(s) on startup: [{'attempt_id': 'attempt_1a9831e7924e46d2a81e9a88d7b508f9', 'build_id': 'build_99ab06fe62364657a3930c4cd425e5a4', 'termination': {'pgid': 82992, 'grace_seconds': 2.0, 'sigterm_sent': True, 'sigkill_sent': False}, 'reason': 'core_restarted_builder_orphaned'}]
+alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
+alpha.main INFO shutdown: interrupted runs []

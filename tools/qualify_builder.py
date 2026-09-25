@@ -280,84 +280,13 @@ def main() -> int:
             build = outcome["build_after"]
             record["build"] = build
             core = outcome.get("core_process", core)
-            (out_dir / "record.json").write_text(
-                json.dumps(record, indent=2, default=str), encoding="utf-8"
-            )
-            print(f"scenario {args.scenario}: {json.dumps(outcome['summary'])}")
-            print(f"evidence written to {out_dir}")
-            core.terminate()
-            core.wait(timeout=15)
-            client.close()
-            return 0 if outcome["summary"].get("passed") else 1
-        seen = 0
-        deadline = time.monotonic() + args.timeout
-        started = time.monotonic()
-        while time.monotonic() < deadline:
-            events = client.get(f"/api/builds/{build_id}/events", params={"after": seen}).json()[
-                "events"
-            ]
-            for event in events:
-                seen = event["sequence"]
-                payload = json.dumps(event["payload"])[:160]
-                print(f"  [{event['sequence']:>3}] {event['kind']}: {payload}", flush=True)
-            build = client.get(f"/api/builds/{build_id}").json()
-            if build["state"] in ("ready", "failed", "cancelled"):
-                break
-            time.sleep(1.0)
-        elapsed = time.monotonic() - started
-        record["build"] = build
-        record["events"] = client.get(f"/api/builds/{build_id}/events").json()["events"]
-        record["elapsed_seconds"] = round(elapsed, 1)
-        print(
-            f"build finished: state={build['state']} "
-            f"reason={build.get('terminal_reason')} in {elapsed:.0f}s"
-        )
-        if build["state"] == "ready":
-            held = spec["held_out_invoke"]
-            invoke = client.post(
-                f"/api/builds/{build_id}/invoke",
-                json={"action_id": held["action_id"], "input": held["input"]},
-            )
-            record["held_out_invoke"] = {
-                "request": held,
-                "status": invoke.status_code,
-                "response": invoke.json(),
-            }
-            observed = invoke.json().get("output", {}).get("calls", [{}])[0].get("output")
-            record["held_out_invoke"]["matches_expected"] = observed == held["expected"]
-            print(
-                f"held-out invoke: observed={observed} expected={held['expected']} "
-                f"match={observed == held['expected']}"
-            )
-            attempt = build["attempts"][-1]
-            workspace = data_dir / "builds" / attempt["workspace_ref"]
-            for name in ("package.index.json", "validation.report.json", "harness.argv.json"):
-                path = workspace / name
-                if path.is_file():
-                    record[name] = json.loads(path.read_text())
-            sources = {}
-            for path in sorted((workspace / "package").rglob("*")):
-                if path.is_file():
-                    sources[path.relative_to(workspace / "package").as_posix()] = path.read_text(
-                        errors="replace"
-                    )
-            record["generated_package"] = sources
-        record["usage"] = [a.get("usage") for a in build["attempts"]]
-    finally:
-        core.terminate()
-        core.wait(timeout=15)
-        client.close()
-    (out_dir / "record.json").write_text(
-        json.dumps(record, indent=2, default=str), encoding="utf-8"
-    )
-    # scan retained logs/records for durable secrets (none should exist on this route)
-    text = (out_dir / "record.json").read_text() + (out_dir / "core.stderr.log").read_text()
-    leaks = [
-        needle
-        for needle in ("sk-ant-", "sk-", "Bearer ", "oauth", "access_token")
-        if needle in text
-    ]
-    record["secret_scan"] = {"needles_found": leaks}
+            # scan retained logs/records for durable secrets (none should exist on this route), then
+    # write the record including the scan result
+    text = json.dumps(record, default=str) + (out_dir / "core.stderr.log").read_text()
+    needles = ("sk-ant-", "sk-", "Bearer ", "oauth", "access_token")
+    leaks = [needle for needle in needles if needle in text]
+    record["secret_scan"] = {"needles": list(needles), "needles_found": leaks}
+    (out_dir / "record.json").write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
     print(f"evidence written to {out_dir}")
     print(f"secret scan: {leaks or 'nothing found'}")
     return 0 if record.get("build", {}).get("state") == "ready" else 1

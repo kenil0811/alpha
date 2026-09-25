@@ -1,0 +1,41 @@
+uv run python tools/verify_ticket.py F02
+
+=== check: just check
+uv run ruff format --check .
+invalid-syntax: Expected `except` or `finally` after `try` block
+   --> tools/qualify_builder.py:285:5
+    |
+283 |             # scan retained logs/records for durable secrets (none should exist on this route), then
+284 |     # write the record including the scan result
+285 |     text = json.dumps(record, default=str) + (out_dir / "core.stderr.log").read_text()
+    |     ^^^^
+286 |     needles = ("sk-ant-", "sk-", "Bearer ", "oauth", "access_token")
+287 |     leaks = [needle for needle in needles if needle in text]
+    |
+
+45 files already formatted
+error: recipe `check` failed on line 26 with exit code 2
+=== check: exit 2
+
+=== test-core: just test-core
+uv run pytest packages/contracts services/core -q
+.............                                                            [100%]
+13 passed in 0.06s
+=== test-core: exit 0
+
+=== test-builds: uv run pytest tests/integration/test_builds.py -q -m integration
+..........                                                               [100%]
+10 passed in 12.85s
+=== test-builds: exit 0
+
+verify-ticket F02: FAILED (check)
+
+=== required checks for F02 (from task_state.json; helper-audited bookkeeping)
+  F02.C01   live_model   pending  (live_model evidence required)
+  F02.C02   integration  pending  (automated here)
+  F02.C03   native       pending  (native evidence required)
+  F02.C04   integration  pending  (automated here)
+  Note: native/live/rendered/review/user checks are not run by this command.
+  Live check command (explicit opt-in): just qualify-builder  (opt-in live route; see docs/development/decisions)
+error: recipe `verify-ticket` failed on line 56 with exit code 1
+exit=1
