@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "FieldKind": {
+      "enum": [
+        "text",
+        "number",
+        "integer",
+        "boolean",
+        "date",
+        "datetime",
+        "choice",
+        "reference",
+        "json"
+      ],
+      "title": "FieldKind",
+      "type": "string"
+    },
+    "FieldSpec": {
+      "additionalProperties": false,
+      "description": "One declared field. Bounds default to platform policy when omitted.",
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "default": "",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/FieldKind"
+        },
+        "max_bytes": {
+          "anyOf": [
+            {
+              "maximum": 65536,
+              "minimum": 16,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "FieldSpec",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "default": "",
+      "maxLength": 500,
+      "type": "string"
+    },
+    "fields": {
+      "items": {
+        "$ref": "#/$defs/FieldSpec"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array"
+    },
+    "indexes": {
+      "items": {
+        "items": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "name": {
+      "pattern": "^[a-z][a-z0-9_]{0,47}$",
+      "type": "string"
+    },
+    "unique": {
+      "items": {
+        "items": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "maxItems": 4,
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "fields"
+  ],
+  "title": "CollectionSchema",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "FieldProvenance": {
+      "additionalProperties": false,
+      "description": "Where a field's current value came from when it was not typed by a person or computed by\nthe App's own rules. Model output is always an estimate the person can correct.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "route": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "model_estimate",
+            "user_correction"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "at"
+      ],
+      "title": "FieldProvenance",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "collection": {
+      "pattern": "^[a-z][a-z0-9_]{0,47}$",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FieldProvenance"
+      },
+      "type": "object"
+    },
+    "revision": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "values": {
+      "additionalProperties": true,
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "collection",
+    "revision",
+    "values",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "AppRecord",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

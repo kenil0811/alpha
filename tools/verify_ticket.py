@@ -55,6 +55,26 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
         ("check", ["just", "check"]),
         ("test-ui", ["just", "test-ui"]),
     ],
+    "F05": [
+        ("check", ["just", "check"]),
+        ("toolchain-locks", ["just", "verify-locks"]),
+        (
+            "test-apps",
+            [
+                "uv",
+                "run",
+                "pytest",
+                "tests/integration/test_app_records.py",
+                "tests/integration/test_app_rejections.py",
+                "tests/integration/test_app_artifacts_models.py",
+                "tests/integration/test_app_profile_sharing.py",
+                "-q",
+                "-m",
+                "integration",
+            ],
+        ),
+        ("test-integration-regression", ["just", "test-integration"]),
+    ],
     "F02": [
         ("check", ["just", "check"]),
         ("test-core", ["just", "test-core"]),

@@ -216,3 +216,38 @@ def wait_until_dead(pid: int, timeout: float = 5.0) -> bool:
             return True
         time.sleep(0.05)
     return not pid_alive(pid)
+
+
+# ----- F05: published App runtime profile and fixture Apps --------------------------------
+
+
+@dataclass
+class AppCore:
+    core: CoreProcess
+    profile: Any
+    fixtures: Path
+    installs: dict[str, dict[str, Any]]
+
+
+@pytest.fixture(scope="session")
+def app_profile(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Build and publish the default App runtime profile once per test session."""
+    from tests.integration.app_harness import build_profile
+
+    return build_profile(tmp_path_factory.mktemp("profiles"))
+
+
+@pytest.fixture
+def app_core(tmp_path: Path, data_dir: Path, app_profile: Any) -> Iterator[AppCore]:
+    from tests.integration.app_harness import install, render_fixtures, start_app_core
+
+    fixtures = render_fixtures(tmp_path / "fixture-apps", app_profile.profile_id)
+    proc = start_app_core(data_dir, app_profile, fixtures)
+    try:
+        installs = {
+            "items": install(proc, "items_app"),
+            "tally": install(proc, "tally_app"),
+        }
+        yield AppCore(core=proc, profile=app_profile, fixtures=fixtures, installs=installs)
+    finally:
+        proc.stop()

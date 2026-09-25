@@ -39,6 +39,14 @@ CANDIDATE_RUNNER_PROFILE = WorkerProfile(
     module="alpha.workers.candidate_runner",
     description="Disposable process that resolves and executes a candidate action handler.",
 )
+APP_PROFILE = WorkerProfile(
+    name="app",
+    module="alpha_app_worker",
+    description=(
+        "Generated App computation: runs a sealed Version's handler with the SDK context, using "
+        "the exact interpreter of the Version's installed runtime profile (never Core's)."
+    ),
+)
 
 
 @dataclass
@@ -87,6 +95,9 @@ def terminate_group(pgid: int, grace_seconds: float) -> dict[str, object]:
         record["sigterm_sent"] = False
         record["already_gone"] = True
         return record
+    except PermissionError:
+        record["sigterm_sent"] = False
+        record["sigterm_permission_denied"] = True
     deadline = time.monotonic() + grace_seconds
     while time.monotonic() < deadline:
         if not _group_alive(pgid):
@@ -98,6 +109,10 @@ def terminate_group(pgid: int, grace_seconds: float) -> dict[str, object]:
         record["sigkill_sent"] = True
     except ProcessLookupError:
         record["sigkill_sent"] = False
+    except PermissionError:
+        # macOS reports EPERM for a group whose only members are zombies awaiting reaping.
+        record["sigkill_sent"] = False
+        record["sigkill_permission_denied"] = True
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline and _group_alive(pgid):
         time.sleep(0.05)
@@ -121,7 +136,8 @@ class WorkerSupervisor:
         self._scratch_root = scratch_root
         self._grace = grace_seconds
         self._profiles: dict[str, WorkerProfile] = {
-            p.name: p for p in (SYNTHETIC_PROFILE, BUILDER_PROFILE, CANDIDATE_RUNNER_PROFILE)
+            p.name: p
+            for p in (SYNTHETIC_PROFILE, BUILDER_PROFILE, CANDIDATE_RUNNER_PROFILE, APP_PROFILE)
         }
 
     @property
@@ -138,8 +154,15 @@ class WorkerSupervisor:
             raise KeyError(f"unregistered worker profile: {name}") from exc
 
     def launch(
-        self, profile_name: str, job_id: str, *, extra_env: dict[str, str] | None = None
+        self,
+        profile_name: str,
+        job_id: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+        python: Path | None = None,
     ) -> WorkerHandle:
+        """Launch a registered profile. `python` selects a runtime profile's exact interpreter
+        (App workers); platform workers use Core's own interpreter."""
         profile = self.profile(profile_name)
         scratch = self._scratch_root / job_id
         scratch.mkdir(parents=True, exist_ok=False)
@@ -156,7 +179,7 @@ class WorkerSupervisor:
         if extra_env:
             env.update(extra_env)
         process = subprocess.Popen(
-            [str(self._python), "-I", "-B", "-m", profile.module],
+            [str(python or self._python), "-I", "-B", "-m", profile.module],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

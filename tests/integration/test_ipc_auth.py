@@ -46,7 +46,7 @@ def test_approved_origin_and_token_succeed(core: CoreProcess) -> None:
     body = response.json()
     assert body["status"] == "ok"
     assert body["contract_version"] == "0.2"
-    assert body["worker_profiles"] == ["builder", "candidate_runner", "synthetic"]
+    assert body["worker_profiles"] == ["app", "builder", "candidate_runner", "synthetic"]
 
 
 def test_non_loopback_host_header_is_forbidden(core: CoreProcess) -> None:

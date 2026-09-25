@@ -12,10 +12,14 @@ import json
 import logging
 import threading
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from alpha_contracts.runs import (
     TERMINAL_RUN_STATES,
+    AppOwner,
     ExecutionSnapshot,
     Run,
     RunLimits,
@@ -38,6 +42,28 @@ def input_digest(payload: dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
+@dataclass
+class DispatchSpec:
+    """How to run one durable Run's worker.
+
+    profile_name   registered worker profile
+    python         exact interpreter of a runtime profile (App runs); None = Core's interpreter
+    build_job      makes the first stdin line from the run and its input (default: the input)
+    on_call        answers capability calls; when set, stdin stays open for replies
+    validate_output returns a problem description when a result violates the declared output
+    on_finish      always called once the worker is gone (tokens revoked, leases released)
+    reason_from_error_code  failed runs carry the worker's error code as terminal reason
+    """
+
+    profile_name: str
+    python: Path | None = None
+    build_job: Callable[[Run, dict[str, Any]], dict[str, Any]] | None = None
+    on_call: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None
+    validate_output: Callable[[dict[str, Any]], str | None] | None = None
+    on_finish: Callable[[str], None] | None = None
+    reason_from_error_code: bool = False
+
+
 class RunCoordinator:
     def __init__(
         self,
@@ -53,6 +79,8 @@ class RunCoordinator:
         self._default_timeout = default_timeout_seconds
         self._instance_id = uuid.uuid4().hex
         self._active: dict[str, WorkerHandle] = {}
+        self._specs: dict[str, DispatchSpec] = {}
+        self._stdin_locks: dict[str, threading.Lock] = {}
         self._cancel_requested: set[str] = set()
         self._timed_out: set[str] = set()
         self._lock = threading.Lock()
@@ -83,6 +111,24 @@ class RunCoordinator:
             input_digest=input_digest(payload),
             limits=RunLimits(timeout_seconds=timeout),
         )
+        return self.submit_run(
+            owner=owner,
+            origin=origin,
+            snapshot=snapshot,
+            payload=payload,
+            spec=DispatchSpec(profile_name=profile.name),
+        )
+
+    def submit_run(
+        self,
+        *,
+        owner: AppOwner | TaskOwner,
+        origin: RunOrigin,
+        snapshot: ExecutionSnapshot,
+        payload: dict[str, Any],
+        spec: DispatchSpec,
+    ) -> Run:
+        """Create a queued durable run and dispatch its worker on a background thread."""
         run = self._store.create_run(
             workspace_id=self._workspace_id,
             owner=owner,
@@ -90,6 +136,8 @@ class RunCoordinator:
             snapshot=snapshot,
             input_payload=payload,
         )
+        with self._lock:
+            self._specs[run.run_id] = spec
         thread = threading.Thread(target=self._dispatch, args=(run.run_id,), daemon=True)
         with self._lock:
             self._threads.append(thread)
@@ -99,10 +147,26 @@ class RunCoordinator:
     # ----- dispatch ---------------------------------------------------------------------
 
     def _dispatch(self, run_id: str) -> None:
+        with self._lock:
+            spec = self._specs.get(run_id) or DispatchSpec(profile_name="synthetic")
+        try:
+            self._dispatch_with(run_id, spec)
+        finally:
+            with self._lock:
+                self._specs.pop(run_id, None)
+                self._stdin_locks.pop(run_id, None)
+            if spec.on_finish is not None:
+                try:
+                    spec.on_finish(run_id)
+                except Exception:
+                    log.exception("on_finish failed for %s", run_id)
+
+    def _dispatch_with(self, run_id: str, spec: DispatchSpec) -> None:
         try:
             run = self._store.get_run(run_id)
             payload = self._store.get_run_input(run_id)
-            handle = self._supervisor.launch(run.snapshot.worker_profile, run_id)
+            job = spec.build_job(run, payload) if spec.build_job is not None else payload
+            handle = self._supervisor.launch(spec.profile_name, run_id, python=spec.python)
         except Exception as exc:  # launch failure is an honest failed run
             log.exception("worker launch failed for %s", run_id)
             self._safe_transition(
@@ -131,10 +195,14 @@ class RunCoordinator:
             event_kind="run.started",
             payload={"worker_pid": handle.pid, "worker_pgid": handle.pgid},
         )
+        with self._lock:
+            self._stdin_locks[run_id] = threading.Lock()
         try:
             assert handle.process.stdin is not None
-            handle.process.stdin.write(json.dumps(payload) + "\n")
-            handle.process.stdin.close()
+            handle.process.stdin.write(json.dumps(job) + "\n")
+            handle.process.stdin.flush()
+            if spec.on_call is None:
+                handle.process.stdin.close()
         except (BrokenPipeError, OSError) as exc:
             self._store.append_event(run_id, "worker.stdin_error", {"error": str(exc)})
 
@@ -143,11 +211,14 @@ class RunCoordinator:
         )
         timer.daemon = True
         timer.start()
-        collected: dict[str, Any] = {"result": None, "error": None}
+        collected: dict[str, Any] = {"result": None, "error": None, "stderr": ""}
         reader = threading.Thread(
-            target=self._read_worker_output, args=(run_id, handle, collected), daemon=True
+            target=self._read_worker_output, args=(run_id, handle, collected, spec), daemon=True
         )
         reader.start()
+        # Drain stderr continuously: a handler that prints a lot must not block on a full pipe.
+        drainer = threading.Thread(target=self._drain_stderr, args=(handle, collected), daemon=True)
+        drainer.start()
         # Wait on the leader, not on pipe EOF: a descendant that inherits stdout must not be
         # able to keep a finished run alive. Descendants never outlive the leader.
         exit_code = handle.process.wait()
@@ -156,14 +227,15 @@ class RunCoordinator:
         reader.join(timeout=5.0)
         if reader.is_alive():
             self._store.append_event(run_id, "worker.stdout_reader_timeout", {})
+        drainer.join(timeout=2.0)
+        if handle.process.stdin is not None and not handle.process.stdin.closed:
+            try:
+                handle.process.stdin.close()
+            except OSError:
+                pass
         result = collected["result"]
         error = collected["error"]
-        stderr_tail = ""
-        if handle.process.stderr is not None:
-            try:
-                stderr_tail = handle.process.stderr.read()[-_STDERR_TAIL:]
-            except (OSError, ValueError):
-                stderr_tail = ""
+        stderr_tail = str(collected["stderr"])[-_STDERR_TAIL:]
         self._store.append_event(
             run_id, "worker.exited", {"exit_code": exit_code, "descendant_cleanup": descendants}
         )
@@ -178,7 +250,10 @@ class RunCoordinator:
         if cancelled:
             # The cancel path already transitioned the run; nothing else to record.
             return
-        if exit_code == 0 and result is not None:
+        problem = None
+        if exit_code == 0 and result is not None and spec.validate_output is not None:
+            problem = spec.validate_output(result)
+        if exit_code == 0 and result is not None and problem is None:
             self._safe_transition(
                 run_id,
                 expected={RunState.RUNNING},
@@ -187,8 +262,19 @@ class RunCoordinator:
                 payload={"exit_code": exit_code},
                 output=result,
             )
+        elif problem is not None:
+            self._safe_transition(
+                run_id,
+                expected={RunState.RUNNING},
+                new_state=RunState.FAILED,
+                event_kind="run.failed",
+                payload={"reason": "output_schema_violation", "problem": problem},
+                terminal_reason="output_schema_violation",
+            )
         else:
             reason = "worker_error" if error else "worker_exit_nonzero"
+            if error and spec.reason_from_error_code and isinstance(error.get("code"), str):
+                reason = str(error["code"])[:64]
             if exit_code == 0 and result is None:
                 reason = "worker_exit_without_result"
             if exit_code < 0:
@@ -209,12 +295,45 @@ class RunCoordinator:
                 terminal_reason=reason,
             )
 
+    def _drain_stderr(self, handle: WorkerHandle, collected: dict[str, Any]) -> None:
+        stream = handle.process.stderr
+        if stream is None:
+            return
+        tail = ""
+        try:
+            for chunk in iter(lambda: stream.read(4096), ""):
+                tail = (tail + chunk)[-_STDERR_TAIL:]
+                collected["stderr"] = tail
+        except (OSError, ValueError):
+            pass
+
+    def _reply(self, run_id: str, handle: WorkerHandle, reply: dict[str, Any]) -> None:
+        with self._lock:
+            lock = self._stdin_locks.get(run_id)
+        stdin = handle.process.stdin
+        if lock is None or stdin is None:
+            return
+        with lock:
+            try:
+                stdin.write(json.dumps(reply, default=str) + "\n")
+                stdin.flush()
+            except (BrokenPipeError, OSError, ValueError) as exc:
+                self._store.append_event(run_id, "worker.stdin_error", {"error": str(exc)})
+
     def _read_worker_output(
-        self, run_id: str, handle: WorkerHandle, collected: dict[str, Any]
+        self,
+        run_id: str,
+        handle: WorkerHandle,
+        collected: dict[str, Any],
+        spec: DispatchSpec | None = None,
     ) -> None:
         def on_message(message: dict[str, Any]) -> None:
             kind = message.get("kind")
-            if kind == "progress":
+            if kind == "call" and spec is not None and spec.on_call is not None:
+                self._reply(run_id, handle, spec.on_call(run_id, message))
+            elif kind == "call":
+                self._store.append_event(run_id, "worker.unexpected_call", {})
+            elif kind == "progress":
                 self._store.append_event(run_id, "worker.progress", message)
             elif kind == "result":
                 output = message.get("output")

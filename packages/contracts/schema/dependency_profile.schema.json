@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "LockRef": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "LockRef",
+      "type": "object"
+    },
+    "PackagePin": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "artifact_sha256"
+      ],
+      "title": "PackagePin",
+      "type": "object"
+    },
+    "ProfileCompatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "bridge_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "contract_version": {
+          "type": "string"
+        },
+        "kit_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sdk_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "worker_protocol": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "contract_version"
+      ],
+      "title": "ProfileCompatibility",
+      "type": "object"
+    },
+    "ProfileKind": {
+      "enum": [
+        "python_runtime",
+        "ui_build"
+      ],
+      "title": "ProfileKind",
+      "type": "string"
+    },
+    "ProfileRole": {
+      "enum": [
+        "app_task_compute",
+        "trusted_tool"
+      ],
+      "title": "ProfileRole",
+      "type": "string"
+    },
+    "ProfileTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "arch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "interpreter_build": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "os": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "python_abi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "python_implementation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "python_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ui_toolchain": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "os",
+        "arch"
+      ],
+      "title": "ProfileTarget",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "compatibility": {
+      "$ref": "#/$defs/ProfileCompatibility"
+    },
+    "kind": {
+      "$ref": "#/$defs/ProfileKind"
+    },
+    "locks": {
+      "items": {
+        "$ref": "#/$defs/LockRef"
+      },
+      "type": "array"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "packages": {
+      "items": {
+        "$ref": "#/$defs/PackagePin"
+      },
+      "type": "array"
+    },
+    "profile_id": {
+      "pattern": "^[a-z]+prof-[0-9a-f]{20}$",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/ProfileRole"
+    },
+    "target": {
+      "$ref": "#/$defs/ProfileTarget"
+    }
+  },
+  "required": [
+    "profile_id",
+    "kind",
+    "role",
+    "target",
+    "locks",
+    "packages",
+    "compatibility",
+    "manifest_sha256"
+  ],
+  "title": "DependencyProfile",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

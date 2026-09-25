@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "ArtifactOwner": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "app",
+            "task"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "title": "ArtifactOwner",
+      "type": "object"
+    },
+    "ArtifactProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_by": {
+          "enum": [
+            "app_run",
+            "task_run",
+            "user"
+          ],
+          "type": "string"
+        },
+        "derived_from": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "model_call_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "package_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "created_by"
+      ],
+      "title": "ArtifactProvenance",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "display_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "media_type": {
+      "type": "string"
+    },
+    "owner": {
+      "$ref": "#/$defs/ArtifactOwner"
+    },
+    "provenance": {
+      "$ref": "#/$defs/ArtifactProvenance"
+    },
+    "retention": {
+      "const": "until_deleted",
+      "default": "until_deleted",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "size_bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "storage_ref": {
+      "pattern": "^blob:sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "owner",
+    "media_type",
+    "display_name",
+    "size_bytes",
+    "sha256",
+    "provenance",
+    "created_at",
+    "storage_ref"
+  ],
+  "title": "Artifact",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

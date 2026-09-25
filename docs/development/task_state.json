@@ -148,7 +148,7 @@
       }
     },
     "F05": {
-      "status": "pending",
+      "status": "in_progress",
       "implementation_ref": null,
       "notes": [],
       "checks": {

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "label": {
+      "const": "estimate",
+      "default": "estimate",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "output": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "route": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "call_id",
+    "output",
+    "route",
+    "model",
+    "created_at"
+  ],
+  "title": "ModelEstimate",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

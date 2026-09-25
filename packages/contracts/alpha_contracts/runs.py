@@ -69,11 +69,18 @@ class RunLimits(ContractModel):
 
 class ExecutionSnapshot(ContractModel):
     """The immutable facts a run was dispatched with. F01 records the narrow synthetic path;
-    later tickets add capability bindings, grants, routes and dependency identities."""
+    F05 adds the exact code/dependency identities of generated App computation (never
+    re-resolved at invocation); later tickets add grants and provider routes."""
 
     worker_profile: str = Field(min_length=1)
     input_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     limits: RunLimits
+    version_id: str | None = None
+    package_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runtime_profile_id: str | None = None
+    dependency_manifest_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    capabilities: list[str] = Field(default_factory=list)
+    timezone: str | None = None
 
 
 class Run(ContractModel):

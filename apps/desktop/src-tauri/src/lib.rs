@@ -128,6 +128,8 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .env("ALPHA_BUILDER_PATH", builder_path)
         .env("ALPHA_BUILDER_HOME", &user_home)
         .env("ALPHA_DATA_DIR", &data_dir)
+        // Published App runtime profiles (`just bundle-core`); Core verifies, never installs.
+        .env("ALPHA_PROFILES_DIR", runtime.join("profiles"))
         .env("ALPHA_SESSION_TOKEN", &token)
         .env("ALPHA_ALLOWED_ORIGINS", allowed_origins)
         .env("PYTHONDONTWRITEBYTECODE", "1")

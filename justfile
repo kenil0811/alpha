@@ -33,11 +33,11 @@ check:
     pnpm --filter @alpha/contracts check
     pnpm --filter @alpha/ui-bridge typecheck
     pnpm --filter @alpha/desktop typecheck
-    uv run pytest packages/contracts services/core -q
+    uv run pytest packages/contracts packages/app-sdk services/core -q
 
 # Python unit tests (contracts + core).
 test-core:
-    uv run pytest packages/contracts services/core -q
+    uv run pytest packages/contracts packages/app-sdk services/core -q
 
 # Shell component/interaction tests and bridge protocol tests.
 test-ui:
@@ -68,9 +68,11 @@ qualify-sandbox *args:
 verify-ticket ticket:
     uv run python tools/verify_ticket.py {{ticket}}
 
-# Prepare the platform-managed Core runtime used by the desktop host (not the user's Python).
+# Prepare the platform-managed Core runtime and publish the default App runtime profile
+# (both used by the desktop host; neither is the user's Python).
 bundle-core:
     uv run python tools/bundle_core.py
+    uv run python tools/build_app_profile.py
 
 # Run the desktop app in development (Vite shell + Tauri host + bundled Core).
 dev: bundle-core

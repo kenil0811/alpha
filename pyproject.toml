@@ -10,19 +10,26 @@ required-version = "==0.12.17"
 package = false
 
 [tool.uv.workspace]
-members = ["packages/contracts", "services/core"]
+members = ["packages/contracts", "services/core", "packages/app-sdk", "workers/app"]
 
 [tool.uv.sources]
 alpha-contracts = { workspace = true }
 alpha-core = { workspace = true }
+alpha-sdk = { workspace = true }
+alpha-app-worker = { workspace = true }
 
 [dependency-groups]
+# The App SDK and worker are development members only: they ship inside the App runtime
+# profile (tools/build_app_profile.py), never in the Core runtime (`uv sync --no-dev`).
 dev = [
+    "alpha-sdk",
+    "alpha-app-worker",
     "pytest==9.1.1",
     "httpx==0.28.1",
     "ruff==0.16.9",
     "mypy==2.3.1",
     "types-pyyaml==6.0.12.20250915",
+    "types-jsonschema==4.26.0.20260518",
 ]
 
 [tool.ruff]
@@ -36,10 +43,17 @@ select = ["E", "F", "I", "B", "UP", "W"]
 [tool.mypy]
 python_version = "3.13"
 strict = true
-files = ["packages/contracts/alpha_contracts", "services/core/alpha", "tools", "tests"]
+files = [
+    "packages/contracts/alpha_contracts",
+    "packages/app-sdk/alpha_sdk",
+    "workers/app/alpha_app_worker",
+    "services/core/alpha",
+    "tools",
+    "tests",
+]
 exclude = ["docs/"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/contracts/tests", "services/core/tests", "tests"]
+testpaths = ["packages/contracts/tests", "packages/app-sdk/tests", "services/core/tests", "tests"]
 addopts = "-p no:cacheprovider"
 markers = ["integration: exercises real processes/SQLite/transport"]

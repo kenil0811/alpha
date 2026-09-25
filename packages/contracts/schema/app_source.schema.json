@@ -1,0 +1,370 @@
+{
+  "$defs": {
+    "ActionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "effect_class": {
+          "$ref": "#/$defs/EffectClass",
+          "default": "none"
+        },
+        "handler": {
+          "maxLength": 200,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "type": "string"
+        },
+        "input_schema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "invocable_from": {
+          "items": {
+            "$ref": "#/$defs/Invocable"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "output_schema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "retry_class": {
+          "$ref": "#/$defs/RetryClass",
+          "default": "pure"
+        },
+        "timeout_seconds": {
+          "default": 30,
+          "maximum": 300,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "handler",
+        "input_schema",
+        "output_schema",
+        "invocable_from"
+      ],
+      "title": "ActionDefinition",
+      "type": "object"
+    },
+    "CollectionSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FieldSpec"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "indexes": {
+          "items": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "unique": {
+          "items": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "fields"
+      ],
+      "title": "CollectionSchema",
+      "type": "object"
+    },
+    "EffectClass": {
+      "enum": [
+        "none",
+        "local_write",
+        "external_read",
+        "external_write"
+      ],
+      "title": "EffectClass",
+      "type": "string"
+    },
+    "FieldKind": {
+      "enum": [
+        "text",
+        "number",
+        "integer",
+        "boolean",
+        "date",
+        "datetime",
+        "choice",
+        "reference",
+        "json"
+      ],
+      "title": "FieldKind",
+      "type": "string"
+    },
+    "FieldSpec": {
+      "additionalProperties": false,
+      "description": "One declared field. Bounds default to platform policy when omitted.",
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "default": "",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/FieldKind"
+        },
+        "max_bytes": {
+          "anyOf": [
+            {
+              "maximum": 65536,
+              "minimum": 16,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "FieldSpec",
+      "type": "object"
+    },
+    "Invocable": {
+      "enum": [
+        "assistant",
+        "ui",
+        "manual",
+        "trigger"
+      ],
+      "title": "Invocable",
+      "type": "string"
+    },
+    "RetryClass": {
+      "enum": [
+        "pure",
+        "idempotent",
+        "requires_reconciliation"
+      ],
+      "title": "RetryClass",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/ActionDefinition"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "type": "array"
+    },
+    "app_id": {
+      "pattern": "^[a-z][a-z0-9_-]{2,63}$",
+      "type": "string"
+    },
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "collections": {
+      "items": {
+        "$ref": "#/$defs/CollectionSchema"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "config_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "modules": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "runtime_profile": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "sdk_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "type": "string"
+    },
+    "trigger_templates": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "ui": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "contract_version",
+    "app_id",
+    "name",
+    "description",
+    "runtime_profile",
+    "sdk_version",
+    "actions"
+  ],
+  "title": "AppSource",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

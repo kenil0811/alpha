@@ -31,6 +31,10 @@ class CoreSettings:
     builder_home: str | None = None
     build_max_attempt_seconds: int | None = None
     assistant_route: str = "fake"
+    profiles_dir: Path | None = None
+    app_model_route: str = "fake"
+    timezone: str = "UTC"
+    dev_fixture_apps_dir: Path | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> CoreSettings:
@@ -54,6 +58,12 @@ class CoreSettings:
         assistant_route = env.get("ALPHA_ASSISTANT_ROUTE") or (
             "claude-code-cli" if "claude-code-cli" in routes else "fake"
         )
+        app_model_route = env.get("ALPHA_APP_MODEL_ROUTE") or (
+            "claude-code-cli" if "claude-code-cli" in routes else "fake"
+        )
+        timezone = env.get("ALPHA_TIMEZONE") or local_timezone()
+        fixtures = env.get("ALPHA_DEV_FIXTURE_APPS_DIR")
+        profiles = env.get("ALPHA_PROFILES_DIR")
         return cls(
             data_dir=data_dir,
             session_token=token,
@@ -64,6 +74,10 @@ class CoreSettings:
             builder_path=env.get("ALPHA_BUILDER_PATH", "/usr/bin:/bin"),
             builder_home=env.get("ALPHA_BUILDER_HOME") or None,
             assistant_route=assistant_route,
+            app_model_route=app_model_route,
+            timezone=timezone,
+            profiles_dir=Path(profiles) if profiles else None,
+            dev_fixture_apps_dir=Path(fixtures) if fixtures else None,
             build_max_attempt_seconds=(
                 int(env["ALPHA_BUILD_MAX_ATTEMPT_SECONDS"])
                 if env.get("ALPHA_BUILD_MAX_ATTEMPT_SECONDS")
@@ -82,3 +96,25 @@ class CoreSettings:
     @property
     def builds_root(self) -> Path:
         return self.data_dir / "builds"
+
+    @property
+    def apps_root(self) -> Path:
+        return self.data_dir / "apps"
+
+    @property
+    def versions_root(self) -> Path:
+        return self.data_dir / "versions"
+
+    @property
+    def artifacts_root(self) -> Path:
+        return self.data_dir / "artifacts"
+
+
+def local_timezone() -> str:
+    """The Mac's IANA timezone name from /etc/localtime, or UTC when it cannot be read."""
+    try:
+        target = os.readlink("/etc/localtime")
+    except OSError:
+        return "UTC"
+    marker = "zoneinfo/"
+    return target.split(marker, 1)[1] if marker in target else "UTC"

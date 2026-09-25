@@ -17,18 +17,27 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import FrameType
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
 
 from alpha import __version__
 from alpha.api.app import create_app, shutting_down
+from alpha.api.apps_routes import AppPlatform
+from alpha.artifacts.service import ArtifactService
 from alpha.assistant.service import AssistantService
 from alpha.builds.service import BuildService
 from alpha.config import ConfigError, CoreSettings
+from alpha.data.apps import AppRegistry
+from alpha.data.store import RecordService
+from alpha.execution.app_runs import AppRunService
+from alpha.execution.broker import CapabilityBroker
 from alpha.execution.coordinator import RunCoordinator
+from alpha.execution.profiles import ProfileInventory
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
+from alpha.models.runtime import AppModelService
 from alpha.models.structured import StructuredInference
 from alpha.storage.control_store import ControlStore
 from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
@@ -83,8 +92,68 @@ def build(
         home=settings.builder_home,
     )
     assistant = AssistantService(store, gateway, inference, default_route=settings.assistant_route)
-    app = create_app(settings, store, coordinator, builds, gateway, assistant)
+    platform = build_app_platform(settings, store, coordinator, supervisor, gateway, inference)
+    app = create_app(settings, store, coordinator, builds, gateway, assistant, platform)
     return app, store, coordinator, builds
+
+
+def _append(store: ControlStore, run_id: str, kind: str, payload: dict[str, Any]) -> None:
+    store.append_event(run_id, kind, payload)
+
+
+def build_app_platform(
+    settings: CoreSettings,
+    store: ControlStore,
+    coordinator: RunCoordinator,
+    supervisor: WorkerSupervisor,
+    gateway: ModelGateway,
+    inference: StructuredInference,
+) -> AppPlatform:
+    """F05 services: profile inventory, App records/artifacts/models, broker and App runs."""
+    inventory = ProfileInventory(store, settings.profiles_dir)
+    profile_report = inventory.scan()
+    log.info("runtime profiles: %s", profile_report)
+    records = RecordService(settings.apps_root)
+    artifacts = ArtifactService(store, settings.artifacts_root)
+    artifact_report = artifacts.reconcile_on_startup()
+    if any(artifact_report.values()):
+        log.warning("artifact reconciliation: %s", artifact_report)
+    models = AppModelService(store, gateway, inference, settings.app_model_route)
+    broker = CapabilityBroker(
+        store,
+        records,
+        artifacts,
+        models,
+        on_event=lambda run_id, kind, payload: _append(store, run_id, kind, payload),
+    )
+    revoked = broker.revoke_all_on_startup()
+    if revoked:
+        log.info("revoked %d workload token(s) left by a previous Core", revoked)
+    runs_holder: dict[str, AppRunService] = {}
+    registry = AppRegistry(
+        store,
+        inventory,
+        records,
+        settings.versions_root,
+        validator=lambda version_dir, source, profile: runs_holder["runs"].validate_handlers(
+            version_dir, source, profile
+        ),
+    )
+    registry.reconcile_on_startup()
+    runs = AppRunService(
+        coordinator, supervisor, registry, inventory, broker, timezone=settings.timezone
+    )
+    runs_holder["runs"] = runs
+    return AppPlatform(
+        inventory=inventory,
+        records=records,
+        artifacts=artifacts,
+        models=models,
+        broker=broker,
+        registry=registry,
+        runs=runs,
+        fixture_apps_dir=settings.dev_fixture_apps_dir,
+    )
 
 
 class CoreServer(uvicorn.Server):
@@ -161,6 +230,9 @@ def main() -> int:
             interrupted = coordinator.shutdown("runtime_quit")
             builds.shutdown("runtime_quit")
             log.info("shutdown: interrupted runs %s", interrupted)
+            platform = getattr(app.state, "platform", None)
+            if platform is not None:
+                platform.close()
             store.close()
             lock.release()
 

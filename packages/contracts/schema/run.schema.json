@@ -31,14 +31,77 @@
     },
     "ExecutionSnapshot": {
       "additionalProperties": false,
-      "description": "The immutable facts a run was dispatched with. F01 records the narrow synthetic path;\nlater tickets add capability bindings, grants, routes and dependency identities.",
+      "description": "The immutable facts a run was dispatched with. F01 records the narrow synthetic path;\nF05 adds the exact code/dependency identities of generated App computation (never\nre-resolved at invocation); later tickets add grants and provider routes.",
       "properties": {
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dependency_manifest_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "input_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "limits": {
           "$ref": "#/$defs/RunLimits"
+        },
+        "package_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "runtime_profile_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "worker_profile": {
           "minLength": 1,

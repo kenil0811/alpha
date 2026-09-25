@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "PackagePin": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "artifact_sha256"
+      ],
+      "title": "PackagePin",
+      "type": "object"
+    },
+    "SdkPin": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "artifact_sha256"
+      ],
+      "title": "SdkPin",
+      "type": "object"
+    },
+    "UiBuildRef": {
+      "additionalProperties": false,
+      "properties": {
+        "bridge": {
+          "$ref": "#/$defs/PackagePin"
+        },
+        "kit": {
+          "$ref": "#/$defs/PackagePin"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "manifest_sha256",
+        "kit",
+        "bridge"
+      ],
+      "title": "UiBuildRef",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Platform-produced per-Version record. No local paths, grants or secrets.",
+  "properties": {
+    "modules": {
+      "items": {
+        "$ref": "#/$defs/PackagePin"
+      },
+      "type": "array"
+    },
+    "runtime_profile_id": {
+      "type": "string"
+    },
+    "runtime_profile_manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sdk": {
+      "$ref": "#/$defs/SdkPin"
+    },
+    "ui_build": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UiBuildRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "runtime_profile_id",
+    "runtime_profile_manifest_sha256",
+    "sdk"
+  ],
+  "title": "DependencyManifest",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

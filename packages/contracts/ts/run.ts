@@ -47,11 +47,18 @@ export interface TaskOwner {
 }
 /**
  * The immutable facts a run was dispatched with. F01 records the narrow synthetic path;
- * later tickets add capability bindings, grants, routes and dependency identities.
+ * F05 adds the exact code/dependency identities of generated App computation (never
+ * re-resolved at invocation); later tickets add grants and provider routes.
  */
 export interface ExecutionSnapshot {
+  capabilities?: string[];
+  dependency_manifest_sha256?: string | null;
   input_digest: string;
   limits: RunLimits;
+  package_sha256?: string | null;
+  runtime_profile_id?: string | null;
+  timezone?: string | null;
+  version_id?: string | null;
   worker_profile: string;
 }
 export interface RunLimits {

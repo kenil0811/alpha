@@ -1,0 +1,63 @@
+contract_version: "0.2"
+app_id: tally-fixture
+name: Tally (fixture)
+description: A neutral tally without model access, to check two Apps stay separate.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records, artifacts]
+collections:
+  - name: items
+    fields:
+      - {name: name, kind: text, required: true}
+      - {name: count, kind: integer, minimum: 0}
+actions:
+  - id: add
+    title: Add a tally
+    description: Create one tally row.
+    handler: tally_fixture.handlers:add
+    invocable_from: [manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [name]
+      properties: {name: {type: string}, count: {type: integer}}
+    output_schema: {type: object, required: [id], properties: {id: {type: string}}}
+  - id: list_all
+    title: List tallies
+    description: Every tally row.
+    handler: tally_fixture.handlers:list_all
+    invocable_from: [manual]
+    capability_requirements: [records]
+    input_schema: {type: object, properties: {}}
+    output_schema: {type: object, required: [items], properties: {items: {type: array}}}
+  - id: read_foreign
+    title: Try another App's record
+    description: Attempt to read a record id that belongs to a different App.
+    handler: tally_fixture.handlers:read_foreign
+    invocable_from: [manual]
+    capability_requirements: [records]
+    input_schema: {type: object, required: [id], properties: {id: {type: string}}}
+    output_schema: {type: object, required: [error_code], properties: {error_code: {type: string}}}
+  - id: read_artifact
+    title: Try another App's artifact
+    description: Attempt to read an artifact id that belongs to a different App.
+    handler: tally_fixture.handlers:read_artifact
+    invocable_from: [manual]
+    capability_requirements: [artifacts]
+    input_schema: {type: object, required: [id], properties: {id: {type: string}}}
+    output_schema: {type: object, required: [error_code], properties: {error_code: {type: string}}}
+  - id: try_models
+    title: Try an undeclared capability
+    description: Attempt a model call although the App did not declare the models capability.
+    handler: tally_fixture.handlers:try_models
+    invocable_from: [manual]
+    input_schema: {type: object, properties: {}}
+    output_schema: {type: object, required: [error_code], properties: {error_code: {type: string}}}
+  - id: probe_isolation
+    title: Report the worker's environment
+    description: Facts about this worker process used by the shared-profile checks.
+    handler: tally_fixture.handlers:probe_isolation
+    invocable_from: [manual]
+    input_schema: {type: object, properties: {hold_seconds: {type: number}}}
+    output_schema: {type: object, required: [python], properties: {python: {type: string}}}

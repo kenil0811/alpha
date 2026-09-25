@@ -9,7 +9,7 @@ import os
 import sys
 import threading
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from alpha_contracts import CONTRACT_VERSION
 from alpha_contracts.builds import BuildEvent
@@ -29,6 +29,9 @@ from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
+
+if TYPE_CHECKING:
+    from alpha.api.apps_routes import AppPlatform
 
 log = logging.getLogger("alpha.api")
 
@@ -133,8 +136,10 @@ def create_app(
     builds: BuildService | None = None,
     gateway: ModelGateway | None = None,
     assistant: AssistantService | None = None,
+    platform: AppPlatform | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
+    app.state.platform = platform
     app.middleware("http")(make_auth_middleware(settings.session_token, settings.allowed_origins))
     # The trusted shell runs on a different origin (tauri://localhost, or the Vite dev server),
     # so its browser engine preflights every credentialed request. Answer preflights only for
@@ -217,6 +222,8 @@ def create_app(
         register_build_routes(app, builds, gateway)
     if assistant is not None:
         register_assistant_routes(app, assistant)
+    if platform is not None:
+        register_app_routes(app, platform)
 
     @app.get("/api/events/stream")
     async def stream_events(
@@ -368,3 +375,9 @@ def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail="revision_not_found") from exc
         return brief.model_dump(mode="json")
+
+
+def register_app_routes(app: FastAPI, platform: AppPlatform) -> None:
+    from alpha.api.apps_routes import register
+
+    register(app, platform)

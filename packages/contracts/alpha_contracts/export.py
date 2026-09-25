@@ -13,8 +13,20 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from alpha_contracts import CONTRACT_VERSION
+from alpha_contracts.apps import AppSource, PackageIndex
+from alpha_contracts.artifacts import Artifact
 from alpha_contracts.briefs import SolutionBrief
+from alpha_contracts.broker import CapabilityCall, CapabilityReply, ModelEstimate
 from alpha_contracts.builds import BuildEvent, BuildRequest, BuildResult
+from alpha_contracts.profiles import DependencyManifest, DependencyProfile
+from alpha_contracts.records import (
+    AggregateQuery,
+    AggregateResult,
+    CollectionSchema,
+    Record,
+    RecordPage,
+    RecordQuery,
+)
 from alpha_contracts.runs import Run, RunEvent
 
 PUBLISHED: dict[str, type[BaseModel]] = {
@@ -24,6 +36,20 @@ PUBLISHED: dict[str, type[BaseModel]] = {
     "build_result": BuildResult,
     "build_event": BuildEvent,
     "solution_brief": SolutionBrief,
+    "app_source": AppSource,
+    "package_index": PackageIndex,
+    "collection_schema": CollectionSchema,
+    "record": Record,
+    "record_page": RecordPage,
+    "record_query": RecordQuery,
+    "aggregate_query": AggregateQuery,
+    "aggregate_result": AggregateResult,
+    "artifact": Artifact,
+    "dependency_profile": DependencyProfile,
+    "dependency_manifest": DependencyManifest,
+    "capability_call": CapabilityCall,
+    "capability_reply": CapabilityReply,
+    "model_estimate": ModelEstimate,
 }
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"

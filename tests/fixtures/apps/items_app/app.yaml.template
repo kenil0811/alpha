@@ -1,0 +1,261 @@
+contract_version: "0.2"
+app_id: items-fixture
+name: Items (fixture)
+description: A neutral list of items used to qualify records, artifacts and model estimates.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records, artifacts, models]
+collections:
+  - name: items
+    description: Things on the list.
+    fields:
+      - {name: title, kind: text, required: true, max_length: 200}
+      - {name: category, kind: choice, required: true, choices: [general, work, home]}
+      - {name: quantity, kind: integer, minimum: 0, maximum: 100000}
+      - {name: price, kind: number, minimum: 0}
+      - {name: noted_on, kind: date}
+      - {name: happened_at, kind: datetime}
+      - {name: tags, kind: json, max_bytes: 512}
+      - {name: parent, kind: reference, collection: items}
+      - {name: code, kind: text, max_length: 40}
+      - {name: memo, kind: text, max_length: 200}
+    indexes: [[category], [noted_on]]
+    unique: [[code]]
+  - name: notes
+    fields:
+      - {name: item, kind: reference, collection: items, required: true}
+      - {name: body, kind: text, required: true, max_length: 1000}
+actions:
+  - id: add_item
+    title: Add an item
+    description: Create one item.
+    handler: items_fixture.handlers:add_item
+    invocable_from: [manual, ui, assistant, trigger]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [title, category]
+      additionalProperties: false
+      properties:
+        title: {type: string}
+        category: {type: string}
+        quantity: {type: integer}
+        price: {type: number}
+        noted_on: {type: string}
+        happened_at: {type: string}
+        tags: {}
+        parent: {type: string}
+        code: {type: string}
+        idempotency_key: {type: string}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+  - id: get_item
+    title: Get an item
+    description: Read one item with its provenance.
+    handler: items_fixture.handlers:get_item
+    invocable_from: [manual, ui]
+    capability_requirements: [records]
+    input_schema: {type: object, required: [id], properties: {id: {type: string}}}
+    output_schema: {type: object, required: [record], properties: {record: {type: object}}}
+  - id: update_item
+    title: Update an item
+    description: Change fields of one item at the revision the caller read.
+    handler: items_fixture.handlers:update_item
+    invocable_from: [manual, ui]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision, changes]
+      properties:
+        id: {type: string}
+        expected_revision: {type: integer}
+        changes: {type: object}
+    output_schema: {type: object, required: [revision], properties: {revision: {type: integer}}}
+  - id: remove_item
+    title: Remove an item
+    description: Delete one item at the revision the caller read.
+    handler: items_fixture.handlers:remove_item
+    invocable_from: [manual, ui]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision]
+      properties: {id: {type: string}, expected_revision: {type: integer}}
+    output_schema: {type: object, properties: {}}
+  - id: list_items
+    title: List items
+    description: One page of items, optionally filtered and sorted.
+    handler: items_fixture.handlers:list_items
+    invocable_from: [manual, ui, assistant]
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      properties:
+        category: {type: string}
+        min_quantity: {type: integer}
+        text: {type: string}
+        order: {type: array, items: {type: string}}
+        limit: {type: integer}
+        cursor: {type: string}
+        fields: {type: array, items: {type: string}}
+    output_schema:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array}
+        next_cursor: {type: [string, "null"]}
+  - id: summarize
+    title: Summarize items
+    description: Counts and totals by category and by day.
+    handler: items_fixture.handlers:summarize
+    invocable_from: [manual, ui, assistant]
+    capability_requirements: [records]
+    input_schema: {type: object, properties: {timezone: {type: string}}}
+    output_schema:
+      type: object
+      required: [by_category, by_day, overall]
+      properties:
+        by_category: {type: array}
+        by_day: {type: array}
+        overall: {type: object}
+  - id: add_many
+    title: Add several items
+    description: Create several items together; either all are saved or none are.
+    handler: items_fixture.handlers:add_many
+    invocable_from: [manual, ui]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {type: object}}
+    output_schema: {type: object, required: [ids], properties: {ids: {type: array}}}
+  - id: add_note
+    title: Add a note
+    description: Attach a note to an item.
+    handler: items_fixture.handlers:add_note
+    invocable_from: [manual, ui]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [item, body]
+      properties: {item: {type: string}, body: {type: string}}
+    output_schema: {type: object, required: [id], properties: {id: {type: string}}}
+  - id: estimate_quantity
+    title: Estimate a quantity
+    description: Ask the model for a quantity and store it as an estimate.
+    handler: items_fixture.handlers:estimate_quantity
+    invocable_from: [manual, ui, assistant]
+    effect_class: local_write
+    capability_requirements: [records, models]
+    timeout_seconds: 300
+    input_schema:
+      type: object
+      required: [title]
+      properties: {title: {type: string}, instruction_suffix: {type: string}}
+    output_schema:
+      type: object
+      required: [id, revision, call_id, quantity, is_estimate]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        call_id: {type: string}
+        quantity: {type: integer}
+        is_estimate: {type: boolean}
+        route: {type: string}
+        model: {type: string}
+  - id: correct_quantity
+    title: Correct a quantity
+    description: A person's correction of an item's quantity.
+    handler: items_fixture.handlers:correct_quantity
+    invocable_from: [manual, ui, trigger]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision, quantity]
+      properties:
+        id: {type: string}
+        expected_revision: {type: integer}
+        quantity: {type: integer}
+    output_schema:
+      type: object
+      required: [revision, provenance, is_estimate]
+      properties:
+        revision: {type: integer}
+        provenance: {type: object}
+        is_estimate: {type: boolean}
+  - id: make_report
+    title: Make a report
+    description: Write every item to a CSV artifact.
+    handler: items_fixture.handlers:make_report
+    invocable_from: [manual, ui]
+    capability_requirements: [records, artifacts]
+    input_schema: {type: object, properties: {}}
+    output_schema:
+      type: object
+      required: [artifact_id, sha256, size_bytes, rows]
+      properties:
+        artifact_id: {type: string}
+        sha256: {type: string}
+        size_bytes: {type: integer}
+        rows: {type: integer}
+        provenance: {type: object}
+        local_sha256: {type: string}
+  - id: read_report
+    title: Read a report
+    description: Read an artifact back.
+    handler: items_fixture.handlers:read_report
+    invocable_from: [manual, ui]
+    capability_requirements: [artifacts]
+    input_schema: {type: object, required: [artifact_id], properties: {artifact_id: {type: string}}}
+    output_schema: {type: object, required: [text, sha256], properties: {text: {type: string}, sha256: {type: string}}}
+  - id: expect_failure
+    title: Probe a failure case
+    description: Run one case the platform must reject and report how it failed.
+    handler: items_fixture.handlers:expect_failure
+    invocable_from: [manual]
+    capability_requirements: [records, artifacts, models]
+    input_schema:
+      type: object
+      required: [case]
+      properties:
+        case: {type: string}
+        arg: {}
+    output_schema:
+      type: object
+      required: [case, error_code]
+      properties:
+        case: {type: string}
+        error_code: {type: string}
+        message: {type: string}
+  - id: probe_isolation
+    title: Report the worker's environment
+    description: Facts about this worker process used by the shared-profile checks.
+    handler: items_fixture.handlers:probe_isolation
+    invocable_from: [manual]
+    input_schema: {type: object, properties: {hold_seconds: {type: number}}}
+    output_schema: {type: object, required: [python], properties: {python: {type: string}}}
+  - id: bad_output
+    title: Return a malformed result
+    description: Returns a result that violates the declared output schema.
+    handler: items_fixture.handlers:bad_output
+    invocable_from: [manual]
+    input_schema: {type: object, properties: {}}
+    output_schema: {type: object, required: [count], properties: {count: {type: integer}}}
+  - id: noisy
+    title: Print a lot
+    description: Writes a lot of output to prove prints cannot block or forge protocol lines.
+    handler: items_fixture.handlers:noisy
+    invocable_from: [manual]
+    input_schema: {type: object, properties: {}}
+    output_schema: {type: object, required: [ok], properties: {ok: {type: boolean}}}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "args": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "call_id": {
+      "maxLength": 32,
+      "minLength": 1,
+      "type": "string"
+    },
+    "kind": {
+      "const": "call",
+      "default": "call",
+      "type": "string"
+    },
+    "operation": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "token": {
+      "maxLength": 128,
+      "minLength": 16,
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "default": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "call_id",
+    "token",
+    "operation"
+  ],
+  "title": "CapabilityCall",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

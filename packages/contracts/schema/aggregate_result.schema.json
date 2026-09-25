@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "AggregateGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "values": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "key",
+        "values"
+      ],
+      "title": "AggregateGroup",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "groups": {
+      "items": {
+        "$ref": "#/$defs/AggregateGroup"
+      },
+      "type": "array"
+    },
+    "truncated": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "groups"
+  ],
+  "title": "AggregateResult",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

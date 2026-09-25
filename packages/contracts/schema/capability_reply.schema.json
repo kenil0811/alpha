@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "CapabilityError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_input",
+            "not_found",
+            "conflict",
+            "forbidden",
+            "unauthenticated",
+            "limit_exceeded",
+            "unavailable",
+            "timed_out",
+            "internal_error"
+          ],
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 2000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "CapabilityError",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CapabilityError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "kind": {
+      "const": "reply",
+      "default": "reply",
+      "type": "string"
+    },
+    "result": {
+      "default": null
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "call_id",
+    "status"
+  ],
+  "title": "CapabilityReply",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}
