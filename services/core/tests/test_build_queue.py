@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from alpha.builds.service import AcceptanceExample, BuildPipeline, BuildService, plan_from_examples
+from alpha.builds.service import BuildPipeline, BuildService
+from alpha.builds.store import AcceptanceExample, plan_from_examples
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
 from alpha.storage.control_store import ControlStore

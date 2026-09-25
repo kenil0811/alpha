@@ -115,3 +115,24 @@ Builds need three things from the host:
 
 The desktop host does not set these yet. The shell cannot reach builds until F08, which wires
 both together.
+
+## 9. Screens are type-checked, and render checks apply only where they can
+
+Both come from the live repair qualification (F07.C03).
+
+**The UI build now type-checks the screen.** In one run, a generated screen left out the kit
+table's required `caption` and crashed on load. The builder saw only a minified runtime error, so
+it guessed the cause, and guessed wrong. The trusted UI build now type-checks the screen with
+TypeScript 7.0.2, in strict mode, against the kit's own types. It runs after the guarded bundle,
+so a forbidden import is still reported as such. `typescript`, `@types/react` and
+`@types/react-dom` join the UI build profile at the kit's pinned versions, which gives the profile
+a new identity. A type error fails `seal.ui_build` with the file, line and message, which is what
+the repair request needs.
+
+**Fields are matched by control role.** In another run, the render check took a section titled
+"Write a note" for the field labelled "Note" and rejected a correct repair twice. Fill, select and
+check steps now consider only form controls of the matching role.
+
+**Two error checks are skipped when they cannot apply.** The skipped check is not required:
+- A screen that reads no saved data is not asked to show a failed read.
+- An interaction the plan does not require to save is not asked to show a failed save.

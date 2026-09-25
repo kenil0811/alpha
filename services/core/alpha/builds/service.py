@@ -26,7 +26,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -44,15 +44,16 @@ from alpha_contracts.runs import RunState
 from alpha_contracts.verification import (
     CheckResult,
     CheckStatus,
-    InvokeStep,
-    Scenario,
     ValidationPlan,
     VerificationReport,
 )
-from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.builds.attempt import BuilderOutcome, BuilderProcess
 from alpha.builds.preview import PreviewDeps, PreviewPlatform
+from alpha.builds.store import (
+    BuildRecord,
+    BuildStore,
+)
 from alpha.builds.toolchain import PlatformResources
 from alpha.builds.verify import CandidateVerifier, VerificationOutcome
 from alpha.builds.workspace import (
@@ -67,79 +68,12 @@ from alpha.data.packages import SealedPackage, load_source, sealed_manifest, ver
 from alpha.execution.profiles import ProfileInventory
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
 from alpha.models.gateway import ModelGateway, ModelRoute
-from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError, new_id, utc_now
+from alpha.storage.control_store import ConflictError, ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.builds")
 
 # A repair attempt is not started with less than this much of the total budget left.
 MIN_ATTEMPT_SECONDS = 60
-
-
-def _dt(value: datetime) -> str:
-    return value.isoformat().replace("+00:00", "Z")
-
-
-class AcceptanceExample(BaseModel):
-    """F02 input form: one action, one input, the exact expected output. Converted into a
-    ValidationPlan scenario; kept so existing callers and the F02 qualification still work."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    action_id: str = Field(min_length=1, max_length=64)
-    input: dict[str, Any]
-    expected: dict[str, Any]
-
-
-def plan_from_examples(examples: list[AcceptanceExample]) -> ValidationPlan:
-    return ValidationPlan(
-        scenarios=[
-            Scenario(
-                id=f"example_{i + 1}",
-                description=f"{e.action_id} returns exactly the expected output",
-                steps=[
-                    InvokeStep(
-                        id="run", action=e.action_id, input=e.input, output=e.expected, exact=True
-                    )
-                ],
-            )
-            for i, e in enumerate(examples)
-        ]
-    )
-
-
-class AttemptRecord(BaseModel):
-    attempt_id: str
-    number: int
-    status: str
-    failure_category: str | None = None
-    workspace_ref: str
-    started_at: str
-    finished_at: str | None = None
-    usage: dict[str, Any] | None = None
-    harness_exit: dict[str, Any] | None = None
-    report_ref: str | None = None
-
-
-class BuildRecord(BaseModel):
-    build_id: str
-    state: BuildState
-    goal: str
-    instructions: str
-    plan: ValidationPlan
-    route_id: str
-    harness: str
-    budget: BuildBudget
-    brief_ref: str
-    created_at: str
-    updated_at: str
-    finished_at: str | None = None
-    terminal_reason: str | None = None
-    failure_category: str | None = None
-    attempts: list[AttemptRecord]
-    candidate: dict[str, Any] | None = None
-    validation: dict[str, Any] | None = None
-    seed_package: str | None = None
-    latest_sequence: int
 
 
 class BuildNotReady(Exception):
@@ -151,6 +85,23 @@ class SeedUnavailable(Exception):
 
 
 SEED_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+@dataclass(frozen=True)
+class _Attempt:
+    attempt_id: str
+    number: int
+    directory: Path
+    request: BuildRequest
+    seeded: bool
+
+
+# Builder outcomes that end the build without verification or repair, and their reasons.
+_HARNESS_FAILURES = {
+    "timed_out": "attempt_deadline_exceeded",
+    "no_result": "builder_returned_no_result",
+    "launch_failed": "builder_launch_failed",
+}
 
 
 @dataclass(frozen=True)
@@ -173,76 +124,6 @@ class BuildPipeline:
     seed_packages_dir: Path | None = None
 
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS builds (
-    build_id TEXT PRIMARY KEY,
-    brief_ref TEXT NOT NULL,
-    goal TEXT NOT NULL,
-    instructions TEXT NOT NULL,
-    acceptance_json TEXT NOT NULL,
-    route_id TEXT NOT NULL,
-    harness TEXT NOT NULL,
-    budget_json TEXT NOT NULL,
-    state TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    finished_at TEXT,
-    terminal_reason TEXT,
-    failure_category TEXT,
-    candidate_json TEXT,
-    validation_json TEXT,
-    latest_sequence INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS build_attempts (
-    attempt_id TEXT PRIMARY KEY,
-    build_id TEXT NOT NULL REFERENCES builds(build_id),
-    number INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    failure_category TEXT,
-    workspace_ref TEXT NOT NULL,
-    pid INTEGER,
-    pgid INTEGER,
-    core_instance_id TEXT,
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
-    usage_json TEXT,
-    harness_exit_json TEXT,
-    UNIQUE(build_id, number)
-);
-CREATE TABLE IF NOT EXISTS build_events (
-    cursor INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id TEXT NOT NULL UNIQUE,
-    build_id TEXT NOT NULL REFERENCES builds(build_id),
-    attempt_id TEXT,
-    sequence INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    occurred_at TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    UNIQUE(build_id, sequence)
-);
-CREATE TABLE IF NOT EXISTS dependency_requests (
-    request_id TEXT PRIMARY KEY,
-    build_id TEXT NOT NULL REFERENCES builds(build_id),
-    attempt_id TEXT NOT NULL,
-    package TEXT NOT NULL,
-    version TEXT,
-    found_in TEXT NOT NULL,
-    location TEXT NOT NULL,
-    runtime_profile_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    state TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-"""
-
-# Columns added after F02; an existing control store gains them on startup.
-_MIGRATIONS = (
-    ("builds", "plan_json", "TEXT"),
-    ("builds", "seed_package", "TEXT"),
-    ("build_attempts", "report_ref", "TEXT"),
-)
-
-
 class BuildService:
     def __init__(
         self,
@@ -256,7 +137,7 @@ class BuildService:
         builder_home: str | None,
         instance_id: str,
     ) -> None:
-        self._store = store
+        self._db = BuildStore(store)
         self._supervisor = supervisor
         self._gateway = gateway
         self._pipeline = pipeline
@@ -275,15 +156,7 @@ class BuildService:
         self._current: str | None = None  # build id the dispatcher is working on
         self._closing = False
         self._dispatcher: threading.Thread | None = None
-        store.execute_script(_SCHEMA)
-        self._migrate()
         self._root.mkdir(parents=True, exist_ok=True)
-
-    def _migrate(self) -> None:
-        for table, column, kind in _MIGRATIONS:
-            names = {r["name"] for r in self._store.query(f"PRAGMA table_info({table})")}
-            if column not in names:
-                self._store.execute_script(f"ALTER TABLE {table} ADD COLUMN {column} {kind};")
 
     # ----- public API -------------------------------------------------------------------
 
@@ -316,7 +189,7 @@ class BuildService:
                     "brief_ref": brief_ref,
                     "goal": goal,
                     "instructions": instructions,
-                    "created_at": _dt(now),
+                    "created_at": now.isoformat().replace("+00:00", "Z"),
                 },
                 indent=2,
             ),
@@ -325,30 +198,19 @@ class BuildService:
         (build_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
         with self._lock:
             ahead = len(self._waiting) + (1 if self._current else 0)
-        with self._store.transaction() as conn:
-            conn.execute(
-                """INSERT INTO builds(build_id, brief_ref, goal, instructions, acceptance_json,
-                   plan_json, seed_package, route_id, harness, budget_json, state, created_at,
-                   updated_at, latest_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
-                (
-                    build_id,
-                    brief_ref,
-                    goal,
-                    instructions,
-                    "[]",
-                    plan.model_dump_json(),
-                    seed_package,
-                    route.route_id,
-                    route.harness,
-                    budget.model_dump_json(),
-                    BuildState.QUEUED.value,
-                    _dt(now),
-                    _dt(now),
-                ),
-            )
-            self._append_locked(
-                conn, build_id, None, "build.queued", {"route_id": route.route_id, "ahead": ahead}
-            )
+        self._db.insert_build(
+            build_id=build_id,
+            brief_ref=brief_ref,
+            goal=goal,
+            instructions=instructions,
+            plan=plan,
+            seed_package=seed_package,
+            route_id=route.route_id,
+            harness=route.harness,
+            budget=budget,
+            created_at=now,
+            queued_payload={"route_id": route.route_id, "ahead": ahead},
+        )
         with self._wakeup:
             self._waiting.append(_QueuedBuild(build_id, route, budget))
             if self._dispatcher is None:
@@ -360,44 +222,16 @@ class BuildService:
         return self.get(build_id)
 
     def get(self, build_id: str) -> BuildRecord:
-        rows = self._store.query("SELECT * FROM builds WHERE build_id = ?", (build_id,))
-        if not rows:
-            raise NotFoundError(build_id)
-        return self._row_to_record(rows[0])
+        return self._db.get(build_id)
 
     def list_builds(self, limit: int = 50) -> list[BuildRecord]:
-        rows = self._store.query(
-            "SELECT * FROM builds ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,)
-        )
-        return [self._row_to_record(r) for r in rows]
+        return self._db.list_builds(limit)
 
     def events(self, build_id: str, after: int = 0, limit: int = 1000) -> list[BuildEvent]:
-        self.get(build_id)
-        rows = self._store.query(
-            "SELECT * FROM build_events WHERE build_id = ? AND sequence > ?"
-            " ORDER BY sequence LIMIT ?",
-            (build_id, after, limit),
-        )
-        return [
-            BuildEvent(
-                event_id=r["event_id"],
-                build_id=r["build_id"],
-                attempt_id=r["attempt_id"],
-                sequence=int(r["sequence"]),
-                kind=r["kind"],
-                occurred_at=datetime.fromisoformat(r["occurred_at"].replace("Z", "+00:00")),
-                payload=json.loads(r["payload_json"]),
-            )
-            for r in rows
-        ]
+        return self._db.events(build_id, after, limit)
 
     def dependency_requests(self, build_id: str | None = None) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM dependency_requests"
-        params: tuple[Any, ...] = ()
-        if build_id is not None:
-            sql += " WHERE build_id = ?"
-            params = (build_id,)
-        return [dict(r) for r in self._store.query(sql + " ORDER BY created_at", params)]
+        return self._db.dependency_requests(build_id)
 
     def cancel(self, build_id: str) -> BuildRecord:
         record = self.get(build_id)
@@ -413,7 +247,7 @@ class BuildService:
         termination: list[dict[str, object]] = []
         for handle in handles:
             termination.append(self._supervisor.terminate(handle))
-        self._transition(
+        self._db.transition(
             build_id,
             new_state=BuildState.CANCELLED,
             event_kind="build.cancelled",
@@ -437,7 +271,7 @@ class BuildService:
                 version_dir, candidate["package_sha256"]
             )
         except OperationFailed as exc:
-            self._append(build_id, None, "build.activation_refused", exc.as_error())
+            self._db.append(build_id, None, "build.activation_refused", exc.as_error())
             raise
         result = {
             "app_id": version.app_id,
@@ -447,7 +281,7 @@ class BuildService:
             "dependency_manifest_sha256": version.dependency_manifest_sha256,
             "runtime_profile_id": version.runtime_profile_id,
         }
-        self._append(build_id, None, "build.activated", result)
+        self._db.append(build_id, None, "build.activated", result)
         return result
 
     def invoke(
@@ -488,8 +322,7 @@ class BuildService:
 
     def reconcile_on_startup(self) -> list[dict[str, Any]]:
         report: list[dict[str, Any]] = []
-        rows = self._store.query("SELECT * FROM build_attempts WHERE status = 'running'")
-        for row in rows:
+        for row in self._db.running_attempts():
             entry: dict[str, Any] = {"attempt_id": row["attempt_id"], "build_id": row["build_id"]}
             pid, pgid = row["pid"], row["pgid"]
             if pid is not None and process_alive(int(pid)):
@@ -497,10 +330,10 @@ class BuildService:
                 entry["reason"] = "core_restarted_builder_orphaned"
             else:
                 entry["reason"] = "core_restarted_builder_lost"
-            self._finish_attempt(
+            self._db.finish_attempt(
                 row["attempt_id"], "interrupted", FailureCategory.INTERRUPTED, None, None
             )
-            self._transition(
+            self._db.transition(
                 row["build_id"],
                 new_state=BuildState.FAILED,
                 event_kind="build.interrupted",
@@ -512,18 +345,13 @@ class BuildService:
             report.append(entry)
         # Nothing else survives a restart: a build that was waiting for the builder, or was
         # being verified or repaired, cannot continue and is not started again.
-        placeholders = ",".join("?" for _ in TERMINAL_BUILD_STATES)
-        stranded = self._store.query(
-            f"SELECT build_id, state FROM builds WHERE state NOT IN ({placeholders})",
-            tuple(s.value for s in TERMINAL_BUILD_STATES),
-        )
-        for row in stranded:
+        for row in self._db.unfinished_builds():
             reason = (
                 "core_restarted_while_queued"
                 if row["state"] == BuildState.QUEUED.value
                 else "core_restarted_build_lost"
             )
-            self._transition(
+            self._db.transition(
                 row["build_id"],
                 new_state=BuildState.FAILED,
                 event_kind="build.interrupted",
@@ -546,7 +374,7 @@ class BuildService:
             stop.set()
         interrupted: list[str] = []
         for build_id in waiting:
-            self._transition(
+            self._db.transition(
                 build_id,
                 new_state=BuildState.FAILED,
                 event_kind="build.interrupted",
@@ -560,10 +388,10 @@ class BuildService:
             with self._lock:
                 self._cancel_requested.add(build_id)
             record = self._supervisor.terminate(handle)
-            self._finish_attempt(
+            self._db.finish_attempt(
                 real_attempt, "interrupted", FailureCategory.INTERRUPTED, None, None
             )
-            self._transition(
+            self._db.transition(
                 build_id,
                 new_state=BuildState.FAILED,
                 event_kind="build.interrupted",
@@ -615,15 +443,11 @@ class BuildService:
         for _, handle in handles:
             self._supervisor.terminate(handle)
         detail = {"error": f"{type(exc).__name__}: {exc}"[:500]}
-        running = self._store.query(
-            "SELECT attempt_id FROM build_attempts WHERE build_id = ? AND status = 'running'",
-            (build_id,),
-        )
-        for row in running:
-            self._finish_attempt(
+        for row in self._db.running_attempts(build_id):
+            self._db.finish_attempt(
                 row["attempt_id"], "failed", FailureCategory.PLATFORM_ERROR, None, detail
             )
-        self._transition(
+        self._db.transition(
             build_id,
             new_state=BuildState.FAILED,
             event_kind="build.failed",
@@ -645,7 +469,7 @@ class BuildService:
         record = self.get(build_id)
         targets = self._targets()
         if targets is None:
-            self._transition(
+            self._db.transition(
                 build_id,
                 new_state=BuildState.FAILED,
                 event_kind="build.failed",
@@ -672,7 +496,7 @@ class BuildService:
                 stop = ("cost_limit_reached", {"max_cost_usd": budget.max_cost_usd})
             if stop is not None:
                 # The reason says why no repair followed; the category is what was wrong.
-                self._fail(
+                self._db.fail(
                     build_id,
                     lineage[-1] if lineage else "none",
                     stop[0],
@@ -707,7 +531,7 @@ class BuildService:
             last = report
             left = max_attempts - number
             if left == 0:
-                self._fail(
+                self._db.fail(
                     build_id,
                     report.attempt_id,
                     "repair_limit_reached",
@@ -719,7 +543,7 @@ class BuildService:
             repair = render_repair(report, number, left - 1)
             feedback = evidence_files(report, attempt_dir)
             previous_package = attempt_dir / "package"
-            self._transition(
+            self._db.transition(
                 build_id,
                 new_state=BuildState.REPAIRING,
                 event_kind="build.repairing",
@@ -747,9 +571,27 @@ class BuildService:
     ) -> tuple[VerificationOutcome, Path, BuildUsage | None] | None:
         """Run one attempt. Returns the failed verification when a repair may follow, or None
         once the build reached a terminal state."""
+        attempt = self._start_attempt(
+            record, number, route, budget, targets, previous_package, repair, feedback
+        )
+        lineage.append(attempt.attempt_id)
+        built = self._build(record, attempt, route, budget, targets)
+        return self._settle(record, attempt, lineage, built, budget)
+
+    def _start_attempt(
+        self,
+        record: BuildRecord,
+        number: int,
+        route: ModelRoute,
+        budget: BuildBudget,
+        targets: TargetProfiles,
+        previous_package: Path | None,
+        repair: str | None,
+        feedback: list[Path],
+    ) -> _Attempt:
+        """Materialize the workspace, record the attempt and move the build to building."""
         build_id = record.build_id
         attempt_id = new_id("attempt")
-        lineage.append(attempt_id)
         attempt_dir = self._root / build_id / f"attempt-{number}"
         seeded = number == 1 and record.seed_package is not None
         if seeded:
@@ -781,21 +623,15 @@ class BuildService:
             workspace_lease_ref=str(attempt_dir.relative_to(self._root)),
             deadline=now + timedelta(seconds=budget.max_attempt_seconds),
         )
-        with self._store.transaction() as conn:
-            conn.execute(
-                """INSERT INTO build_attempts(attempt_id, build_id, number, status, workspace_ref,
-                   core_instance_id, started_at) VALUES (?,?,?,?,?,?,?)""",
-                (
-                    attempt_id,
-                    build_id,
-                    number,
-                    "running",
-                    request.workspace_lease_ref,
-                    self._instance_id,
-                    _dt(now),
-                ),
-            )
-        self._transition(
+        self._db.insert_attempt(
+            attempt_id=attempt_id,
+            build_id=build_id,
+            number=number,
+            workspace_ref=request.workspace_lease_ref,
+            core_instance_id=self._instance_id,
+            started_at=now,
+        )
+        self._db.transition(
             build_id,
             new_state=BuildState.BUILDING,
             event_kind="build.attempt_started",
@@ -810,6 +646,21 @@ class BuildService:
             attempt_id=attempt_id,
             expected={BuildState.QUEUED, BuildState.REPAIRING},
         )
+        return _Attempt(attempt_id, number, attempt_dir, request, seeded)
+
+    def _build(
+        self,
+        record: BuildRecord,
+        attempt: _Attempt,
+        route: ModelRoute,
+        budget: BuildBudget,
+        targets: TargetProfiles,
+    ) -> BuilderOutcome:
+        """Run the builder worker (or take the seed) and record its usage."""
+        build_id, attempt_id = record.build_id, attempt.attempt_id
+        if attempt.seeded:
+            # Qualification: the first candidate is a known package, verified like any claim.
+            return BuilderOutcome("candidate", harness_exit={"seeded": record.seed_package})
         key = f"{build_id}:{attempt_id}"
 
         def on_launch(handle: WorkerHandle) -> bool:
@@ -820,11 +671,7 @@ class BuildService:
                 stop_now = build_id in self._cancel_requested or self._closing
                 if stop_now:
                     self._cancel_requested.add(build_id)
-            with self._store.transaction() as conn:
-                conn.execute(
-                    "UPDATE build_attempts SET pid = ?, pgid = ? WHERE attempt_id = ?",
-                    (handle.pid, handle.pgid, attempt_id),
-                )
+            self._db.set_attempt_process(attempt_id, handle.pid, handle.pgid)
             return stop_now
 
         def on_exit() -> bool:
@@ -832,101 +679,94 @@ class BuildService:
                 self._active.pop(key, None)
                 return build_id in self._cancel_requested
 
+        fake_packages = self._pipeline.fake_packages_dir
         job = {
-            "request": request.model_dump(mode="json"),
+            "request": attempt.request.model_dump(mode="json"),
             "harness": route.harness,
-            "workspace": str(attempt_dir),
+            "workspace": str(attempt.directory),
             "goal": record.goal,
             "instructions": record.instructions,
             "model": route.model,
             "candidate_python": str(targets.runtime.python),
             "targets": targets.identities(),
-            "fake_packages_dir": str(self._pipeline.fake_packages_dir)
-            if route.harness == "fake" and self._pipeline.fake_packages_dir
+            "fake_packages_dir": str(fake_packages)
+            if route.harness == "fake" and fake_packages
             else None,
         }
-        if seeded:
-            # Qualification: the first candidate is a known package, verified like any claim.
-            built = BuilderOutcome("candidate", harness_exit={"seeded": record.seed_package})
-        else:
-            built = self._builder.run(
-                attempt_id=attempt_id,
-                job=job,
-                deadline_seconds=budget.max_attempt_seconds,
-                emit=lambda kind, payload: self._append(build_id, attempt_id, kind, payload),
-                on_launch=on_launch,
-                on_exit=on_exit,
-            )
+        built = self._builder.run(
+            attempt_id=attempt_id,
+            job=job,
+            deadline_seconds=budget.max_attempt_seconds,
+            emit=lambda kind, payload: self._db.append(build_id, attempt_id, kind, payload),
+            on_launch=on_launch,
+            on_exit=on_exit,
+        )
         if built.usage is not None:
             self._gateway.record_usage(route.route_id, "build_attempt", attempt_id, built.usage)
+        return built
+
+    def _settle(
+        self,
+        record: BuildRecord,
+        attempt: _Attempt,
+        lineage: list[str],
+        built: BuilderOutcome,
+        budget: BuildBudget,
+    ) -> tuple[VerificationOutcome, Path, BuildUsage | None] | None:
+        """Decide what the attempt means: terminal (cancelled, harness failure, ready) or a
+        failed verification a repair may follow."""
+        build_id, attempt_id = record.build_id, attempt.attempt_id
+
+        def finish(status: str, category: FailureCategory | None) -> None:
+            self._db.finish_attempt(attempt_id, status, category, built.usage, built.harness_exit)
+
         if built.status == "cancelled":
-            self._finish_attempt(
-                attempt_id, "cancelled", FailureCategory.CANCELLED, built.usage, built.harness_exit
-            )
+            finish("cancelled", FailureCategory.CANCELLED)
             return None  # cancel() already transitioned the build
-        if built.status in ("timed_out", "no_result", "launch_failed"):
-            self._finish_attempt(
-                attempt_id, "failed", built.category, built.usage, built.harness_exit
-            )
-            reason = {
-                "timed_out": "attempt_deadline_exceeded",
-                "no_result": "builder_returned_no_result",
-                "launch_failed": "builder_launch_failed",
-            }[built.status]
+        if built.status in _HARNESS_FAILURES:
             assert built.category is not None
-            self._fail(
-                build_id,
-                attempt_id,
-                reason,
-                built.category,
-                {
-                    "max_attempt_seconds": budget.max_attempt_seconds,
-                    "error": built.error,
-                    "exit_code": built.harness_exit.get("exit_code"),
-                },
-            )
+            finish("failed", built.category)
+            detail = {
+                "max_attempt_seconds": budget.max_attempt_seconds,
+                "error": built.error,
+                "exit_code": built.harness_exit.get("exit_code"),
+            }
+            reason = _HARNESS_FAILURES[built.status]
+            self._db.fail(build_id, attempt_id, reason, built.category, detail)
             return None
-        # The harness claims a candidate, or reports failure. Either way the package (if any)
-        # is verified, so a report exists; only a claimed candidate can become ready.
-        outcome = self._verify(record, attempt_id, number, lineage, built, attempt_dir)
+        # The harness claims a candidate, or reports failure. Either way the package is
+        # verified, so a report exists; only a claimed candidate can become ready.
+        outcome = self._verify(
+            record, attempt_id, attempt.number, lineage, built, attempt.directory
+        )
         if outcome is None:
-            self._finish_attempt(
-                attempt_id, "cancelled", FailureCategory.CANCELLED, built.usage, built.harness_exit
-            )
+            finish("cancelled", FailureCategory.CANCELLED)
             return None
         report = outcome.report
-        report_ref = str((attempt_dir / "verification.report.json").relative_to(self._root))
-        with self._store.transaction() as conn:
-            conn.execute(
-                "UPDATE build_attempts SET report_ref = ? WHERE attempt_id = ?",
-                (report_ref, attempt_id),
-            )
+        report_ref = str((attempt.directory / "verification.report.json").relative_to(self._root))
+        self._db.set_report_ref(attempt_id, report_ref)
         if built.status == "failed":
             category = built.category or FailureCategory.HARNESS_ERROR
-            self._finish_attempt(attempt_id, "failed", category, built.usage, built.harness_exit)
-            status = str((built.output or {}).get("status"))
-            self._fail(
+            finish("failed", category)
+            passed = sum(1 for c in report.checks if c.status is CheckStatus.PASSED)
+            self._db.fail(
                 build_id,
                 attempt_id,
-                f"harness_{status}",
+                f"harness_{(built.output or {}).get('status')}",
                 category,
                 {
                     "diagnostics": (built.output or {}).get("diagnostics"),
-                    "checks_passed_anyway": sum(
-                        1 for c in report.checks if c.status is CheckStatus.PASSED
-                    ),
+                    "checks_passed_anyway": passed,
                 },
                 validation=report.model_dump(mode="json"),
             )
             return None
         if report.passed and outcome.sealed is not None:
-            self._finish_attempt(attempt_id, "candidate", None, built.usage, built.harness_exit)
-            self._ready(record, attempt_id, number, attempt_dir, outcome, report_ref)
+            finish("candidate", None)
+            self._ready(record, attempt_id, attempt.number, attempt.directory, outcome, report_ref)
             return None
-        self._finish_attempt(
-            attempt_id, "failed", self._category_of(report), built.usage, built.harness_exit
-        )
-        return outcome, attempt_dir, built.usage
+        finish("failed", self._category_of(report))
+        return outcome, attempt.directory, built.usage
 
     def _verify(
         self,
@@ -938,7 +778,7 @@ class BuildService:
         attempt_dir: Path,
     ) -> VerificationOutcome | None:
         build_id = record.build_id
-        self._transition(
+        self._db.transition(
             build_id,
             new_state=BuildState.VALIDATING,
             event_kind="build.validating",
@@ -950,7 +790,7 @@ class BuildService:
             stop = self._stops.get(build_id)
 
         def on_check(check: CheckResult) -> None:
-            self._append(
+            self._db.append(
                 build_id,
                 attempt_id,
                 "validation.check",
@@ -988,8 +828,8 @@ class BuildService:
                 json.dumps(outcome.handler_report, indent=2, default=str), encoding="utf-8"
             )
         for request in report.qualification_requests:
-            self._record_dependency_request(build_id, attempt_id, request.model_dump())
-        self._append(
+            self._db.record_dependency_request(build_id, attempt_id, request.model_dump())
+        self._db.append(
             build_id,
             attempt_id,
             "validation.report",
@@ -1033,7 +873,7 @@ class BuildService:
             "attempt_number": number,
             "activated": False,
         }
-        self._transition(
+        self._db.transition(
             record.build_id,
             new_state=BuildState.READY,
             event_kind="build.ready",
@@ -1054,210 +894,6 @@ class BuildService:
         if failed and failed[0].stage in ("package", "deps", "seal"):
             return FailureCategory.INVALID_PACKAGE
         return FailureCategory.VALIDATION_FAILED
-
-    # ----- persistence helpers ------------------------------------------------------------
-
-    def _record_dependency_request(
-        self, build_id: str, attempt_id: str, request: dict[str, Any]
-    ) -> None:
-        with self._store.transaction() as conn:
-            conn.execute(
-                """INSERT INTO dependency_requests(request_id, build_id, attempt_id, package,
-                   version, found_in, location, runtime_profile_id, reason, state, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    new_id("depreq"),
-                    build_id,
-                    attempt_id,
-                    request["package"],
-                    request.get("version"),
-                    request["found_in"],
-                    request["where"],
-                    request["runtime_profile_id"],
-                    request["reason"],
-                    "requested",
-                    _dt(utc_now()),
-                ),
-            )
-            self._append_locked(
-                conn, build_id, attempt_id, "dependency.qualification_requested", request
-            )
-
-    def _append(
-        self, build_id: str, attempt_id: str | None, kind: str, payload: dict[str, Any]
-    ) -> None:
-        with self._store.transaction() as conn:
-            self._append_locked(conn, build_id, attempt_id, kind, payload)
-
-    def _append_locked(
-        self, conn: Any, build_id: str, attempt_id: str | None, kind: str, payload: dict[str, Any]
-    ) -> None:
-        row = conn.execute(
-            "SELECT latest_sequence FROM builds WHERE build_id = ?", (build_id,)
-        ).fetchone()
-        if row is None:
-            raise NotFoundError(build_id)
-        sequence = int(row["latest_sequence"]) + 1
-        now = _dt(utc_now())
-        conn.execute(
-            "INSERT INTO build_events(event_id, build_id, attempt_id, sequence, kind, occurred_at,"
-            " payload_json) VALUES (?,?,?,?,?,?,?)",
-            (
-                new_id("bevt"),
-                build_id,
-                attempt_id,
-                sequence,
-                kind,
-                now,
-                json.dumps(payload, sort_keys=True, default=str),
-            ),
-        )
-        conn.execute(
-            "UPDATE builds SET latest_sequence = ?, updated_at = ? WHERE build_id = ?",
-            (sequence, now, build_id),
-        )
-
-    def _transition(
-        self,
-        build_id: str,
-        *,
-        new_state: BuildState,
-        event_kind: str,
-        payload: dict[str, Any],
-        attempt_id: str | None = None,
-        expected: set[BuildState] | None = None,
-        terminal_reason: str | None = None,
-        failure_category: FailureCategory | None = None,
-        candidate: dict[str, Any] | None = None,
-        validation: dict[str, Any] | None = None,
-    ) -> None:
-        now = _dt(utc_now())
-        with self._store.transaction() as conn:
-            row = conn.execute(
-                "SELECT state FROM builds WHERE build_id = ?", (build_id,)
-            ).fetchone()
-            if row is None:
-                raise NotFoundError(build_id)
-            current = BuildState(row["state"])
-            if current in TERMINAL_BUILD_STATES:
-                self._append_locked(
-                    conn,
-                    build_id,
-                    attempt_id,
-                    "build.transition_skipped",
-                    {"attempted": new_state.value, "current": current.value},
-                )
-                return
-            if expected is not None and current not in expected:
-                raise ConflictError(f"build {build_id} is {current.value}, expected {expected}")
-            sets = ["state = ?", "updated_at = ?"]
-            params: list[Any] = [new_state.value, now]
-            if new_state in TERMINAL_BUILD_STATES:
-                sets += ["finished_at = ?", "terminal_reason = ?", "failure_category = ?"]
-                params += [
-                    now,
-                    terminal_reason,
-                    failure_category.value if failure_category else None,
-                ]
-            if candidate is not None:
-                sets.append("candidate_json = ?")
-                params.append(json.dumps(candidate))
-            if validation is not None:
-                sets.append("validation_json = ?")
-                params.append(json.dumps(validation, default=str))
-            params.append(build_id)
-            conn.execute(f"UPDATE builds SET {', '.join(sets)} WHERE build_id = ?", params)
-            self._append_locked(conn, build_id, attempt_id, event_kind, payload)
-
-    def _fail(
-        self,
-        build_id: str,
-        attempt_id: str,
-        reason: str,
-        category: FailureCategory,
-        payload: dict[str, Any],
-        validation: dict[str, Any] | None = None,
-    ) -> None:
-        self._transition(
-            build_id,
-            new_state=BuildState.FAILED,
-            event_kind="build.failed",
-            payload={"reason": reason, "failure_category": category.value, **payload},
-            attempt_id=attempt_id,
-            terminal_reason=reason,
-            failure_category=category,
-            validation=validation,
-        )
-
-    def _finish_attempt(
-        self,
-        attempt_id: str,
-        status: str,
-        category: FailureCategory | None,
-        usage: BuildUsage | None,
-        harness_exit: dict[str, Any] | None,
-    ) -> None:
-        with self._store.transaction() as conn:
-            conn.execute(
-                """UPDATE build_attempts SET status = ?, failure_category = ?, finished_at = ?,
-                   usage_json = ?, harness_exit_json = ? WHERE attempt_id = ?""",
-                (
-                    status,
-                    category.value if category else None,
-                    _dt(utc_now()),
-                    usage.model_dump_json() if usage else None,
-                    json.dumps(harness_exit, default=str) if harness_exit else None,
-                    attempt_id,
-                ),
-            )
-
-    def _row_to_record(self, row: Any) -> BuildRecord:
-        attempts = self._store.query(
-            "SELECT * FROM build_attempts WHERE build_id = ? ORDER BY number", (row["build_id"],)
-        )
-        if row["plan_json"]:
-            plan = ValidationPlan.model_validate_json(row["plan_json"])
-        else:  # an F02 build: its examples are the plan
-            plan = plan_from_examples(
-                [AcceptanceExample.model_validate(e) for e in json.loads(row["acceptance_json"])]
-            )
-        return BuildRecord(
-            build_id=row["build_id"],
-            state=BuildState(row["state"]),
-            goal=row["goal"],
-            instructions=row["instructions"],
-            plan=plan,
-            route_id=row["route_id"],
-            harness=row["harness"],
-            budget=BuildBudget.model_validate_json(row["budget_json"]),
-            brief_ref=row["brief_ref"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-            finished_at=row["finished_at"],
-            terminal_reason=row["terminal_reason"],
-            failure_category=row["failure_category"],
-            attempts=[
-                AttemptRecord(
-                    attempt_id=a["attempt_id"],
-                    number=int(a["number"]),
-                    status=a["status"],
-                    failure_category=a["failure_category"],
-                    workspace_ref=a["workspace_ref"],
-                    started_at=a["started_at"],
-                    finished_at=a["finished_at"],
-                    usage=json.loads(a["usage_json"]) if a["usage_json"] else None,
-                    harness_exit=json.loads(a["harness_exit_json"])
-                    if a["harness_exit_json"]
-                    else None,
-                    report_ref=a["report_ref"],
-                )
-                for a in attempts
-            ],
-            candidate=json.loads(row["candidate_json"]) if row["candidate_json"] else None,
-            validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
-            seed_package=row["seed_package"],
-            latest_sequence=int(row["latest_sequence"]),
-        )
 
 
 def _failed_ids(report: VerificationReport) -> list[str]:

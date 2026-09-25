@@ -1,0 +1,3 @@
+alpha.main INFO runtime profiles: [{'profile_id': 'pyprof-391f9ca6e9db5bc54576', 'state': 'ready', 'problems': []}, {'profile_id': 'uiprof-a6692c4f81d89a55ea70', 'state': 'ready', 'problems': []}]
+alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
+alpha.main INFO shutdown: interrupted runs []

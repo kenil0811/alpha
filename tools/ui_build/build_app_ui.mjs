@@ -9,6 +9,7 @@
 // origin of every bundled module and output digests. The build fails if any module resolves
 // outside the App's source or the profile (e.g. a workspace copy of the kit), or if the source
 // tries a remote import.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -69,8 +70,9 @@ if (!existsSync(join(work, "main.tsx"))) fail("the UI source needs a main.tsx en
 writeFileSync(join(work, "index.html"), '<!doctype html><html lang="en"><head><meta charset="UTF-8" /></head><body><div id="root"></div><script type="module" src="./main.tsx"></script></body></html>');
 symlinkSync(join(profileDir, "node_modules"), join(work, "node_modules"), "dir");
 
-// 2. Load Vite and the React plugin from the profile only.
 const requireFromProfile = createRequire(join(profileDir, "node_modules", "noop.js"));
+
+// 2. Load Vite and the React plugin from the profile only.
 const vite = await import(pathToFileURL(requireFromProfile.resolve("vite")).href);
 const react = (await import(pathToFileURL(requireFromProfile.resolve("@vitejs/plugin-react")).href)).default;
 
@@ -169,7 +171,44 @@ if (provenance.violations.length) {
   fail(`modules resolved outside the App source and the profile: ${provenance.violations.slice(0, 5).join(", ")}`);
 }
 
-// 3. Inline into one document with a hash-pinned CSP.
+// 3. Type-check against the kit's own types (strict), with TypeScript from the profile, after the
+//    guarded bundle (so a forbidden import is reported as such). A prop the kit requires but the
+//    App omits fails here with its file and line, not at run time.
+const typescriptDir = dirname(requireFromProfile.resolve("typescript/package.json"));
+// Stylesheets are imported for their side effects; the bundler handles them.
+writeFileSync(join(workReal, "alpha-platform.d.ts"), 'declare module "*.css";\n');
+writeFileSync(
+  join(workReal, "tsconfig.json"),
+  JSON.stringify({
+    compilerOptions: {
+      target: "ES2022",
+      lib: ["ES2022", "DOM", "DOM.Iterable"],
+      module: "ESNext",
+      moduleResolution: "bundler",
+      jsx: "react-jsx",
+      strict: true,
+      noEmit: true,
+      skipLibCheck: true,
+      isolatedModules: true,
+      noFallthroughCasesInSwitch: true,
+      types: [],
+    },
+    include: ["**/*.ts", "**/*.tsx"],
+    exclude: ["node_modules", ".out"],
+  }),
+);
+const checked = spawnSync(process.execPath, [join(typescriptDir, "bin", "tsc"), "-p", "tsconfig.json", "--pretty", "false"], {
+  cwd: workReal,
+  encoding: "utf8",
+  timeout: 120_000,
+});
+if (checked.status !== 0) {
+  const errors = `${checked.stdout ?? ""}${checked.stderr ?? ""}`.split("\n").filter((line) => line.trim()).slice(0, 20);
+  rmSync(work, { recursive: true, force: true });
+  fail(`type errors in the screen (TypeScript strict, kit types):\n${errors.join("\n") || `tsc exited ${checked.status}`}`);
+}
+
+// 4. Inline into one document with a hash-pinned CSP.
 const assets = join(bundleDir, "assets");
 const read = (ext) =>
   existsSync(assets)

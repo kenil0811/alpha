@@ -24,14 +24,8 @@ from alpha import __version__
 from alpha.api.auth import make_auth_middleware
 from alpha.assistant.service import AssistantService, ConversationRecord
 from alpha.assistant.service import ConflictError as AssistantBusy
-from alpha.builds.service import (
-    AcceptanceExample,
-    BuildNotReady,
-    BuildRecord,
-    BuildService,
-    SeedUnavailable,
-    plan_from_examples,
-)
+from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
+from alpha.builds.store import AcceptanceExample, BuildRecord, plan_from_examples
 from alpha.capabilities.catalog import catalog_entries
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings

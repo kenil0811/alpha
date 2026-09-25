@@ -19,6 +19,10 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
+The screen is type-checked with TypeScript (strict) against this kit's types before it is built.
+Give every required prop (for example `RecordTable` needs `caption`, `columns`, `rows` and
+`getRowId`); a type error fails the build with the exact line.
+
 `AlphaApp` connects to Alpha and shows the connecting, failed and closed-session states for you.
 Do not write a bundler config, `package.json`, `fetch` calls or inline `style` attributes; the
 CSP blocks them.
@@ -89,7 +93,7 @@ Keep the person's input after a failure, keep focus where they were, and let Ent
 | `parseNumber(text)` | → `{ ok, value }` or `{ ok: false, message }` | keeps what the person typed |
 | `QuickEntry` | `label`, `parse(text) → ParseResult`, `onSubmit(value) → { undo? }` | Enter submits, focus stays, Escape clears, failures keep the text |
 | `FilterBar` | `filters`, `values`, `onChange`, `resultLabel` | search box + selects, "Clear filters", result count announced |
-| `RecordTable` | `columns`, `rows`, `getRowId`, `getRowLabel`, `onOpen`, `sort`, `onSortChange`, `selectedIds`, `loading`, `error`, `empty`, `footer` | first column opens the row; sortable headings are buttons with `aria-sort`; rows become labelled cards under 640px |
+| `RecordTable` | required `caption`, `columns`, `rows`, `getRowId`; optional `getRowLabel`, `onOpen`, `sort`, `onSortChange`, `selectedIds`, `loading`, `error`, `onRetry`, `empty`, `footer` | first column opens the row; sortable headings are buttons with `aria-sort`; rows become labelled cards under 640px |
 | `Pager` | `label`, `hasPrevious`, `hasNext`, `onPrevious`, `onNext` | labelled navigation |
 | `DetailDrawer` | `open`, `onClose`, `title`, `description`, `footer` | native modal dialog: focus moves in, Escape closes, focus returns |
 | `DetailList` | `items: [{ label, value }]` | definition list |

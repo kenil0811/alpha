@@ -36,8 +36,9 @@ just test-integration   # real Core process, SQLite, worker processes, loopback 
 just bundle-core        # prepare the Core runtime and publish the App runtime and UI build profiles in .alpha-runtime/
 just dev                # run the desktop app (Vite shell + Tauri host + bundled Core)
 just kit-reference      # development reference sheet: every kit pattern in every state
-just verify-ticket F06  # ticket dispatcher; unknown/unimplemented tickets fail
+just verify-ticket F07  # ticket dispatcher; unknown/unimplemented tickets fail
 just qualify-app-models DIR  # opt-in live ctx.models smoke on the Claude Code CLI route
+just qualify-build repair    # opt-in live F07 qualification: repair | limit | generate
 ```
 
 ## Layout
@@ -57,6 +58,9 @@ just qualify-app-models DIR  # opt-in live ctx.models smoke on the Claude Code C
 - `tests/integration` — real-component tests.
 - `tools` — verification, runtime bundling, profile publishing and the trusted UI build tool
   (`tools/ui_build`).
+- `workers/validator` — the trusted UI render check (Playwright driving a pinned headless
+  browser) that verifies a candidate's screen.
+- `evals` — opt-in live qualification and evidence capture for builds.
 
 ## How the desktop path works (F01)
 
@@ -94,3 +98,20 @@ enforces. See
 
 Known differences from the Implementation Blueprint, and when each is revisited, are recorded in
 [docs/development/decisions/2026-09-25-recorded-deviations.md](docs/development/decisions/2026-09-25-recorded-deviations.md).
+
+## How a candidate becomes a verified App (F07)
+
+A build gives the builder a workspace with the App template, the contract, SDK and kit
+references, and the independent checks it must pass (PLAN.md). Whatever the builder claims, the
+platform seals the package exactly as an installed App Version is sealed. It then checks the
+Version in an isolated preview on the exact runtime and UI profiles:
+- files, contract and dependencies;
+- every import and handler, in a disposable worker;
+- the behaviour scenarios, judged by reading storage;
+- the screen in a real headless browser: empty, primary interaction, populated, failed read and
+  failed save.
+
+Failed checks go back to the builder as a concrete repair request: at most two repairs, 12
+minutes per attempt and 30 in total. Only a candidate whose report passes is ready, and it stays
+a preview until it is activated. Activation rechecks the sealed bytes and profiles. See
+[docs/development/decisions/2026-09-26-f07-candidate-verification.md](docs/development/decisions/2026-09-26-f07-candidate-verification.md).

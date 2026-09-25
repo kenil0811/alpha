@@ -92,16 +92,14 @@ class UiToolchain:
         code, stdout, stderr = run_process_group(argv, env, UI_BUILD_TIMEOUT_SECONDS)
         _remove_quietly(scratch)
         if code != 0:
-            log = (stderr or stdout)[-4000:]
-            message = next(
-                (
-                    line.removeprefix("ui build failed: ")
-                    for line in log.splitlines()
-                    if line.startswith("ui build failed:")
-                ),
-                log.strip().splitlines()[-1] if log.strip() else f"exit {code}",
-            )
-            raise UiBuildFailed(message[:1500], log)
+            log = (stderr or stdout)[-6000:]
+            marker = "ui build failed: "
+            if marker in log:
+                # Everything the tool reported, including multi-line type errors.
+                message = log[log.index(marker) + len(marker) :].strip()
+            else:
+                message = log.strip().splitlines()[-1] if log.strip() else f"exit {code}"
+            raise UiBuildFailed(message[:3000], log)
         report: dict[str, Any] = json.loads((out / "build.json").read_text("utf-8"))
         return report
 

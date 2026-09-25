@@ -65,13 +65,14 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const label = (text) => new RegExp(escape(text), "i");
 
 // ---------------------------------------------------------------- relay state
-const state = { inflight: 0, lastActivity: Date.now(), openOps: new Set(), invokes: 0, opStates: {}, faults: { records: false, action: false } };
+const state = { inflight: 0, lastActivity: Date.now(), openOps: new Set(), invokes: 0, reads: 0, opStates: {}, faults: { records: false, action: false } };
 const errors = [];
 
 async function relay(type, payload) {
   state.inflight += 1;
   state.lastActivity = Date.now();
   try {
+    if (type === "records.query") state.reads += 1;
     if (type === "records.query" && state.faults.records) {
       return { ok: false, error: { code: "internal", message: "Alpha could not read the saved data right now." } };
     }
@@ -402,13 +403,18 @@ async function main() {
       await layout(page, 768, "populated");
     }
 
-    // 4. A failed read must show an error, not an empty or blank screen.
+    // 4. A failed read must show an error, not an empty or blank screen (when the screen reads).
     mark = errors.length;
     state.faults.records = true;
+    const readsBefore = state.reads;
     frame = await open(page);
-    const readAlert = await alertShown(frame);
-    const stillTitled = (await frame.locator("h1").count()) > 0;
-    check("ui.error.read", readAlert && stillTitled ? "passed" : "failed", readAlert ? (stillTitled ? `a failed read shows: ${readAlert}` : "a failed read blanked the screen") : "a failed read shows no error (it would look like there is no data)", {}, [await screenshot(page, "error-read")]);
+    if (state.reads === readsBefore) {
+      check("ui.error.read", "skipped", "the screen reads no saved data, so a failed read cannot show", {}, [], false);
+    } else {
+      const readAlert = await alertShown(frame);
+      const stillTitled = (await frame.locator("h1").count()) > 0;
+      check("ui.error.read", readAlert && stillTitled ? "passed" : "failed", readAlert ? (stillTitled ? `a failed read shows: ${readAlert}` : "a failed read blanked the screen") : "a failed read shows no error (it would look like there is no data)", {}, [await screenshot(page, "error-read")]);
+    }
     cleanCheck("ui.error.read_clean", mark, "failed read");
     state.faults.records = false;
 
@@ -425,7 +431,8 @@ async function main() {
       if (!done.ok) {
         check("ui.error.save", "failed", done.message, {}, evidenceSave);
       } else if (state.invokes === invokesBefore) {
-        check("ui.error.save", plan.saved ? "failed" : "skipped", "the interaction invoked no action, so a failed save could not be shown", {}, evidenceSave);
+        // Only an interaction that must save can fail to show a failed save.
+        check("ui.error.save", plan.saved ? "failed" : "skipped", "the interaction invoked no action, so a failed save could not be shown", {}, evidenceSave, Boolean(plan.saved));
       } else {
         const saveAlert = await alertShown(frame);
         check("ui.error.save", saveAlert ? "passed" : "failed", saveAlert ? `a failed save shows: ${saveAlert}` : "a failed save shows no error; the person would think it was saved", {}, evidenceSave);

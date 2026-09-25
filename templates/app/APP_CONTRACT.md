@@ -118,4 +118,7 @@ screen can only narrow it with filters on `filterable` fields and sort on `sorta
 Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `metrics`
 (count, sum, avg, min, max). The screen runs actions only through `ui.actions`.
 
+The screen is type-checked with TypeScript (strict) against the kit's own types before it is
+built: every required prop must be given, and a type error fails the build with the exact line.
+
 An App without a screen leaves `ui` out; its actions are run by the person or the assistant.

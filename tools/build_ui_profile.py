@@ -43,7 +43,16 @@ MEMBERS = (
     ("@alpha/ui-kit", REPO_ROOT / "packages" / "ui-kit"),
 )
 # Third-party packages the UI build needs, pinned to the versions the kit is developed against.
-EXTERNAL = ("react", "react-dom", "vite", "@vitejs/plugin-react")
+EXTERNAL = (
+    "react",
+    "react-dom",
+    "vite",
+    "@vitejs/plugin-react",
+    # The trusted build type-checks each screen against the kit's types (F07).
+    "typescript",
+    "@types/react",
+    "@types/react-dom",
+)
 
 
 def run(argv: list[str], cwd: Path | None = None) -> str:

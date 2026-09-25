@@ -138,7 +138,7 @@ def ui_fake_save(p: Path) -> None:
     _edit(
         _screen(p),
         "onSubmit={async (title) => void (await add.run({ title }))}",
-        "onSubmit={async (title) => void setLocal((l) => [title, ...l])}",
+        "onSubmit={async (title) => void setLocal((l) => [String(title), ...l])}",
     )
     _edit(
         _screen(p),
@@ -227,6 +227,25 @@ def lookalike_titles(p: Path) -> None:
     )
 
 
+def missing_prop(p: Path) -> None:
+    """The table omits its required caption (found live: it crashed the screen at run time)."""
+    _edit(_screen(p), '          caption="Latest notes"\n', "")
+
+
+def entry_only(p: Path) -> None:
+    """Not a defect: the screen only adds notes and reads nothing back, so a failed read cannot
+    show and must not be demanded."""
+    text = _screen(p).read_text()
+    start = text.index('      <Section title="Latest">')
+    end = text.index("    </Page>")
+    text = text[:start] + text[end:]
+    text = text.replace('  const recent = useView<Note>("notes.recent", { limit: 20 });\n', "")
+    kit_import = text[text.index("import { AlphaApp") : text.index('from "@alpha/ui-kit";')]
+    text = text.replace(kit_import, "import { AlphaApp, Page, QuickEntry, Section, useAction } ")
+    text = text.replace("type Note = { title: string; noted_on: string };\n\n", "")
+    _screen(p).write_text(text)
+
+
 VARIANTS: dict[str, Callable[[Path], None]] = {
     f.__name__: f
     for f in (
@@ -243,6 +262,8 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         requirements_file,
         wrong_profile,
         lookalike_titles,
+        missing_prop,
+        entry_only,
     )
 }
 

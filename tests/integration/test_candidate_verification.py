@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from tests.integration.build_harness import (
+    NOTES_PLAN,
     checks,
     events,
     failed,
@@ -238,6 +239,31 @@ def test_fields_are_found_by_their_own_label_not_by_lookalike_titles(
     field labelled "Note". Only form controls of the right kind are considered now."""
     final, rep = build(once_core, "fake:package lookalike_titles")
     assert final["state"] == "ready", failed(rep)
+
+
+def test_a_screen_that_breaks_the_kit_types_fails_the_build_with_the_line(
+    once_core: CoreProcess,
+) -> None:
+    """Found live (F07.C03, second repair run): a table without its required caption crashed
+    the screen at run time and the builder had to guess why. The build now type-checks."""
+    final, rep = build(once_core, "fake:package missing_prop")
+    ui_build = checks(rep)["seal.ui_build"]
+    assert final["state"] == "failed" and ui_build["status"] == "failed"
+    assert "main.tsx(" in ui_build["summary"] and "caption" in ui_build["summary"]
+
+
+@needs_browser
+def test_a_screen_that_reads_nothing_is_not_asked_to_show_a_failed_read(
+    once_core: CoreProcess,
+) -> None:
+    plan = json.loads(json.dumps(NOTES_PLAN))
+    plan["ui"]["shows"], plan["ui"]["seed_shows"], plan["ui"]["seed"] = [], [], []
+    created = submit(once_core, "fake:package entry_only", plan)
+    final = wait_build(once_core, created["build_id"])
+    rep = report(once_core, final)
+    assert final["state"] == "ready", failed(rep)
+    read = checks(rep)["ui.error.read"]
+    assert read["status"] == "skipped" and read["required"] is False
 
 
 @needs_browser
