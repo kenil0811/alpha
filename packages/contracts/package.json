@@ -1,0 +1,17 @@
+{
+  "name": "@alpha/contracts",
+  "version": "0.2.0",
+  "private": true,
+  "description": "TypeScript types generated from the Python contract source (JSON Schema).",
+  "type": "module",
+  "exports": {
+    ".": "./ts/index.ts"
+  },
+  "scripts": {
+    "generate": "node generate.mjs",
+    "check": "node generate.mjs --check"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "16.0.0"
+  }
+}

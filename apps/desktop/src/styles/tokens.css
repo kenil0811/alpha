@@ -1,0 +1,66 @@
+/* Alpha design tokens — typography, spacing, radius, elevation and semantic color.
+   These are the shell's final tokens; F06 promotes them into the shared UI kit. */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem;   /* 12px */
+  --text-sm: 0.875rem;  /* 14px */
+  --text-md: 1rem;      /* 16px */
+  --text-lg: 1.25rem;   /* 20px */
+  --text-xl: 1.5rem;    /* 24px */
+  --text-2xl: 2rem;     /* 32px */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.10);
+
+  --color-bg: #f6f6f8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef0f4;
+  --color-border: #d9dce3;
+  --color-text: #17181c;
+  --color-text-muted: #5c6270;
+  --color-accent: #2f5bea;
+  --color-accent-contrast: #ffffff;
+  --color-success: #1f8a4c;
+  --color-warning: #b26a00;
+  --color-danger: #c62828;
+  --color-info: #3563c4;
+  --focus-ring: 0 0 0 3px rgba(47, 91, 234, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #151619;
+    --color-surface: #1f2126;
+    --color-surface-muted: #282b32;
+    --color-border: #3a3e47;
+    --color-text: #f2f3f5;
+    --color-text-muted: #a1a7b3;
+    --color-accent: #6f8fff;
+    --color-accent-contrast: #0d1220;
+    --color-success: #4cc27b;
+    --color-warning: #e0a030;
+    --color-danger: #ef6b6b;
+    --color-info: #7da3ff;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+}

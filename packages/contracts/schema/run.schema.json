@@ -1,0 +1,260 @@
+{
+  "$defs": {
+    "AppOwner": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "app_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "app",
+          "default": "app",
+          "type": "string"
+        },
+        "release_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_id",
+        "release_id",
+        "action_id"
+      ],
+      "title": "AppOwner",
+      "type": "object"
+    },
+    "ExecutionSnapshot": {
+      "additionalProperties": false,
+      "description": "The immutable facts a run was dispatched with. F01 records the narrow synthetic path;\nlater tickets add capability bindings, grants, routes and dependency identities.",
+      "properties": {
+        "input_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/RunLimits"
+        },
+        "worker_profile": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "worker_profile",
+        "input_digest",
+        "limits"
+      ],
+      "title": "ExecutionSnapshot",
+      "type": "object"
+    },
+    "RunLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timeout_seconds"
+      ],
+      "title": "RunLimits",
+      "type": "object"
+    },
+    "RunOrigin": {
+      "enum": [
+        "user",
+        "assistant",
+        "ui",
+        "trigger",
+        "repair_test"
+      ],
+      "title": "RunOrigin",
+      "type": "string"
+    },
+    "RunState": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting_input",
+        "waiting_approval",
+        "waiting_connection",
+        "needs_reconciliation",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "interrupted"
+      ],
+      "title": "RunState",
+      "type": "string"
+    },
+    "TaskOwner": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "task",
+          "default": "task",
+          "type": "string"
+        },
+        "plan_ref": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "task_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "task_revision_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "task_revision_id",
+        "attempt_id",
+        "plan_ref"
+      ],
+      "title": "TaskOwner",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "latest_sequence": {
+      "default": 0,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "origin": {
+      "$ref": "#/$defs/RunOrigin"
+    },
+    "output": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "owner": {
+      "discriminator": {
+        "mapping": {
+          "app": "#/$defs/AppOwner",
+          "task": "#/$defs/TaskOwner"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AppOwner"
+        },
+        {
+          "$ref": "#/$defs/TaskOwner"
+        }
+      ]
+    },
+    "retry_of": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/ExecutionSnapshot"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "$ref": "#/$defs/RunState"
+    },
+    "terminal_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "updated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "workspace_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "workspace_id",
+    "owner",
+    "origin",
+    "state",
+    "snapshot",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "Run",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

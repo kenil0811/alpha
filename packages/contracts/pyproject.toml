@@ -1,0 +1,13 @@
+[project]
+name = "alpha-contracts"
+version = "0.2.0"
+description = "Alpha contract definitions (contract version 0.2). No Core or UI imports."
+requires-python = "==3.13.9"
+dependencies = ["pydantic==2.13.5"]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["alpha_contracts"]

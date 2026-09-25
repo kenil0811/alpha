@@ -1,0 +1,44 @@
+[project]
+name = "alpha-workspace"
+version = "0.1.0"
+description = "Alpha platform monorepo root (uv workspace). Not a distributable package."
+requires-python = "==3.13.9"
+dependencies = ["alpha-contracts", "alpha-core"]
+
+[tool.uv]
+required-version = "==0.12.17"
+package = false
+
+[tool.uv.workspace]
+members = ["packages/contracts", "services/core"]
+
+[tool.uv.sources]
+alpha-contracts = { workspace = true }
+alpha-core = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "httpx==0.28.1",
+    "ruff==0.16.9",
+    "mypy==2.3.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["docs", ".alpha-runtime", ".alpha-data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["packages/contracts/alpha_contracts", "services/core/alpha", "tools", "tests"]
+exclude = ["docs/"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/contracts/tests", "services/core/tests", "tests"]
+addopts = "-p no:cacheprovider"
+markers = ["integration: exercises real processes/SQLite/transport"]
