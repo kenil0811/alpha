@@ -1,0 +1,9 @@
+uv run python tools/verify_locks.py
+uv: required 0.12.17, actual 0.12.17
+pnpm: required 10.34.5, actual 10.34.5
+node: required 24.21.0, actual 24.21.0
+python: pinned 3.13.9, running 3.13.9
+uv lock --check: exit 0
+pnpm install --frozen-lockfile --offline: exit 0
+tampered uv.lock --check: exit 2 (expected nonzero)
+locks and tool versions verified

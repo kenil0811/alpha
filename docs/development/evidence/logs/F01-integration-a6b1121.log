@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.9, pytest-9.1.1, pluggy-1.6.0 -- /Users/kenil/Desktop/dev/alpha/alpha-platform/.venv/bin/python
+rootdir: /Users/kenil/Desktop/dev/alpha/alpha-platform
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 28 items
+
+tests/integration/test_data_directory_lock.py::test_second_core_on_same_data_dir_refuses_to_start PASSED [  3%]
+tests/integration/test_data_directory_lock.py::test_lock_is_released_on_clean_exit PASSED [  7%]
+tests/integration/test_ipc_auth.py::test_missing_token_is_unauthorized PASSED [ 10%]
+tests/integration/test_ipc_auth.py::test_wrong_token_is_unauthorized PASSED [ 14%]
+tests/integration/test_ipc_auth.py::test_malformed_authorization_scheme_is_unauthorized PASSED [ 17%]
+tests/integration/test_ipc_auth.py::test_unapproved_origin_is_forbidden_even_with_token PASSED [ 21%]
+tests/integration/test_ipc_auth.py::test_approved_origin_and_token_succeed PASSED [ 25%]
+tests/integration/test_ipc_auth.py::test_non_loopback_host_header_is_forbidden PASSED [ 28%]
+tests/integration/test_ipc_auth.py::test_non_api_paths_do_not_exist PASSED [ 32%]
+tests/integration/test_ipc_auth.py::test_core_refuses_to_start_without_credentials PASSED [ 35%]
+tests/integration/test_ipc_auth.py::test_cors_preflight_only_for_approved_origin PASSED [ 39%]
+tests/integration/test_ipc_auth.py::test_actual_response_carries_cors_header_only_for_approved_origin PASSED [ 42%]
+tests/integration/test_parent_watch.py::test_core_exits_when_host_process_dies PASSED [ 46%]
+tests/integration/test_restart_reconciliation.py::test_results_survive_restart PASSED [ 50%]
+tests/integration/test_restart_reconciliation.py::test_hard_kill_of_core_is_reconciled_as_interrupted_on_restart PASSED [ 53%]
+tests/integration/test_restart_reconciliation.py::test_explicit_quit_terminates_workers_and_marks_runs_interrupted PASSED [ 57%]
+tests/integration/test_restart_reconciliation.py::test_hard_kill_with_dead_worker_is_reconciled_as_lost PASSED [ 60%]
+tests/integration/test_worker_lifecycle.py::test_successful_run_streams_events_and_stores_output PASSED [ 64%]
+tests/integration/test_worker_lifecycle.py::test_descendant_does_not_keep_finished_run_alive_and_is_terminated PASSED [ 67%]
+tests/integration/test_worker_lifecycle.py::test_worker_error_yields_failed_run_with_reason PASSED [ 71%]
+tests/integration/test_worker_lifecycle.py::test_worker_crash_without_output_is_failed_not_succeeded PASSED [ 75%]
+tests/integration/test_worker_lifecycle.py::test_clean_exit_without_result_is_not_success PASSED [ 78%]
+tests/integration/test_worker_lifecycle.py::test_cancel_terminates_worker_and_descendants PASSED [ 82%]
+tests/integration/test_worker_lifecycle.py::test_timeout_terminates_hung_worker PASSED [ 85%]
+tests/integration/test_worker_lifecycle.py::test_invalid_payload_rejected_before_any_run_exists PASSED [ 89%]
+tests/integration/test_worker_lifecycle.py::test_sse_stream_resumes_from_cursor PASSED [ 92%]
+tests/integration/test_worker_lifecycle.py::test_sse_stream_delivers_every_event_in_order PASSED [ 96%]
+tests/integration/test_worker_lifecycle.py::test_idle_sse_stream_sends_keepalives PASSED [100%]
+
+============================= 28 passed in 26.42s ==============================

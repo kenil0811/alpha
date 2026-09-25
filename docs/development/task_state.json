@@ -7,24 +7,40 @@
   },
   "tickets": {
     "F01": {
-      "status": "pending",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "in_progress",
+      "implementation_ref": "a6b1121443f1d3cbd3d6bca94f43fde404286eac",
+      "notes": [
+        "Implementation complete; automated checks passed on this commit. Native checks C01/C02/C04 partially re-observed on this build; remaining desktop steps pending because the user is using the Mac (see docs/development/tasks/F01.md)."
+      ],
       "checks": {
         "F01.C01": {
-          "result": "pending"
+          "result": "pending",
+          "evidence_path": "docs/development/evidence/F01.C01.md",
+          "note": "native steps partially observed; finish on this build"
         },
         "F01.C02": {
-          "result": "pending"
+          "result": "pending",
+          "evidence_path": "docs/development/evidence/F01.C02.md",
+          "note": "native steps partially observed; finish on this build"
         },
         "F01.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F01.C03.md",
+          "evidence_sha256": "c196f1f184e9ea61199834ee40920ce105c26f9cf6fe9965ad497e830f211123",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app"
         },
         "F01.C04": {
-          "result": "pending"
+          "result": "pending",
+          "evidence_path": "docs/development/evidence/F01.C04.md",
+          "note": "native steps partially observed; finish on this build"
         },
         "F01.C05": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F01.C05.md",
+          "evidence_sha256": "badafa10792b5bcc1d4eced4c372d9b678a6b0544b342d4a69a8a71bb9fee65e",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app"
         }
       }
     },
