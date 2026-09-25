@@ -11,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -65,15 +66,23 @@ def build(profile: Path, source: Path, out: Path) -> subprocess.CompletedProcess
     )
 
 
+def unseal(root: Path) -> None:
+    """Sealed profiles are read-only; make them removable once the tests are done."""
+    for path in [root, *root.rglob("*")]:
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode | stat.S_IWUSR)
+
+
 @pytest.fixture(scope="module")
-def ui_profile(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+def ui_profile(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     root = tmp_path_factory.mktemp("ui-profiles")
     first = publish_ui_profile(root)
     again = publish_ui_profile(root)
     assert first["published"] is True and again["published"] is False
     assert again["profile_id"] == first["profile_id"]
     first["root"] = str(root)
-    return first
+    yield first
+    unseal(root)
 
 
 def test_compositions_and_template_share_one_pinned_kit(

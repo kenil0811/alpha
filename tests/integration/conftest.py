@@ -230,11 +230,16 @@ class AppCore:
 
 
 @pytest.fixture(scope="session")
-def app_profile(tmp_path_factory: pytest.TempPathFactory) -> Any:
+def app_profile(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
     """Build and publish the default App runtime profile once per test session."""
     from tests.integration.app_harness import build_profile
 
-    return build_profile(tmp_path_factory.mktemp("profiles"))
+    root = tmp_path_factory.mktemp("profiles")
+    yield build_profile(root)
+    # The published profile is sealed read-only; make it removable for pytest's cleanup.
+    for path in [root, *root.rglob("*")]:
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode | 0o200)
 
 
 @pytest.fixture
