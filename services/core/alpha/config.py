@@ -30,6 +30,7 @@ class CoreSettings:
     builder_path: str = "/usr/bin:/bin"
     builder_home: str | None = None
     build_max_attempt_seconds: int | None = None
+    assistant_route: str = "fake"
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> CoreSettings:
@@ -50,6 +51,9 @@ class CoreSettings:
         routes = frozenset(
             r.strip() for r in env.get("ALPHA_ENABLED_MODEL_ROUTES", "fake").split(",") if r.strip()
         )
+        assistant_route = env.get("ALPHA_ASSISTANT_ROUTE") or (
+            "claude-code-cli" if "claude-code-cli" in routes else "fake"
+        )
         return cls(
             data_dir=data_dir,
             session_token=token,
@@ -59,6 +63,7 @@ class CoreSettings:
             enabled_model_routes=routes,
             builder_path=env.get("ALPHA_BUILDER_PATH", "/usr/bin:/bin"),
             builder_home=env.get("ALPHA_BUILDER_HOME") or None,
+            assistant_route=assistant_route,
             build_max_attempt_seconds=(
                 int(env["ALPHA_BUILD_MAX_ATTEMPT_SECONDS"])
                 if env.get("ALPHA_BUILD_MAX_ATTEMPT_SECONDS")

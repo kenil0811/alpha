@@ -23,6 +23,7 @@ AUTOMATED_KINDS = {"integration", "unit"}
 LIVE_COMMANDS = {
     "F02": "just qualify-builder  (opt-in live route; see docs/development/decisions)",
     "F03": "just qualify-sandbox (real macOS sandbox probes) + desktop fixture run (native)",
+    "F04": "just qualify-assistant (opt-in live route; three request families)",
 }
 
 # Ticket -> ordered list of (label, argv). Only tickets with real implemented checks appear.
@@ -33,6 +34,22 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
         ("test-ui", ["just", "test-ui"]),
         ("test-integration", ["just", "test-integration"]),
         ("toolchain-locks", ["just", "verify-locks"]),
+    ],
+    "F04": [
+        ("check", ["just", "check"]),
+        ("test-ui", ["just", "test-ui"]),
+        (
+            "test-assistant",
+            [
+                "uv",
+                "run",
+                "pytest",
+                "tests/integration/test_assistant.py",
+                "-q",
+                "-m",
+                "integration",
+            ],
+        ),
     ],
     "F03": [
         ("check", ["just", "check"]),

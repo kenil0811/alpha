@@ -1,0 +1,140 @@
+{
+  "candidate": {
+    "package": "@anthropic-ai/sandbox-runtime",
+    "version": "1.0.0",
+    "enforcement": "macOS sandbox-exec (seatbelt) + srt proxies"
+  },
+  "started_at": "2026-09-25T17:01:24.805277+00:00",
+  "host": {
+    "platform": "darwin",
+    "python": "3.13.9"
+  },
+  "settings": {
+    "network": {
+      "allowedDomains": [],
+      "deniedDomains": [],
+      "allowLocalBinding": false
+    },
+    "filesystem": {
+      "denyRead": [
+        "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/home",
+        "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/data"
+      ],
+      "allowRead": [],
+      "allowWrite": [
+        "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/scratch"
+      ],
+      "denyWrite": []
+    },
+    "enableWeakerNestedSandbox": false,
+    "enableWeakerNetworkIsolation": false,
+    "allowAppleEvents": false
+  },
+  "srt_exit_code": 0,
+  "srt_stderr_tail": "",
+  "probes": [
+    {
+      "probe": "read_canary",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted: '/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/home/.alpha-canary-secret'"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "read_etc_passwd",
+      "expected_allowed": null,
+      "observed": {
+        "ok": true,
+        "value": "##\n# User "
+      },
+      "verdict": "recorded"
+    },
+    {
+      "probe": "write_scratch",
+      "expected_allowed": true,
+      "observed": {
+        "ok": true,
+        "value": 1
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "write_outside",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted: '/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/outside-write.txt'"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "symlink_escape",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted: '/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/scratch/link'"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "subprocess_cat_canary",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: child denied: rc=1 stderr=cat: /var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx/home/.alpha-canary-secret: Operation "
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "subprocess_sh",
+      "expected_allowed": null,
+      "observed": {
+        "ok": true,
+        "value": "shell-ok"
+      },
+      "verdict": "recorded"
+    },
+    {
+      "probe": "tcp_public",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "http_public",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "tcp_loopback",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted"
+      },
+      "verdict": "pass"
+    },
+    {
+      "probe": "listen_socket",
+      "expected_allowed": false,
+      "observed": {
+        "ok": false,
+        "error": "PermissionError: [Errno 1] Operation not permitted"
+      },
+      "verdict": "pass"
+    }
+  ],
+  "loopback_listener_accepted": [],
+  "cleanup_scratch_removed": true,
+  "gaps_for_F20": [],
+  "world": "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-sandbox-world-12bjp7nx"
+}

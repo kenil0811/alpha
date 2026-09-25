@@ -6,6 +6,7 @@ import { RequestPanel } from "./components/RequestPanel";
 import { RunList } from "./components/RunList";
 import { useRuns } from "./components/useRuns";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
+import { AssistantPanel } from "./assistant/AssistantPanel";
 
 type Runtime =
   | { kind: "connecting" }
@@ -15,6 +16,7 @@ type Runtime =
 export function App({ client: injected }: { client?: CoreClient } = {}) {
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
   const [showFixture, setShowFixture] = useState(false);
+  const [showRuntime, setShowRuntime] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,17 +53,23 @@ export function App({ client: injected }: { client?: CoreClient } = {}) {
         </div>
         <div className="row">
           {runtime.kind === "connected" ? (
-            <button type="button" className="button" onClick={() => setShowFixture((v) => !v)}>
-              {showFixture ? "Hide isolation fixture" : "Isolation fixture"}
-            </button>
+            <>
+              <button type="button" className="button" onClick={() => setShowRuntime((v) => !v)}>
+                {showRuntime ? "Hide runtime fixture" : "Runtime fixture"}
+              </button>
+              <button type="button" className="button" onClick={() => setShowFixture((v) => !v)}>
+                {showFixture ? "Hide isolation fixture" : "Isolation fixture"}
+              </button>
+            </>
           ) : null}
           <RuntimeStatus runtime={runtime} />
         </div>
       </header>
-      <main className={showFixture ? "frame__main frame__main--three" : "frame__main"}>
+      <main className={showFixture || showRuntime ? "frame__main frame__main--three" : "frame__main"}>
         {runtime.kind === "connected" ? (
           <>
-            <Connected client={runtime.client} />
+            <AssistantPanel client={runtime.client} />
+            <Connected client={runtime.client} showRequest={showRuntime} />
             {showFixture ? <GeneratedUiFixture client={runtime.client} /> : null}
           </>
         ) : (
@@ -96,13 +104,13 @@ function RuntimeStatus({ runtime }: { runtime: Runtime }) {
   );
 }
 
-function Connected({ client }: { client: CoreClient }) {
+function Connected({ client, showRequest }: { client: CoreClient; showRequest: boolean }) {
   const { runs, error, submit, cancel } = useRuns(client);
   return (
     <>
-      <RequestPanel onSubmit={submit} />
+      {showRequest ? <RequestPanel onSubmit={submit} /> : null}
       <section className="panel" aria-labelledby="results-heading">
-        <h2 id="results-heading">Results</h2>
+        <h2 id="results-heading">Activity</h2>
         {error ? (
           <p className="notice" role="alert">
             {error}

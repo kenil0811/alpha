@@ -1,5 +1,13 @@
-import type { Run, RunEvent } from "@alpha/contracts";
-import type { CoreClient, HealthInfo, StreamItem, SyntheticRunRequest } from "../core/client";
+import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
+import type {
+  CapabilityEntry,
+  Conversation,
+  ConversationReply,
+  CoreClient,
+  HealthInfo,
+  StreamItem,
+  SyntheticRunRequest,
+} from "../core/client";
 
 /** In-memory CoreClient that reproduces Core's observable state machine for shell tests. */
 export class FakeCoreClient implements CoreClient {
@@ -9,6 +17,9 @@ export class FakeCoreClient implements CoreClient {
   private cursor = 0;
   private sequence = new Map<string, number>();
   failCreate = false;
+  conversations = new Map<string, Conversation>();
+  /** Scripted assistant: called on start and on every reply; returns the next conversation state. */
+  assistantScript: ((conversation: Conversation, reply: ConversationReply | null) => Conversation) | null = null;
   /** Simulate Core dispatching faster than the HTTP response returns: these run before
    *  createRun resolves. */
   beforeCreateResolves: ((runId: string) => void) | null = null;
@@ -80,6 +91,49 @@ export class FakeCoreClient implements CoreClient {
     await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
   }
 
+  async startConversation(text: string): Promise<Conversation> {
+    const now = new Date().toISOString();
+    let conversation: Conversation = {
+      conversation_id: `conv_${this.conversations.size + 1}`,
+      state: "thinking",
+      route_id: "fake",
+      created_at: now,
+      updated_at: now,
+      turns: [{ turn_id: "t1", sequence: 1, role: "user", kind: "request", content: { text }, created_at: now }],
+      current_brief: null,
+      interpretation: null,
+      questions: [],
+      reply: null,
+      delivery: null,
+      error: null,
+    };
+    if (this.assistantScript) conversation = this.assistantScript(conversation, null);
+    this.conversations.set(conversation.conversation_id, conversation);
+    return conversation;
+  }
+
+  async conversation(id: string): Promise<Conversation> {
+    const c = this.conversations.get(id);
+    if (!c) throw new Error("conversation_not_found");
+    return c;
+  }
+
+  async listConversations(): Promise<Conversation[]> {
+    return [...this.conversations.values()];
+  }
+
+  async replyConversation(id: string, reply: ConversationReply): Promise<Conversation> {
+    let c = await this.conversation(id);
+    c = { ...c, turns: [...c.turns, { turn_id: `t${c.turns.length + 1}`, sequence: c.turns.length + 1, role: "user", kind: "answer", content: { ...reply }, created_at: new Date().toISOString() }] };
+    if (this.assistantScript) c = this.assistantScript(c, reply);
+    this.conversations.set(id, c);
+    return c;
+  }
+
+  async capabilities(): Promise<CapabilityEntry[]> {
+    return [{ family: "compute", description: "calculations", available: true, unavailable_reason: null, arrives_with: null }];
+  }
+
   // --- test controls -------------------------------------------------------------------
 
   start(runId: string): Run {
@@ -128,4 +182,45 @@ export class FakeCoreClient implements CoreClient {
     this.items.push(item);
     for (const listener of this.listeners) listener(item);
   }
+}
+
+export function sampleBrief(overrides: Partial<SolutionBrief> = {}): SolutionBrief {
+  return {
+    contract_version: "0.2",
+    id: "brief_1",
+    revision: 1,
+    conversation_id: "conv_1",
+    created_at: new Date().toISOString(),
+    goal: "Track what I eat and how much, with calories, history and trends",
+    success_summary: "Entries take seconds and today's total is always right.",
+    delivery: "app",
+    surfaces: ["custom_ui"],
+    inputs: [],
+    primary_journey: [{ action: "Type a food and how much", expected_result: "An entry with an estimate appears" }],
+    data_needs: [
+      {
+        collection: "food_entries",
+        purpose: "Everything eaten",
+        fields: [
+          { name: "food", kind: "text", description: "What was eaten", required: true },
+          { name: "calories", kind: "number", description: "Estimate", required: true },
+        ],
+        provenance: "user",
+        retention: "until deleted",
+      },
+    ],
+    actions: [],
+    recurrence: null,
+    constraints: [],
+    acceptance_examples: [],
+    assumptions: [
+      { text: "Single user on this Mac", source: "model_default", turn_ref: null },
+      { text: "Portions entered as rough sizes", source: "user_answer", turn_ref: "t2" },
+    ],
+    open_questions: [],
+    unavailable_capabilities: ["records"],
+    selected_context_snapshot_id: "conv_1.context.r1",
+    supersedes_revision: null,
+    ...overrides,
+  };
 }

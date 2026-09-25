@@ -1,4 +1,4 @@
-import type { Run, RunEvent } from "@alpha/contracts";
+import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
 
 export interface CoreSession {
   baseUrl: string;
@@ -26,6 +26,60 @@ export interface HealthInfo {
   active_runs: string[];
 }
 
+export interface OpenQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  why_it_matters: string;
+}
+
+export interface Interpretation {
+  outcome: string;
+  main_input: string;
+  useful_result: string;
+  important_assumptions: string[];
+}
+
+export interface ConversationTurn {
+  turn_id: string;
+  sequence: number;
+  role: "user" | "assistant";
+  kind: string;
+  content: Record<string, unknown>;
+  created_at: string;
+}
+
+export type ConversationState = "thinking" | "waiting_for_user" | "briefed" | "answered" | "failed";
+
+export interface Conversation {
+  conversation_id: string;
+  state: ConversationState;
+  route_id: string;
+  created_at: string;
+  updated_at: string;
+  turns: ConversationTurn[];
+  current_brief: SolutionBrief | null;
+  interpretation: Interpretation | null;
+  questions: OpenQuestion[];
+  reply: string | null;
+  delivery: "answer" | "task" | "app" | null;
+  error: string | null;
+}
+
+export interface ConversationReply {
+  text?: string;
+  answers?: Record<string, string>;
+  use_defaults?: boolean;
+}
+
+export interface CapabilityEntry {
+  family: string;
+  description: string;
+  available: boolean;
+  unavailable_reason: string | null;
+  arrives_with: string | null;
+}
+
 export interface StreamItem {
   cursor: number;
   event: RunEvent;
@@ -40,6 +94,11 @@ export interface CoreClient {
   cancelRun(runId: string): Promise<Run>;
   events(runId: string): Promise<RunEvent[]>;
   stream(after: number, onItem: (item: StreamItem) => void, signal: AbortSignal): Promise<void>;
+  startConversation(text: string): Promise<Conversation>;
+  conversation(id: string): Promise<Conversation>;
+  listConversations(): Promise<Conversation[]>;
+  replyConversation(id: string, reply: ConversationReply): Promise<Conversation>;
+  capabilities(): Promise<CapabilityEntry[]>;
 }
 
 export class CoreError extends Error {
@@ -132,6 +191,31 @@ export class HttpCoreClient implements CoreClient {
       `/api/runs/${encodeURIComponent(runId)}/events`,
     );
     return page.events;
+  }
+
+  startConversation(text: string): Promise<Conversation> {
+    return this.request<Conversation>("/api/conversations", { method: "POST", body: JSON.stringify({ text }) });
+  }
+
+  conversation(id: string): Promise<Conversation> {
+    return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}`);
+  }
+
+  async listConversations(): Promise<Conversation[]> {
+    const page = await this.request<{ conversations: Conversation[] }>("/api/conversations?limit=20");
+    return page.conversations;
+  }
+
+  replyConversation(id: string, reply: ConversationReply): Promise<Conversation> {
+    return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}/messages`, {
+      method: "POST",
+      body: JSON.stringify(reply),
+    });
+  }
+
+  async capabilities(): Promise<CapabilityEntry[]> {
+    const page = await this.request<{ capabilities: CapabilityEntry[] }>("/api/capabilities");
+    return page.capabilities;
   }
 
   async stream(after: number, onItem: (item: StreamItem) => void, signal: AbortSignal): Promise<void> {

@@ -21,7 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha import __version__
 from alpha.api.auth import make_auth_middleware
+from alpha.assistant.service import AssistantService, ConversationRecord
+from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import AcceptanceExample, BuildNotReady, BuildRecord, BuildService
+from alpha.capabilities.catalog import catalog_entries
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
@@ -93,6 +96,25 @@ class InvokeRequest(BaseModel):
     input: dict[str, Any]
 
 
+class ConversationStart(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=4000)
+    route_id: str | None = Field(default=None, max_length=64)
+
+
+class ConversationMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str | None = Field(default=None, max_length=4000)
+    answers: dict[str, str] | None = None
+    use_defaults: bool = False
+
+
+class ConversationList(BaseModel):
+    conversations: list[ConversationRecord]
+
+
 # WebKit (the Tauri WebView on macOS) does not hand small streamed-fetch chunks to JavaScript
 # until enough bytes accumulate; a live SSE stream with ~1 KB frames stalls after the first few.
 # Every frame is followed by a comment of this size so each write is flushed to the consumer.
@@ -110,6 +132,7 @@ def create_app(
     coordinator: RunCoordinator,
     builds: BuildService | None = None,
     gateway: ModelGateway | None = None,
+    assistant: AssistantService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.middleware("http")(make_auth_middleware(settings.session_token, settings.allowed_origins))
@@ -192,6 +215,8 @@ def create_app(
 
     if builds is not None and gateway is not None:
         register_build_routes(app, builds, gateway)
+    if assistant is not None:
+        register_assistant_routes(app, assistant)
 
     @app.get("/api/events/stream")
     async def stream_events(
@@ -292,3 +317,54 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
             raise HTTPException(status_code=404, detail="build_not_found") from exc
         except BuildNotReady as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None:
+    @app.get("/api/capabilities")
+    def capabilities() -> dict[str, Any]:
+        return {"capabilities": catalog_entries()}
+
+    @app.post("/api/conversations", response_model=ConversationRecord, status_code=201)
+    def start_conversation(body: ConversationStart) -> ConversationRecord:
+        try:
+            return assistant.start(body.text, body.route_id)
+        except RouteUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/conversations", response_model=ConversationList)
+    def list_conversations(limit: int = Query(default=20, ge=1, le=100)) -> ConversationList:
+        return ConversationList(conversations=assistant.list_conversations(limit))
+
+    @app.get("/api/conversations/{conversation_id}", response_model=ConversationRecord)
+    def get_conversation(conversation_id: str) -> ConversationRecord:
+        try:
+            return assistant.get(conversation_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="conversation_not_found") from exc
+
+    @app.post("/api/conversations/{conversation_id}/messages", response_model=ConversationRecord)
+    def reply_conversation(conversation_id: str, body: ConversationMessage) -> ConversationRecord:
+        try:
+            return assistant.reply(
+                conversation_id,
+                text=body.text,
+                answers=body.answers,
+                use_defaults=body.use_defaults,
+            )
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="conversation_not_found") from exc
+        except AssistantBusy as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/conversations/{conversation_id}/briefs/{revision}")
+    def get_brief_revision(conversation_id: str, revision: int) -> dict[str, Any]:
+        record = assistant.get(conversation_id)
+        if not record.current_brief:
+            raise HTTPException(status_code=404, detail="no_brief")
+        try:
+            brief = assistant.brief_revision(record.current_brief.id, revision)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="revision_not_found") from exc
+        return brief.model_dump(mode="json")

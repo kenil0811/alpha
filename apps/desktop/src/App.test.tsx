@@ -4,18 +4,24 @@ import { describe, expect, it } from "vitest";
 import { App } from "./App";
 import { FakeCoreClient } from "./test/fakeClient";
 
+async function openRuntimeFixture(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole("status");
+  await user.click(screen.getByRole("button", { name: "Runtime fixture" }));
+}
+
 describe("shell request/result path", () => {
   it("shows the connected runtime and an empty result state", async () => {
     render(<App client={new FakeCoreClient()} />);
     expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
     expect(screen.getByText(/Nothing has run yet/)).toBeInTheDocument();
+    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
   });
 
   it("submits text, follows live status and shows the worker output", async () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole("status");
+    await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "hello alpha");
     await user.click(screen.getByRole("button", { name: "Run" }));
 
@@ -45,7 +51,7 @@ describe("shell request/result path", () => {
     };
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole("status");
+    await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "fast");
     await user.click(screen.getByRole("button", { name: "Run" }));
     const list = await screen.findByRole("list", { name: "Runs" });
@@ -62,7 +68,7 @@ describe("shell request/result path", () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole("status");
+    await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "x");
     await user.selectOptions(screen.getByLabelText("Worker behavior"), "fail");
     await user.click(screen.getByRole("button", { name: "Run" }));
@@ -79,7 +85,7 @@ describe("shell request/result path", () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole("status");
+    await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "hang");
     await user.click(screen.getByRole("button", { name: "Run" }));
     await act(async () => {
@@ -98,7 +104,7 @@ describe("shell request/result path", () => {
     client.failCreate = true;
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole("status");
+    await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "x");
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not start");

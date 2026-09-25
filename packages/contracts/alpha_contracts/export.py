@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from alpha_contracts import CONTRACT_VERSION
+from alpha_contracts.briefs import SolutionBrief
 from alpha_contracts.builds import BuildEvent, BuildRequest, BuildResult
 from alpha_contracts.runs import Run, RunEvent
 
@@ -22,6 +23,7 @@ PUBLISHED: dict[str, type[BaseModel]] = {
     "build_request": BuildRequest,
     "build_result": BuildResult,
     "build_event": BuildEvent,
+    "solution_brief": SolutionBrief,
 }
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"

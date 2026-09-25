@@ -56,6 +56,10 @@ verify-locks:
 qualify-builder *args:
     uv run python tools/qualify_builder.py {{args}}
 
+# Opt-in live assistant qualification on the founder's Claude subscription (F04.C01). Writes evidence logs.
+qualify-assistant *args:
+    uv run python tools/qualify_assistant.py {{args}}
+
 # F03 local containment feasibility probes on the pinned sandbox-runtime candidate (real macOS seatbelt).
 qualify-sandbox *args:
     uv run python tests/qualification/sandbox/run_probes.py {{args}}

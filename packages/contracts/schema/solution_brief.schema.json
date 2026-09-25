@@ -1,0 +1,498 @@
+{
+  "$defs": {
+    "AcceptanceExample": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "default": "success",
+          "enum": [
+            "success",
+            "failure",
+            "boundary"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "AcceptanceExample",
+      "type": "object"
+    },
+    "ActionIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "effect_class": {
+          "default": "none",
+          "enum": [
+            "none",
+            "local_write",
+            "external_read",
+            "external_write"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "outputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "required_capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description"
+      ],
+      "title": "ActionIntent",
+      "type": "object"
+    },
+    "Assumption": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "default": "model_default",
+          "enum": [
+            "model_default",
+            "user_answer",
+            "user_correction"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "turn_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Assumption",
+      "type": "object"
+    },
+    "ContextInput": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "purpose": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "ref": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "purpose",
+        "source"
+      ],
+      "title": "ContextInput",
+      "type": "object"
+    },
+    "DataNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FieldNeed"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "default": "user",
+          "type": "string"
+        },
+        "purpose": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "retention": {
+          "default": "until the user deletes it",
+          "type": "string"
+        }
+      },
+      "required": [
+        "collection",
+        "purpose",
+        "fields"
+      ],
+      "title": "DataNeed",
+      "type": "object"
+    },
+    "Delivery": {
+      "enum": [
+        "answer",
+        "task",
+        "app"
+      ],
+      "title": "Delivery",
+      "type": "string"
+    },
+    "FieldNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "number",
+            "boolean",
+            "date",
+            "datetime",
+            "choice",
+            "reference",
+            "json"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "FieldNeed",
+      "type": "object"
+    },
+    "JourneyStep": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "expected_result": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "expected_result"
+      ],
+      "title": "JourneyStep",
+      "type": "object"
+    },
+    "OpenQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "question": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "why_it_matters": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "why_it_matters"
+      ],
+      "title": "OpenQuestion",
+      "type": "object"
+    },
+    "Recurrence": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "timezone": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "interval",
+            "daily",
+            "weekly"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "description",
+        "timezone"
+      ],
+      "title": "Recurrence",
+      "type": "object"
+    },
+    "Surface": {
+      "enum": [
+        "conversation",
+        "artifact",
+        "custom_ui",
+        "background",
+        "external_update"
+      ],
+      "title": "Surface",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_examples": {
+      "items": {
+        "$ref": "#/$defs/AcceptanceExample"
+      },
+      "type": "array"
+    },
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/ActionIntent"
+      },
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "$ref": "#/$defs/Assumption"
+      },
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "conversation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "data_needs": {
+      "items": {
+        "$ref": "#/$defs/DataNeed"
+      },
+      "type": "array"
+    },
+    "delivery": {
+      "$ref": "#/$defs/Delivery"
+    },
+    "goal": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/ContextInput"
+      },
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "$ref": "#/$defs/OpenQuestion"
+      },
+      "type": "array"
+    },
+    "primary_journey": {
+      "items": {
+        "$ref": "#/$defs/JourneyStep"
+      },
+      "type": "array"
+    },
+    "recurrence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Recurrence"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "selected_context_snapshot_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "success_summary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "supersedes_revision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "surfaces": {
+      "items": {
+        "$ref": "#/$defs/Surface"
+      },
+      "type": "array"
+    },
+    "unavailable_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "revision",
+    "conversation_id",
+    "created_at",
+    "goal",
+    "success_summary",
+    "delivery",
+    "surfaces",
+    "inputs",
+    "primary_journey",
+    "data_needs",
+    "actions",
+    "recurrence",
+    "constraints",
+    "acceptance_examples",
+    "assumptions",
+    "open_questions",
+    "unavailable_capabilities",
+    "selected_context_snapshot_id"
+  ],
+  "title": "SolutionBrief",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

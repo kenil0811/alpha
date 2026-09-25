@@ -1,0 +1,461 @@
+"""AssistantService: conversation → interpretation, material questions, versioned SolutionBrief.
+
+Each user turn runs one structured model call (in a thread; the conversation is `thinking`
+meanwhile). The model proposes delivery, interpretation, questions and a brief draft; Core owns
+the brief's identity, revision lineage and assumption provenance. An `answer` delivery creates
+no brief and no App/Task record. Nothing here grants authority.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from datetime import datetime
+from typing import Any, Literal
+
+from alpha_contracts.briefs import Assumption, Delivery, Interpretation, OpenQuestion, SolutionBrief
+from pydantic import BaseModel, ValidationError
+
+from alpha.assistant.fake_model import fake_assistant
+from alpha.assistant.prompts import system_prompt, turn_prompt
+from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
+from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models.structured import InferenceError, StructuredInference
+from alpha.storage.control_store import ControlStore, NotFoundError, new_id, utc_now
+
+log = logging.getLogger("alpha.assistant")
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS conversations (
+    conversation_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    route_id TEXT NOT NULL,
+    delivery TEXT,
+    current_brief_id TEXT,
+    current_revision INTEGER,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    latest_sequence INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS conversation_turns (
+    turn_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    sequence INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(conversation_id, sequence)
+);
+CREATE TABLE IF NOT EXISTS briefs (
+    brief_id TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    source_turn_id TEXT NOT NULL,
+    brief_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (brief_id, revision)
+);
+"""
+
+
+def _dt(value: datetime) -> str:
+    return value.isoformat().replace("+00:00", "Z")
+
+
+class ConversationTurn(BaseModel):
+    turn_id: str
+    sequence: int
+    role: str
+    kind: str
+    content: dict[str, Any]
+    created_at: str
+
+
+class ConversationRecord(BaseModel):
+    conversation_id: str
+    state: str
+    route_id: str
+    created_at: str
+    updated_at: str
+    turns: list[ConversationTurn]
+    current_brief: SolutionBrief | None
+    interpretation: Interpretation | None
+    questions: list[OpenQuestion]
+    reply: str | None
+    delivery: Delivery | None
+    error: str | None
+    brief_history: list[int]
+
+
+class AssistantService:
+    def __init__(
+        self,
+        store: ControlStore,
+        gateway: ModelGateway,
+        inference: StructuredInference,
+        *,
+        default_route: str,
+    ) -> None:
+        self._store = store
+        self._gateway = gateway
+        self._inference = inference
+        self._default_route = default_route
+        self._lock = threading.Lock()
+        store.execute_script(_SCHEMA)
+
+    # ----- public ------------------------------------------------------------------------
+
+    def start(self, text: str, route_id: str | None = None) -> ConversationRecord:
+        route = self._gateway.route(route_id or self._default_route)
+        conversation_id = new_id("conv")
+        now = _dt(utc_now())
+        with self._store.transaction() as conn:
+            conn.execute(
+                """INSERT INTO conversations(conversation_id, state, route_id, created_at,
+                   updated_at, latest_sequence) VALUES (?,?,?,?,?,0)""",
+                (conversation_id, "thinking", route.route_id, now, now),
+            )
+            self._append_turn_locked(conn, conversation_id, "user", "request", {"text": text})
+        self._spawn_turn(conversation_id, route, {"text": text})
+        return self.get(conversation_id)
+
+    def reply(
+        self,
+        conversation_id: str,
+        *,
+        text: str | None = None,
+        answers: dict[str, str] | None = None,
+        use_defaults: bool = False,
+    ) -> ConversationRecord:
+        record = self.get(conversation_id)
+        if record.state == "thinking":
+            raise ConflictError("the assistant is still thinking")
+        if not text and not answers and not use_defaults:
+            raise ValueError("a reply needs text, answers or use_defaults")
+        route = self._gateway.route(record.route_id)
+        content: dict[str, Any] = {}
+        if text:
+            content["text"] = text
+        if answers:
+            content["answers"] = answers
+        if use_defaults:
+            content["use_defaults"] = True
+        kind = "answer" if answers or use_defaults else "correction"
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE conversations SET state = 'thinking', error = NULL, updated_at = ?"
+                " WHERE conversation_id = ?",
+                (_dt(utc_now()), conversation_id),
+            )
+            self._append_turn_locked(conn, conversation_id, "user", kind, content)
+        self._spawn_turn(conversation_id, route, content)
+        return self.get(conversation_id)
+
+    def get(self, conversation_id: str) -> ConversationRecord:
+        rows = self._store.query(
+            "SELECT * FROM conversations WHERE conversation_id = ?", (conversation_id,)
+        )
+        if not rows:
+            raise NotFoundError(conversation_id)
+        return self._record(rows[0])
+
+    def list_conversations(self, limit: int = 20) -> list[ConversationRecord]:
+        rows = self._store.query(
+            "SELECT * FROM conversations ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,)
+        )
+        return [self._record(r) for r in rows]
+
+    def brief_revision(self, brief_id: str, revision: int) -> SolutionBrief:
+        rows = self._store.query(
+            "SELECT brief_json FROM briefs WHERE brief_id = ? AND revision = ?",
+            (brief_id, revision),
+        )
+        if not rows:
+            raise NotFoundError(f"{brief_id}.r{revision}")
+        return SolutionBrief.model_validate_json(rows[0]["brief_json"])
+
+    # ----- turn ---------------------------------------------------------------------------
+
+    def _spawn_turn(self, conversation_id: str, route: ModelRoute, latest: dict[str, Any]) -> None:
+        thread = threading.Thread(
+            target=self._run_turn, args=(conversation_id, route, latest), daemon=True
+        )
+        thread.start()
+
+    def _run_turn(self, conversation_id: str, route: ModelRoute, latest: dict[str, Any]) -> None:
+        try:
+            record = self.get(conversation_id)
+            history = [
+                {"role": t.role, "content": t.content}
+                for t in record.turns[:-1]  # the latest user turn is passed separately
+            ]
+            current = record.current_brief.model_dump(mode="json") if record.current_brief else None
+            prompt = turn_prompt(history, current, latest)
+            result = self._inference.call(
+                route,
+                system=system_prompt(),
+                prompt=prompt,
+                schema=turn_output_schema(),
+                scope_kind="assistant_turn",
+                scope_ref=conversation_id,
+                fake=fake_assistant if route.route_id == "fake" else None,
+            )
+            output = AssistantTurnOutput.model_validate(result.output)
+        except (InferenceError, ValidationError) as exc:
+            log.warning("assistant turn failed for %s: %s", conversation_id, exc)
+            self._fail(conversation_id, f"{type(exc).__name__}: {str(exc)[:300]}")
+            return
+        except Exception as exc:  # never leave a conversation stuck in thinking
+            log.exception("assistant turn crashed for %s", conversation_id)
+            self._fail(conversation_id, f"internal: {type(exc).__name__}")
+            return
+        self._apply_turn(
+            conversation_id, latest, output, result.model, result.usage.model_dump(mode="json")
+        )
+
+    def _apply_turn(
+        self,
+        conversation_id: str,
+        latest: dict[str, Any],
+        output: AssistantTurnOutput,
+        model: str,
+        usage: dict[str, Any],
+    ) -> None:
+        record = self.get(conversation_id)
+        user_turn = record.turns[-1]
+        now = utc_now()
+        with self._store.transaction() as conn:
+            turn = self._append_turn_locked(
+                conn,
+                conversation_id,
+                "assistant",
+                "assistant",
+                {
+                    "reply": output.reply,
+                    "delivery": output.delivery.value,
+                    "interpretation": output.interpretation.model_dump(),
+                    "questions": [q.model_dump() for q in output.questions],
+                    "model": model,
+                    "usage": usage,
+                },
+            )
+            brief: SolutionBrief | None = None
+            if output.delivery is not Delivery.ANSWER and output.brief_draft is not None:
+                brief = self._next_brief(record, output, latest, user_turn.turn_id, now)
+                conn.execute(
+                    "INSERT INTO briefs(brief_id, revision, conversation_id, source_turn_id,"
+                    " brief_json, created_at) VALUES (?,?,?,?,?,?)",
+                    (
+                        brief.id,
+                        brief.revision,
+                        conversation_id,
+                        turn,
+                        brief.model_dump_json(),
+                        _dt(now),
+                    ),
+                )
+                conn.execute(
+                    "UPDATE conversation_turns SET content_json ="
+                    " json_set(content_json, '$.brief_revision', ?) WHERE turn_id = ?",
+                    (brief.revision, turn),
+                )
+            if output.delivery is Delivery.ANSWER:
+                state = "answered"
+            elif output.questions:
+                state = "waiting_for_user"
+            else:
+                state = "briefed"
+            conn.execute(
+                """UPDATE conversations SET state = ?, delivery = ?, current_brief_id = ?,
+                   current_revision = ?, updated_at = ? WHERE conversation_id = ?""",
+                (
+                    state,
+                    output.delivery.value,
+                    brief.id
+                    if brief
+                    else record.current_brief.id
+                    if record.current_brief
+                    else None,
+                    brief.revision
+                    if brief
+                    else record.current_brief.revision
+                    if record.current_brief
+                    else None,
+                    _dt(now),
+                    conversation_id,
+                ),
+            )
+
+    def _next_brief(
+        self,
+        record: ConversationRecord,
+        output: AssistantTurnOutput,
+        latest: dict[str, Any],
+        user_turn_id: str,
+        now: datetime,
+    ) -> SolutionBrief:
+        assert output.brief_draft is not None
+        previous = record.current_brief
+        brief_id = previous.id if previous else new_id("brief")
+        revision = (previous.revision + 1) if previous else 1
+        # Provenance: assumptions that restate a user answer/correction are attributed to the
+        # user turn; everything else is a model default. Prior user-sourced assumptions are kept
+        # unless the model dropped them deliberately.
+        answered_texts = set()
+        if latest.get("answers"):
+            answered_texts = {str(v).strip().lower() for v in latest["answers"].values()}
+        source_for_new: Literal["model_default", "user_answer", "user_correction"]
+        if latest.get("answers") or latest.get("use_defaults"):
+            source_for_new = "user_answer"
+        elif latest.get("text") and previous:
+            source_for_new = "user_correction"
+        else:
+            source_for_new = "model_default"
+        assumptions: list[Assumption] = []
+        seen: set[str] = set()
+        for text in output.assumptions:
+            key = text.strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            if any(a and a in key for a in answered_texts):
+                assumptions.append(
+                    Assumption(text=text, source="user_answer", turn_ref=user_turn_id)
+                )
+            else:
+                prior = next(
+                    (
+                        a
+                        for a in (previous.assumptions if previous else [])
+                        if a.text.strip().lower() == key
+                    ),
+                    None,
+                )
+                if prior is not None:
+                    assumptions.append(prior)
+                else:
+                    assumptions.append(
+                        Assumption(
+                            text=text,
+                            source=source_for_new,
+                            turn_ref=user_turn_id if source_for_new != "model_default" else None,
+                        )
+                    )
+        draft = output.brief_draft
+        return SolutionBrief(
+            id=brief_id,
+            revision=revision,
+            conversation_id=record.conversation_id,
+            created_at=now,
+            goal=draft.goal,
+            success_summary=draft.success_summary,
+            delivery=output.delivery,
+            surfaces=draft.surfaces,
+            inputs=previous.inputs if previous else [],
+            primary_journey=draft.primary_journey,
+            data_needs=draft.data_needs,
+            actions=draft.actions,
+            recurrence=draft.recurrence,
+            constraints=draft.constraints,
+            acceptance_examples=draft.acceptance_examples,
+            assumptions=assumptions,
+            open_questions=output.questions,
+            unavailable_capabilities=draft.unavailable_capabilities,
+            selected_context_snapshot_id=f"{record.conversation_id}.context.r{revision}",
+            supersedes_revision=previous.revision if previous else None,
+        )
+
+    def _fail(self, conversation_id: str, error: str) -> None:
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE conversations SET state = 'failed', error = ?, updated_at = ?"
+                " WHERE conversation_id = ?",
+                (error, _dt(utc_now()), conversation_id),
+            )
+
+    # ----- persistence ----------------------------------------------------------------------
+
+    def _append_turn_locked(
+        self, conn: Any, conversation_id: str, role: str, kind: str, content: dict[str, Any]
+    ) -> str:
+        row = conn.execute(
+            "SELECT latest_sequence FROM conversations WHERE conversation_id = ?",
+            (conversation_id,),
+        ).fetchone()
+        sequence = int(row["latest_sequence"]) + 1
+        turn_id = new_id("turn")
+        now = _dt(utc_now())
+        conn.execute(
+            "INSERT INTO conversation_turns(turn_id, conversation_id, sequence, role, kind,"
+            " content_json, created_at) VALUES (?,?,?,?,?,?,?)",
+            (turn_id, conversation_id, sequence, role, kind, json.dumps(content, default=str), now),
+        )
+        conn.execute(
+            "UPDATE conversations SET latest_sequence = ?, updated_at = ?"
+            " WHERE conversation_id = ?",
+            (sequence, now, conversation_id),
+        )
+        return turn_id
+
+    def _record(self, row: Any) -> ConversationRecord:
+        turns = [
+            ConversationTurn(
+                turn_id=t["turn_id"],
+                sequence=int(t["sequence"]),
+                role=t["role"],
+                kind=t["kind"],
+                content=json.loads(t["content_json"]),
+                created_at=t["created_at"],
+            )
+            for t in self._store.query(
+                "SELECT * FROM conversation_turns WHERE conversation_id = ? ORDER BY sequence",
+                (row["conversation_id"],),
+            )
+        ]
+        brief = None
+        history: list[int] = []
+        if row["current_brief_id"]:
+            brief = self.brief_revision(row["current_brief_id"], int(row["current_revision"]))
+            history = [
+                int(r["revision"])
+                for r in self._store.query(
+                    "SELECT revision FROM briefs WHERE brief_id = ? ORDER BY revision",
+                    (row["current_brief_id"],),
+                )
+            ]
+        latest_assistant = next((t for t in reversed(turns) if t.role == "assistant"), None)
+        interpretation = None
+        questions: list[OpenQuestion] = []
+        reply = None
+        if latest_assistant is not None:
+            content = latest_assistant.content
+            interpretation = (
+                Interpretation.model_validate(content["interpretation"])
+                if content.get("interpretation")
+                else None
+            )
+            reply = content.get("reply")
+            if row["state"] == "waiting_for_user":
+                questions = [OpenQuestion.model_validate(q) for q in content.get("questions", [])]
+        return ConversationRecord(
+            conversation_id=row["conversation_id"],
+            state=row["state"],
+            route_id=row["route_id"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            turns=turns,
+            current_brief=brief,
+            interpretation=interpretation,
+            questions=questions,
+            reply=reply,
+            delivery=Delivery(row["delivery"]) if row["delivery"] else None,
+            error=row["error"],
+            brief_history=history,
+        )
+
+
+class ConflictError(Exception):
+    pass

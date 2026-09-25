@@ -23,11 +23,13 @@ from fastapi import FastAPI
 
 from alpha import __version__
 from alpha.api.app import create_app, shutting_down
+from alpha.assistant.service import AssistantService
 from alpha.builds.service import BuildService
 from alpha.config import ConfigError, CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
+from alpha.models.structured import StructuredInference
 from alpha.storage.control_store import ControlStore
 from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
 
@@ -74,7 +76,14 @@ def build(
         log.warning(
             "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
         )
-    app = create_app(settings, store, coordinator, builds, gateway)
+    inference = StructuredInference(
+        gateway,
+        claude_binary="claude",
+        tool_path=settings.builder_path,
+        home=settings.builder_home,
+    )
+    assistant = AssistantService(store, gateway, inference, default_route=settings.assistant_route)
+    app = create_app(settings, store, coordinator, builds, gateway, assistant)
     return app, store, coordinator, builds
 
 
