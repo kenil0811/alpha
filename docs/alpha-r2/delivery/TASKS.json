@@ -1,0 +1,1253 @@
+{
+  "baseline": "R2",
+  "registry_version": 2,
+  "initial_status": "pending",
+  "common_reading": [
+    "00 Project Index.md",
+    "product/Product Vision and Principles.md",
+    "architecture/System Architecture.md",
+    "architecture/Implementation Blueprint.md",
+    "delivery/AI_Coding_Agent_Playbook.md",
+    "delivery/Prototype_Scope_and_Acceptance.md"
+  ],
+  "completion_dependency_policy": "All depends_on tickets and required checks must pass before complete. Preparatory work while blocked is explicitly recorded, not completion.",
+  "default_verification_command": "just verify-ticket <ticket-id>",
+  "command_status": "F01 must implement this command; it is not present merely because this bundle names it.",
+  "tickets": [
+    {
+      "id": "F01",
+      "title": "Desktop/Core/worker bootstrap",
+      "depends_on": [],
+      "owned_areas": [
+        "apps/desktop",
+        "services/core",
+        "packages/contracts",
+        "tests/integration",
+        "justfile",
+        "toolchain files"
+      ],
+      "read": [
+        "architecture/Implementation Blueprint.md",
+        "specifications/Current Release Specification.md#6"
+      ],
+      "steps": [
+        "Create the minimal monorepo with pinned uv/Python and pnpm/Node workspace toolchains, committed locks and exercised just commands; record actual OS/toolchain versions. Add just verify-ticket F01 with a dispatcher that fails for unknown/unimplemented tickets.",
+        "Implement the trusted shell and authenticated loopback Core transport; create durable Run/event tables and one synthetic worker profile.",
+        "Implement native window-close versus explicit-quit behavior, process-tree cancellation and restart reconciliation for this narrow path."
+      ],
+      "required_checks": [
+        {
+          "id": "F01.C01",
+          "expected": "Desktop/Core starts using bundled Python; the supplied payload runs and survives reopen.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F01.C02",
+          "expected": "Worker error and cancellation produce honest durable state; descendants terminate.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F01.C03",
+          "expected": "Missing/wrong IPC credentials and unapproved origins fail.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F01.C04",
+          "expected": "Core/worker interruption is visible after restart; window close and explicit quit have distinct behavior.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F01.C05",
+          "expected": "A clean platform dependency install obeys committed locks and exact tool versions; changed locks or an unknown/unimplemented ticket verification recipe fail visibly. No per-App dependency infrastructure is scaffolded ahead of F05.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "No model integration, complete navigation system, generated business app or empty future modules.",
+      "verification_command": "just verify-ticket F01"
+    },
+    {
+      "id": "F02",
+      "title": "Real builder and model route",
+      "depends_on": [
+        "F01"
+      ],
+      "owned_areas": [
+        "services/core/alpha/builds",
+        "services/core/alpha/models",
+        "workers/builder",
+        "packages/contracts",
+        "tests/qualification"
+      ],
+      "read": [
+        "specifications/contracts/Builder Harness Interface.md",
+        "specifications/Current Release Specification.md#4",
+        "architecture/Current Architecture Decisions.md"
+      ],
+      "steps": [
+        "Implement ModelGateway route/token/budget plumbing and a private OpenCode process/session adapter; use an explicitly authorized BYOK route.",
+        "Generate a small pure transformation package from a fresh plain-language prompt and invoke its actual generated function; full record services arrive in F05.",
+        "Exercise build failure, cancel with descendants, token/usage reporting and restart cleanup; pin the exact working route or take the documented bounded fallback."
+      ],
+      "required_checks": [
+        {
+          "id": "F02.C01",
+          "expected": "A real paid-or-authorized model invocation produces source that compiles and returns independently checked outputs.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F02.C02",
+          "expected": "Failed builder/check combinations cannot produce a successful candidate.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F02.C03",
+          "expected": "Cancel cleans descendants and reconnect/restart does not revive obsolete work.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F02.C04",
+          "expected": "Private config and scoped gateway token are used; source/logs omit durable secrets and all attempts/usage are retained.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Do not implement two complete harnesses or infer success from provider prose. A fake remains a control fixture only.",
+      "verification_command": "just verify-ticket F02"
+    },
+    {
+      "id": "F03",
+      "title": "UI boundary and sandbox feasibility",
+      "depends_on": [
+        "F01"
+      ],
+      "owned_areas": [
+        "apps/desktop",
+        "packages/ui-bridge",
+        "workers",
+        "tests/qualification"
+      ],
+      "read": [
+        "specifications/contracts/App UI Bridge.md",
+        "architecture/Security Privacy and Data Boundaries.md",
+        "architecture/Implementation Blueprint.md#4"
+      ],
+      "steps": [
+        "Implement a minimal generated React fixture in the real Tauri unprivileged surface and a bound MessageChannel.",
+        "Exercise two synthetic owner/session grants, invalid message shapes, navigation/revocation and native-token access attempts.",
+        "Probe a pinned sandbox candidate against canary files, symlinks, child processes and network paths; record gaps for F20."
+      ],
+      "required_checks": [
+        {
+          "id": "F03.C01",
+          "expected": "Unprivileged UI cannot invoke native/Core authority or use another owner/session.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F03.C02",
+          "expected": "Navigation/release/session changes invalidate stale bridge authority; malformed requests fail.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F03.C03",
+          "expected": "Actual Mac sandbox probes and cleanup results, including failures, are recorded with a viable next profile decision.",
+          "evidence_kind": "native"
+        }
+      ],
+      "scope_boundary": "Feasibility is not full containment certification. Use nonsensitive fixtures; do not claim F20 complete.",
+      "verification_command": "just verify-ticket F03"
+    },
+    {
+      "id": "F04",
+      "title": "Conversation to SolutionBrief",
+      "depends_on": [
+        "F02"
+      ],
+      "owned_areas": [
+        "services/core/alpha/assistant",
+        "packages/contracts",
+        "apps/desktop/src"
+      ],
+      "read": [
+        "product/Current Release UX Specification.md#3",
+        "specifications/Current Release Specification.md#2",
+        "architecture/Resource Context and Integration Architecture.md"
+      ],
+      "steps": [
+        "Expose currently available capabilities and unmet prerequisites; route each request to answer, Task or reusable App.",
+        "Implement structured brief creation/revision, selected-context lineage, material clarification and reversible defaults.",
+        "Show a short user-facing interpretation and persist corrections without turning setup into a schema-design questionnaire."
+      ],
+      "required_checks": [
+        {
+          "id": "F04.C01",
+          "expected": "Tracker, artifact and unsupported-capability requests route appropriately through the real model loop.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F04.C02",
+          "expected": "Clarification responses revise the brief with assumptions/provenance retained; no unnecessary App is created.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F04.C03",
+          "expected": "User-facing setup is understandable and can be corrected without technical vocabulary.",
+          "evidence_kind": "rendered_ui"
+        }
+      ],
+      "scope_boundary": "Do not invent credentials, grant authority from a brief or ask users to choose database/UI implementation details.",
+      "verification_command": "just verify-ticket F04"
+    },
+    {
+      "id": "F05",
+      "title": "Record/artifact/model SDK",
+      "depends_on": [
+        "F01",
+        "F02",
+        "F04"
+      ],
+      "owned_areas": [
+        "services/core/alpha/data",
+        "services/core/alpha/artifacts",
+        "services/core/alpha/models",
+        "packages/app-sdk",
+        "workers/app",
+        "packages/contracts",
+        "services/core/alpha/execution"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#8",
+        "architecture/Domain and Persistence Model.md",
+        "architecture/Implementation Blueprint.md#8",
+        "architecture/Implementation Blueprint.md#10",
+        "specifications/Current Release Specification.md#11"
+      ],
+      "steps": [
+        "Implement minimum App ownership/schema records plus scoped record/query/aggregate operations and artifact staging/sealing.",
+        "Implement the worker SDK and real generated-function runner; route model calls through the scoped gateway with structured outputs.",
+        "Validate inputs/results and support real persistence/reopen, local transaction rollback and cross-owner rejection.",
+        "Build the default immutable App/Task Python profile using managed uv installation; publish and inventory it once, launch workers with its exact interpreter and isolate scratch/import paths. Run two neutral App fixtures against the same installed profile with distinct records/credentials."
+      ],
+      "required_checks": [
+        {
+          "id": "F05.C01",
+          "expected": "Actual worker/SDK operations validate, save, query, aggregate and reopen records correctly.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F05.C02",
+          "expected": "Wrong-owner operations, invalid values and unsafe/unbounded queries fail.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F05.C03",
+          "expected": "Artifacts have correct bytes/digests/provenance and bounded model results are correctable rather than presented as facts.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F05.C04",
+          "expected": "Two separate App worker processes reuse the same exact installed SDK/runtime profile while records, broker tokens, module globals and writable scratch remain distinct. Restart uses the pinned installation without a runtime install; functional proof is not F20 containment qualification.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "No job/calorie-specific tables or rules, raw SQL/native paths in generated code, or claim that F09 concurrency tests already passed.",
+      "verification_command": "just verify-ticket F05"
+    },
+    {
+      "id": "F06",
+      "title": "Reusable interaction kit",
+      "depends_on": [
+        "F03",
+        "F04"
+      ],
+      "owned_areas": [
+        "packages/ui-kit",
+        "packages/ui-bridge",
+        "templates/app",
+        "tests/ui"
+      ],
+      "read": [
+        "product/Current Release UX Specification.md#5",
+        "product/Current Release UX Specification.md#10",
+        "specifications/contracts/App UI Bridge.md",
+        "architecture/Implementation Blueprint.md#10"
+      ],
+      "steps": [
+        "Implement tokens and the smallest complete quick-entry, form, record/review, detail, trend and feedback components.",
+        "Document composition/use contracts and accessible keyboard behavior; expose documentation/examples to the builder.",
+        "Create pattern references with neutral fixture data and verify empty/populated/loading/failure/narrow states.",
+        "Build one exact UI-kit/bridge package in the managed pnpm UI profile. Templates and two neutral compositions import those packages rather than copy implementation; preserve exact pins in build evidence."
+      ],
+      "required_checks": [
+        {
+          "id": "F06.C01",
+          "expected": "Keyboard entry/correction, filtering and failed-save recovery work through the bridge.",
+          "evidence_kind": "rendered_ui"
+        },
+        {
+          "id": "F06.C02",
+          "expected": "Supported widths, long labels, empty states and accessible names/focus have no blocking defects.",
+          "evidence_kind": "rendered_ui"
+        },
+        {
+          "id": "F06.C03",
+          "expected": "Reference components contain reusable behavior and no exemplar-domain platform shortcuts.",
+          "evidence_kind": "review"
+        },
+        {
+          "id": "F06.C04",
+          "expected": "Two neutral UI compositions build and run using the same pinned kit/bridge source packages with no vendored forks; no remote runtime import or App-specific Node server is introduced. Compiled asset duplication is allowed.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "No mandatory UI DSL, generic CRUD-only quality bar or finished founder-written example app.",
+      "verification_command": "just verify-ticket F06"
+    },
+    {
+      "id": "F07",
+      "title": "Candidate verification and bounded repair",
+      "depends_on": [
+        "F02",
+        "F05",
+        "F06"
+      ],
+      "owned_areas": [
+        "services/core/alpha/builds",
+        "workers/validator",
+        "templates/app",
+        "packages/contracts",
+        "tests/integration",
+        "evals"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#3",
+        "specifications/Current Release Specification.md#4",
+        "specifications/contracts/Package Layout.md",
+        "specifications/Current Release Specification.md#11",
+        "architecture/Implementation Blueprint.md#10"
+      ],
+      "steps": [
+        "Validate source paths/dependencies/schemas and resolve actual action handlers inside the disposable worker.",
+        "Run independently owned behavior checks, build assets, launch/interact with UI and retain detailed reports against exact bytes.",
+        "Feed failed checks to bounded builder repair, enforce attempt/time/cost limits and seal only a verified candidate.",
+        "Resolve and seal the platform-owned dependency manifest, full package closure, exact locks and profile digests. Validate and invoke against the same installed profile; unsupported extra dependencies produce a bounded qualification request rather than mutation of a common environment."
+      ],
+      "required_checks": [
+        {
+          "id": "F07.C01",
+          "expected": "Missing handler, false persistence and contradictory builder/validator outcomes are rejected.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F07.C02",
+          "expected": "Primary interaction, saved outputs and rendered states are actually exercised, with failing UI withheld from ready status.",
+          "evidence_kind": "rendered_ui"
+        },
+        {
+          "id": "F07.C03",
+          "expected": "Real builder repair fixes a reproducible case or honestly stops at limits; every attempt is retained.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F07.C04",
+          "expected": "An undeclared dependency, changed lock/artifact, incompatible profile or substituted runtime fails validation/activation. Sealed outputs contain exact pins and no credentials, mutable environment or ambient Core imports; worker startup never resolves or installs packages.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Candidate-authored tests are supplemental. Never alter independent expectations to match generated code.",
+      "verification_command": "just verify-ticket F07"
+    },
+    {
+      "id": "F08",
+      "title": "User creation and delivery loop",
+      "depends_on": [
+        "F04",
+        "F05",
+        "F06",
+        "F07"
+      ],
+      "owned_areas": [
+        "services/core/alpha/assistant",
+        "services/core/alpha/solutions",
+        "apps/desktop/src",
+        "evals"
+      ],
+      "read": [
+        "delivery/Prototype_Scope_and_Acceptance.md#F08",
+        "product/Current Release UX Specification.md#4",
+        "specifications/Current Release Specification.md#5"
+      ],
+      "steps": [
+        "Join brief, build, checks, preview and activation with stable App/version/data identities.",
+        "Expose a useful generated UI or shell-provided no-custom-UI result and retain working state on restart.",
+        "Freeze platform code and run G1 using ordinary calorie, different workflow and held-out local requests.",
+        "Collect shared-profile reuse evidence from at least two actually generated results, including separate data/scratch and one-worker cancellation. Assemble the concrete G1 review packet and stop at M1; later ready tickets remain out of scope."
+      ],
+      "required_checks": [
+        {
+          "id": "F08.C01",
+          "expected": "All G1 requests go through actual generation and primary use without developer edits to generated source.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F08.C02",
+          "expected": "Generated interfaces are usable and at least one reusable result needs no custom dashboard.",
+          "evidence_kind": "rendered_ui"
+        },
+        {
+          "id": "F08.C03",
+          "expected": "Active package/data and user-created results reopen correctly; preview/sample data is honestly labeled.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F08.C04",
+          "expected": "At least two G1 generated results run with the same installed SDK/runtime profile and independent saved data/scratch; failure or cancellation of one does not corrupt or terminate the other. The review packet includes exact launch instructions and all G1 outcomes.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Scheduling/external access can be absent here. Choose held-out requests inside the currently qualified local capability envelope.",
+      "verification_command": "just verify-ticket F08"
+    },
+    {
+      "id": "F09",
+      "title": "Concurrency and ingestion integrity",
+      "depends_on": [
+        "F05",
+        "F08"
+      ],
+      "owned_areas": [
+        "services/core/alpha/data",
+        "packages/app-sdk",
+        "tests/integration"
+      ],
+      "read": [
+        "architecture/Domain and Persistence Model.md",
+        "specifications/Current Release Specification.md#8"
+      ],
+      "steps": [
+        "Implement CAS revisions in the SQL mutation, local transaction boundaries and idempotency-key payload checks.",
+        "Implement unique ingestion identity and explicit source projection versus user override merge operations.",
+        "Exercise two real SQLite writers and repeated refresh/retry, including conflicting payloads."
+      ],
+      "required_checks": [
+        {
+          "id": "F09.C01",
+          "expected": "Concurrent same-revision updates produce exactly one commit and one conflict.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F09.C02",
+          "expected": "Duplicate ingestion/retry does not duplicate data; changed payload with reused key fails.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F09.C03",
+          "expected": "Refresh preserves user notes/status/overrides and rollback on local transaction error works.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "A pre-read revision comparison or mock repository is not enough evidence.",
+      "verification_command": "just verify-ticket F09"
+    },
+    {
+      "id": "F10",
+      "title": "Versions and data-preserving change",
+      "depends_on": [
+        "F07",
+        "F08",
+        "F09"
+      ],
+      "owned_areas": [
+        "services/core/alpha/solutions",
+        "services/core/alpha/data",
+        "apps/desktop/src",
+        "tests/integration",
+        "evals"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#5",
+        "specifications/contracts/Release Resolution Record.md",
+        "architecture/Domain and Persistence Model.md",
+        "architecture/Implementation Blueprint.md#10"
+      ],
+      "steps": [
+        "Implement settings-only versus code-change paths, candidate copies and schema compatibility checking.",
+        "Implement migration fencing/journal/backup for the supported additive profile and CAS activation.",
+        "Generate a change, inject a bad candidate and exercise stale activation and incompatible rollback.",
+        "Inventory consumers of a shared SDK/module/UI change, publish a new immutable profile, and rebuild per-App candidates. Inject one failing consumer while another passes; activate independently and retain old profiles for existing runs and compatible rollback.",
+        "Distinguish compatible shared-service patches from interface-breaking updates. Qualify compatibility before a central patch; reject unsupported consumers or pause them visibly without silently changing their interface."
+      ],
+      "required_checks": [
+        {
+          "id": "F10.C01",
+          "expected": "Generated field/view change preserves existing records and user decisions.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F10.C02",
+          "expected": "Failed/stale candidates cannot replace the current release; activation races resolve correctly.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F10.C03",
+          "expected": "Migration crash recovers; incompatible code rollback is refused and data restore remains a separate explicit action.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F10.C04",
+          "expected": "A common dependency fix is made once and reaches two identified consumers through separate candidates. One deliberately failed candidate leaves its release/data unchanged; the passing candidate activates. A preexisting run keeps its original profile and compatible code rollback preserves current data.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F10.C05",
+          "expected": "A compatible provider/service patch passes consumer contract tests; a breaking interface change cannot silently run an old consumer against the new contract. Retained compatibility or explicit pause with repair is observable.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Do not execute arbitrary generated migration SQL in Core or silently restore an old database.",
+      "verification_command": "just verify-ticket F10"
+    },
+    {
+      "id": "F11",
+      "title": "One-off outputs",
+      "depends_on": [
+        "F04",
+        "F05",
+        "F07"
+      ],
+      "owned_areas": [
+        "services/core/alpha/assistant",
+        "services/core/alpha/execution",
+        "services/core/alpha/artifacts",
+        "workers/parser",
+        "apps/desktop/src"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#6",
+        "architecture/Input Memory and Procedure Architecture.md",
+        "product/Current Release UX Specification.md"
+      ],
+      "steps": [
+        "Implement distinct Task revisions/attempts and the shared execution envelope without a forged release.",
+        "Add selected text/CSV plus one qualified document parser, isolated for complex formats.",
+        "Deliver a provenance-linked artifact with preview/export, retry lineage and cancellation.",
+        "Ephemeral generated Task computation reuses an exact qualified runtime profile with a Task-owned lease and scratch. Broker-only Tasks need no generated-code installation or hidden App."
+      ],
+      "required_checks": [
+        {
+          "id": "F11.C01",
+          "expected": "Ordinary document request produces a correct downloadable result without creating an App.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F11.C02",
+          "expected": "Parser budgets/path/archive boundaries, malformed inputs and cancellation behave as specified.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F11.C03",
+          "expected": "Output bytes/provenance and separate retry attempts survive reopen.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Do not claim audio synthesis, arbitrary document support or browser actions before their providers qualify.",
+      "verification_command": "just verify-ticket F11"
+    },
+    {
+      "id": "F12",
+      "title": "Durable interruption recovery",
+      "depends_on": [
+        "F08",
+        "F09",
+        "F10",
+        "F11"
+      ],
+      "owned_areas": [
+        "services/core/alpha/execution",
+        "services/core/alpha/solutions",
+        "apps/desktop/src",
+        "workers",
+        "tests/integration"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#6",
+        "specifications/contracts/Run Event Kernel.md",
+        "architecture/Deployment and Execution Architecture.md"
+      ],
+      "steps": [
+        "Implement run transitions/events, stable step keys, worker leases, long waits and scoped re-entry.",
+        "Reconcile abandoned workers/build promotions and preserve committed outputs after Core/worker failure.",
+        "Inject failures at meaningful boundaries and execute the G2 scenarios."
+      ],
+      "required_checks": [
+        {
+          "id": "F12.C01",
+          "expected": "Restart retains correct state/data and interrupted/waiting work is visible.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F12.C02",
+          "expected": "Step reuse with unchanged input avoids duplicate committed work; changed input fails key matching.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F12.C03",
+          "expected": "Actual Mac process cleanup and restart behavior agree with durable status.",
+          "evidence_kind": "native"
+        }
+      ],
+      "scope_boundary": "No automatic arbitrary Python stack resume or claim of exactly-once external effects.",
+      "verification_command": "just verify-ticket F12"
+    },
+    {
+      "id": "F13",
+      "title": "HTTP/file providers",
+      "depends_on": [
+        "F09",
+        "F11",
+        "F12"
+      ],
+      "owned_areas": [
+        "services/core/alpha/capabilities",
+        "services/core/alpha/connections",
+        "apps/desktop/src",
+        "packages/app-sdk",
+        "tests/integration"
+      ],
+      "read": [
+        "specifications/contracts/HTTP Action Profile.md",
+        "architecture/Resource Context and Integration Architecture.md",
+        "specifications/Current Release Specification.md#7"
+      ],
+      "steps": [
+        "Implement CapabilityCatalog/profile discovery, bounded read dispatch and current grant/connection resolution.",
+        "Implement selected file handles, trusted credential injection, destination/redirect/address limits and provenance.",
+        "Use a real public source and a controlled credentialed API with synthetic tokens; defer personal accounts until F20/F21."
+      ],
+      "required_checks": [
+        {
+          "id": "F13.C01",
+          "expected": "Fresh public data and controlled authenticated results are correct, scoped and carry provenance.",
+          "evidence_kind": "live_source"
+        },
+        {
+          "id": "F13.C02",
+          "expected": "Revoked grants, wrong owners, redirected private targets and oversized responses fail.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F13.C03",
+          "expected": "Generated code/logs do not receive secrets or unrestricted paths; writes remain gated.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "No seed data passed off as retrieval, unknown protocol support or real personal-account testing before protection.",
+      "verification_command": "just verify-ticket F13"
+    },
+    {
+      "id": "F14",
+      "title": "Dedicated browser provider",
+      "depends_on": [
+        "F03",
+        "F12",
+        "F13"
+      ],
+      "owned_areas": [
+        "workers/browser",
+        "services/core/alpha/capabilities",
+        "apps/desktop",
+        "tests/browser"
+      ],
+      "read": [
+        "architecture/Resource Context and Integration Architecture.md",
+        "specifications/Local_Automation_and_Platform_Extension_Profile.md",
+        "architecture/Security Privacy and Data Boundaries.md"
+      ],
+      "steps": [
+        "Implement managed contexts, source-scoped navigation/inspection, selected transfer and visible takeover.",
+        "Build a controlled site fixture with pagination, expired login/MFA, layout changes and known side effects.",
+        "Exercise real browser interaction, actual extracted values and sanitized evidence; defer personal sessions to F16 after F20/F21."
+      ],
+      "required_checks": [
+        {
+          "id": "F14.C01",
+          "expected": "Real browser extracts current controlled/public data and handles pagination/layout failure honestly.",
+          "evidence_kind": "browser"
+        },
+        {
+          "id": "F14.C02",
+          "expected": "Login/MFA/expired-session handoff and resume are visible; cookie/state material stays with provider.",
+          "evidence_kind": "browser"
+        },
+        {
+          "id": "F14.C03",
+          "expected": "Unknown writing/autosave operations cannot use the read path; unsupported sites request handoff.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Browser mocks do not qualify this. Do not expose unrestricted evaluate/click operations that bypass effect policy.",
+      "verification_command": "just verify-ticket F14"
+    },
+    {
+      "id": "F15",
+      "title": "Effects and reconciliation",
+      "depends_on": [
+        "F12",
+        "F13",
+        "F14"
+      ],
+      "owned_areas": [
+        "services/core/alpha/capabilities",
+        "apps/desktop/src",
+        "workers/browser",
+        "tests/browser",
+        "tests/integration"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#7",
+        "specifications/contracts/Capability Protocol.md",
+        "product/Current Release UX Specification.md#7"
+      ],
+      "steps": [
+        "Implement durable intent, exact approval binding, current rechecks, provider dispatch and meaningful receipts.",
+        "Add controlled-site form fill/review/submit and provider idempotency/reconciliation paths.",
+        "Inject timeout/kill after dispatch, altered payload, cancellation and revoked authority."
+      ],
+      "required_checks": [
+        {
+          "id": "F15.C01",
+          "expected": "Controlled form uses supplied facts, requests missing facts, reviews actual values and submits once.",
+          "evidence_kind": "browser"
+        },
+        {
+          "id": "F15.C02",
+          "expected": "Changed account/destination/payload/expiry invalidates stale approval.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F15.C03",
+          "expected": "After-send uncertainty is reconciled without blind retry; cancellation does not claim reversal.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Controlled submission is not live third-party submission. Avoid claiming HTTP success alone confirms a business effect.",
+      "verification_command": "just verify-ticket F15"
+    },
+    {
+      "id": "F16",
+      "title": "Real generated job workflow",
+      "depends_on": [
+        "F10",
+        "F13",
+        "F14",
+        "F15",
+        "F20",
+        "F21"
+      ],
+      "owned_areas": [
+        "evals",
+        "tests/browser",
+        "docs/development/evidence"
+      ],
+      "read": [
+        "delivery/Prototype_Scope_and_Acceptance.md#F16",
+        "delivery/Prototype_Scope_and_Acceptance.md#6",
+        "product/Current Release UX Specification.md#6"
+      ],
+      "steps": [
+        "Run an ordinary user job request through Alpha; let the user clarify preferences, supported sources and selected profile facts.",
+        "Verify fresh collection/deduplication, useful views, match explanations and preserved user statuses after refresh.",
+        "Fill a permitted real form with takeover/review; retain controlled receipt evidence and only submit live if specifically authorized."
+      ],
+      "required_checks": [
+        {
+          "id": "F16.C01",
+          "expected": "Real qualified source data is gathered by the generated workflow with no job-specific Core edits.",
+          "evidence_kind": "live_source"
+        },
+        {
+          "id": "F16.C02",
+          "expected": "The resulting review/tracking UI is useful and retains user changes after refresh.",
+          "evidence_kind": "rendered_ui"
+        },
+        {
+          "id": "F16.C03",
+          "expected": "A permitted real form is filled from confirmed facts and handed off/reviewed; submission claims exactly match evidence.",
+          "evidence_kind": "live_source"
+        }
+      ],
+      "scope_boundary": "If a platform defect is fixed, record a new evaluation cohort. No invented personal claims or universal-board promise.",
+      "verification_command": "just verify-ticket F16"
+    },
+    {
+      "id": "F17",
+      "title": "Local schedules",
+      "depends_on": [
+        "F12",
+        "F15"
+      ],
+      "owned_areas": [
+        "services/core/alpha/schedules",
+        "apps/desktop",
+        "packages/contracts",
+        "tests/integration"
+      ],
+      "read": [
+        "specifications/Current Release Specification.md#9",
+        "architecture/Deployment and Execution Architecture.md",
+        "product/Current Release UX Specification.md#9"
+      ],
+      "steps": [
+        "Implement daily/weekly/interval triggers, timezone policy, unique occurrence keys and overlap limits.",
+        "Dispatch through the existing action path; support pause/edit and manual retrigger linked to missed occurrences.",
+        "Test deterministic clock edges and actual Mac close/quit/sleep/wake behavior."
+      ],
+      "required_checks": [
+        {
+          "id": "F17.C01",
+          "expected": "Repeated scans and edited triggers cannot dispatch duplicate/obsolete occurrences; overlap is recorded.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F17.C02",
+          "expected": "DST/timezone and interval behavior matches the explicit policy.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F17.C03",
+          "expected": "Window close preserves execution; quit/sleep missed work is visible and never automatically replayed.",
+          "evidence_kind": "native"
+        }
+      ],
+      "scope_boundary": "No cloud/always-on claim and no bespoke scheduler execution path that bypasses action policy.",
+      "verification_command": "just verify-ticket F17"
+    },
+    {
+      "id": "F18",
+      "title": "Evidence-based repair",
+      "depends_on": [
+        "F10",
+        "F12",
+        "F14",
+        "F17"
+      ],
+      "owned_areas": [
+        "services/core/alpha/assistant",
+        "services/core/alpha/builds",
+        "apps/desktop/src",
+        "evals"
+      ],
+      "read": [
+        "product/Current Release UX Specification.md#8",
+        "architecture/Input Memory and Procedure Architecture.md",
+        "specifications/Current Release Specification.md#4"
+      ],
+      "steps": [
+        "Create scoped diagnostic context from the failing run/source/current brief with redaction and limits.",
+        "Route reconnect/settings/reconciliation/code problems to their correct mechanisms; generate code fixes in a candidate.",
+        "Reproduce a broken source, repair within limits and rerun unaffected journeys and data-preservation checks."
+      ],
+      "required_checks": [
+        {
+          "id": "F18.C01",
+          "expected": "Real generation repairs an induced source failure and preserves user decisions after regression tests.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F18.C02",
+          "expected": "Reconnection/configuration/unknown-effect problems are not misrouted to blind rebuild or retry.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F18.C03",
+          "expected": "Failed repair stops within limits and leaves the existing release/data available.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "An explanation or manual developer edit is not an AI repair. Do not widen authority to make a repair pass.",
+      "verification_command": "just verify-ticket F18"
+    },
+    {
+      "id": "F19",
+      "title": "Frozen-platform breadth evaluation",
+      "depends_on": [
+        "F08",
+        "F11",
+        "F16",
+        "F17",
+        "F18"
+      ],
+      "owned_areas": [
+        "evals",
+        "docs/development/evidence"
+      ],
+      "read": [
+        "delivery/Prototype_Scope_and_Acceptance.md#F19",
+        "delivery/Prototype_Scope_and_Acceptance.md#6",
+        "delivery/Prototype_Scope_and_Acceptance.md#7"
+      ],
+      "steps": [
+        "Freeze platform commit, select the held-out family and preserve original prompts and user clarification.",
+        "Execute six reusable attempts, two one-off attempts and two change/repair attempts with full attempt/usage records.",
+        "Score independent outcomes/UX and report first-pass versus eventual results against G4."
+      ],
+      "required_checks": [
+        {
+          "id": "F19.C01",
+          "expected": "At least 5/6 reusable attempts succeed within repair limits and each of three families has a success.",
+          "evidence_kind": "evaluation"
+        },
+        {
+          "id": "F19.C02",
+          "expected": "Both one-off and both change/repair requests meet their respective output/data rules.",
+          "evidence_kind": "evaluation"
+        },
+        {
+          "id": "F19.C03",
+          "expected": "No unauthorized behavior or false success occurs; all failed attempts and platform changes are visible.",
+          "evidence_kind": "review"
+        }
+      ],
+      "scope_boundary": "Do not select only successful attempts or treat this small sample as a population reliability estimate.",
+      "verification_command": "just verify-ticket F19"
+    },
+    {
+      "id": "F20",
+      "title": "Execution boundary qualification",
+      "depends_on": [
+        "F03",
+        "F07",
+        "F12",
+        "F14",
+        "F15"
+      ],
+      "owned_areas": [
+        "apps/desktop/src-tauri",
+        "workers",
+        "services/core/alpha/capabilities",
+        "tests/qualification"
+      ],
+      "read": [
+        "architecture/Security Privacy and Data Boundaries.md",
+        "architecture/Deployment and Execution Architecture.md",
+        "specifications/contracts/App UI Bridge.md",
+        "architecture/Implementation Blueprint.md#10"
+      ],
+      "steps": [
+        "Start hardening after F03, then qualify complete builder/App/parser/browser profiles after controlled providers exist.",
+        "Run hostile canary probes for home/data/secrets, traversal/symlinks, descriptors, sockets/local services, subprocesses and quotas.",
+        "Exercise UI/native/approval boundaries and fail closed when a profile cannot enforce the promised restrictions.",
+        "Probe writes/rename/replacement through shared installations, package-store hardlinks/symlinks, import/bytecode/library caches and another worker scratch path. Prove actual OS denial rather than assuming cache reuse or chmod enforces isolation."
+      ],
+      "required_checks": [
+        {
+          "id": "F20.C01",
+          "expected": "Actual supported-Mac hostile probes cannot read unrelated data/secrets or bypass broker network/authority.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F20.C02",
+          "expected": "Descendant cleanup, quotas and revocation work without a silent weaker mode.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F20.C03",
+          "expected": "Failed candidate profile has an explicit qualified local replacement/reduced scope before any real-account use.",
+          "evidence_kind": "review"
+        },
+        {
+          "id": "F20.C04",
+          "expected": "Hostile App and builder processes cannot poison shared installed artifacts/caches or another worker’s scratch through direct paths, links, rename or import side effects. The actual supported-Mac restriction and surviving-profile integrity are recorded.",
+          "evidence_kind": "native"
+        }
+      ],
+      "scope_boundary": "Separate directories, fake denied tools or upstream claims do not establish containment. No implicit remote sandbox.",
+      "verification_command": "just verify-ticket F20"
+    },
+    {
+      "id": "F21",
+      "title": "Privacy, export and restore",
+      "depends_on": [
+        "F09",
+        "F10",
+        "F12",
+        "F20"
+      ],
+      "owned_areas": [
+        "services/core/alpha/data",
+        "services/core/alpha/artifacts",
+        "services/core/alpha/connections",
+        "apps/desktop",
+        "tests/integration"
+      ],
+      "read": [
+        "architecture/Security Privacy and Data Boundaries.md#6",
+        "architecture/Domain and Persistence Model.md",
+        "product/Current Release UX Specification.md"
+      ],
+      "steps": [
+        "Implement private storage/Keychain integration, encrypted-OS-storage setup checks and clear remote-inference disclosure.",
+        "Implement scoped retention, export/delete and consistent backup with protected secret handling.",
+        "Restore under concurrent-write/interruption scenarios; validate hashes/compatibility and restore schedules paused.",
+        "Include exact profile manifests/locks and needed distributable artifacts or a verified offline restore source in backup. Restore on a clean offline fixture; never re-resolve a missing profile to a newer version."
+      ],
+      "required_checks": [
+        {
+          "id": "F21.C01",
+          "expected": "Consistent restore recovers the intended records/versions and paused schedules; no unencrypted secret export.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F21.C02",
+          "expected": "Actual Mac credential/storage behavior and setup limits are tested and honestly described.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F21.C03",
+          "expected": "Deletion/retention removes the intended scope while preserving unrelated files and unresolved-effect evidence policy.",
+          "evidence_kind": "integration"
+        },
+        {
+          "id": "F21.C04",
+          "expected": "A clean offline restore reuses the exact retained dependency identities and data. A deliberately missing artifact yields a precise blocked repair state, with no floating-version fallback or silent change to executable behavior.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Do not claim an independent encrypted app vault or assume exported files inherit disk protection elsewhere.",
+      "verification_command": "just verify-ticket F21"
+    },
+    {
+      "id": "F22",
+      "title": "Mac packaging and update",
+      "depends_on": [
+        "F01",
+        "F14",
+        "F20",
+        "F21"
+      ],
+      "owned_areas": [
+        "apps/desktop/src-tauri",
+        "packaging",
+        "CI/release configuration",
+        "tests/qualification"
+      ],
+      "read": [
+        "architecture/Deployment and Execution Architecture.md",
+        "architecture/Implementation Blueprint.md#1",
+        "delivery/Prototype_Scope_and_Acceptance.md#F22",
+        "architecture/Implementation Blueprint.md#10"
+      ],
+      "steps": [
+        "Package/provision pinned runtimes, browser and builder dependencies and record redistribution/license decisions.",
+        "Implement signed/notarized install/update, compatibility/migration and failure recovery on clean supported Macs.",
+        "Qualify the second desired BYOK provider and complete end-user setup without developer tooling.",
+        "Qualify managed profile provisioning once per identity, interrupted install reconciliation and reference/lease-aware cleanup. Preserve active/candidate/running/rollback references and perform package-cache pruning only through supported tooling."
+      ],
+      "required_checks": [
+        {
+          "id": "F22.C01",
+          "expected": "A clean supported Mac installs and creates/uses a result with no terminal or user Python requirement.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F22.C02",
+          "expected": "Corrupt/interrupted update and old stores recover without losing working data.",
+          "evidence_kind": "native"
+        },
+        {
+          "id": "F22.C03",
+          "expected": "Both advertised model providers pass real route tests and signed binary/environment evidence is retained.",
+          "evidence_kind": "live_model"
+        },
+        {
+          "id": "F22.C04",
+          "expected": "Clean-Mac concurrent requests converge on one sealed profile; interrupted installs never become ready. Cleanup cannot delete a profile referenced by a Version or live lease, including a racing acquisition, and unreferenced cleanup recovers after restart. App launch performs no install/sync.",
+          "evidence_kind": "native"
+        }
+      ],
+      "scope_boundary": "Missing signing credentials/hardware is a pending gate; a dev launch is not installer qualification.",
+      "verification_command": "just verify-ticket F22"
+    },
+    {
+      "id": "F23",
+      "title": "Nontechnical usability pilot",
+      "depends_on": [
+        "F19",
+        "F22"
+      ],
+      "owned_areas": [
+        "evals",
+        "docs/development/evidence",
+        "UI areas directly implicated by findings"
+      ],
+      "read": [
+        "product/Current Release UX Specification.md#10",
+        "delivery/Prototype_Scope_and_Acceptance.md#F23"
+      ],
+      "steps": [
+        "Prepare a five-participant protocol with create/use/change/recover tasks inside the supported envelope.",
+        "Observe real participants with informed account handling; record every intervention and misunderstanding.",
+        "Fix material UX defects, rerun affected journeys and report actual sample size/outcomes."
+      ],
+      "required_checks": [
+        {
+          "id": "F23.C01",
+          "expected": "Five intended users have actual recorded create/use/change/recover evidence.",
+          "evidence_kind": "user_study"
+        },
+        {
+          "id": "F23.C02",
+          "expected": "At least four complete without technical intervention and no participant is misled about effects.",
+          "evidence_kind": "user_study"
+        },
+        {
+          "id": "F23.C03",
+          "expected": "Failures, assistance and fixes are retained with anonymized evidence.",
+          "evidence_kind": "review"
+        }
+      ],
+      "scope_boundary": "An AI simulation is not a participant. A smaller sample leaves the full gate pending.",
+      "verification_command": "just verify-ticket F23"
+    },
+    {
+      "id": "F24",
+      "title": "Private-alpha evidence and decision",
+      "depends_on": [
+        "F19",
+        "F20",
+        "F21",
+        "F22",
+        "F23"
+      ],
+      "owned_areas": [
+        "docs/development/evidence",
+        "release notes",
+        "support/onboarding documentation"
+      ],
+      "read": [
+        "delivery/Prototype_Scope_and_Acceptance.md#F24",
+        "delivery/Delivery Checklist.md",
+        "architecture/Security Privacy and Data Boundaries.md"
+      ],
+      "steps": [
+        "Audit exact artifact/profile identities, completion evidence and all G0–G5 requirements.",
+        "Run only relevant final regression and package the concrete candidate, limitations, measured quality/cost and recovery instructions.",
+        "Present release readiness separately from permission to distribute; carry out distribution only within actual authorization."
+      ],
+      "required_checks": [
+        {
+          "id": "F24.C01",
+          "expected": "All prerequisite gates have matching evidence and no blocking safety/data/usefulness failure is hidden.",
+          "evidence_kind": "review"
+        },
+        {
+          "id": "F24.C02",
+          "expected": "Candidate hashes, supported profiles, limitations, pilot results and rollback procedure are complete.",
+          "evidence_kind": "review"
+        },
+        {
+          "id": "F24.C03",
+          "expected": "Relevant final regression passes on the candidate being assessed, with actual environments recorded.",
+          "evidence_kind": "integration"
+        }
+      ],
+      "scope_boundary": "Documentation readiness is not product readiness. Do not publish simply because the checklist is populated.",
+      "verification_command": "just verify-ticket F24"
+    }
+  ],
+  "packet_authority": "This registry owns packet steps/checks; Task_Packets.md is generated by agent_handoff.render_packets and verified byte-for-byte.",
+  "execution_policy": {
+    "initial_through": "M1",
+    "milestone_targets": {
+      "M1": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08"
+      ],
+      "M2": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F12"
+      ],
+      "M3": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F12",
+        "F13",
+        "F14",
+        "F15",
+        "F16"
+      ],
+      "M4": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F12",
+        "F13",
+        "F14",
+        "F15",
+        "F16",
+        "F17",
+        "F18",
+        "F19"
+      ],
+      "M5": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F10",
+        "F11",
+        "F12",
+        "F13",
+        "F14",
+        "F15",
+        "F16",
+        "F17",
+        "F18",
+        "F19",
+        "F20",
+        "F21",
+        "F22",
+        "F23",
+        "F24"
+      ]
+    },
+    "scope_rule": "Allowed work is the selected milestone targets plus their transitive prerequisites. Initially F01–F08 only; later dependency-ready work remains inactive.",
+    "checkpoint": "After F01–F08 pass, stop for review of the working G1 creation experience. A scope extension requires an actual user instruction and saved source reference; helper bookkeeping cannot establish authorization."
+  }
+}

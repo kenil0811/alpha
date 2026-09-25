@@ -1,0 +1,117 @@
+{
+  "baseline": "R2",
+  "handoff_revision": 3,
+  "audit_scope": "Planning/handoff structure and helper control behavior only",
+  "verified_manifest_files": 35,
+  "tickets": 24,
+  "required_ticket_checks": 84,
+  "requirements": 19,
+  "initial_scope": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08"
+  ],
+  "m1_product_review_stop": true,
+  "later_roadmap_included_but_inactive": true,
+  "excluded_redundant_or_history_documents": [
+    "Alpha_Next_Slice_Design.md",
+    "delivery/Agent_Document_Access.md",
+    "delivery/Prototype_First_Task.md",
+    "delivery/Reconciliation Report.md"
+  ],
+  "handoff_control_checks": [
+    {
+      "check": "Fresh initialization selects F01 inside M1 scope",
+      "result": "passed"
+    },
+    {
+      "check": "Initialization refuses to overwrite state",
+      "result": "passed"
+    },
+    {
+      "check": "Completion without actual evidence metadata is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Valid prerequisite bookkeeping unlocks F02/F03",
+      "result": "passed"
+    },
+    {
+      "check": "Work outside the initial scope is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Scope extension before completing M1 is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Dependency-ready F11 remains inactive before the M1 review",
+      "result": "passed"
+    },
+    {
+      "check": "Completed M1 returns a review stop and no later ready tickets",
+      "result": "passed"
+    },
+    {
+      "check": "Scope extension requires a saved instruction reference",
+      "result": "passed"
+    },
+    {
+      "check": "Recorded M3 extension includes F20/F21 prerequisites and audits successfully",
+      "result": "passed"
+    },
+    {
+      "check": "Manual scope widening without extension history is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Changed scope-instruction evidence is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Changed check evidence is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "State from another snapshot is rejected",
+      "result": "passed"
+    },
+    {
+      "check": "Wrong evidence category cannot satisfy a native check",
+      "result": "passed"
+    },
+    {
+      "check": "Evidence paths cannot escape the implementation root",
+      "result": "passed"
+    },
+    {
+      "check": "Changed snapshot bytes fail integrity validation",
+      "result": "passed"
+    },
+    {
+      "check": "Readable packet drift fails even with internally consistent file hashes",
+      "result": "passed"
+    },
+    {
+      "check": "Every required reading file and numbered/ticket section exists",
+      "result": "passed"
+    },
+    {
+      "check": "Removed redundant/history documents have no required active references",
+      "result": "passed"
+    },
+    {
+      "check": "All 19 requirements are enumerated and all 24 implementation tickets remain pending",
+      "result": "passed"
+    }
+  ],
+  "handoff_control_checks_passed": 21,
+  "product_implementation": "pending",
+  "native_live_model_and_user_gates": "not performed; pending",
+  "evidence_limit": "Synthetic fixtures above test bookkeeping only. No generated Alpha app, actual shared runtime, OS containment, dependency upgrade, site integration or user study was implemented or qualified by this audit."
+}

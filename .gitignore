@@ -1,0 +1,14 @@
+# platform-managed runtimes and caches
+.alpha-runtime/
+.venv/
+node_modules/
+dist/
+target/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+# local data
+.alpha-data/

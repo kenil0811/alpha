@@ -1,0 +1,151 @@
+{
+  "baseline": "R2",
+  "handoff_revision": 3,
+  "generated_by": "agent from delivered bundle bytes on 2026-09-25 (bundle shipped without MANIFEST.json)",
+  "documents": [
+    {
+      "path": "00 Project Index.md",
+      "snapshot_sha256": "25d5214ac6edc8815670abbfba74d15d0baf8e0fd80360965b7151ad04e52184"
+    },
+    {
+      "path": "PLANNING_AUDIT.json",
+      "snapshot_sha256": "2e0babb3dee5e28b83de05680124c46862aa8e4d5188b927c563ee01a3d166de"
+    },
+    {
+      "path": "START_HERE.md",
+      "snapshot_sha256": "6a99e0b3693902297c9c7a1b42fb7f28692a43c3405546bb74870c521721e564"
+    },
+    {
+      "path": "architecture/Code_Structure_and_Class_Map.md",
+      "snapshot_sha256": "a1d05844d430632c8527be602c4ce45e13012c15e07342532340f0b8f1bc1dfb"
+    },
+    {
+      "path": "architecture/Current Architecture Decisions.md",
+      "snapshot_sha256": "ac2705ebd9f4bef9733f7b1651d1c9cd67dbc3fa82877ca16dae1c10a09856f9"
+    },
+    {
+      "path": "architecture/Deployment and Execution Architecture.md",
+      "snapshot_sha256": "630db1c67def1cdc31ae284fca533d4e7ec88e32bb163effcc926a5cd1a691d2"
+    },
+    {
+      "path": "architecture/Domain and Persistence Model.md",
+      "snapshot_sha256": "1e42773c59927c5a125102d2e9c79ade5478892384b2ce7b43ea3299bc0518aa"
+    },
+    {
+      "path": "architecture/Implementation Blueprint.md",
+      "snapshot_sha256": "022662cc312794b4d7929dffc0b0f261db889735f7ddc0893a603917eaa02ef1"
+    },
+    {
+      "path": "architecture/Input Memory and Procedure Architecture.md",
+      "snapshot_sha256": "762d14d3f8fe941721ce924402ca9e65b376740c5465ffa2b88090e1c3ca3de2"
+    },
+    {
+      "path": "architecture/Resource Context and Integration Architecture.md",
+      "snapshot_sha256": "72a688a8f5c75c21638a640533b1af04d653028d08e62491b7c5ca5453869be8"
+    },
+    {
+      "path": "architecture/Security Privacy and Data Boundaries.md",
+      "snapshot_sha256": "5c3f1173cda4ebea4414eafab3a8e7a3a8018afd0d5cd70ed338aebafa70586e"
+    },
+    {
+      "path": "architecture/System Architecture.md",
+      "snapshot_sha256": "09395e7fc742fdb311303c5d7b46aaae2d6f509bcd230cbfbbc4e5bb75029019"
+    },
+    {
+      "path": "delivery/AGENTS.md",
+      "snapshot_sha256": "c79d132c51f354fb455fe4f7ce8cc3420f70e89e45c065ceb5fbcf07f3027751"
+    },
+    {
+      "path": "delivery/AI_Coding_Agent_Playbook.md",
+      "snapshot_sha256": "6cb612b1e43a4a365eefd62fd575fd13c2faa6b3bed41b1eafaffb585d224560"
+    },
+    {
+      "path": "delivery/Agent_Start_Prompt.md",
+      "snapshot_sha256": "eeb4c61f9478c6ba94712884926139f6790d3c68a9f169d80acbfc926ee15371"
+    },
+    {
+      "path": "delivery/Delivery Checklist.md",
+      "snapshot_sha256": "ccee0c855b2a463c4032744891eb7e1f49fdc3c5719a740b99f4c8cff29294a0"
+    },
+    {
+      "path": "delivery/Prototype_Scope_and_Acceptance.md",
+      "snapshot_sha256": "b75bd97df6a64c5caaac14a1605d52328aa56c2b3a142165604b14e7579518b9"
+    },
+    {
+      "path": "delivery/TASKS.json",
+      "snapshot_sha256": "73b82cf2c4ecad77b38ad5decde5cde0c4ae8fb0573bf0fe2ec4a1d0137834a8"
+    },
+    {
+      "path": "delivery/Task_Packets.md",
+      "snapshot_sha256": "ad3382ce68b99fe071372c1d94e130a198a99931569ead222a312c9b2db7793d"
+    },
+    {
+      "path": "delivery/agent_handoff.py",
+      "snapshot_sha256": "f18170faeb4e08886f5f7d41bd55366d3edc487721dff8a15a694f91d9ab2238"
+    },
+    {
+      "path": "product/Current Release UX Specification.md",
+      "snapshot_sha256": "675302619b19587e4ac7f461dd29e1854b12370b6b4ab82157b58ee50ce50dc0"
+    },
+    {
+      "path": "product/Mac Experience Architecture and Screen Specification.md",
+      "snapshot_sha256": "eeb6203a391a766c500736fa49b3953d5046e27fa4826500867b7b410f4f3f4a"
+    },
+    {
+      "path": "product/Product Vision and Principles.md",
+      "snapshot_sha256": "a0aa5e1639e0744dec314e8c637249adc2cbc6824a44b969a368db24ae7a0eaa"
+    },
+    {
+      "path": "product/Roadmap and Scope.md",
+      "snapshot_sha256": "27c671d156b0355b09c8302f42d8ac860c81e4114831eecb3188db463097b8e0"
+    },
+    {
+      "path": "specifications/Current Release Specification.md",
+      "snapshot_sha256": "e60e46bede502ae56ad618808d52c706b7b757ca3f16c2f1fd47de62b3ca1a8c"
+    },
+    {
+      "path": "specifications/Local_Automation_and_Platform_Extension_Profile.md",
+      "snapshot_sha256": "4345117866b2f7572847b14eb43027947fa07a4c5033104c6a640132c54a9272"
+    },
+    {
+      "path": "specifications/Specifications Index.md",
+      "snapshot_sha256": "c0553c0d147c3762f3197045a2af2348f6f358df5ab3f5a0801ea2b0876af086"
+    },
+    {
+      "path": "specifications/contracts/App Contract.md",
+      "snapshot_sha256": "3c19069d5fa3dee959bea6a7899ab7c89f9bc2cc4ce3408ec6074119fa5a0a81"
+    },
+    {
+      "path": "specifications/contracts/App UI Bridge.md",
+      "snapshot_sha256": "412643e29d9c80aaf61dfc099148b015d8a57d517a91bab987f335b659284732"
+    },
+    {
+      "path": "specifications/contracts/Builder Harness Interface.md",
+      "snapshot_sha256": "2bbd3aed0fdf33d3b774ba7b183cea9a8a12ce7314eb7fb395db07f244e01f86"
+    },
+    {
+      "path": "specifications/contracts/Capability Protocol.md",
+      "snapshot_sha256": "e10c16a64e45be3a30079f4aa514f4494be3bba1098fefe10289f8affbc5df38"
+    },
+    {
+      "path": "specifications/contracts/HTTP Action Profile.md",
+      "snapshot_sha256": "bd228d3c5c385f7bd4a6074223be07d96a18aec2b41b87df716cc07dbddee739"
+    },
+    {
+      "path": "specifications/contracts/Package Layout.md",
+      "snapshot_sha256": "32c5226aafe4de6961afac2904263d5879503603cdb466a0cab7d5c713eb279d"
+    },
+    {
+      "path": "specifications/contracts/Release Resolution Record.md",
+      "snapshot_sha256": "d16687da6610657df5a9cdab62e0c3c951f8827857f5aa4bb2e3f67ae7aa4c61"
+    },
+    {
+      "path": "specifications/contracts/Resolved App Manifest.md",
+      "snapshot_sha256": "dbd7cd832d41751df3393ca87cfc3874dc1dbfae834aba0af76dd974d3562940"
+    },
+    {
+      "path": "specifications/contracts/Run Event Kernel.md",
+      "snapshot_sha256": "cd00dda2110c2114d389c2efea650bc51c26a911e8ab35e6664c49b36f3e7f1e"
+    }
+  ]
+}
