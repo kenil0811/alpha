@@ -43,7 +43,7 @@ class StructuredInference:
         claude_binary: str = "claude",
         tool_path: str = "/usr/bin:/bin",
         home: str | None = None,
-        timeout_seconds: int = 180,
+        timeout_seconds: int = 300,
     ) -> None:
         self._gateway = gateway
         self._binary = claude_binary

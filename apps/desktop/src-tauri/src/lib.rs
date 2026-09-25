@@ -89,10 +89,18 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
             .as_str()
             .ok_or("core-runtime.json missing python")?,
     );
-    let data_dir = app
+    let mut data_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("app data dir: {e}"))?;
+    if cfg!(debug_assertions) {
+        // Development/qualification only: run a second instance on its own data directory.
+        if let Ok(dir) = std::env::var("ALPHA_DATA_DIR") {
+            if !dir.is_empty() {
+                data_dir = PathBuf::from(dir);
+            }
+        }
+    }
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("create data dir: {e}"))?;
     let token = random_token()?;
     let log_dir = data_dir.join("logs");
