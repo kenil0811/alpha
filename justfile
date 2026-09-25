@@ -47,6 +47,10 @@ test-integration:
 verify-locks:
     uv run python tools/verify_locks.py
 
+# Opt-in live builder qualification on the founder's Claude subscription (F02.C01). Writes evidence logs.
+qualify-builder *args:
+    uv run python tools/qualify_builder.py {{args}}
+
 # Ticket verification dispatcher; unknown/unimplemented tickets fail.
 verify-ticket ticket:
     uv run python tools/verify_ticket.py {{ticket}}

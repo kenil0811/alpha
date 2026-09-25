@@ -103,10 +103,17 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         "tauri://localhost"
     };
 
+    // Builder toolchain (founder decision 2026-09-25): the Claude Code CLI route runs from the
+    // user's own login, so the builder profile gets the user's HOME and a fixed toolchain PATH.
+    let user_home = std::env::var("HOME").unwrap_or_default();
+    let builder_path = "/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin";
     let mut command = Command::new(&python);
     command
         .args(["-I", "-m", "alpha.main"])
         .env_clear()
+        .env("ALPHA_ENABLED_MODEL_ROUTES", "fake,claude-code-cli")
+        .env("ALPHA_BUILDER_PATH", builder_path)
+        .env("ALPHA_BUILDER_HOME", &user_home)
         .env("ALPHA_DATA_DIR", &data_dir)
         .env("ALPHA_SESSION_TOKEN", &token)
         .env("ALPHA_ALLOWED_ORIGINS", allowed_origins)

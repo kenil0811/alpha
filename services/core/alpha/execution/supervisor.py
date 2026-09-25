@@ -29,6 +29,16 @@ SYNTHETIC_PROFILE = WorkerProfile(
     module="alpha.workers.synthetic",
     description="F01 transport fixture: echoes a payload through a supervised subprocess.",
 )
+BUILDER_PROFILE = WorkerProfile(
+    name="builder",
+    module="alpha.workers.builder",
+    description="Runs a builder harness in a leased workspace; emits normalized events.",
+)
+CANDIDATE_RUNNER_PROFILE = WorkerProfile(
+    name="candidate_runner",
+    module="alpha.workers.candidate_runner",
+    description="Disposable process that resolves and executes a candidate action handler.",
+)
 
 
 @dataclass
@@ -110,7 +120,9 @@ class WorkerSupervisor:
         self._python = python
         self._scratch_root = scratch_root
         self._grace = grace_seconds
-        self._profiles: dict[str, WorkerProfile] = {SYNTHETIC_PROFILE.name: SYNTHETIC_PROFILE}
+        self._profiles: dict[str, WorkerProfile] = {
+            p.name: p for p in (SYNTHETIC_PROFILE, BUILDER_PROFILE, CANDIDATE_RUNNER_PROFILE)
+        }
 
     @property
     def python(self) -> Path:
@@ -125,12 +137,14 @@ class WorkerSupervisor:
         except KeyError as exc:
             raise KeyError(f"unregistered worker profile: {name}") from exc
 
-    def launch(self, profile_name: str, run_id: str) -> WorkerHandle:
+    def launch(
+        self, profile_name: str, job_id: str, *, extra_env: dict[str, str] | None = None
+    ) -> WorkerHandle:
         profile = self.profile(profile_name)
-        scratch = self._scratch_root / run_id
+        scratch = self._scratch_root / job_id
         scratch.mkdir(parents=True, exist_ok=False)
         env = {
-            "ALPHA_RUN_ID": run_id,
+            "ALPHA_RUN_ID": job_id,
             "ALPHA_SCRATCH_DIR": str(scratch),
             "ALPHA_WORKER_PROFILE": profile.name,
             "PYTHONDONTWRITEBYTECODE": "1",
@@ -139,8 +153,10 @@ class WorkerSupervisor:
             "HOME": str(scratch),
             "TMPDIR": str(scratch),
         }
+        if extra_env:
+            env.update(extra_env)
         process = subprocess.Popen(
-            [str(self._python), "-I", "-m", profile.module],
+            [str(self._python), "-I", "-B", "-m", profile.module],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "BuildBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "cost_basis": {
+          "$ref": "#/$defs/CostBasis"
+        },
+        "max_attempt_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "type": "integer"
+        },
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_repair_attempts": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_total_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 7200,
+          "type": "integer"
+        },
+        "max_turns": {
+          "exclusiveMinimum": 0,
+          "maximum": 200,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_turns",
+        "max_attempt_seconds",
+        "max_total_seconds",
+        "max_repair_attempts",
+        "cost_basis"
+      ],
+      "title": "BuildBudget",
+      "type": "object"
+    },
+    "CostBasis": {
+      "enum": [
+        "provider_reported",
+        "subscription_unmetered",
+        "unavailable"
+      ],
+      "title": "CostBasis",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "attempt_number": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "base_release_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "brief_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/BuildBudget"
+    },
+    "build_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "context_snapshot_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "deadline": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "dependency_profile": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "model_route_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "sdk_profile": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "template_profile": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "ui_kit_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "validation_plan_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "workspace_lease_ref": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "build_id",
+    "attempt_id",
+    "attempt_number",
+    "brief_ref",
+    "context_snapshot_ref",
+    "template_profile",
+    "sdk_profile",
+    "dependency_profile",
+    "validation_plan_ref",
+    "model_route_ref",
+    "budget",
+    "workspace_lease_ref",
+    "deadline"
+  ],
+  "title": "BuildRequest",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

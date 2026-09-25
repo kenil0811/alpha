@@ -20,6 +20,7 @@ TASKS = REPO_ROOT / "docs" / "alpha-r2" / "delivery" / "TASKS.json"
 STATE = REPO_ROOT / "docs" / "development" / "task_state.json"
 
 AUTOMATED_KINDS = {"integration", "unit"}
+LIVE_COMMANDS = {"F02": "just qualify-builder  (opt-in live route; see docs/development/decisions)"}
 
 # Ticket -> ordered list of (label, argv). Only tickets with real implemented checks appear.
 RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
@@ -29,6 +30,14 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
         ("test-ui", ["just", "test-ui"]),
         ("test-integration", ["just", "test-integration"]),
         ("toolchain-locks", ["just", "verify-locks"]),
+    ],
+    "F02": [
+        ("check", ["just", "check"]),
+        ("test-core", ["just", "test-core"]),
+        (
+            "test-builds",
+            ["uv", "run", "pytest", "tests/integration/test_builds.py", "-q", "-m", "integration"],
+        ),
     ],
 }
 
@@ -53,6 +62,8 @@ def _report_recorded_checks(ticket: str) -> None:
         source = "automated here" if kind in AUTOMATED_KINDS else f"{kind} evidence required"
         print(f"  {check['id']:<9} {kind:<12} {result:<8} ({source})")
     print("  Note: native/live/rendered/review/user checks are not run by this command.")
+    if ticket in LIVE_COMMANDS:
+        print(f"  Live check command (explicit opt-in): {LIVE_COMMANDS[ticket]}")
 
 
 def main(argv: list[str]) -> int:

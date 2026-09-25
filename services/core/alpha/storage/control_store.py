@@ -138,6 +138,18 @@ class ControlStore:
             else:
                 self._conn.execute("COMMIT")
 
+    # ----- generic ----------------------------------------------------------------------
+
+    def execute_script(self, sql: str) -> None:
+        """Run a DDL script. executescript manages its own transaction, so never call it
+        inside transaction()."""
+        with self._lock:
+            self._conn.executescript(sql)
+
+    def query(self, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return list(self._conn.execute(sql, params).fetchall())
+
     # ----- runs -------------------------------------------------------------------------
 
     def create_run(

@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "BuildDiagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "code",
+        "message"
+      ],
+      "title": "BuildDiagnostic",
+      "type": "object"
+    },
+    "BuildResultStatus": {
+      "enum": [
+        "candidate",
+        "failed",
+        "cancelled"
+      ],
+      "title": "BuildResultStatus",
+      "type": "string"
+    },
+    "BuildUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_creation_input_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cache_read_input_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cost_basis": {
+          "$ref": "#/$defs/CostBasis"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration_ms": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "models": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "output_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "turns": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cost_basis"
+      ],
+      "title": "BuildUsage",
+      "type": "object"
+    },
+    "CostBasis": {
+      "enum": [
+        "provider_reported",
+        "subscription_unmetered",
+        "unavailable"
+      ],
+      "title": "CostBasis",
+      "type": "string"
+    },
+    "FailureCategory": {
+      "enum": [
+        "harness_unavailable",
+        "harness_auth",
+        "harness_error",
+        "harness_timeout",
+        "budget_exhausted",
+        "no_package",
+        "invalid_package",
+        "validation_failed",
+        "cancelled",
+        "interrupted"
+      ],
+      "title": "FailureCategory",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "build_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "diagnostics": {
+      "items": {
+        "$ref": "#/$defs/BuildDiagnostic"
+      },
+      "type": "array"
+    },
+    "failure_category": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FailureCategory"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "finished_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "harness": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "model_route_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "source_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source_package_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "started_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/BuildResultStatus"
+    },
+    "usage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BuildUsage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "build_id",
+    "attempt_id",
+    "status",
+    "harness",
+    "model_route_ref",
+    "started_at",
+    "finished_at"
+  ],
+  "title": "BuildResult",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

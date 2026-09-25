@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from alpha_contracts import CONTRACT_VERSION
+from alpha_contracts.builds import BuildEvent
 from alpha_contracts.runs import Run, RunEvent, RunOrigin
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,8 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha import __version__
 from alpha.api.auth import make_auth_middleware
+from alpha.builds.service import AcceptanceExample, BuildNotReady, BuildRecord, BuildService
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
+from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
 
 log = logging.getLogger("alpha.api")
@@ -64,6 +67,32 @@ class RunList(BaseModel):
     runs: list[Run]
 
 
+class BuildSubmission(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal: str = Field(min_length=1, max_length=4000)
+    acceptance_examples: list[AcceptanceExample] = Field(min_length=1, max_length=20)
+    instructions: str = Field(default="", max_length=4000)
+    route_id: str = Field(default="fake", max_length=64)
+    max_cost_usd: float | None = Field(default=None, ge=0)
+
+
+class BuildList(BaseModel):
+    builds: list[BuildRecord]
+
+
+class BuildEventsPage(BaseModel):
+    events: list[BuildEvent]
+    next_after: int
+
+
+class InvokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: str = Field(min_length=1, max_length=64)
+    input: dict[str, Any]
+
+
 # WebKit (the Tauri WebView on macOS) does not hand small streamed-fetch chunks to JavaScript
 # until enough bytes accumulate; a live SSE stream with ~1 KB frames stalls after the first few.
 # Every frame is followed by a comment of this size so each write is flushed to the consumer.
@@ -75,7 +104,13 @@ SSE_POLL_SECONDS = 0.2
 SSE_KEEPALIVE_TICKS = 5
 
 
-def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoordinator) -> FastAPI:
+def create_app(
+    settings: CoreSettings,
+    store: ControlStore,
+    coordinator: RunCoordinator,
+    builds: BuildService | None = None,
+    gateway: ModelGateway | None = None,
+) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.middleware("http")(make_auth_middleware(settings.session_token, settings.allowed_origins))
     # The trusted shell runs on a different origin (tauri://localhost, or the Vite dev server),
@@ -155,6 +190,9 @@ def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoor
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    if builds is not None and gateway is not None:
+        register_build_routes(app, builds, gateway)
+
     @app.get("/api/events/stream")
     async def stream_events(
         request: Request, after: int = Query(default=0, ge=0)
@@ -198,3 +236,59 @@ def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoor
 
 def coordinator_profiles(coordinator: RunCoordinator) -> list[str]:
     return list(coordinator.supervisor_profiles())
+
+
+def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGateway) -> None:
+    @app.get("/api/model-routes")
+    def model_routes() -> dict[str, Any]:
+        return {"routes": gateway.routes()}
+
+    @app.post("/api/builds", response_model=BuildRecord, status_code=201)
+    def submit_build(body: BuildSubmission) -> BuildRecord:
+        try:
+            return builds.submit(
+                goal=body.goal,
+                acceptance_examples=body.acceptance_examples,
+                instructions=body.instructions,
+                route_id=body.route_id,
+                max_cost_usd=body.max_cost_usd,
+            )
+        except RouteUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/builds", response_model=BuildList)
+    def list_builds(limit: int = Query(default=50, ge=1, le=200)) -> BuildList:
+        return BuildList(builds=builds.list_builds(limit=limit))
+
+    @app.get("/api/builds/{build_id}", response_model=BuildRecord)
+    def get_build(build_id: str) -> BuildRecord:
+        try:
+            return builds.get(build_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+
+    @app.get("/api/builds/{build_id}/events", response_model=BuildEventsPage)
+    def build_events(build_id: str, after: int = Query(default=0, ge=0)) -> BuildEventsPage:
+        try:
+            events = builds.events(build_id, after=after)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+        return BuildEventsPage(events=events, next_after=events[-1].sequence if events else after)
+
+    @app.post("/api/builds/{build_id}/cancel", response_model=BuildRecord)
+    def cancel_build(build_id: str) -> BuildRecord:
+        try:
+            return builds.cancel(build_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+        except ConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/builds/{build_id}/invoke")
+    def invoke_candidate(build_id: str, body: InvokeRequest) -> dict[str, Any]:
+        try:
+            return builds.invoke(build_id, body.action_id, body.input)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+        except BuildNotReady as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc

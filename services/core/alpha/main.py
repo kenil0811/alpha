@@ -23,16 +23,20 @@ from fastapi import FastAPI
 
 from alpha import __version__
 from alpha.api.app import create_app, shutting_down
+from alpha.builds.service import BuildService
 from alpha.config import ConfigError, CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.supervisor import WorkerSupervisor
+from alpha.models.gateway import ModelGateway
 from alpha.storage.control_store import ControlStore
 from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
 
 log = logging.getLogger("alpha.main")
 
 
-def build(settings: CoreSettings) -> tuple[FastAPI, ControlStore, RunCoordinator]:
+def build(
+    settings: CoreSettings,
+) -> tuple[FastAPI, ControlStore, RunCoordinator, BuildService]:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.scratch_root.mkdir(parents=True, exist_ok=True)
     store = ControlStore(settings.control_db_path)
@@ -47,11 +51,31 @@ def build(settings: CoreSettings) -> tuple[FastAPI, ControlStore, RunCoordinator
         workspace_id=settings.workspace_id,
         default_timeout_seconds=settings.default_timeout_seconds,
     )
+    gateway = ModelGateway(
+        store,
+        settings.enabled_model_routes,
+        max_attempt_seconds=settings.build_max_attempt_seconds,
+    )
+    builds = BuildService(
+        store,
+        supervisor,
+        gateway,
+        builds_root=settings.builds_root,
+        platform_python=settings.worker_python,
+        builder_path=settings.builder_path,
+        builder_home=settings.builder_home,
+        instance_id=coordinator.instance_id,
+    )
     report = coordinator.reconcile_on_startup()
     if report:
         log.warning("reconciled %d interrupted run(s) on startup: %s", len(report), report)
-    app = create_app(settings, store, coordinator)
-    return app, store, coordinator
+    build_report = builds.reconcile_on_startup()
+    if build_report:
+        log.warning(
+            "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
+        )
+    app = create_app(settings, store, coordinator, builds, gateway)
+    return app, store, coordinator, builds
 
 
 class CoreServer(uvicorn.Server):
@@ -61,9 +85,12 @@ class CoreServer(uvicorn.Server):
     stream open, so worker cleanup cannot wait for the lifespan shutdown: it runs the moment an
     exit is requested (signal or lost host), and the stream generators observe the same flag."""
 
-    def __init__(self, config: uvicorn.Config, coordinator: RunCoordinator) -> None:
+    def __init__(
+        self, config: uvicorn.Config, coordinator: RunCoordinator, builds: BuildService
+    ) -> None:
         super().__init__(config)
         self._coordinator = coordinator
+        self._builds = builds
         self._stopping = threading.Lock()
         self._stopped = False
 
@@ -74,7 +101,13 @@ class CoreServer(uvicorn.Server):
             self._stopped = True
         shutting_down.set()
         interrupted = self._coordinator.shutdown(reason)
-        log.info("exit requested (%s): interrupted runs %s", reason, interrupted)
+        interrupted_builds = self._builds.shutdown(reason)
+        log.info(
+            "exit requested (%s): interrupted runs %s, builds %s",
+            reason,
+            interrupted,
+            interrupted_builds,
+        )
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         self.stop_workers_once("runtime_quit")
@@ -109,7 +142,7 @@ def main() -> int:
     except DataDirectoryBusy as exc:
         print(f"ALPHA_CORE_ERROR {json.dumps({'error': str(exc)})}", flush=True)
         return 3
-    app, store, coordinator = build(settings)
+    app, store, coordinator, builds = build(settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -117,6 +150,7 @@ def main() -> int:
             yield
         finally:
             interrupted = coordinator.shutdown("runtime_quit")
+            builds.shutdown("runtime_quit")
             log.info("shutdown: interrupted runs %s", interrupted)
             store.close()
             lock.release()
@@ -136,12 +170,13 @@ def main() -> int:
         "pid": os.getpid(),
         "python_executable": sys.executable,
         "data_dir": str(settings.data_dir),
+        "enabled_model_routes": sorted(settings.enabled_model_routes),
     }
     print(f"ALPHA_CORE_READY {json.dumps(ready)}", flush=True)
     config = uvicorn.Config(
         app, log_level="warning", access_log=False, lifespan="on", timeout_graceful_shutdown=2
     )
-    server = CoreServer(config, coordinator)
+    server = CoreServer(config, coordinator, builds)
     if os.environ.get("ALPHA_WATCH_PARENT", "1") == "1":
         watcher = threading.Thread(
             target=watch_parent, args=(server, os.getppid()), daemon=True, name="parent-watch"

@@ -26,6 +26,10 @@ class CoreSettings:
     worker_grace_seconds: float = 2.0
     default_timeout_seconds: int = 60
     workspace_id: str = "ws_local"
+    enabled_model_routes: frozenset[str] = frozenset({"fake"})
+    builder_path: str = "/usr/bin:/bin"
+    builder_home: str | None = None
+    build_max_attempt_seconds: int | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> CoreSettings:
@@ -43,12 +47,23 @@ class CoreSettings:
             raise ConfigError("ALPHA_ALLOWED_ORIGINS must list at least one origin")
         port = int(env.get("ALPHA_PORT", "0"))
         grace = float(env.get("ALPHA_WORKER_GRACE_SECONDS", "2.0"))
+        routes = frozenset(
+            r.strip() for r in env.get("ALPHA_ENABLED_MODEL_ROUTES", "fake").split(",") if r.strip()
+        )
         return cls(
             data_dir=data_dir,
             session_token=token,
             allowed_origins=allowed,
             port=port,
             worker_grace_seconds=grace,
+            enabled_model_routes=routes,
+            builder_path=env.get("ALPHA_BUILDER_PATH", "/usr/bin:/bin"),
+            builder_home=env.get("ALPHA_BUILDER_HOME") or None,
+            build_max_attempt_seconds=(
+                int(env["ALPHA_BUILD_MAX_ATTEMPT_SECONDS"])
+                if env.get("ALPHA_BUILD_MAX_ATTEMPT_SECONDS")
+                else None
+            ),
         )
 
     @property
@@ -58,3 +73,7 @@ class CoreSettings:
     @property
     def scratch_root(self) -> Path:
         return self.data_dir / "scratch"
+
+    @property
+    def builds_root(self) -> Path:
+        return self.data_dir / "builds"

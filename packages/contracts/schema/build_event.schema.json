@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "build_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "type": "string"
+    },
+    "event_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "kind": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "sequence": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "event_id",
+    "build_id",
+    "sequence",
+    "kind",
+    "occurred_at",
+    "payload"
+  ],
+  "title": "BuildEvent",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

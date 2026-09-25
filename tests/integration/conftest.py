@@ -114,6 +114,8 @@ def start_core(
     token: str | None = None,
     allowed_origin: str = ALLOWED_ORIGIN,
     grace: float = 0.5,
+    routes: str = "fake",
+    extra_env: dict[str, str] | None = None,
 ) -> CoreProcess:
     token = token or secrets.token_hex(32)
     env = {
@@ -121,9 +123,13 @@ def start_core(
         "ALPHA_SESSION_TOKEN": token,
         "ALPHA_ALLOWED_ORIGINS": allowed_origin,
         "ALPHA_WORKER_GRACE_SECONDS": str(grace),
+        "ALPHA_ENABLED_MODEL_ROUTES": routes,
+        "ALPHA_BUILDER_PATH": "/usr/bin:/bin",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONUNBUFFERED": "1",
     }
+    if extra_env:
+        env.update(extra_env)
     stderr_path = data_dir.parent / f"core-{secrets.token_hex(4)}.stderr"
     stderr_file = stderr_path.open("w", encoding="utf-8")
     process = subprocess.Popen(

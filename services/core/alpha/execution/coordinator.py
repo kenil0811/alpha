@@ -25,6 +25,7 @@ from alpha_contracts.runs import (
 )
 
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
+from alpha.execution.worker_io import read_worker_messages
 from alpha.storage.control_store import ConflictError, ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.execution")
@@ -211,15 +212,7 @@ class RunCoordinator:
     def _read_worker_output(
         self, run_id: str, handle: WorkerHandle, collected: dict[str, Any]
     ) -> None:
-        for raw in handle.stdout:
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                message = json.loads(line)
-            except json.JSONDecodeError:
-                self._store.append_event(run_id, "worker.stdout", {"line": line[:500]})
-                continue
+        def on_message(message: dict[str, Any]) -> None:
             kind = message.get("kind")
             if kind == "progress":
                 self._store.append_event(run_id, "worker.progress", message)
@@ -232,6 +225,11 @@ class RunCoordinator:
                 self._store.append_event(run_id, "worker.error", message)
             else:
                 self._store.append_event(run_id, "worker.message", message)
+
+        def on_raw(line: str) -> None:
+            self._store.append_event(run_id, "worker.stdout", {"line": line})
+
+        read_worker_messages(handle, on_message, on_raw)
 
     def _on_timeout(self, run_id: str) -> None:
         with self._lock:
