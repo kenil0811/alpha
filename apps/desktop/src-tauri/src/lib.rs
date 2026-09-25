@@ -90,6 +90,13 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .map_err(|e| format!("app data dir: {e}"))?;
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("create data dir: {e}"))?;
     let token = random_token()?;
+    let log_dir = data_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).map_err(|e| format!("create log dir: {e}"))?;
+    let core_log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_dir.join("core.stderr.log"))
+        .map_err(|e| format!("open core log: {e}"))?;
     let allowed_origins = if cfg!(debug_assertions) {
         "http://localhost:1420,tauri://localhost"
     } else {
@@ -108,7 +115,7 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .env("LC_ALL", "C.UTF-8")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::from(core_log));
     if cfg!(debug_assertions) {
         // Development diagnostics only: forward an explicit request-logging switch.
         if let Ok(value) = std::env::var("ALPHA_LOG_REQUESTS") {

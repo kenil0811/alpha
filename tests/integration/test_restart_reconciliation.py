@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import os
 import signal
+import time
 from pathlib import Path
 
 import pytest
 
-from tests.integration.conftest import start_core, wait_until_dead
+from tests.integration.conftest import hold_stream_open, start_core, wait_until_dead
 
 pytestmark = pytest.mark.integration
 
@@ -62,12 +63,18 @@ def test_hard_kill_of_core_is_reconciled_as_interrupted_on_restart(data_dir: Pat
 
 def test_explicit_quit_terminates_workers_and_marks_runs_interrupted(data_dir: Path) -> None:
     first = start_core(data_dir)
+    # The shell keeps an event stream open; quitting must not wait for it.
+    assert hold_stream_open(first).wait(5), "stream did not connect"
     created = first.submit(text="x", mode="hang", spawn_child=True)
     run_id = created["run_id"]
     started = first.wait_for_event(run_id, "run.started")
     worker_pid = int(started["payload"]["worker_pid"])
     child_pid = first.child_pid(run_id)
-    first.stop(sig=signal.SIGTERM)
+    started_at = time.monotonic()
+    exit_code = first.stop(sig=signal.SIGTERM, timeout=10)
+    elapsed = time.monotonic() - started_at
+    assert elapsed < 5, f"quit took {elapsed:.1f}s with an open stream (host grace is 5 s)"
+    assert exit_code in (0, 143, -15), exit_code
     assert wait_until_dead(worker_pid), "worker survived explicit quit"
     assert wait_until_dead(child_pid), "descendant survived explicit quit"
 

@@ -16,6 +16,7 @@ import pytest
 from tests.integration.conftest import (
     REPO_ROOT,
     CoreProcess,
+    hold_stream_open,
     pid_alive,
     start_core,
     wait_until_dead,
@@ -70,6 +71,7 @@ def test_core_exits_when_host_process_dies(data_dir: Path) -> None:
         stderr_path=data_dir / "unused",
     )
     try:
+        assert hold_stream_open(core).wait(5), "stream did not connect"
         created = core.submit(text="x", mode="hang", spawn_child=True)
         run_id = created["run_id"]
         worker_pid = int(core.wait_for_event(run_id, "run.started")["payload"]["worker_pid"])

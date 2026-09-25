@@ -16,16 +16,18 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from types import FrameType
 
 import uvicorn
 from fastapi import FastAPI
 
 from alpha import __version__
-from alpha.api.app import create_app
+from alpha.api.app import create_app, shutting_down
 from alpha.config import ConfigError, CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.storage.control_store import ControlStore
+from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
 
 log = logging.getLogger("alpha.main")
 
@@ -52,12 +54,40 @@ def build(settings: CoreSettings) -> tuple[FastAPI, ControlStore, RunCoordinator
     return app, store, coordinator
 
 
-def watch_parent(server: uvicorn.Server, parent_pid: int, interval: float = 1.0) -> None:
+class CoreServer(uvicorn.Server):
+    """uvicorn server whose exit path stops worker trees first.
+
+    A graceful HTTP shutdown waits for open connections, and the shell keeps a long-lived SSE
+    stream open, so worker cleanup cannot wait for the lifespan shutdown: it runs the moment an
+    exit is requested (signal or lost host), and the stream generators observe the same flag."""
+
+    def __init__(self, config: uvicorn.Config, coordinator: RunCoordinator) -> None:
+        super().__init__(config)
+        self._coordinator = coordinator
+        self._stopping = threading.Lock()
+        self._stopped = False
+
+    def stop_workers_once(self, reason: str) -> None:
+        with self._stopping:
+            if self._stopped:
+                return
+            self._stopped = True
+        shutting_down.set()
+        interrupted = self._coordinator.shutdown(reason)
+        log.info("exit requested (%s): interrupted runs %s", reason, interrupted)
+
+    def handle_exit(self, sig: int, frame: FrameType | None) -> None:
+        self.stop_workers_once("runtime_quit")
+        super().handle_exit(sig, frame)
+
+
+def watch_parent(server: CoreServer, parent_pid: int, interval: float = 1.0) -> None:
     """Stop serving when the launching host process disappears. A dead host cannot quit Core,
     so Core quits itself (graceful path: workers terminated, runs marked interrupted)."""
     while not server.should_exit:
         if os.getppid() != parent_pid:
             log.warning("host process %s is gone; shutting down", parent_pid)
+            server.stop_workers_once("runtime_quit")
             server.should_exit = True
             return
         time.sleep(interval)
@@ -72,6 +102,13 @@ def main() -> int:
     except ConfigError as exc:
         print(f"ALPHA_CORE_ERROR {json.dumps({'error': str(exc)})}", flush=True)
         return 2
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    lock = DataDirectoryLock(settings.data_dir / "runtime.lock")
+    try:
+        lock.acquire()
+    except DataDirectoryBusy as exc:
+        print(f"ALPHA_CORE_ERROR {json.dumps({'error': str(exc)})}", flush=True)
+        return 3
     app, store, coordinator = build(settings)
 
     @asynccontextmanager
@@ -82,6 +119,7 @@ def main() -> int:
             interrupted = coordinator.shutdown("runtime_quit")
             log.info("shutdown: interrupted runs %s", interrupted)
             store.close()
+            lock.release()
 
     app.router.lifespan_context = lifespan
 
@@ -100,8 +138,10 @@ def main() -> int:
         "data_dir": str(settings.data_dir),
     }
     print(f"ALPHA_CORE_READY {json.dumps(ready)}", flush=True)
-    config = uvicorn.Config(app, log_level="warning", access_log=False, lifespan="on")
-    server = uvicorn.Server(config)
+    config = uvicorn.Config(
+        app, log_level="warning", access_log=False, lifespan="on", timeout_graceful_shutdown=2
+    )
+    server = CoreServer(config, coordinator)
     if os.environ.get("ALPHA_WATCH_PARENT", "1") == "1":
         watcher = threading.Thread(
             target=watch_parent, args=(server, os.getppid()), daemon=True, name="parent-watch"

@@ -8,6 +8,7 @@ import secrets
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -173,6 +174,25 @@ def core(data_dir: Path) -> Iterator[CoreProcess]:
         yield proc
     finally:
         proc.stop()
+
+
+def hold_stream_open(core: CoreProcess) -> threading.Event:
+    """Keep an SSE connection open from a background thread, as the shell does."""
+    connected = threading.Event()
+
+    def consume() -> None:
+        try:
+            with (
+                core.client() as client,
+                client.stream("GET", "/api/events/stream", params={"after": 0}) as response,
+            ):
+                for _ in response.iter_lines():
+                    connected.set()
+        except Exception:
+            pass
+
+    threading.Thread(target=consume, daemon=True).start()
+    return connected
 
 
 def pid_alive(pid: int) -> bool:

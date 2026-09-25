@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -24,6 +25,10 @@ from alpha.execution.coordinator import RunCoordinator
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
 
 log = logging.getLogger("alpha.api")
+
+# Set once an exit has been requested; long-lived responses (SSE) end promptly so the server can
+# close instead of waiting on the shell's open stream.
+shutting_down = threading.Event()
 
 
 class SyntheticRunRequest(BaseModel):
@@ -161,7 +166,7 @@ def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoor
             cursor = after
             idle_ticks = 0
             yield b": connected\n\n" + SSE_FLUSH_PADDING
-            while True:
+            while not shutting_down.is_set():
                 if await request.is_disconnected():
                     return
                 batch = await asyncio.to_thread(store.events_after_cursor, cursor)
