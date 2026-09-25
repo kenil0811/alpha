@@ -75,6 +75,15 @@ def settle(client: httpx.Client, conversation_id: str, timeout: float = 300.0) -
     raise SystemExit(f"conversation {conversation_id} did not settle")
 
 
+LIMIT_PHRASES = ("can't", "cannot", "can not", "not connected", "isn't connected", "not available")
+
+
+def states_limit(reply: str) -> bool:
+    """True when the reply tells the user plainly that something is not possible today."""
+    lowered = reply.lower()
+    return any(phrase in lowered for phrase in LIMIT_PHRASES)
+
+
 def summarize(record: dict[str, Any]) -> dict[str, Any]:
     brief = record.get("current_brief") or {}
     return {
@@ -161,7 +170,8 @@ def recover(out_dir: Path) -> int:
             )
             verdicts["unsupported_named_not_promised"] = (
                 any(k in unavailable for k in ("messaging", "whatsapp", "http", "web", "schedule"))
-                and row["delivery"] != "app"
+                and row["state"] != "failed"
+                and states_limit(first_a.get("reply") or "")
             )
     cursor = conn.execute("SELECT * FROM model_usage")
     columns = [c[0] for c in cursor.description]
@@ -255,12 +265,17 @@ def main() -> int:
                 )
                 record["results"][family]["full_conversation"] = first
             else:
+                # A recurring background workflow is an App without custom UI
+                # (Prototype_Scope_and_Acceptance §1), so the delivery is not constrained;
+                # the check is that the missing pieces are named and the reply states the
+                # limit instead of promising the outcome now.
                 unavailable = (first.get("current_brief") or {}).get(
                     "unavailable_capabilities"
                 ) or []
                 verdicts["unsupported_named_not_promised"] = (
                     bool({"messaging", "http", "schedules"} & set(unavailable))
-                    and first["delivery"] != "app"
+                    and first["state"] != "failed"
+                    and states_limit(first.get("reply") or "")
                 )
                 record["results"][family]["full_conversation"] = first
         record["routes"] = client.get("/api/model-routes").json()
