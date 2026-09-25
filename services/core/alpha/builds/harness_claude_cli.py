@@ -5,8 +5,8 @@ Runs `claude -p` headless in the build workspace with:
   setting source ignored (`--setting-sources ""`), no MCP servers, no session persistence;
 - `--restricted`: file tools confined to the workspace, bypass mode refused, code-running tools
   only if named; `--permission-prompts none`: anything that would prompt is denied;
-- an explicit tool list and a narrow Bash allowlist for compiling the candidate with the
-  platform interpreter only;
+- an explicit tool list and a narrow Bash allowlist: compiling and unit-testing the candidate
+  with the App profile's interpreter only (no `python -c`, `ls` or `cat`: those reach any path);
 - `--max-turns` and `--max-budget-usd` from the build budget, and the route's model.
 
 Stream-json lines are normalized into harness events; the final result message supplies usage.
@@ -165,11 +165,12 @@ class ClaudeCliHarness:
             "--tools",
             "Read,Write,Edit,Glob,Grep,Bash",
             "--allowedTools",
+            # Reading goes through Read/Glob/Grep, which --restricted confines to the workspace.
+            # Only the candidate's own compile and unit-test commands may run, on the App
+            # profile's interpreter. (Unit tests still run builder-written code unsandboxed
+            # until F20 qualifies the OS sandbox.)
             f"Bash({self._python} -m py_compile:*)",
-            f"Bash({self._python} -c:*)",
             f"Bash({self._python} -m unittest:*)",
-            "Bash(ls:*)",
-            "Bash(cat:*)",
             "--max-turns",
             str(budget.max_turns),
             "--model",

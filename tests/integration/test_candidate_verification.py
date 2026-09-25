@@ -231,12 +231,25 @@ def test_the_screen_is_driven_through_every_state_in_a_browser(build_core: CoreP
 
 
 @needs_browser
+def test_fields_are_found_by_their_own_label_not_by_lookalike_titles(
+    once_core: CoreProcess,
+) -> None:
+    """Found live (F07.C03, first repair run): a section titled "Write a note" was taken for the
+    field labelled "Note". Only form controls of the right kind are considered now."""
+    final, rep = build(once_core, "fake:package lookalike_titles")
+    assert final["state"] == "ready", failed(rep)
+
+
+@needs_browser
 def test_blocking_overflow_withholds_readiness(once_core: CoreProcess) -> None:
     final, rep = build(once_core, "fake:package overflow")
     assert final["state"] == "failed" and final["candidate"] is None
     layout = checks(rep)["ui.empty.layout_768"]
     assert layout["status"] == "failed" and layout["detail"]["scroll_width"] > 1400
-    assert layout["evidence"] == ["evidence/ui/empty-768.png"]
+    assert layout["evidence"] == [
+        "evidence/ui/empty-768.png",
+        "evidence/ui/empty-768-overflow.png",
+    ]
 
 
 @needs_browser

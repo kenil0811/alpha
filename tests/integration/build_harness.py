@@ -209,6 +209,24 @@ def wrong_profile(p: Path) -> None:
     )
 
 
+def lookalike_titles(p: Path) -> None:
+    """Not a defect: section and card titles reuse the field's words ("Write a note", "Notes
+    saved"). The render check must still find the field labelled "Note"."""
+    _edit(_screen(p), '<Section title="Add">', '<Section title="Write a note">')
+    _edit(_screen(p), '<Section title="Latest">', '<Section title="Latest notes">')
+    _edit(
+        _screen(p),
+        "import { AlphaApp, Page,",
+        "import { AlphaApp, MetricCard, Page,",
+    )
+    _edit(
+        _screen(p),
+        '      <Section title="Latest notes">',
+        '      <MetricCard label="Notes saved" value={recent.records.length} />\n'
+        '      <Section title="Latest notes">',
+    )
+
+
 VARIANTS: dict[str, Callable[[Path], None]] = {
     f.__name__: f
     for f in (
@@ -224,6 +242,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         installer_import,
         requirements_file,
         wrong_profile,
+        lookalike_titles,
     )
 }
 

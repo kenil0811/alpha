@@ -221,6 +221,16 @@ async function layout(page, width, name) {
   });
   const evidence = [await screenshot(page, `${name}-${width}`)];
   const blocking = size.scroll_width > size.client_width + 1;
+  if (blocking) {
+    // The frame clips what overflows; widen it once so the screenshot shows the overflow.
+    await page.evaluate((w) => {
+      document.getElementById("app").style.width = `${w}px`;
+    }, size.scroll_width);
+    evidence.push(await screenshot(page, `${name}-${width}-overflow`));
+    await page.evaluate(() => {
+      document.getElementById("app").style.width = "100%";
+    });
+  }
   check(
     `ui.${name}.layout_${width}`,
     blocking ? "failed" : "passed",
@@ -252,6 +262,26 @@ async function alertShown(frame) {
   return null;
 }
 
+// A plan names fields the way a person sees them. Look only at controls of the right kind, so a
+// section or card whose title happens to contain the same words is never mistaken for the field.
+const CONTROL_ROLES = {
+  fill: ["textbox", "searchbox", "spinbutton", "combobox"],
+  select: ["combobox", "listbox"],
+  check: ["checkbox", "switch", "radio"],
+};
+
+async function control(frame, kind, name) {
+  for (const role of CONTROL_ROLES[kind]) {
+    const exact = frame.getByRole(role, { name, exact: true });
+    if ((await exact.count()) > 0) return exact.first();
+  }
+  for (const role of CONTROL_ROLES[kind]) {
+    const loose = frame.getByRole(role, { name: label(name) });
+    if ((await loose.count()) > 0) return loose.first();
+  }
+  return frame.getByRole(CONTROL_ROLES[kind][0], { name: label(name) }).first();
+}
+
 async function clickable(frame, name) {
   for (const role of ["button", "link", "tab", "menuitem", "option"]) {
     const found = frame.getByRole(role, { name: label(name) });
@@ -263,9 +293,9 @@ async function clickable(frame, name) {
 async function perform(page, frame, steps) {
   for (const [index, step] of steps.entries()) {
     try {
-      if (step.kind === "fill") await frame.getByLabel(label(step.label)).first().fill(step.text, { timeout: 5_000 });
-      else if (step.kind === "select") await frame.getByLabel(label(step.label)).first().selectOption({ label: step.text }, { timeout: 5_000 });
-      else if (step.kind === "check") await frame.getByLabel(label(step.label)).first().check({ timeout: 5_000 });
+      if (step.kind === "fill") await (await control(frame, "fill", step.label)).fill(step.text, { timeout: 5_000 });
+      else if (step.kind === "select") await (await control(frame, "select", step.label)).selectOption({ label: step.text }, { timeout: 5_000 });
+      else if (step.kind === "check") await (await control(frame, "check", step.label)).check({ timeout: 5_000 });
       else if (step.kind === "click") await (await clickable(frame, step.label)).click({ timeout: 5_000 });
       else if (step.kind === "press") await page.keyboard.press(step.key);
     } catch (error) {
@@ -405,7 +435,7 @@ async function main() {
         }
         const firstFill = plan.primary.find((s) => s.kind === "fill");
         if (firstFill) {
-          const value = await frame.getByLabel(label(firstFill.label)).first().inputValue().catch(() => null);
+          const value = await (await control(frame, "fill", firstFill.label)).inputValue().catch(() => null);
           check("ui.error.save_input_kept", value === firstFill.text ? "passed" : "failed", value === firstFill.text ? "the typed input is kept after a failed save" : "the typed input was lost after a failed save", { value }, [], false);
         }
       }

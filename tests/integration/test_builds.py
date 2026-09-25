@@ -112,9 +112,18 @@ def wait_for_build_event(
     raise AssertionError(f"no {kind} event for build {build_id}")
 
 
-def builder_pids() -> list[int]:
+def builder_pids(core: CoreProcess) -> list[int]:
+    """Builder workers started by this test's Core (another Core, such as a live qualification
+    running at the same time, may have its own)."""
     out = subprocess.run(["pgrep", "-f", "alpha.workers.builder"], capture_output=True, text=True)
-    return [int(p) for p in out.stdout.split()]
+    found = []
+    for pid in (int(p) for p in out.stdout.split()):
+        parent = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True
+        )
+        if parent.stdout.strip() == str(core.process.pid):
+            found.append(pid)
+    return found
 
 
 def test_fake_build_is_validated_sealed_and_invocable(core: CoreProcess, data_dir: Path) -> None:
@@ -244,7 +253,7 @@ def test_cancel_terminates_builder_and_descendants(core: CoreProcess) -> None:
     created = submit(core, "fake:hang")
     tool_use = wait_for_build_event(core, created["build_id"], "harness.harness.tool_use")
     child_pid = int(tool_use["payload"]["child_pid"])
-    pids = builder_pids()
+    pids = builder_pids(core)
     assert pids and pid_alive(child_pid)
     with core.client() as client:
         response = client.post(f"/api/builds/{created['build_id']}/cancel")
@@ -315,7 +324,7 @@ def test_attempt_deadline_is_enforced_outside_the_harness(
         assert final["state"] == "failed"
         assert final["failure_category"] == "harness_timeout"
         assert final["terminal_reason"] == "attempt_deadline_exceeded"
-        assert builder_pids() == []
+        assert builder_pids(core) == []
     finally:
         core.stop()
 
@@ -327,7 +336,7 @@ def test_restart_interrupts_running_build_and_does_not_revive_it(
     created = submit(first, "fake:hang")
     tool_use = wait_for_build_event(first, created["build_id"], "harness.harness.tool_use")
     child_pid = int(tool_use["payload"]["child_pid"])
-    pids = builder_pids()
+    pids = builder_pids(first)
     waiting = submit(first, "fake:succeed count words")
     first.stop(sig=signal.SIGKILL)
     assert not wait_until_dead(child_pid, timeout=0.5), (
@@ -350,7 +359,7 @@ def test_restart_interrupts_running_build_and_does_not_revive_it(
         assert stranded["state"] == "failed" and stranded["attempts"] == []
         assert stranded["terminal_reason"] == "core_restarted_while_queued"
         assert stranded["failure_category"] == "interrupted"
-        assert builder_pids() == []
+        assert builder_pids(second) == []
     finally:
         second.stop()
 
