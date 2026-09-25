@@ -1,0 +1,122 @@
+uv run python tools/verify_ticket.py F06
+
+=== check: just check
+uv run ruff format --check .
+115 files already formatted
+uv run ruff check .
+All checks passed!
+uv run mypy
+Success: no issues found in 102 source files
+uv run python -m alpha_contracts.export --check
+contract schemas up to date (20 files)
+pnpm --filter @alpha/contracts check
+
+> @alpha/contracts@0.2.0 check /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/contracts
+> node generate.mjs --check
+
+contract TypeScript up to date (20 files)
+pnpm --filter @alpha/ui-bridge typecheck
+
+> @alpha/ui-bridge@0.2.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/ui-kit typecheck
+
+> @alpha/ui-kit@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-kit
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/ui-compositions typecheck
+
+> @alpha/ui-compositions@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/tests/ui
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/desktop typecheck
+
+> @alpha/desktop@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && node scripts/build-compositions.mjs && tsc --noEmit -p tsconfig.json
+
+fixture up to date
+composition review up to date
+composition entry up to date
+uv run pytest packages/contracts packages/app-sdk services/core -q
+......................................................                   [100%]
+54 passed in 0.18s
+=== check: exit 0
+
+=== toolchain-locks: just verify-locks
+uv run python tools/verify_locks.py
+uv: required 0.12.17, actual 0.12.17
+pnpm: required 10.34.5, actual 10.34.5
+node: required 24.21.0, actual 24.21.0
+python: pinned 3.13.9, running 3.13.9
+uv lock --check: exit 0
+pnpm install --frozen-lockfile --offline: exit 0
+tampered uv.lock --check: exit 2 (expected nonzero)
+locks and tool versions verified
+=== toolchain-locks: exit 0
+
+=== test-ui: just test-ui
+pnpm --filter @alpha/ui-bridge test
+
+> @alpha/ui-bridge@0.2.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> vitest run
+
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  22:43:37
+   Duration  171ms (tests 75%, transform 19%, import 5%, worker 1%)
+
+pnpm --filter @alpha/ui-kit test
+
+> @alpha/ui-kit@0.1.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-kit
+> vitest run
+
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-kit
+
+
+ Test Files  6 passed (6)
+      Tests  55 passed (55)
+   Start at  22:43:37
+   Duration  1.21s (environment 42%, tests 37%, setup 12%, transform 5%, import 3%)
+
+pnpm --filter @alpha/desktop test
+
+> @alpha/desktop@0.1.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && node scripts/build-compositions.mjs && vitest run
+
+fixture up to date
+composition review up to date
+composition entry up to date
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+
+alpha.main INFO runtime profiles: []
+alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
+
+ Test Files  5 passed (5)
+      Tests  15 passed (15)
+   Start at  22:43:39
+   Duration  1.29s (environment 42%, tests 40%, setup 10%, transform 6%, import 2%)
+
+alpha.main INFO shutdown: interrupted runs []
+=== test-ui: exit 0
+
+=== test-ui-build-and-views: uv run pytest tests/ui tests/integration/test_app_views.py -q -m integration
+................                                                         [100%]
+16 passed in 14.78s
+=== test-ui-build-and-views: exit 0
+
+=== required checks for F06 (from task_state.json; helper-audited bookkeeping)
+  F06.C01   rendered_ui  pending  (rendered_ui evidence required)
+  F06.C02   rendered_ui  pending  (rendered_ui evidence required)
+  F06.C03   review       pending  (review evidence required)
+  F06.C04   integration  pending  (automated here)
+  Note: native/live/rendered/review/user checks are not run by this command.
+  Live check command (explicit opt-in): rendered checks: kit-fixture.html against a development Core, and `just kit-reference`
+
+verify-ticket F06: automated checks passed

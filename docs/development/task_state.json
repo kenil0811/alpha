@@ -185,21 +185,39 @@
       }
     },
     "F06": {
-      "status": "in_progress",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "d59e85dd1e7a6b99a1172ed65034a66d82345e75",
+      "notes": [
+        "Self-review (founder review of F06.C03 invited). Rendered checks in Chromium via a development-only page; native App UI serving is F08. Found and fixed: sandbox blocks native form submit (kit Form), table headings overflow at 768 px, misleading loading trend, message punctuation."
+      ],
       "checks": {
         "F06.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F06.C01.md",
+          "evidence_sha256": "4ba54fd9724ef5bb4af92bfcf38e6e582acd75d53d22c3369fccf6406ae1a3cf",
+          "evidence_kind": "rendered_ui",
+          "environment": "macOS 26.6.2 (25G83) arm64; Chromium (Claude desktop built-in browser pane) at 768/1024/1440 px, light and dark; Node 24.21.0; UI profile uiprof-fe345cfb0d6818ad55a1 (React 19.3.0, Vite 8.3.1); development Core CPython 3.13.9"
         },
         "F06.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F06.C02.md",
+          "evidence_sha256": "045788868dd4a3dc0091871f96cc4076a56e33589cf7d39581bdf6873351bc92",
+          "evidence_kind": "rendered_ui",
+          "environment": "macOS 26.6.2 (25G83) arm64; Chromium (Claude desktop built-in browser pane) at 768/1024/1440 px, light and dark; Node 24.21.0; UI profile uiprof-fe345cfb0d6818ad55a1 (React 19.3.0, Vite 8.3.1); development Core CPython 3.13.9; axe-core 4.13.0"
         },
         "F06.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F06.C03.md",
+          "evidence_sha256": "9af99d6f278327f00358b3a2573677de02c66bd30666af84fcbb225c78cc9904",
+          "evidence_kind": "review",
+          "environment": "source review at commit d949198"
         },
         "F06.C04": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F06.C04.md",
+          "evidence_sha256": "0d08aec21ed48ec8ffe3ea955d1874492a229af9e6635282ea41fb69ac3c9c82",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; Node 24.21.0; pnpm 10.34.5; CPython 3.13.9 Core"
         }
       }
     },
