@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import pwd
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -401,7 +402,11 @@ class BuildService:
             expected={BuildState.QUEUED, BuildState.REPAIRING},
         )
         try:
-            extra_env = {"PATH": self._builder_path}
+            # The builder profile runs the founder's own CLI login (decision 2026-09-25): it needs
+            # the account name and, when configured, the real home. Derived from the process
+            # owner, never from ambient environment.
+            owner = pwd.getpwuid(os.getuid()).pw_name
+            extra_env = {"PATH": self._builder_path, "USER": owner, "LOGNAME": owner}
             if self._builder_home:
                 extra_env["HOME"] = self._builder_home
             handle = self._supervisor.launch("builder", attempt_id, extra_env=extra_env)

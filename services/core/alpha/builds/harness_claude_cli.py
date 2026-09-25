@@ -125,6 +125,11 @@ class ClaudeCliHarness:
             "DISABLE_AUTOUPDATER": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
+        # The CLI resolves its subscription login by account name; without USER it reports
+        # "Not logged in" (measured 2026-09-25).
+        for key in ("USER", "LOGNAME"):
+            if key in os.environ:
+                env[key] = os.environ[key]
         if self._strategy == "private_config_home":
             env["CLAUDE_CONFIG_DIR"] = str(config_home)
         prompt = self._prompt(inputs)
@@ -204,8 +209,7 @@ class ClaudeCliHarness:
             except json.JSONDecodeError:
                 yield HarnessEvent("harness.stdout", {"line": line[:500]})
                 continue
-            for event in self._normalize(session, message):
-                yield event
+            yield from self._normalize(session, message)
         session.process.wait()
         if session.process.stderr is not None:
             tail = session.process.stderr.read()[-4000:]

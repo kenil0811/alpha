@@ -44,7 +44,9 @@ DEFAULT_GOAL = {
         {
             "action_id": "summarize_expenses",
             "input": {
-                "lines": "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10\n2026-09-05 groceries 7.25"
+                "lines": (
+                    "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10\n2026-09-05 groceries 7.25"
+                )
             },
             "expected": {
                 "totals": {"groceries": 49.75, "fuel": 61.10},
@@ -108,6 +110,119 @@ def start_core(data_dir: Path, token: str, log_path: Path) -> tuple[subprocess.P
     raise SystemExit("core did not start")
 
 
+def cli_tree_pids() -> list[int]:
+    """Builder worker, claude CLI and any of their descendants, by command line."""
+    out = subprocess.run(
+        ["pgrep", "-f", "alpha.workers.builder|claude -p"], capture_output=True, text=True
+    )
+    pids = [int(p) for p in out.stdout.split()]
+    # descendants of those pids
+    ps = subprocess.run(["ps", "-axo", "pid=,ppid="], capture_output=True, text=True).stdout.split(
+        "\n"
+    )
+    children: dict[int, list[int]] = {}
+    for row in ps:
+        parts = row.split()
+        if len(parts) == 2:
+            children.setdefault(int(parts[1]), []).append(int(parts[0]))
+    result = set(pids)
+    stack = list(pids)
+    while stack:
+        for child in children.get(stack.pop(), []):
+            if child not in result:
+                result.add(child)
+                stack.append(child)
+    return sorted(result)
+
+
+def alive(pids: list[int]) -> list[int]:
+    return [
+        p
+        for p in pids
+        if subprocess.run(["kill", "-0", str(p)], capture_output=True).returncode == 0
+    ]
+
+
+def run_interruption_scenario(
+    scenario: str,
+    client: httpx.Client,
+    core: subprocess.Popen[str],
+    build_id: str,
+    data_dir: Path,
+    token: str,
+) -> dict[str, Any]:
+    """Wait until the real CLI is working (a tool_use event), then cancel or kill Core."""
+    deadline = time.monotonic() + 300
+    seen_tool_use = False
+    while time.monotonic() < deadline and not seen_tool_use:
+        events = client.get(f"/api/builds/{build_id}/events").json()["events"]
+        seen_tool_use = any(e["kind"] == "harness.harness.tool_use" for e in events)
+        if client.get(f"/api/builds/{build_id}").json()["state"] in (
+            "ready",
+            "failed",
+            "cancelled",
+        ):
+            break
+        time.sleep(1.0)
+    tree_before = cli_tree_pids()
+    summary: dict[str, Any] = {
+        "scenario": scenario,
+        "tool_use_seen": seen_tool_use,
+        "tree_before": tree_before,
+    }
+    outcome: dict[str, Any] = {}
+    if scenario == "cancel":
+        response = client.post(f"/api/builds/{build_id}/cancel")
+        summary["cancel_status"] = response.status_code
+        time.sleep(4.0)
+        still = alive(tree_before)
+        build_after = client.get(f"/api/builds/{build_id}").json()
+        summary.update(
+            {
+                "tree_alive_after": still,
+                "state_after": build_after["state"],
+                "terminal_reason": build_after.get("terminal_reason"),
+                "attempt_status": build_after["attempts"][0]["status"]
+                if build_after["attempts"]
+                else None,
+                "passed": response.status_code == 200
+                and not still
+                and build_after["state"] == "cancelled",
+            }
+        )
+        outcome["build_after"] = build_after
+    else:
+        core.kill()
+        core.wait(timeout=10)
+        time.sleep(1.0)
+        summary["tree_alive_after_core_kill"] = alive(tree_before)
+        new_core, port = start_core(data_dir, token, data_dir.parent / "core.restart.stderr.log")
+        client.base_url = httpx.URL(f"http://127.0.0.1:{port}")
+        time.sleep(2.0)
+        build_after = client.get(f"/api/builds/{build_id}").json()
+        still = alive(tree_before)
+        summary.update(
+            {
+                "tree_alive_after_restart": still,
+                "state_after": build_after["state"],
+                "terminal_reason": build_after.get("terminal_reason"),
+                "attempts": len(build_after["attempts"]),
+                "attempt_status": build_after["attempts"][0]["status"]
+                if build_after["attempts"]
+                else None,
+                "passed": not still
+                and build_after["state"] == "failed"
+                and build_after.get("terminal_reason", "").startswith("core_restarted")
+                and len(build_after["attempts"]) == 1,
+            }
+        )
+        outcome["build_after"] = build_after
+        outcome["core_process"] = new_core
+    outcome["summary"] = summary
+    outcome["events"] = client.get(f"/api/builds/{build_id}/events").json()["events"]
+    return outcome
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -115,6 +230,13 @@ def main() -> int:
     )
     parser.add_argument("--label", default="expenses")
     parser.add_argument("--timeout", type=float, default=900.0)
+    parser.add_argument(
+        "--scenario",
+        choices=("build", "cancel", "restart"),
+        default="build",
+        help="build: full qualification; cancel: cancel mid-build and verify the CLI tree is gone;"
+        " restart: kill Core mid-build, restart, verify the build is interrupted and not revived",
+    )
     args = parser.parse_args()
     spec: dict[str, Any] = (
         json.loads(args.goal_file.read_text()) if args.goal_file else DEFAULT_GOAL
@@ -150,6 +272,23 @@ def main() -> int:
         build = response.json()
         build_id = build["build_id"]
         print(f"build {build_id} submitted on route claude-code-cli; following events…", flush=True)
+        if args.scenario in ("cancel", "restart"):
+            outcome = run_interruption_scenario(
+                args.scenario, client, core, build_id, data_dir, token
+            )
+            record.update(outcome)
+            build = outcome["build_after"]
+            record["build"] = build
+            core = outcome.get("core_process", core)
+            (out_dir / "record.json").write_text(
+                json.dumps(record, indent=2, default=str), encoding="utf-8"
+            )
+            print(f"scenario {args.scenario}: {json.dumps(outcome['summary'])}")
+            print(f"evidence written to {out_dir}")
+            core.terminate()
+            core.wait(timeout=15)
+            client.close()
+            return 0 if outcome["summary"].get("passed") else 1
         seen = 0
         deadline = time.monotonic() + args.timeout
         started = time.monotonic()
@@ -170,7 +309,8 @@ def main() -> int:
         record["events"] = client.get(f"/api/builds/{build_id}/events").json()["events"]
         record["elapsed_seconds"] = round(elapsed, 1)
         print(
-            f"build finished: state={build['state']} reason={build.get('terminal_reason')} in {elapsed:.0f}s"
+            f"build finished: state={build['state']} "
+            f"reason={build.get('terminal_reason')} in {elapsed:.0f}s"
         )
         if build["state"] == "ready":
             held = spec["held_out_invoke"]
@@ -186,7 +326,8 @@ def main() -> int:
             observed = invoke.json().get("output", {}).get("calls", [{}])[0].get("output")
             record["held_out_invoke"]["matches_expected"] = observed == held["expected"]
             print(
-                f"held-out invoke: observed={observed} expected={held['expected']} match={observed == held['expected']}"
+                f"held-out invoke: observed={observed} expected={held['expected']} "
+                f"match={observed == held['expected']}"
             )
             attempt = build["attempts"][-1]
             workspace = data_dir / "builds" / attempt["workspace_ref"]
