@@ -1,8 +1,11 @@
 """CapabilityCatalog: what Alpha can do right now, with unmet prerequisites stated.
 
 The assistant and builder plan against this list, never against a model's prior knowledge of a
-service (Resource Context and Integration Architecture, "Provider order"). Entries flip to
-available only when the owning ticket lands; an unavailable family names the ticket and the
+service (Resource Context and Integration Architecture, "Provider order"). A family is available
+only when a person can get a working solution that uses it, not when the platform part alone
+exists: records, artifacts, runtime model calls and the interaction kit are built (F05, F06), but
+the builder cannot produce a solution that uses them until the creation and delivery loop lands
+(F07 verifies such candidates, F08 delivers them). An unavailable family names the ticket and the
 reason so the assistant can explain a useful partial outcome honestly.
 """
 
@@ -36,30 +39,30 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         description="User-owned records with validated fields, history, filtering, totals and "
         "trends, kept on this Mac.",
         available=False,
-        unavailable_reason="record storage for generated solutions is not connected yet",
-        arrives_with="F05",
+        unavailable_reason="solutions cannot keep saved records yet",
+        arrives_with="F08",
     ),
     CapabilityFamily(
         family="artifacts",
         description="Files produced or transformed by a solution (reports, exports).",
         available=False,
-        unavailable_reason="file outputs are not connected yet",
-        arrives_with="F05",
+        unavailable_reason="solutions cannot produce files yet",
+        arrives_with="F08",
     ),
     CapabilityFamily(
         family="models",
         description="Bounded model calls at runtime for estimates, classification and "
         "extraction, labelled as estimates and correctable.",
         available=False,
-        unavailable_reason="runtime model calls for solutions are not connected yet",
-        arrives_with="F05",
+        unavailable_reason="solutions cannot make their own model estimates yet",
+        arrives_with="F08",
     ),
     CapabilityFamily(
         family="custom_ui",
         description="A generated interface for quick entry, lists, details and trends.",
         available=False,
-        unavailable_reason="the shared interaction kit is not built yet",
-        arrives_with="F06",
+        unavailable_reason="solutions cannot have their own screens yet",
+        arrives_with="F08",
     ),
     CapabilityFamily(
         family="files",

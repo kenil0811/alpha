@@ -118,7 +118,8 @@
         "invalid_package",
         "validation_failed",
         "cancelled",
-        "interrupted"
+        "interrupted",
+        "platform_error"
       ],
       "title": "FailureCategory",
       "type": "string"

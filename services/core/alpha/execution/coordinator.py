@@ -29,7 +29,7 @@ from alpha_contracts.runs import (
 )
 
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
-from alpha.execution.worker_io import read_worker_messages
+from alpha.execution.worker_io import StderrTail, read_worker_messages
 from alpha.storage.control_store import ConflictError, ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.execution")
@@ -211,14 +211,12 @@ class RunCoordinator:
         )
         timer.daemon = True
         timer.start()
-        collected: dict[str, Any] = {"result": None, "error": None, "stderr": ""}
+        collected: dict[str, Any] = {"result": None, "error": None}
         reader = threading.Thread(
             target=self._read_worker_output, args=(run_id, handle, collected, spec), daemon=True
         )
         reader.start()
-        # Drain stderr continuously: a handler that prints a lot must not block on a full pipe.
-        drainer = threading.Thread(target=self._drain_stderr, args=(handle, collected), daemon=True)
-        drainer.start()
+        stderr = StderrTail(handle, _STDERR_TAIL)
         # Wait on the leader, not on pipe EOF: a descendant that inherits stdout must not be
         # able to keep a finished run alive. Descendants never outlive the leader.
         exit_code = handle.process.wait()
@@ -227,7 +225,7 @@ class RunCoordinator:
         reader.join(timeout=5.0)
         if reader.is_alive():
             self._store.append_event(run_id, "worker.stdout_reader_timeout", {})
-        drainer.join(timeout=2.0)
+        stderr_tail = stderr.text()
         if handle.process.stdin is not None and not handle.process.stdin.closed:
             try:
                 handle.process.stdin.close()
@@ -235,7 +233,6 @@ class RunCoordinator:
                 pass
         result = collected["result"]
         error = collected["error"]
-        stderr_tail = str(collected["stderr"])[-_STDERR_TAIL:]
         self._store.append_event(
             run_id, "worker.exited", {"exit_code": exit_code, "descendant_cleanup": descendants}
         )
@@ -294,18 +291,6 @@ class RunCoordinator:
                 },
                 terminal_reason=reason,
             )
-
-    def _drain_stderr(self, handle: WorkerHandle, collected: dict[str, Any]) -> None:
-        stream = handle.process.stderr
-        if stream is None:
-            return
-        tail = ""
-        try:
-            for chunk in iter(lambda: stream.read(4096), ""):
-                tail = (tail + chunk)[-_STDERR_TAIL:]
-                collected["stderr"] = tail
-        except (OSError, ValueError):
-            pass
 
     def _reply(self, run_id: str, handle: WorkerHandle, reply: dict[str, Any]) -> None:
         with self._lock:

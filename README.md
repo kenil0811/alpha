@@ -30,12 +30,13 @@ M1 review. See
 ```bash
 just install            # uv sync --frozen && pnpm install --frozen-lockfile
 just check              # format, lint, types, contract drift, fast tests
-just test-core          # Python unit tests
-just test-ui            # shell component/interaction tests (vitest + Testing Library)
-just test-integration   # real Core process, SQLite, worker processes, loopback auth
-just bundle-core        # prepare the Core runtime and publish the App runtime profile in .alpha-runtime/
+just test-core          # Python unit tests (contracts, SDK, Core)
+just test-ui            # bridge, interaction kit and shell tests (vitest + Testing Library)
+just test-integration   # real Core process, SQLite, worker processes, loopback auth, UI builds
+just bundle-core        # prepare the Core runtime and publish the App runtime and UI build profiles in .alpha-runtime/
 just dev                # run the desktop app (Vite shell + Tauri host + bundled Core)
-just verify-ticket F05  # ticket dispatcher; unknown/unimplemented tickets fail
+just kit-reference      # development reference sheet: every kit pattern in every state
+just verify-ticket F06  # ticket dispatcher; unknown/unimplemented tickets fail
 just qualify-app-models DIR  # opt-in live ctx.models smoke on the Claude Code CLI route
 ```
 
@@ -48,9 +49,14 @@ just qualify-app-models DIR  # opt-in live ctx.models smoke on the Claude Code C
   (`ctx.records`, `ctx.artifacts`, `ctx.models`); standard library only.
 - `workers/app` — the App worker that runs a sealed Version's handlers inside the runtime profile.
 - `packages/ui-bridge` — the MessagePort bridge between generated UI and the shell.
-- `tests/fixtures/apps` — two neutral fixture Apps used by the F05 integration tests.
+- `packages/ui-kit` — `@alpha/ui-kit`, the interaction kit generated UI composes (tokens,
+  accessible components, bridge-backed data hooks); `REFERENCE.md` is the builder's reference.
+- `templates/app` — the App starting point: `app.yaml`, Python actions and a kit-based UI.
+- `tests/fixtures/apps` — three neutral fixture Apps used by the F05 and F06 integration tests.
+- `tests/ui` — two neutral kit compositions and the UI build tests.
 - `tests/integration` — real-component tests.
-- `tools` — verification and runtime bundling scripts.
+- `tools` — verification, runtime bundling, profile publishing and the trusted UI build tool
+  (`tools/ui_build`).
 
 ## How the desktop path works (F01)
 
@@ -74,3 +80,17 @@ fresh worker with that profile's interpreter, private scratch and a per-run work
 worker reaches records, artifacts and model calls only through JSON messages on its own pipes;
 Core picks the App store from the run, never from the message. See
 [docs/development/decisions/2026-09-25-f05-worker-channel-and-default-profile.md](docs/development/decisions/2026-09-25-f05-worker-channel-and-default-profile.md).
+
+## How generated App UI is built (F06)
+
+`just bundle-core` also publishes the UI build profile (`uiprof-<id>`): packed `@alpha/ui-kit` and
+`@alpha/ui-bridge` tarballs plus exact React and Vite, installed offline and sealed read-only.
+The trusted build tool compiles an App's `ui/` sources against that profile with a
+platform-owned configuration. It emits one static HTML page with a hash-pinned content security
+policy and a report naming every module's package. Generated UI runs in a sandboxed frame with no
+network and reaches data only through read views and actions declared in `app.yaml`, which Core
+enforces. See
+[docs/development/decisions/2026-09-25-f06-interaction-kit-and-ui-build-profile.md](docs/development/decisions/2026-09-25-f06-interaction-kit-and-ui-build-profile.md).
+
+Known differences from the Implementation Blueprint, and when each is revisited, are recorded in
+[docs/development/decisions/2026-09-25-recorded-deviations.md](docs/development/decisions/2026-09-25-recorded-deviations.md).

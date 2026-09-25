@@ -176,5 +176,5 @@ def test_reply_while_thinking_and_bad_requests_are_rejected(core: CoreProcess) -
     families = {c["family"]: c for c in catalog}
     assert families["compute"]["available"] is True
     assert (
-        families["records"]["available"] is False and families["records"]["arrives_with"] == "F05"
+        families["records"]["available"] is False and families["records"]["arrives_with"] == "F08"
     )

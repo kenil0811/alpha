@@ -10,7 +10,8 @@ export type FailureCategory =
   | "invalid_package"
   | "validation_failed"
   | "cancelled"
-  | "interrupted";
+  | "interrupted"
+  | "platform_error";
 export type BuildResultStatus = "candidate" | "failed" | "cancelled";
 export type CostBasis = "provider_reported" | "subscription_unmetered" | "unavailable";
 

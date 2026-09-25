@@ -73,6 +73,7 @@ class FakeHarness:
     - hang           writes nothing and blocks until cancelled (spawns a descendant)
     - broken_package writes a package whose handler is missing
     - claims_success writes nothing but says it succeeded (must not become a candidate)
+    - noisy          like succeed, after writing more stderr than a pipe buffer holds
     """
 
     def capabilities(self) -> HarnessCapabilities:
@@ -112,7 +113,14 @@ class FakeHarness:
             while not session.cancelled:
                 time.sleep(0.2)
             return
-        if session.mode in ("succeed", "broken_package"):
+        if session.mode == "noisy":
+            # A chatty builder: 256 KiB of stderr. Core must drain it while the builder runs,
+            # or the builder blocks on a full pipe until its deadline.
+            for i in range(64):
+                sys.stderr.write(f"builder log {i:02d} " + "." * 4080 + "\n")
+            sys.stderr.write("noisy-end\n")
+            sys.stderr.flush()
+        if session.mode in ("succeed", "broken_package", "noisy"):
             for relative, content in FAKE_PACKAGE.items():
                 if session.mode == "broken_package" and relative.startswith("src/"):
                     content = "# handler deliberately missing\n"

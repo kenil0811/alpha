@@ -6,19 +6,12 @@ broker turns an OperationFailed into a failed reply, the API into an HTTP status
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-FailureCode = Literal[
-    "invalid_input",
-    "not_found",
-    "conflict",
-    "forbidden",
-    "unauthenticated",
-    "limit_exceeded",
-    "unavailable",
-    "timed_out",
-    "internal_error",
-]
+from alpha_contracts.broker import CapabilityErrorCode
+
+# Defined once in the contract; the SDK's copy is held equal by a sync test.
+FailureCode = CapabilityErrorCode
 
 HTTP_STATUS: dict[str, int] = {
     "invalid_input": 422,

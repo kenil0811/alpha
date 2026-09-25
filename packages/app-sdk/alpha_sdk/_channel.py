@@ -14,6 +14,8 @@ from typing import Any, Protocol, TextIO
 
 from alpha_sdk.errors import Unavailable, from_reply
 
+# Must equal alpha_contracts.broker.WORKER_PROTOCOL_VERSION. The SDK is standard library only,
+# so it keeps a copy; tests/test_contract_sync.py holds the two equal.
 PROTOCOL_VERSION = 1
 
 

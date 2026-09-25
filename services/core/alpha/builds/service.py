@@ -5,6 +5,10 @@ State machine (only Core changes it): queued → building → validating → rea
 cancelled. A harness saying "done" never makes a candidate; the package must exist, pass layout
 and manifest checks, have its real handler resolved in a disposable worker, and return the
 independently specified acceptance outputs. Every attempt, event and usage record is retained.
+
+One builder runs at a time (Implementation Blueprint §7, Prototype_Scope_and_Acceptance §7):
+submitted builds wait in `queued`, in submission order, and a single dispatcher thread starts
+them. Nothing about a waiting build survives a restart; startup marks it interrupted.
 """
 
 from __future__ import annotations
@@ -15,6 +19,8 @@ import logging
 import os
 import pwd
 import threading
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -33,7 +39,7 @@ from alpha_contracts.builds import (
 from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
-from alpha.execution.worker_io import read_worker_messages
+from alpha.execution.worker_io import StderrTail, read_worker_messages
 from alpha.models.gateway import ModelGateway, ModelRoute
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError, new_id, utc_now
 
@@ -47,6 +53,13 @@ RUNNER_TIMEOUT_SECONDS = 60
 
 def _dt(value: datetime) -> str:
     return value.isoformat().replace("+00:00", "Z")
+
+
+@dataclass(frozen=True)
+class _QueuedBuild:
+    build_id: str
+    route: ModelRoute
+    budget: BuildBudget
 
 
 class AcceptanceExample(BaseModel):
@@ -166,9 +179,15 @@ class BuildService:
         self._builder_home = builder_home
         self._instance_id = instance_id
         self._lock = threading.Lock()
-        self._active: dict[str, WorkerHandle] = {}  # attempt_id -> handle
+        self._active: dict[str, WorkerHandle] = {}  # "build_id:attempt_id" -> handle
         self._cancel_requested: set[str] = set()  # build ids
         self._timed_out: set[str] = set()  # attempt ids
+        # The one-builder queue. The condition shares self._lock.
+        self._waiting: deque[_QueuedBuild] = deque()
+        self._wakeup = threading.Condition(self._lock)
+        self._current: str | None = None  # build id the dispatcher is working on
+        self._closing = False
+        self._dispatcher: threading.Thread | None = None
         store.execute_script(_SCHEMA)
         self._root.mkdir(parents=True, exist_ok=True)
 
@@ -203,6 +222,8 @@ class BuildService:
             ),
             encoding="utf-8",
         )
+        with self._lock:
+            ahead = len(self._waiting) + (1 if self._current else 0)
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO builds(build_id, brief_ref, goal, instructions, acceptance_json,
@@ -222,11 +243,17 @@ class BuildService:
                     _dt(now),
                 ),
             )
-            self._append_locked(conn, build_id, None, "build.queued", {"route_id": route.route_id})
-        thread = threading.Thread(
-            target=self._attempt, args=(build_id, 1, route, budget), daemon=True
-        )
-        thread.start()
+            self._append_locked(
+                conn, build_id, None, "build.queued", {"route_id": route.route_id, "ahead": ahead}
+            )
+        with self._wakeup:
+            self._waiting.append(_QueuedBuild(build_id, route, budget))
+            if self._dispatcher is None:
+                self._dispatcher = threading.Thread(
+                    target=self._run_queue, name="alpha-builder-queue", daemon=True
+                )
+                self._dispatcher.start()
+            self._wakeup.notify()
         return self.get(build_id)
 
     def get(self, build_id: str) -> BuildRecord:
@@ -267,6 +294,7 @@ class BuildService:
             raise ConflictError(f"build {build_id} already {record.state.value}")
         with self._lock:
             self._cancel_requested.add(build_id)
+            self._waiting = deque(q for q in self._waiting if q.build_id != build_id)
             handles = [h for aid, h in self._active.items() if aid.startswith(build_id + ":")]
         termination: list[dict[str, object]] = []
         for handle in handles:
@@ -324,18 +352,53 @@ class BuildService:
                 attempt_id=row["attempt_id"],
             )
             report.append(entry)
+        # Nothing else survives a restart: a build that was waiting for the builder, or whose
+        # attempt never recorded a process, cannot continue and is not started again.
+        placeholders = ",".join("?" for _ in TERMINAL_BUILD_STATES)
+        stranded = self._store.query(
+            f"SELECT build_id, state FROM builds WHERE state NOT IN ({placeholders})",
+            tuple(s.value for s in TERMINAL_BUILD_STATES),
+        )
+        for row in stranded:
+            reason = (
+                "core_restarted_while_queued"
+                if row["state"] == BuildState.QUEUED.value
+                else "core_restarted_build_lost"
+            )
+            self._transition(
+                row["build_id"],
+                new_state=BuildState.FAILED,
+                event_kind="build.interrupted",
+                payload={"reason": reason, "reconciled_by": self._instance_id},
+                terminal_reason=reason,
+                failure_category=FailureCategory.INTERRUPTED,
+            )
+            report.append({"build_id": row["build_id"], "reason": reason})
         return report
 
     def shutdown(self, reason: str = "runtime_quit") -> list[str]:
-        with self._lock:
+        with self._wakeup:
+            self._closing = True
+            waiting = [q.build_id for q in self._waiting]
+            self._waiting.clear()
+            self._wakeup.notify_all()
             handles = dict(self._active)
         interrupted: list[str] = []
-        for attempt_id, handle in handles.items():
-            build_id = attempt_id.split(":", 1)[0]
+        for build_id in waiting:
+            self._transition(
+                build_id,
+                new_state=BuildState.FAILED,
+                event_kind="build.interrupted",
+                payload={"reason": reason, "while": "queued"},
+                terminal_reason=reason,
+                failure_category=FailureCategory.INTERRUPTED,
+            )
+            interrupted.append(build_id)
+        for key, handle in handles.items():
+            build_id, real_attempt = key.split(":", 1)
             with self._lock:
                 self._cancel_requested.add(build_id)
             record = self._supervisor.terminate(handle)
-            real_attempt = attempt_id.split(":", 1)[1]
             self._finish_attempt(
                 real_attempt, "interrupted", FailureCategory.INTERRUPTED, None, None
             )
@@ -354,6 +417,57 @@ class BuildService:
     def active_attempt_ids(self) -> list[str]:
         with self._lock:
             return [a.split(":", 1)[1] for a in self._active]
+
+    # ----- the one-builder queue ---------------------------------------------------------
+
+    def _run_queue(self) -> None:
+        """Start queued builds one at a time, in submission order, until Core shuts down."""
+        while True:
+            with self._wakeup:
+                while not self._waiting and not self._closing:
+                    self._wakeup.wait()
+                if self._closing:
+                    return
+                item = self._waiting.popleft()
+                if item.build_id in self._cancel_requested:
+                    continue
+                self._current = item.build_id
+            try:
+                self._attempt(item.build_id, 1, item.route, item.budget)
+            except Exception as exc:
+                # A platform fault in one build must not stall every build behind it.
+                log.exception("build %s failed inside Core", item.build_id)
+                self._fail_unexpected(item.build_id, exc)
+            finally:
+                with self._lock:
+                    self._current = None
+
+    def _fail_unexpected(self, build_id: str, exc: Exception) -> None:
+        with self._lock:
+            handles = [
+                (key, h) for key, h in self._active.items() if key.startswith(build_id + ":")
+            ]
+            for key, _ in handles:
+                self._active.pop(key, None)
+        for _, handle in handles:
+            self._supervisor.terminate(handle)
+        detail = {"error": f"{type(exc).__name__}: {exc}"[:500]}
+        running = self._store.query(
+            "SELECT attempt_id FROM build_attempts WHERE build_id = ? AND status = 'running'",
+            (build_id,),
+        )
+        for row in running:
+            self._finish_attempt(
+                row["attempt_id"], "failed", FailureCategory.PLATFORM_ERROR, None, detail
+            )
+        self._transition(
+            build_id,
+            new_state=BuildState.FAILED,
+            event_kind="build.failed",
+            payload={"reason": "platform_error", **detail},
+            terminal_reason="platform_error",
+            failure_category=FailureCategory.PLATFORM_ERROR,
+        )
 
     # ----- attempt -----------------------------------------------------------------------
 
@@ -427,6 +541,13 @@ class BuildService:
             return
         with self._lock:
             self._active[key] = handle
+            # cancel() collects handles under this lock: either it saw this one, or the
+            # request is visible here. A build cancelled while it waited never builds.
+            stop_now = build_id in self._cancel_requested or self._closing
+            if stop_now:
+                self._cancel_requested.add(build_id)
+        if stop_now:
+            self._supervisor.terminate(handle)
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE build_attempts SET pid = ?, pgid = ? WHERE attempt_id = ?",
@@ -496,16 +617,12 @@ class BuildService:
             daemon=True,
         )
         reader.start()
+        stderr = StderrTail(handle, 2000)
         exit_code = handle.process.wait()
         timer.cancel()
         descendants = self._supervisor.terminate(handle)
         reader.join(timeout=5.0)
-        stderr_tail = ""
-        if handle.process.stderr is not None:
-            try:
-                stderr_tail = handle.process.stderr.read()[-2000:]
-            except (OSError, ValueError):
-                stderr_tail = ""
+        stderr_tail = stderr.text()
         with self._lock:
             self._active.pop(key, None)
             cancelled = build_id in self._cancel_requested
@@ -798,6 +915,7 @@ class BuildService:
                 daemon=True,
             )
             reader.start()
+            stderr = StderrTail(handle, 1000)
             try:
                 exit_code = handle.process.wait(timeout=RUNNER_TIMEOUT_SECONDS)
             except Exception:
@@ -822,16 +940,10 @@ class BuildService:
                 **{k: v for k, v in collected["error"].items() if k != "kind"},
                 "exit_code": exit_code,
             }
-        stderr_tail = ""
-        if handle.process.stderr is not None:
-            try:
-                stderr_tail = handle.process.stderr.read()[-1000:]
-            except (OSError, ValueError):
-                pass
         return {
             "kind": "error",
             "code": "runner_no_output",
-            "message": stderr_tail,
+            "message": stderr.text(),
             "exit_code": exit_code,
         }
 

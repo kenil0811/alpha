@@ -15,3 +15,6 @@ __pycache__/
 # built by apps/desktop/scripts/build-compositions.mjs
 apps/desktop/src/qualification/compositions/
 apps/desktop/public/qualification/
+# process artefacts Core leaves in a data directory; evidence copies keep only real data
+runtime.lock
+*.sqlite-shm

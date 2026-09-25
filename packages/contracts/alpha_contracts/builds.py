@@ -48,6 +48,7 @@ class FailureCategory(StrEnum):
     VALIDATION_FAILED = "validation_failed"
     CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
+    PLATFORM_ERROR = "platform_error"
 
 
 class CostBasis(StrEnum):

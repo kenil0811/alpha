@@ -16,6 +16,8 @@ from pydantic import Field
 from alpha_contracts.records import FieldSpec
 from alpha_contracts.runs import ContractModel
 
+# Version of the worker ⇄ Core message format. The SDK carries its own copy (it is standard
+# library only), held equal by packages/app-sdk/tests/test_contract_sync.py.
 WORKER_PROTOCOL_VERSION = 1
 
 OPERATIONS: frozenset[str] = frozenset(
@@ -45,18 +47,23 @@ class CapabilityCall(ContractModel):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
+# The capability protocol's failure classes (Current Release Specification §7). Core raises
+# them; the SDK keeps its own standard-library copy, held equal by a sync test.
+CapabilityErrorCode = Literal[
+    "invalid_input",
+    "not_found",
+    "conflict",
+    "forbidden",
+    "unauthenticated",
+    "limit_exceeded",
+    "unavailable",
+    "timed_out",
+    "internal_error",
+]
+
+
 class CapabilityError(ContractModel):
-    code: Literal[
-        "invalid_input",
-        "not_found",
-        "conflict",
-        "forbidden",
-        "unauthenticated",
-        "limit_exceeded",
-        "unavailable",
-        "timed_out",
-        "internal_error",
-    ]
+    code: CapabilityErrorCode
     message: str = Field(max_length=2000)
     details: dict[str, Any] = Field(default_factory=dict)
 

@@ -145,6 +145,15 @@ def test_fake_build_is_validated_sealed_and_invocable(core: CoreProcess, data_di
     assert rows == [("fake", "unavailable")]
 
 
+def test_builder_stderr_is_drained_while_it_runs(core: CoreProcess) -> None:
+    created = submit(core, "fake:noisy count words")
+    final = wait_for_build(core, created["build_id"], {"ready", "failed", "cancelled"})
+    assert final["state"] == "ready", final
+    exited = wait_for_build_event(core, created["build_id"], "builder.exited")
+    tail = exited["payload"]["stderr_tail"]
+    assert len(tail) == 2000 and tail.endswith("noisy-end\n")
+
+
 def test_harness_failure_never_becomes_a_candidate(core: CoreProcess) -> None:
     created = submit(core, "fake:fail")
     final = wait_for_build(core, created["build_id"], {"ready", "failed", "cancelled"})
@@ -225,6 +234,43 @@ def test_cancel_terminates_builder_and_descendants(core: CoreProcess) -> None:
         assert client.post(f"/api/builds/{created['build_id']}/cancel").status_code == 409
 
 
+def test_one_builder_at_a_time_and_waiting_builds_queue(core: CoreProcess) -> None:
+    running = submit(core, "fake:hang")
+    wait_for_build_event(core, running["build_id"], "harness.harness.tool_use")
+    waiting = submit(core, "fake:succeed count words")
+    later = submit(core, "fake:succeed count words")
+    queued = {
+        b["build_id"]: next(
+            e for e in build_events(core, b["build_id"]) if e["kind"] == "build.queued"
+        )
+        for b in (waiting, later)
+    }
+    assert queued[waiting["build_id"]]["payload"]["ahead"] == 1
+    assert queued[later["build_id"]]["payload"]["ahead"] == 2
+
+    # While the first build holds the builder, the others wait without an attempt or process.
+    time.sleep(1.0)
+    for build in (waiting, later):
+        record = get_build(core, build["build_id"])
+        assert record["state"] == "queued" and record["attempts"] == [], record
+
+    # A waiting build can be cancelled and never builds.
+    with core.client() as client:
+        response = client.post(f"/api/builds/{waiting['build_id']}/cancel")
+    assert response.status_code == 200 and response.json()["state"] == "cancelled"
+
+    # Ending the running build hands the builder to the next waiting one.
+    with core.client() as client:
+        assert client.post(f"/api/builds/{running['build_id']}/cancel").status_code == 200
+    final = wait_for_build(core, later["build_id"], {"ready", "failed", "cancelled"})
+    assert final["state"] == "ready", final
+    cancelled = get_build(core, waiting["build_id"])
+    assert cancelled["state"] == "cancelled" and cancelled["attempts"] == []
+    # The next attempt starts only after the previous builder process tree is gone.
+    first_end = get_build(core, running["build_id"])["attempts"][0]["finished_at"]
+    assert final["attempts"][0]["started_at"] >= first_end
+
+
 def test_attempt_deadline_is_enforced_outside_the_harness(data_dir: Path) -> None:
     core = start_core(data_dir, extra_env={"ALPHA_BUILD_MAX_ATTEMPT_SECONDS": "2"})
     try:
@@ -246,6 +292,7 @@ def test_restart_interrupts_running_build_and_does_not_revive_it(data_dir: Path)
     tool_use = wait_for_build_event(first, created["build_id"], "harness.harness.tool_use")
     child_pid = int(tool_use["payload"]["child_pid"])
     pids = builder_pids()
+    waiting = submit(first, "fake:succeed count words")
     first.stop(sig=signal.SIGKILL)
     assert not wait_until_dead(child_pid, timeout=0.5), (
         "orphaned builder tree should still be alive"
@@ -262,6 +309,11 @@ def test_restart_interrupts_running_build_and_does_not_revive_it(data_dir: Path)
         assert len(get_build(second, created["build_id"])["attempts"]) == 1, (
             "obsolete build was revived"
         )
+        # A build that was waiting for the builder is not started after the restart either.
+        stranded = get_build(second, waiting["build_id"])
+        assert stranded["state"] == "failed" and stranded["attempts"] == []
+        assert stranded["terminal_reason"] == "core_restarted_while_queued"
+        assert stranded["failure_category"] == "interrupted"
         assert builder_pids() == []
     finally:
         second.stop()
