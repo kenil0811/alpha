@@ -60,6 +60,10 @@ qualify-builder *args:
 qualify-assistant *args:
     uv run python tools/qualify_assistant.py {{args}}
 
+# F05 supplementary live smoke: one ctx.models call on the Claude Code CLI route. Writes evidence.
+qualify-app-models out_dir:
+    uv run python tools/qualify_app_models.py {{out_dir}}
+
 # F03 local containment feasibility probes on the pinned sandbox-runtime candidate (real macOS seatbelt).
 qualify-sandbox *args:
     uv run python tests/qualification/sandbox/run_probes.py {{args}}
