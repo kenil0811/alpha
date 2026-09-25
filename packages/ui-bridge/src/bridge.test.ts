@@ -103,10 +103,10 @@ describe("bridge session", () => {
   });
 
   it("revocation notifies the client, fails pending work and silences the old port", async () => {
-    let release: (() => void) | null = null;
+    const gate: { release: (() => void) | null } = { release: null };
     const slow: BridgeHandlers = {
       actionInvoke: () => new Promise((resolve) => {
-        release = () => resolve({ operation_id: "late" });
+        gate.release = () => resolve({ operation_id: "late" });
       }),
     };
     const { host, client, channel, events } = pair(session("s6"), slow);
@@ -117,7 +117,7 @@ describe("bridge session", () => {
     host.revoke("navigation");
     expect(await revokedReason).toBe("navigation");
     await expect(pending).rejects.toMatchObject({ code: "revoked" });
-    release?.();
+    gate.release?.();
     await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).rejects.toMatchObject({ code: "revoked" });
     // A client that ignores the revocation and keeps the raw port gets nothing back.
     let answered = false;

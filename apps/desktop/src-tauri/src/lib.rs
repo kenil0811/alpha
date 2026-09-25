@@ -18,6 +18,11 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
 
 const READY_PREFIX: &str = "ALPHA_CORE_READY ";
+/// Generated-UI qualification fixture, served from its own origin (`alpha-ui://<app-id>/`) so
+/// the shell's CSP is not inherited (srcdoc/blob documents inherit it) and the document gets
+/// its own strict policy as a response header. Built by apps/desktop/scripts/build-fixture.mjs.
+const FIXTURE_HTML: &[u8] = include_bytes!("../../src/qualification/generated-ui.html");
+const FIXTURE_CSP: &str = include_str!("../../src/qualification/generated-ui.csp");
 const ERROR_PREFIX: &str = "ALPHA_CORE_ERROR ";
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const QUIT_GRACE: Duration = Duration::from_secs(5);
@@ -245,9 +250,38 @@ fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
+fn generated_ui_response(request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
+    let path = request.uri().path();
+    let host = request.uri().host().unwrap_or("");
+    // Only registered surfaces are served; the host part is the App identity (own origin per
+    // App). F06/F07 replace the fixture with sealed static assets looked up by that identity.
+    if (host == "fixture_a" || host == "fixture_b") && (path == "/" || path == "/index.html") {
+        return tauri::http::Response::builder()
+            .status(200)
+            .header("Content-Type", "text/html; charset=utf-8")
+            .header("Content-Security-Policy", FIXTURE_CSP.trim())
+            .header("Cache-Control", "no-store")
+            .header("X-Content-Type-Options", "nosniff")
+            .body(FIXTURE_HTML.to_vec())
+            .expect("response");
+    }
+    let body = format!(
+        "not found: uri={} host={:?} path={}",
+        request.uri(),
+        request.uri().host(),
+        path
+    );
+    tauri::http::Response::builder()
+        .status(404)
+        .header("Content-Type", "text/plain")
+        .body(body.into_bytes())
+        .expect("response")
+}
+
 pub fn run() {
     tauri::Builder::default()
         .manage(HostState::default())
+        .register_uri_scheme_protocol("alpha-ui", |_ctx, request| generated_ui_response(&request))
         .invoke_handler(tauri::generate_handler![core_session, runtime_info])
         .setup(|app| {
             let handle = app.handle().clone();

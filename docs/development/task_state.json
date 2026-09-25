@@ -88,20 +88,32 @@
       }
     },
     "F03": {
-      "status": "in_progress",
-      "implementation_ref": null,
+      "status": "complete",
+      "implementation_ref": "2b5c1238f89a328aa2c20f541af2772e1f2f31a6+fixture-host-changes-committed-next",
       "notes": [
-        "Started 2026-09-25 after F01 completion. F02 blocked on founder inputs (BYOK key, spend ceiling, OpenCode approval)."
+        "Feasibility only; F20 gaps recorded in F03.C03. Own-origin generated UI via alpha-ui:// protocol adopted after srcdoc inherited the shell CSP. Self-review."
       ],
       "checks": {
         "F03.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F03.C01.md",
+          "evidence_sha256": "a33bd1e5823f69001f4b4b3a62267157924450026ef519b89bab84991917b20f",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; Tauri 2.11.6 debug .app (WKWebView); sandbox-runtime 0.0.77 on sandbox-exec; CPython 3.13.9"
         },
         "F03.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F03.C02.md",
+          "evidence_sha256": "1c4a83b79314d3f935b3db92f297304cc37d02fca42724ede5f3c6d8b8ae6db8",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; Tauri 2.11.6 debug .app (WKWebView); sandbox-runtime 0.0.77 on sandbox-exec; CPython 3.13.9"
         },
         "F03.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F03.C03.md",
+          "evidence_sha256": "b52f2c8fdf99963e53dd5c9da51ab5da52617677587f284644856e02400b3e76",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; Tauri 2.11.6 debug .app (WKWebView); sandbox-runtime 0.0.77 on sandbox-exec; CPython 3.13.9"
         }
       }
     },

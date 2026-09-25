@@ -130,6 +130,9 @@ function App() {
         <button disabled={!foreign} onClick={() => call("operation.observe", { operation_id: foreign })}>
           Observe foreign
         </button>
+        <button onClick={() => call("operation.observe", { operation_id: "run_not_created_by_this_session" })}>
+          Observe not mine
+        </button>
         <button onClick={() => call("records.query", { view: "anything" })}>records.query</button>
         <button onClick={() => call("shell.navigate", { destination: "settings" })}>shell.navigate</button>
         <button onClick={() => runProbes().then(setProbes)}>Run isolation probes</button>
@@ -139,6 +142,12 @@ function App() {
           <li key={i}>{l}</li>
         ))}
       </ol>
+      {probes ? (
+        <div data-testid="probe-summary" style={{ marginTop: 8, fontWeight: 600 }}>
+          probes: {probes.filter((p) => p.pass).length}/{probes.length} pass
+          {probes.some((p) => !p.pass) ? ` · FAIL: ${probes.filter((p) => !p.pass).map((p) => p.name).join(", ")}` : ""}
+        </div>
+      ) : null}
       {probes ? (
         <table data-testid="probes" style={{ marginTop: 8, borderCollapse: "collapse", width: "100%" }}>
           <tbody>

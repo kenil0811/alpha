@@ -1,0 +1,76 @@
+uv run python tools/verify_ticket.py F03
+
+=== check: just check
+uv run ruff format --check .
+48 files already formatted
+uv run ruff check .
+All checks passed!
+uv run mypy
+Success: no issues found in 44 source files
+uv run python -m alpha_contracts.export --check
+contract schemas up to date (5 files)
+pnpm --filter @alpha/contracts check
+
+> @alpha/contracts@0.2.0 check /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/contracts
+> node generate.mjs --check
+
+contract TypeScript up to date (5 files)
+pnpm --filter @alpha/ui-bridge typecheck
+
+> @alpha/ui-bridge@0.2.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/desktop typecheck
+
+> @alpha/desktop@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && tsc --noEmit -p tsconfig.json
+
+fixture up to date
+uv run pytest packages/contracts services/core -q
+.............                                                            [100%]
+13 passed in 0.06s
+=== check: exit 0
+
+=== test-ui: just test-ui
+pnpm --filter @alpha/ui-bridge test
+
+> @alpha/ui-bridge@0.2.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> vitest run
+
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  17:58:52
+   Duration  226ms (tests 69%, transform 23%, import 6%, worker 2%)
+
+pnpm --filter @alpha/desktop test
+
+> @alpha/desktop@0.1.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && vitest run
+
+fixture up to date
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+
+alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
+
+ Test Files  4 passed (4)
+      Tests  12 passed (12)
+   Start at  17:58:52
+   Duration  1.60s (environment 48%, tests 33%, setup 13%, transform 5%, import 1%)
+
+alpha.main INFO shutdown: interrupted runs []
+=== test-ui: exit 0
+
+=== required checks for F03 (from task_state.json; helper-audited bookkeeping)
+  F03.C01   native       pending  (native evidence required)
+  F03.C02   integration  pending  (automated here)
+  F03.C03   native       pending  (native evidence required)
+  Note: native/live/rendered/review/user checks are not run by this command.
+  Live check command (explicit opt-in): just qualify-sandbox (real macOS sandbox probes) + desktop fixture run (native)
+
+verify-ticket F03: automated checks passed
+exit=$?

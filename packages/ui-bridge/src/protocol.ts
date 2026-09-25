@@ -85,6 +85,13 @@ export type BridgeControl =
     }
   | { protocol_version: typeof PROTOCOL_VERSION; type: "bridge.revoked"; session_id: string; reason: string };
 
+/** Frame → parent-window announcement: "my listener is ready, send me a port". It carries
+ *  nothing else and grants nothing; the host decides whether to attach. */
+export interface BridgeHello {
+  protocol_version: typeof PROTOCOL_VERSION;
+  type: "bridge.hello";
+}
+
 /** Parent-window → frame handshake: carries the transferred MessagePort. */
 export interface BridgeInit {
   protocol_version: typeof PROTOCOL_VERSION;

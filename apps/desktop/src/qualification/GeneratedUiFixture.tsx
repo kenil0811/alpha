@@ -7,7 +7,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BridgeError, BridgeHost, type BridgeHostEvent, type BridgeSession } from "@alpha/ui-bridge";
 import type { CoreClient } from "../core/client";
+import { hasTauri } from "../core/session";
 import fixtureHtml from "./generated-ui.html?raw";
+
+/** Own origin per App inside Tauri (macOS/Linux form of a custom scheme); the srcdoc fallback
+ *  exists for browser-only development and tests and inherits the shell CSP, which is exactly
+ *  why it is not the product path. */
+function fixtureSrc(appId: string, reload: number): string | null {
+  return hasTauri() ? `alpha-ui://${appId}/index.html?r=${reload}` : null;
+}
 
 const SANDBOX = "allow-scripts";
 
@@ -78,6 +86,21 @@ function FixtureFrame({ label, appId, actions, client }: { label: string; appId:
 
   useEffect(() => () => host.current?.revoke("unmounted"), []);
 
+  // Attach only when the frame's own script says it is listening, and only for messages whose
+  // source is exactly this frame's window (never by origin string: the origin is opaque).
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const frame = iframe.current;
+      if (!frame?.contentWindow || event.source !== frame.contentWindow) return;
+      const data: unknown = event.data;
+      if (typeof data !== "object" || data === null) return;
+      const message = data as { type?: unknown; protocol_version?: unknown };
+      if (message.type === "bridge.hello" && message.protocol_version === "0.2") establish();
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [establish]);
+
   return (
     <div className="fixture">
       <div className="row">
@@ -89,7 +112,11 @@ function FixtureFrame({ label, appId, actions, client }: { label: string; appId:
           className="button"
           onClick={() => {
             setState((s) => ({ ...s, reloads: s.reloads + 1 }));
-            if (iframe.current) iframe.current.srcdoc = fixtureHtml + `<!-- reload ${state.reloads + 1} -->`;
+            const frame = iframe.current;
+            if (!frame) return;
+            const next = fixtureSrc(appId, state.reloads + 1);
+            if (next) frame.src = next;
+            else frame.srcdoc = fixtureHtml + `<!-- reload ${state.reloads + 1} -->`;
           }}
         >
           Reload frame
@@ -99,8 +126,8 @@ function FixtureFrame({ label, appId, actions, client }: { label: string; appId:
         ref={iframe}
         title={`Generated UI fixture ${label}`}
         sandbox={SANDBOX}
-        srcDoc={fixtureHtml}
-        onLoad={establish}
+        src={fixtureSrc(appId, 0) ?? undefined}
+        srcDoc={fixtureSrc(appId, 0) ? undefined : fixtureHtml}
         className="fixture__frame"
       />
       <ol className="fixture__events">

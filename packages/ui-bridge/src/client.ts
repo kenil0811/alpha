@@ -9,6 +9,7 @@ import {
   type BridgeControl,
   type BridgeErrorBody,
   type BridgeGrant,
+  type BridgeHello,
   type BridgeRequest,
   type BridgeResponse,
   type RequestType,
@@ -83,6 +84,10 @@ export class BridgeClient {
         client.ready.then(() => resolve(client));
       };
       window.addEventListener("message", listener);
+      // Announce readiness; the host attaches a port only after this, so no init is lost to
+      // the race between frame load and the client's listener registration.
+      const hello: BridgeHello = { protocol_version: PROTOCOL_VERSION, type: "bridge.hello" };
+      parent.postMessage(hello, "*");
     });
   }
 

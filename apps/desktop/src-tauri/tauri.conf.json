@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src alpha-ui:; object-src 'none'"
     },
     "trayIcon": {
       "iconPath": "icons/icon.png",

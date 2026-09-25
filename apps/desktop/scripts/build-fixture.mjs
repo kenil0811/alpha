@@ -12,11 +12,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../fixtures/generated-ui");
 const outDir = mkdtempSync(join(tmpdir(), "alpha-fixture-"));
 const target = resolve(here, "../src/qualification/generated-ui.html");
-const sources = [join(root, "main.tsx"), join(root, "index.html"), fileURLToPath(import.meta.url)];
+const bridgeSrc = resolve(here, "../../../packages/ui-bridge/src");
+const sources = [
+  join(root, "main.tsx"),
+  join(root, "index.html"),
+  fileURLToPath(import.meta.url),
+  ...readdirSync(bridgeSrc).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).sort().map((f) => join(bridgeSrc, f)),
+];
 const stamp = createHash("sha256");
 for (const s of sources) stamp.update(readFileSync(s));
 const stampHex = stamp.digest("hex");
-if (existsSync(target) && readFileSync(target, "utf8").includes(`fixture-source-sha256=${stampHex}`)) {
+if (existsSync(target) && existsSync(target.replace(/\.html$/, ".csp")) && readFileSync(target, "utf8").includes(`fixture-source-sha256=${stampHex}`)) {
   console.log("fixture up to date");
   process.exit(0);
 }
@@ -50,5 +56,6 @@ const html = `<!doctype html>
 `;
 mkdirSync(dirname(target), { recursive: true });
 writeFileSync(target, html);
+writeFileSync(target.replace(/\.html$/, ".csp"), csp);
 rmSync(outDir, { recursive: true, force: true });
 console.log(`fixture built: ${target} (${html.length} bytes, script sha256 ${scriptHash.slice(0, 12)}…)`);
