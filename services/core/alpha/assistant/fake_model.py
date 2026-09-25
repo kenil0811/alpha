@@ -203,6 +203,20 @@ def _unsupported() -> dict[str, Any]:
     }
 
 
+def _last_answers(prompt: str) -> dict[str, Any]:
+    """The most recent USER ANSWERS object in the rendered conversation, if any."""
+    answers: dict[str, Any] = {}
+    for line in prompt.splitlines():
+        if line.startswith("USER ANSWERS: "):
+            try:
+                parsed = json.loads(line[len("USER ANSWERS: ") :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                answers = parsed
+    return answers
+
+
 def fake_assistant(prompt: str) -> dict[str, Any]:
     text = prompt.lower()
     latest = text.split("latest user input:")[-1]
@@ -227,17 +241,22 @@ def fake_assistant(prompt: str) -> dict[str, Any]:
     if "notes" in text and ("brief" in text or "summary" in text):
         return _artifact()
     if "eat" in text or "calorie" in text or "food" in text:
-        answered = "user answers" in latest or "use your defaults" in latest
-        result = _tracker(answered)
-        if "user answers" in latest:
-            try:
-                answers = json.loads(latest.split("user answers:")[-1].strip().splitlines()[0])
-            except Exception:
-                answers = {}
-            if answers:
-                result["assumptions"] = result["assumptions"] + [
-                    f"{k}: {v}" for k, v in answers.items()
-                ]
+        answered_now = "user answers" in latest or "use your defaults" in latest
+        answered_before = "user answers:" in text or "use your defaults" in text
+        result = _tracker(answered_now or answered_before)
+        prior_answers = _last_answers(prompt)
+        if prior_answers:
+            result["assumptions"] = result["assumptions"] + [
+                f"{k}: {v}" for k, v in prior_answers.items()
+            ]
+        if not answered_now and answered_before:
+            # A free-text correction after a brief: keep what was agreed and add the change,
+            # the way rule 7 of the real prompt asks the model to behave.
+            original_latest = prompt.split("LATEST USER INPUT:")[-1]
+            correction = original_latest.split("USER:")[-1].strip().splitlines()[0].strip()
+            if correction:
+                result["assumptions"] = result["assumptions"] + [f"Also: {correction}"]
+            result["reply"] = "Updated. I've added that to the diary and kept everything else."
         return result
     return {
         "delivery": "answer",
