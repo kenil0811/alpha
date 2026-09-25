@@ -162,6 +162,32 @@ describe("bridge session", () => {
     await expect(typed.client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).rejects.toMatchObject({ code: "not_found", recovery: "try again later" });
   });
 
+  it("forwards only granted views with a validated query shape", async () => {
+    const seen: unknown[] = [];
+    const { client } = pair(session("s11", [], ["entries.list"]), {
+      recordsQuery: async (_s, payload) => {
+        seen.push(payload);
+        return { records: [], next_cursor: null };
+      },
+    });
+    await client.whenReady();
+    const where = { all: [{ field: "kind", op: "eq", value: "task" }] };
+    await client.request("records.query", { view: "entries.list", where, order_by: [{ field: "title", direction: "desc" }], limit: 20, cursor: "c1" });
+    expect(seen).toEqual([{ view: "entries.list", where, order_by: [{ field: "title", direction: "desc" }], limit: 20, cursor: "c1" }]);
+    await expect(client.request("records.query", { view: "entries.secret" })).rejects.toMatchObject({ code: "forbidden" });
+    for (const bad of [
+      { view: "entries.list", sql: "select 1" },
+      { view: "entries.list", where: "1=1" },
+      { view: "entries.list", limit: 5000 },
+      { view: "entries.list", limit: 2.5 },
+      { view: "entries.list", order_by: [{ field: "x", direction: "sideways" }] },
+      { view: "entries.list", collection: "other" },
+    ]) {
+      await expect(client.request("records.query", bad)).rejects.toMatchObject({ code: "invalid_request" });
+    }
+    expect(seen).toHaveLength(1);
+  });
+
   it("throttles when too many requests are in flight", async () => {
     const blockers: Array<() => void> = [];
     const { client } = pair(session("s10"), {

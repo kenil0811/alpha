@@ -17,7 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from alpha_contracts.profiles import DependencyProfile, verify_profile
+from alpha_contracts.profiles import DependencyProfile, ProfileKind, verify_profile
 
 from alpha.capabilities.errors import unavailable
 from alpha.storage.control_store import ControlStore, utc_now
@@ -91,6 +91,17 @@ def verify_profile_dir(target: Path) -> tuple[DependencyProfile | None, dict[str
         lock_path = target / lock.path
         if not lock_path.is_file() or sha256_file(lock_path) != lock.sha256:
             problems.append(f"lock {lock.path} is missing or changed")
+    if profile.kind is ProfileKind.PYTHON_RUNTIME:
+        problems += _verify_python(target, profile, installation)
+    else:
+        problems += _verify_ui(target, profile, installation)
+    return profile, installation, problems
+
+
+def _verify_python(
+    target: Path, profile: DependencyProfile, installation: dict[str, Any]
+) -> list[str]:
+    problems: list[str] = []
     for pin in profile.packages:
         wheel = target / "wheels" / (pin.artifact or "")
         if pin.artifact is None or not wheel.is_file() or sha256_file(wheel) != pin.artifact_sha256:
@@ -98,16 +109,39 @@ def verify_profile_dir(target: Path) -> tuple[DependencyProfile | None, dict[str
     venv = target / "venv"
     if not (venv / "bin" / "python").exists():
         problems.append("profile interpreter is missing")
-    else:
-        observed = tree_digest(venv)
-        if observed["sha256"] != installation.get("venv_tree", {}).get("sha256"):
-            problems.append("installed files differ from the sealed installation record")
-        interpreter = Path(str(installation.get("interpreter", "")))
-        if not interpreter.is_file():
-            problems.append("base interpreter is missing")
-        elif sha256_file(interpreter) != installation.get("interpreter_sha256"):
-            problems.append("base interpreter bytes changed")
-    return profile, installation, problems
+        return problems
+    observed = tree_digest(venv)
+    if observed["sha256"] != installation.get("venv_tree", {}).get("sha256"):
+        problems.append("installed files differ from the sealed installation record")
+    interpreter = Path(str(installation.get("interpreter", "")))
+    if not interpreter.is_file():
+        problems.append("base interpreter is missing")
+    elif sha256_file(interpreter) != installation.get("interpreter_sha256"):
+        problems.append("base interpreter bytes changed")
+    return problems
+
+
+def _verify_ui(target: Path, profile: DependencyProfile, installation: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+    for name, tarball in (installation.get("tarballs") or {}).items():
+        path = target / "packages" / str(tarball.get("file", ""))
+        if not path.is_file() or sha256_file(path) != tarball.get("sha256"):
+            problems.append(f"packed artifact for {name} is missing or changed")
+    node_modules = target / "node_modules"
+    if not node_modules.is_dir():
+        problems.append("installed packages are missing")
+    elif tree_digest(node_modules)["sha256"] != (installation.get("node_modules_tree") or {}).get(
+        "sha256"
+    ):
+        problems.append("installed files differ from the sealed installation record")
+    for pin in profile.packages:
+        if (
+            pin.artifact
+            and pin.artifact.endswith(".tgz")
+            and pin.name not in (installation.get("tarballs") or {})
+        ):
+            problems.append(f"no packed artifact recorded for {pin.name}")
+    return problems
 
 
 @dataclass(frozen=True)
@@ -188,6 +222,7 @@ class ProfileInventory:
         now = _now()
         integrity = {
             "venv_tree": installation.get("venv_tree"),
+            "node_modules_tree": installation.get("node_modules_tree"),
             "interpreter_sha256": installation.get("interpreter_sha256"),
             "uv_version": installation.get("uv_version"),
         }
@@ -217,7 +252,10 @@ class ProfileInventory:
             ).fetchone()
             if row is not None:
                 recorded = json.loads(row["integrity_json"])
-                if recorded.get("venv_tree") != integrity["venv_tree"]:
+                if (recorded.get("venv_tree"), recorded.get("node_modules_tree")) != (
+                    integrity["venv_tree"],
+                    integrity["node_modules_tree"],
+                ):
                     problems = [*problems, "installation differs from the registered installation"]
                 if row["state"] == InstallationState.QUARANTINED.value and not problems:
                     problems = ["previously quarantined; remains quarantined until reviewed"]
@@ -291,6 +329,15 @@ class ProfileInventory:
         )
         return self.get(rows[0]["profile_id"]) if rows else None
 
+    def default_ui_profile(self) -> InstalledProfile | None:
+        """The ready UI build profile generated App UI compiles against (newest registered)."""
+        rows = self._store.query(
+            """SELECT p.profile_id FROM dependency_profiles p JOIN profile_installations i
+               USING(profile_id) WHERE p.kind = 'ui_build' AND i.state = 'ready'
+               ORDER BY p.registered_at DESC LIMIT 1"""
+        )
+        return self.get(rows[0]["profile_id"]) if rows else None
+
     def list_profiles(self) -> list[dict[str, Any]]:
         rows = self._store.query(
             """SELECT p.profile_id, p.kind, p.role, p.manifest_json, p.manifest_sha256,
@@ -311,7 +358,9 @@ class ProfileInventory:
                     "reason": row["reason"],
                     "verified_at": row["verified_at"],
                     "installed_tree_sha256": (
-                        json.loads(row["integrity_json"]).get("venv_tree") or {}
+                        json.loads(row["integrity_json"]).get("venv_tree")
+                        or json.loads(row["integrity_json"]).get("node_modules_tree")
+                        or {}
                     ).get("sha256"),
                 }
             )

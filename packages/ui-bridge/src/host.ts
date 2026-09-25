@@ -30,10 +30,16 @@ export interface OperationObservePayload {
 }
 
 export interface RecordsQueryPayload {
+  /** A read view the App declared; the host only forwards views granted to this session. */
   view: string;
-  filter: Record<string, unknown>;
-  limit: number;
+  /** Typed filter AST narrowing the view; the platform validates it again. */
+  where?: Record<string, unknown>;
+  order_by?: Array<{ field: string; direction: "asc" | "desc" }>;
+  limit?: number;
+  cursor?: string;
 }
+
+const RECORDS_QUERY_KEYS = new Set(["view", "where", "order_by", "limit", "cursor"]);
 
 export interface BridgeHandlers {
   actionInvoke?: (session: BridgeSession, payload: ActionInvokePayload) => Promise<{ operation_id: string }>;
@@ -237,9 +243,36 @@ export class BridgeHost {
           throw new BridgeError("forbidden", `view ${view} is not granted to this session`);
         }
         if (!this.handlers.recordsQuery) throw new BridgeError("unsupported", "records are not available here");
-        const filter = isPlainObject(payload.filter) ? payload.filter : {};
-        const limit = typeof payload.limit === "number" ? Math.min(Math.max(1, payload.limit), 1000) : 100;
-        return this.handlers.recordsQuery(this.session, { view, filter, limit });
+        for (const key of Object.keys(payload)) {
+          if (!RECORDS_QUERY_KEYS.has(key)) throw new BridgeError("invalid_request", `records.query does not take ${key}`);
+        }
+        const query: RecordsQueryPayload = { view };
+        if (payload.where !== undefined) {
+          if (!isPlainObject(payload.where)) throw new BridgeError("invalid_request", "where must be a filter object");
+          query.where = payload.where;
+        }
+        if (payload.order_by !== undefined) {
+          const order = payload.order_by;
+          if (
+            !Array.isArray(order) ||
+            order.length > 3 ||
+            !order.every((k) => isPlainObject(k) && typeof k.field === "string" && (k.direction === "asc" || k.direction === "desc"))
+          ) {
+            throw new BridgeError("invalid_request", "order_by is a list of up to three {field, direction} keys");
+          }
+          query.order_by = order as RecordsQueryPayload["order_by"];
+        }
+        if (payload.limit !== undefined) {
+          if (typeof payload.limit !== "number" || !Number.isInteger(payload.limit) || payload.limit < 1 || payload.limit > 1000) {
+            throw new BridgeError("invalid_request", "limit must be a whole number from 1 to 1000");
+          }
+          query.limit = payload.limit;
+        }
+        if (payload.cursor !== undefined) {
+          if (typeof payload.cursor !== "string" || payload.cursor.length > 512) throw new BridgeError("invalid_request", "cursor must be a string");
+          query.cursor = payload.cursor;
+        }
+        return this.handlers.recordsQuery(this.session, query);
       }
       case "artifact.open":
         if (!this.handlers.artifactOpen) throw new BridgeError("unsupported", "artifacts are not available here");

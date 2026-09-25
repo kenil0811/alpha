@@ -212,8 +212,11 @@ class AppRegistry:
                 "extra Python modules need a qualified runtime profile; the default profile has "
                 f"none (requested {sorted(source.modules)})"
             )
-        if source.ui is not None:
-            raise invalid("custom UI packages arrive with the interaction kit and delivery loop")
+        if source.ui is not None and source.ui.entry is not None:
+            raise invalid(
+                "building a UI entry into a Version arrives with the delivery loop (F08); "
+                "declare views and actions only"
+            )
         files = _collect_files(package_dir)
         staging = self._root / f".staging-{uuid.uuid4().hex[:12]}"
         try:

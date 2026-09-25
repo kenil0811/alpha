@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "react": [
+        "./node_modules/@types/react/index.d.ts"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
+      ],
+      "react-dom/*": [
+        "./node_modules/@types/react-dom/*"
+      ],
+      "@alpha/ui-kit": [
+        "./node_modules/@alpha/ui-kit/src/index.ts"
+      ],
+      "@alpha/ui-kit/*": [
+        "./node_modules/@alpha/ui-kit/*"
+      ]
+    }
+  },
+  "include": [
+    "compositions",
+    "../../templates/app/ui/src",
+    "globals.d.ts"
+  ]
+}

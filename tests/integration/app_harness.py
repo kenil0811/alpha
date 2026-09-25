@@ -53,8 +53,10 @@ def build_profile(root: Path) -> PublishedProfile:
 
 def render_fixtures(target: Path, profile_id: str) -> Path:
     """Copy the fixture Apps and substitute the exact runtime profile ID."""
-    for name in ("items_app", "tally_app"):
-        source = FIXTURES / name
+    for source in sorted(FIXTURES.iterdir()):
+        if not (source / "app.yaml.template").is_file():
+            continue
+        name = source.name
         dest = target / name
         shutil.copytree(source, dest, ignore=shutil.ignore_patterns("__pycache__"))
         template = dest / "app.yaml.template"

@@ -141,8 +141,10 @@ def seal_profile(content: dict[str, Any], prefix: str = "py") -> DependencyProfi
     return DependencyProfile.model_validate(body)
 
 
-def verify_profile(profile: DependencyProfile, prefix: str = "py") -> list[str]:
-    """Return the reasons a profile's identity does not match its content (empty if intact)."""
+def verify_profile(profile: DependencyProfile, prefix: str | None = None) -> list[str]:
+    """Return the reasons a profile's identity does not match its content (empty if intact).
+    The ID prefix ("py", "ui") is taken from the profile ID unless given."""
+    prefix = prefix if prefix is not None else profile.profile_id.split("prof-", 1)[0]
     content = profile.model_dump(mode="json")
     problems: list[str] = []
     if manifest_digest(content) != profile.manifest_sha256:

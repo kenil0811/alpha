@@ -105,9 +105,68 @@ export class CoreError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    /** Capability failure code from Core ("invalid_input", "forbidden", …) when it sent one. */
+    public readonly code?: string,
   ) {
     super(message);
   }
+}
+
+export interface ViewSpec {
+  id: string;
+  kind: "records" | "aggregate";
+  collection: string;
+  description?: string;
+}
+
+export interface AppDetail {
+  app_id: string;
+  name: string;
+  description: string;
+  version_id: string;
+  release_id: string;
+  package_sha256: string;
+  runtime_profile_id: string;
+  ui: { views: ViewSpec[]; actions: string[] } | null;
+}
+
+export interface OperationOutcome {
+  operation_id: string;
+  state: string;
+  output: Record<string, unknown> | null;
+  error: { code: string; message: string } | null;
+}
+
+/** Installed-App commands used by the shell's bridge host (F05/F06 routes). */
+export interface AppsClient {
+  appDetail(appId: string): Promise<AppDetail>;
+  installFixtureApp(name: string): Promise<{ app_id: string }>;
+  runAppAction(appId: string, actionId: string, input: Record<string, unknown>): Promise<Run>;
+  queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown>;
+  operationOutcome(runId: string): Promise<OperationOutcome>;
+}
+
+export function isAppsClient(client: unknown): client is AppsClient {
+  return typeof (client as Partial<AppsClient>)?.queryView === "function";
+}
+
+/** The plain-language failure of a finished run, from its events. */
+export function outcomeFromEvents(run: Run, events: RunEvent[]): OperationOutcome {
+  let error: OperationOutcome["error"] = null;
+  if (run.state !== "succeeded") {
+    const workerError = [...events].reverse().find((e) => e.kind === "worker.error");
+    const failed = [...events].reverse().find((e) => e.kind === "run.failed");
+    const payload = (workerError?.payload ?? {}) as Record<string, unknown>;
+    const failure = (failed?.payload ?? {}) as Record<string, unknown>;
+    const message =
+      (typeof payload.message === "string" && payload.message) ||
+      (typeof failure.problem === "string" && `The result did not match what the action promises: ${failure.problem}`) ||
+      run.terminal_reason ||
+      `The action ${run.state}.`;
+    const code = (typeof payload.operation_code === "string" && payload.operation_code) || run.terminal_reason || run.state;
+    error = { code, message };
+  }
+  return { operation_id: run.run_id, state: run.state, output: (run.output as Record<string, unknown> | null) ?? null, error };
 }
 
 /** Parse one or more SSE frames from a text chunk. Returns leftover text. */
@@ -137,7 +196,7 @@ export function parseSseChunk(
   }
 }
 
-export class HttpCoreClient implements CoreClient {
+export class HttpCoreClient implements CoreClient, AppsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -154,19 +213,58 @@ export class HttpCoreClient implements CoreClient {
     });
     if (!response.ok) {
       let detail = response.statusText;
+      let code: string | undefined;
       try {
-        const body = (await response.json()) as { detail?: string; error?: string };
-        detail = body.detail ?? body.error ?? detail;
+        const body = (await response.json()) as { detail?: unknown; error?: string };
+        if (typeof body.detail === "string") detail = body.detail;
+        else if (body.detail && typeof body.detail === "object" && !Array.isArray(body.detail)) {
+          const structured = body.detail as { code?: unknown; message?: unknown };
+          if (typeof structured.message === "string") detail = structured.message;
+          if (typeof structured.code === "string") code = structured.code;
+        } else if (Array.isArray(body.detail)) {
+          detail = "The request was not valid.";
+          code = "invalid_input";
+        } else if (body.error) detail = body.error;
       } catch {
         /* keep statusText */
       }
-      throw new CoreError(detail, response.status);
+      throw new CoreError(detail, response.status, code);
     }
     return (await response.json()) as T;
   }
 
   health(): Promise<HealthInfo> {
     return this.request<HealthInfo>("/api/health");
+  }
+
+  appDetail(appId: string): Promise<AppDetail> {
+    return this.request<AppDetail>(`/api/apps/${encodeURIComponent(appId)}`);
+  }
+
+  installFixtureApp(name: string): Promise<{ app_id: string }> {
+    return this.request(`/api/dev/fixture-apps/${encodeURIComponent(name)}/install`, { method: "POST" });
+  }
+
+  runAppAction(appId: string, actionId: string, input: Record<string, unknown>): Promise<Run> {
+    return this.request<Run>(`/api/apps/${encodeURIComponent(appId)}/actions/${encodeURIComponent(actionId)}/runs`, {
+      method: "POST",
+      body: JSON.stringify({ input, origin: "ui" }),
+    });
+  }
+
+  queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown> {
+    return this.request(`/api/apps/${encodeURIComponent(appId)}/views/${encodeURIComponent(viewId)}/query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async operationOutcome(runId: string): Promise<OperationOutcome> {
+    const run = await this.run(runId);
+    if (!["succeeded", "failed", "cancelled", "interrupted"].includes(run.state)) {
+      return { operation_id: run.run_id, state: run.state, output: null, error: null };
+    }
+    return outcomeFromEvents(run, run.state === "succeeded" ? [] : await this.events(runId));
   }
 
   async listRuns(): Promise<Run[]> {

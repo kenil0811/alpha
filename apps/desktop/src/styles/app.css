@@ -114,3 +114,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brief__tag { font-size: var(--text-xs); color: var(--color-text-muted); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 var(--space-1); margin-left: var(--space-1); }
 .brief__meta { font-size: var(--text-xs); color: var(--color-text-muted); }
 .correction { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* F06 UI kit fixture: compositions get the full width so their own layouts can be checked at
+   the supported window widths. */
+.frame__main--kit { grid-template-columns: 1fr; overflow: auto; }
+.panel--wide { min-width: 0; }
+.kit-fixture__frames { display: flex; flex-direction: column; gap: var(--space-6); }
+.kit-fixture__frame-wrap { display: flex; flex-direction: column; gap: var(--space-2); }
+.kit-fixture__frame { width: 100%; height: 900px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); }

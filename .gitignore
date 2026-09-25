@@ -12,3 +12,6 @@ __pycache__/
 .DS_Store
 # local data
 .alpha-data/
+# built by apps/desktop/scripts/build-compositions.mjs
+apps/desktop/src/qualification/compositions/
+apps/desktop/public/qualification/

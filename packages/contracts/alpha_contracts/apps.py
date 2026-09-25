@@ -13,7 +13,19 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from alpha_contracts.profiles import DependencyManifest, Sha256Hex
-from alpha_contracts.records import CollectionSchema, FieldKind
+from alpha_contracts.records import (
+    SYSTEM_FIELDS,
+    AllOf,
+    AnyOf,
+    Clause,
+    CollectionSchema,
+    FieldKind,
+    Filter,
+    GroupKey,
+    Metric,
+    Not,
+    SortKey,
+)
 from alpha_contracts.runs import ContractModel
 
 APP_ID_PATTERN = r"^[a-z][a-z0-9_-]{2,63}$"
@@ -88,7 +100,7 @@ class AppSource(ContractModel):
     collections: list[CollectionSchema] = Field(default_factory=list, max_length=32)
     actions: list[ActionDefinition] = Field(min_length=1, max_length=50)
     capabilities: list[str] = Field(default_factory=list, max_length=16)
-    ui: dict[str, Any] | None = None
+    ui: UiDeclaration | None = None
     trigger_templates: list[dict[str, Any]] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
@@ -116,10 +128,103 @@ class AppSource(ContractModel):
                 raise ValueError(f"action {action.id!r} requires undeclared capabilities {extra}")
         if self.collections and "records" not in self.capabilities:
             raise ValueError("an App with collections must declare the records capability")
+        if self.ui is not None:
+            by_name = {c.name: c for c in self.collections}
+            view_ids = [v.id for v in self.ui.views]
+            if len(set(view_ids)) != len(view_ids):
+                raise ValueError("ui view ids must be unique")
+            for view in self.ui.views:
+                target = by_name.get(view.collection)
+                if target is None:
+                    raise ValueError(
+                        f"ui view {view.id} reads undeclared collection {view.collection}"
+                    )
+                known = {f.name for f in target.fields} | SYSTEM_FIELDS
+                unknown = sorted(view.mentioned_fields() - known)
+                if unknown:
+                    raise ValueError(f"ui view {view.id} names unknown fields {unknown}")
+            for action_id in self.ui.actions:
+                ui_action = self.action(action_id)
+                if ui_action is None:
+                    raise ValueError(f"ui action {action_id} is not declared")
+                if Invocable.UI not in ui_action.invocable_from:
+                    raise ValueError(f"ui action {action_id} is not invocable from ui")
         return self
 
     def action(self, action_id: str) -> ActionDefinition | None:
         return next((a for a in self.actions if a.id == action_id), None)
+
+
+VIEW_ID_PATTERN = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$"
+
+
+class ViewKind(StrEnum):
+    RECORDS = "records"
+    AGGREGATE = "aggregate"
+
+
+def filter_fields(node: Filter | None) -> set[str]:
+    """Every field a filter mentions."""
+    if node is None:
+        return set()
+    if isinstance(node, Clause):
+        return {node.field}
+    if isinstance(node, AllOf):
+        return set().union(*(filter_fields(n) for n in node.all))
+    if isinstance(node, AnyOf):
+        return set().union(*(filter_fields(n) for n in node.any))
+    assert isinstance(node, Not)
+    return filter_fields(node.not_)
+
+
+class ViewSpec(ContractModel):
+    """A bounded read view the App's UI may query (App UI Bridge, records.query). The view fixes
+    the collection, an optional base filter, the projection and limits; the UI can only narrow it
+    with filters on `filterable` fields and sort on `sortable` fields."""
+
+    id: str = Field(pattern=VIEW_ID_PATTERN, max_length=64)
+    kind: ViewKind = ViewKind.RECORDS
+    collection: str = Field(min_length=1, max_length=48)
+    description: str = Field(default="", max_length=300)
+    where: Filter | None = None
+    fields: list[str] | None = Field(default=None, max_length=64)
+    filterable: list[str] = Field(default_factory=list, max_length=32)
+    sortable: list[str] = Field(default_factory=list, max_length=32)
+    default_order: list[SortKey] = Field(default_factory=list, max_length=3)
+    max_limit: int = Field(default=100, ge=1, le=1000)
+    group_by: list[GroupKey] = Field(default_factory=list, max_length=3)
+    metrics: list[Metric] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def _kind_shape(self) -> ViewSpec:
+        if self.kind is ViewKind.AGGREGATE:
+            if not self.metrics:
+                raise ValueError(f"aggregate view {self.id} needs metrics")
+            if self.fields or self.sortable or self.default_order:
+                raise ValueError(f"aggregate view {self.id} cannot declare fields or sorting")
+        elif self.group_by or self.metrics:
+            raise ValueError(f"records view {self.id} cannot declare group_by or metrics")
+        return self
+
+    def mentioned_fields(self) -> set[str]:
+        names = set(self.fields or []) | set(self.filterable) | set(self.sortable)
+        names |= {k.field for k in self.default_order} | {g.field for g in self.group_by}
+        names |= {m.field for m in self.metrics if m.field} | filter_fields(self.where)
+        return names
+
+
+class UiDeclaration(ContractModel):
+    """What an App's custom UI may read and do. It carries no native privileges; the shell derives
+    the bridge grant from it and Core enforces the views."""
+
+    entry: str | None = Field(default=None, max_length=200)
+    kit_version: str | None = Field(default=None, max_length=32)
+    bridge_version: str | None = Field(default=None, max_length=32)
+    views: list[ViewSpec] = Field(default_factory=list, max_length=32)
+    actions: list[str] = Field(default_factory=list, max_length=50)
+
+    def view(self, view_id: str) -> ViewSpec | None:
+        return next((v for v in self.views if v.id == view_id), None)
 
 
 class PackageFile(ContractModel):
@@ -146,3 +251,6 @@ class SealedVersion(ContractModel):
     package_sha256: Sha256Hex
     dependency_manifest: DependencyManifest
     dependency_manifest_sha256: Sha256Hex
+
+
+AppSource.model_rebuild()

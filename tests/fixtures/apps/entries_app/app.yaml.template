@@ -1,0 +1,132 @@
+contract_version: "0.2"
+app_id: entries-fixture
+name: Entries (fixture)
+description: A neutral list of dated entries with amounts, used to qualify the interaction kit.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records]
+collections:
+  - name: entries
+    fields:
+      - {name: title, kind: text, required: true, max_length: 120}
+      - {name: amount, kind: number, minimum: 0, maximum: 1000}
+      - {name: kind, kind: choice, required: true, choices: [note, task, idea]}
+      - {name: status, kind: choice, required: true, choices: [new, kept, dismissed]}
+      - {name: noted_on, kind: date, required: true}
+      - {name: note, kind: text, max_length: 500}
+      - {name: reason, kind: text, max_length: 300}
+    indexes: [[noted_on], [status]]
+actions:
+  - id: add_entry
+    title: Add an entry
+    description: Create one entry dated today unless another day is given.
+    handler: entries_fixture.handlers:add_entry
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1}
+        amount: {type: [number, "null"]}
+        kind: {type: string}
+        noted_on: {type: string}
+        note: {type: string}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}}
+  - id: update_entry
+    title: Change an entry
+    description: Change the title, amount, kind, day or note of one entry at the revision the person saw.
+    handler: entries_fixture.handlers:update_entry
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision, changes]
+      additionalProperties: false
+      properties:
+        id: {type: string}
+        expected_revision: {type: integer}
+        changes:
+          type: object
+          additionalProperties: false
+          properties:
+            title: {type: string}
+            amount: {type: [number, "null"]}
+            kind: {type: string}
+            noted_on: {type: string}
+            note: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}}
+  - id: set_status
+    title: Decide on an entry
+    description: Keep or dismiss an entry, with an optional reason.
+    handler: entries_fixture.handlers:set_status
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision, status]
+      additionalProperties: false
+      properties:
+        id: {type: string}
+        expected_revision: {type: integer}
+        status: {type: string, enum: [new, kept, dismissed]}
+        reason: {type: string}
+    output_schema: {type: object, required: [revision], properties: {revision: {type: integer}}}
+  - id: remove_entry
+    title: Remove an entry
+    description: Delete one entry at the revision the person saw.
+    handler: entries_fixture.handlers:remove_entry
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [id, expected_revision]
+      additionalProperties: false
+      properties: {id: {type: string}, expected_revision: {type: integer}}
+    output_schema: {type: object, properties: {}}
+  - id: seed_examples
+    title: Add example entries
+    description: Add neutral example entries over recent days, leaving some days empty.
+    handler: entries_fixture.handlers:seed_examples
+    invocable_from: [manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema: {type: object, properties: {days: {type: integer, minimum: 1, maximum: 60}}}
+    output_schema: {type: object, required: [created], properties: {created: {type: integer}}}
+ui:
+  views:
+    - id: entries.list
+      collection: entries
+      description: Every entry, newest first.
+      fields: [title, amount, kind, status, noted_on, note, reason]
+      filterable: [title, kind, status, noted_on, amount]
+      sortable: [title, amount, kind, status, noted_on, created_at]
+      default_order: [{field: created_at, direction: desc}]
+      max_limit: 100
+    - id: entries.queue
+      collection: entries
+      description: Entries in the order they arrived, for review.
+      fields: [title, amount, kind, status, noted_on, note, reason]
+      filterable: [status, kind, noted_on]
+      default_order: [{field: created_at, direction: asc}]
+      max_limit: 200
+    - id: entries.daily
+      kind: aggregate
+      collection: entries
+      description: Total amount and number of entries per day.
+      group_by: [{field: noted_on, bucket: day}]
+      metrics: [{name: total, fn: sum, field: amount}, {name: entries, fn: count}]
+      filterable: [noted_on, kind]
+      max_limit: 400
+  actions: [add_entry, update_entry, set_status, remove_entry]

@@ -32,6 +32,8 @@ check:
     uv run python -m alpha_contracts.export --check
     pnpm --filter @alpha/contracts check
     pnpm --filter @alpha/ui-bridge typecheck
+    pnpm --filter @alpha/ui-kit typecheck
+    pnpm --filter @alpha/ui-compositions typecheck
     pnpm --filter @alpha/desktop typecheck
     uv run pytest packages/contracts packages/app-sdk services/core -q
 
@@ -42,11 +44,16 @@ test-core:
 # Shell component/interaction tests and bridge protocol tests.
 test-ui:
     pnpm --filter @alpha/ui-bridge test
+    pnpm --filter @alpha/ui-kit test
     pnpm --filter @alpha/desktop test
 
 # Real processes, SQLite and loopback transport.
 test-integration:
-    uv run pytest tests/integration -q -m integration
+    uv run pytest tests/integration tests/ui -q -m integration
+
+# Kit reference sheet (development only): every pattern and state with neutral data.
+kit-reference:
+    pnpm --filter @alpha/ui-kit reference
 
 # Verify committed locks and exact tool versions (F01.C05).
 verify-locks:
@@ -77,6 +84,7 @@ verify-ticket ticket:
 bundle-core:
     uv run python tools/bundle_core.py
     uv run python tools/build_app_profile.py
+    uv run python tools/build_ui_profile.py
 
 # Run the desktop app in development (Vite shell + Tauri host + bundled Core).
 dev: bundle-core

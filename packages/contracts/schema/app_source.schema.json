@@ -71,6 +71,99 @@
       "title": "ActionDefinition",
       "type": "object"
     },
+    "AllOf": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Clause"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              },
+              {
+                "$ref": "#/$defs/Not"
+              }
+            ]
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "title": "AllOf",
+      "type": "object"
+    },
+    "AnyOf": {
+      "additionalProperties": false,
+      "properties": {
+        "any": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Clause"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              },
+              {
+                "$ref": "#/$defs/Not"
+              }
+            ]
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "any"
+      ],
+      "title": "AnyOf",
+      "type": "object"
+    },
+    "Bucket": {
+      "enum": [
+        "day",
+        "week",
+        "month"
+      ],
+      "title": "Bucket",
+      "type": "string"
+    },
+    "Clause": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "op": {
+          "$ref": "#/$defs/FilterOp"
+        },
+        "value": {
+          "default": null
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "Clause",
+      "type": "object"
+    },
     "CollectionSchema": {
       "additionalProperties": false,
       "properties": {
@@ -251,6 +344,60 @@
       "title": "FieldSpec",
       "type": "object"
     },
+    "FilterOp": {
+      "enum": [
+        "eq",
+        "ne",
+        "lt",
+        "lte",
+        "gt",
+        "gte",
+        "in",
+        "contains",
+        "starts_with",
+        "is_null"
+      ],
+      "title": "FilterOp",
+      "type": "string"
+    },
+    "GroupKey": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Bucket"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "title": "GroupKey",
+      "type": "object"
+    },
     "Invocable": {
       "enum": [
         "assistant",
@@ -261,6 +408,73 @@
       "title": "Invocable",
       "type": "string"
     },
+    "Metric": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 48,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fn": {
+          "$ref": "#/$defs/MetricFn"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "fn"
+      ],
+      "title": "Metric",
+      "type": "object"
+    },
+    "MetricFn": {
+      "enum": [
+        "count",
+        "sum",
+        "avg",
+        "min",
+        "max"
+      ],
+      "title": "MetricFn",
+      "type": "string"
+    },
+    "Not": {
+      "additionalProperties": false,
+      "properties": {
+        "not": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Clause"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "$ref": "#/$defs/Not"
+            }
+          ]
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "title": "Not",
+      "type": "object"
+    },
     "RetryClass": {
       "enum": [
         "pure",
@@ -269,6 +483,202 @@
       ],
       "title": "RetryClass",
       "type": "string"
+    },
+    "SortKey": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "default": "asc",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "type": "string"
+        },
+        "field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "title": "SortKey",
+      "type": "object"
+    },
+    "UiDeclaration": {
+      "additionalProperties": false,
+      "description": "What an App's custom UI may read and do. It carries no native privileges; the shell derives\nthe bridge grant from it and Core enforces the views.",
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "bridge_version": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "entry": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kit_version": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/ViewSpec"
+          },
+          "maxItems": 32,
+          "type": "array"
+        }
+      },
+      "title": "UiDeclaration",
+      "type": "object"
+    },
+    "ViewKind": {
+      "enum": [
+        "records",
+        "aggregate"
+      ],
+      "title": "ViewKind",
+      "type": "string"
+    },
+    "ViewSpec": {
+      "additionalProperties": false,
+      "description": "A bounded read view the App's UI may query (App UI Bridge, records.query). The view fixes\nthe collection, an optional base filter, the projection and limits; the UI can only narrow it\nwith filters on `filterable` fields and sort on `sortable` fields.",
+      "properties": {
+        "collection": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "default_order": {
+          "items": {
+            "$ref": "#/$defs/SortKey"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 300,
+          "type": "string"
+        },
+        "fields": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "filterable": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "group_by": {
+          "items": {
+            "$ref": "#/$defs/GroupKey"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ViewKind",
+          "default": "records"
+        },
+        "max_limit": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/Metric"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "sortable": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Clause"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "$ref": "#/$defs/Not"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "collection"
+      ],
+      "title": "ViewSpec",
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -345,8 +755,7 @@
     "ui": {
       "anyOf": [
         {
-          "additionalProperties": true,
-          "type": "object"
+          "$ref": "#/$defs/UiDeclaration"
         },
         {
           "type": "null"

@@ -22,6 +22,7 @@ from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.data.apps import AppRegistry
 from alpha.data.store import RecordService
+from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.profiles import ProfileInventory
@@ -96,6 +97,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
                 for a in source.actions
             ],
             "record_counts": platform.records.store(app_id).counts(),
+            "ui": source.ui.model_dump(mode="json", by_alias=True) if source.ui else None,
         }
 
     @app.post("/api/apps/{app_id}/actions/{action_id}/runs", response_model=Run, status_code=202)
@@ -112,6 +114,17 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             return platform.records.store(app_id).query(body)
         except OperationFailed as exc:
             raise _fail(exc) from exc
+
+    @app.post("/api/apps/{app_id}/views/{view_id}/query")
+    def query_view(app_id: str, view_id: str, body: ViewQueryRequest) -> dict[str, Any]:
+        """The shell's bridge handler for records.query: Core enforces the declared view."""
+        try:
+            version = platform.registry.current(app_id)
+            view = resolve_view(version.source.ui, view_id)
+            result = run_view(platform.records.store(app_id), view, body, platform.runs.timezone)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return result.model_dump(mode="json", by_alias=True)
 
     @app.post("/api/apps/{app_id}/records/aggregate", response_model=AggregateResult)
     def aggregate_records(app_id: str, body: AggregateQuery) -> AggregateResult:

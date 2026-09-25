@@ -1,0 +1,39 @@
+contract_version: "0.2"
+app_id: "{{APP_ID}}"
+name: "{{APP_NAME}}"
+description: "{{ONE_SENTENCE_PURPOSE}}"
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records]
+collections:
+  - name: items
+    fields:
+      - {name: title, kind: text, required: true, max_length: 200}
+      - {name: noted_on, kind: date, required: true}
+actions:
+  - id: add_item
+    title: Add an item
+    description: Create one item dated today.
+    handler: app_code.handlers:add_item
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties: {title: {type: string, minLength: 1}}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}}
+ui:
+  views:
+    - id: items.recent
+      collection: items
+      fields: [title, noted_on]
+      filterable: [title, noted_on]
+      sortable: [title, noted_on, created_at]
+      default_order: [{field: created_at, direction: desc}]
+      max_limit: 100
+  actions: [add_item]
