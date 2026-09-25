@@ -118,18 +118,32 @@
       }
     },
     "F04": {
-      "status": "pending",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "86e98dfc7be863df72cb6b9d677fa4ba7c6dd243",
+      "notes": [
+        "Self-review. Delivery is decided by the nature of the goal (a recurring background workflow is an App); the qualification verdict was corrected accordingly in 6247fa7. Live turns take 58\u201381 s on the CLI's default model (M1 review item). F04.C03 was rendered in a Chromium pane, not the native WKWebView."
+      ],
       "checks": {
         "F04.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F04.C01.md",
+          "evidence_sha256": "de0631fdea9e5c786f46dde832d12b5d4b5425ffa05f9c8bc07521208ed5ec84",
+          "evidence_kind": "live_model",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9; real Core and SQLite; Claude Code CLI 2.1.278 on the founder's subscription (route claude-code-cli, model claude-opus-5[1m])"
         },
         "F04.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F04.C02.md",
+          "evidence_sha256": "8399acdbba5fa0f3c6ea3a3300ea7f6ff5147481650bd75bf4c72be2096ecff4",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9; real Core process and SQLite; fake model route"
         },
         "F04.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F04.C03.md",
+          "evidence_sha256": "0fab6106bf3e519c4ccec315e621f216c22f54f106d23441cee3648fc6d1e5b3",
+          "evidence_kind": "rendered_ui",
+          "environment": "macOS 26.6.2 (25G83) arm64; Vite 8.3.1 dev shell on Node 24.21.0 in the desktop app's built-in Chromium browser pane; CPython 3.13.9 Core with the fake assistant route"
         }
       }
     },

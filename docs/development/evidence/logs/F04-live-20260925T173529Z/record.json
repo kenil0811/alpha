@@ -1,0 +1,1823 @@
+{
+  "commit": "6247fa7b171bdf0e03c7740a72e823fa923a6e30",
+  "started_at": "20260925T173529Z",
+  "requests": {
+    "tracker": "Track what I eat and how much, with calories, history and trends.",
+    "artifact": "Turn my meeting notes into a one-page brief I can send to my team.",
+    "unsupported": "Every morning, send my mom a WhatsApp message with today's weather for Ahmedabad."
+  },
+  "results": {
+    "tracker": {
+      "first": {
+        "state": "waiting_for_user",
+        "delivery": "app",
+        "elapsed_seconds": 80.9,
+        "interpretation": {
+          "outcome": "A personal food log that keeps every meal you eat, with amounts and calories, so you can see daily totals, past days, and how you trend over time.",
+          "main_input": "Quick entries you type as you eat: the food, how much, and its calories.",
+          "useful_result": "Log a meal in seconds, see today's total against your target, scroll back through history, and see a weekly average trend.",
+          "important_assumptions": [
+            "Entries are timestamped automatically, and the date and time can be changed.",
+            "Meals are grouped as breakfast, lunch, dinner and snack.",
+            "Amounts are a number plus a unit you type, such as 150 g or 1 bowl.",
+            "Days run midnight to midnight in your local time.",
+            "Everything stays on your Mac and is yours to edit or delete."
+          ]
+        },
+        "reply": "Got it \u2014 this is reusable, not a one-off, so Alpha will build it as an app: quick entry per meal, daily calorie totals, full history, and weekly trends.\n\nOne honest limit: record storage and the on-screen interface aren't connected yet, and neither is automatic calorie estimation from a food name. The brief captures the app as you want it, and Alpha builds it when those arrive.\n\nThree quick things to get the shape right:",
+        "questions": [
+          {
+            "id": "calorie_source",
+            "question": "Will you type the calories yourself, or should the app estimate them from the food name and amount?",
+            "options": [
+              "I'll type the calories",
+              "Estimate them for me",
+              "Estimate, but let me correct it"
+            ],
+            "why_it_matters": "Typing your own works with today's plan; automatic estimates need a capability that isn't connected yet and would always be shown as correctable guesses."
+          },
+          {
+            "id": "daily_target",
+            "question": "Do you have a daily calorie target to track against?",
+            "options": [
+              "Yes, a fixed number",
+              "No target, just totals",
+              "A different target per day"
+            ],
+            "why_it_matters": "It decides whether the daily view shows a plain total or a total against a goal with calories remaining."
+          },
+          {
+            "id": "extra_numbers",
+            "question": "Besides calories, do you want to track anything else per food?",
+            "options": [
+              "Calories only",
+              "Calories plus protein",
+              "Calories, protein, carbs and fat"
+            ],
+            "why_it_matters": "Knowing now keeps entry fast and makes the trends show the numbers you actually care about."
+          }
+        ],
+        "brief_revision": 1,
+        "unavailable_capabilities": [
+          "records",
+          "custom_ui",
+          "models"
+        ],
+        "assumptions": [
+          {
+            "text": "Entries are timestamped automatically and can be back-dated.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Meals are grouped as breakfast, lunch, dinner, snack.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Amount is a number plus a free-text unit (150 g, 1 bowl, 2 slices).",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "A day is midnight to midnight, local time.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "History is kept until you delete it; nothing leaves your Mac.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Trends default to daily totals plus a 7-day average.",
+            "source": "model_default",
+            "turn_ref": null
+          }
+        ],
+        "data_needs": [
+          "Food entries",
+          "Daily target",
+          "Saved foods"
+        ],
+        "actions": [
+          "log_food",
+          "day_summary",
+          "trend_view",
+          "correct_entry",
+          "estimate_calories"
+        ],
+        "error": null
+      },
+      "conversation_id": "conv_a35c00bdcfca4f9490f2d500cee98d36",
+      "answers": {
+        "calorie_source": "I'll type the calories",
+        "daily_target": "Yes, a fixed number",
+        "extra_numbers": "Calories only"
+      },
+      "second": {
+        "state": "briefed",
+        "delivery": "app",
+        "elapsed_seconds": 65.8,
+        "interpretation": {
+          "outcome": "A personal food log on your Mac: quick entry per meal, daily totals against a fixed calorie target, full history and weekly trends.",
+          "main_input": "You typing each food, amount, unit and calories yourself, with frequent foods saved for one-tap repeat entry.",
+          "useful_result": "A meal logged in seconds, today's total and calories remaining, any past day retrievable, and daily totals with a 7-day average.",
+          "important_assumptions": [
+            "You type calories, so no automatic estimation is needed.",
+            "One fixed daily target, which you set in the app and can change later.",
+            "Calories only \u2014 no protein, carbs or fat.",
+            "A day is midnight to midnight, local time."
+          ]
+        },
+        "reply": "Locked in: you type the calories, one fixed daily target, calories only. I removed automatic calorie estimation from the brief entirely, so nothing depends on guesswork.\n\nYou'll set your target number inside the app on first use and can change it any time; past days keep the target they had.\n\nThe app: tap Add, type food, amount and calories, pick a meal. Today's screen shows the total and calories remaining. History opens any past date. Trends show daily totals with a 7-day average.\n\nOne honest limit: record storage and the on-screen interface aren't connected yet. The brief is complete, and Alpha builds this as soon as they land.",
+        "questions": [],
+        "brief_revision": 2,
+        "unavailable_capabilities": [
+          "records",
+          "custom_ui"
+        ],
+        "assumptions": [
+          {
+            "text": "You type calories yourself; no automatic estimation is part of the app.",
+            "source": "user_answer",
+            "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+          },
+          {
+            "text": "One fixed daily target, set inside the app and changeable, with past days keeping the target they had.",
+            "source": "user_answer",
+            "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+          },
+          {
+            "text": "Calories only per food \u2014 no protein, carbs or fat.",
+            "source": "user_answer",
+            "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+          },
+          {
+            "text": "Entries are timestamped now and can be back-dated.",
+            "source": "user_answer",
+            "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+          },
+          {
+            "text": "Meals are grouped as breakfast, lunch, dinner, snack.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Amount is a number plus a free-text unit (150 g, 1 bowl, 2 slices).",
+            "source": "model_default",
+            "turn_ref": null
+          }
+        ],
+        "data_needs": [
+          "Food entries",
+          "Daily target",
+          "Saved foods"
+        ],
+        "actions": [
+          "log_food",
+          "day_summary",
+          "trend_view",
+          "correct_entry",
+          "set_target"
+        ],
+        "error": null
+      },
+      "full_conversation": {
+        "conversation_id": "conv_a35c00bdcfca4f9490f2d500cee98d36",
+        "state": "briefed",
+        "route_id": "claude-code-cli",
+        "created_at": "2026-09-25T17:35:30.012573Z",
+        "updated_at": "2026-09-25T17:37:56.135183Z",
+        "turns": [
+          {
+            "turn_id": "turn_9ac164d50d1449c9a9db03fc57fdf697",
+            "sequence": 1,
+            "role": "user",
+            "kind": "request",
+            "content": {
+              "text": "Track what I eat and how much, with calories, history and trends."
+            },
+            "created_at": "2026-09-25T17:35:30.012686Z"
+          },
+          {
+            "turn_id": "turn_3ed50448bcce47a499298e8af440dac5",
+            "sequence": 2,
+            "role": "assistant",
+            "kind": "assistant",
+            "content": {
+              "reply": "Got it \u2014 this is reusable, not a one-off, so Alpha will build it as an app: quick entry per meal, daily calorie totals, full history, and weekly trends.\n\nOne honest limit: record storage and the on-screen interface aren't connected yet, and neither is automatic calorie estimation from a food name. The brief captures the app as you want it, and Alpha builds it when those arrive.\n\nThree quick things to get the shape right:",
+              "delivery": "app",
+              "interpretation": {
+                "outcome": "A personal food log that keeps every meal you eat, with amounts and calories, so you can see daily totals, past days, and how you trend over time.",
+                "main_input": "Quick entries you type as you eat: the food, how much, and its calories.",
+                "useful_result": "Log a meal in seconds, see today's total against your target, scroll back through history, and see a weekly average trend.",
+                "important_assumptions": [
+                  "Entries are timestamped automatically, and the date and time can be changed.",
+                  "Meals are grouped as breakfast, lunch, dinner and snack.",
+                  "Amounts are a number plus a unit you type, such as 150 g or 1 bowl.",
+                  "Days run midnight to midnight in your local time.",
+                  "Everything stays on your Mac and is yours to edit or delete."
+                ]
+              },
+              "questions": [
+                {
+                  "id": "calorie_source",
+                  "question": "Will you type the calories yourself, or should the app estimate them from the food name and amount?",
+                  "options": [
+                    "I'll type the calories",
+                    "Estimate them for me",
+                    "Estimate, but let me correct it"
+                  ],
+                  "why_it_matters": "Typing your own works with today's plan; automatic estimates need a capability that isn't connected yet and would always be shown as correctable guesses."
+                },
+                {
+                  "id": "daily_target",
+                  "question": "Do you have a daily calorie target to track against?",
+                  "options": [
+                    "Yes, a fixed number",
+                    "No target, just totals",
+                    "A different target per day"
+                  ],
+                  "why_it_matters": "It decides whether the daily view shows a plain total or a total against a goal with calories remaining."
+                },
+                {
+                  "id": "extra_numbers",
+                  "question": "Besides calories, do you want to track anything else per food?",
+                  "options": [
+                    "Calories only",
+                    "Calories plus protein",
+                    "Calories, protein, carbs and fat"
+                  ],
+                  "why_it_matters": "Knowing now keeps entry fast and makes the trends show the numbers you actually care about."
+                }
+              ],
+              "model": "claude-opus-5[1m]",
+              "usage": {
+                "input_tokens": 4,
+                "output_tokens": 7336,
+                "cache_read_input_tokens": 10256,
+                "cache_creation_input_tokens": 3916,
+                "turns": 3,
+                "duration_ms": 79641,
+                "cost_usd": 0.22770799999999997,
+                "cost_basis": "subscription_unmetered",
+                "models": {
+                  "claude-opus-5[1m]": {
+                    "inputTokens": 4,
+                    "outputTokens": 7336,
+                    "costUSD": 0.22770799999999997
+                  }
+                }
+              },
+              "brief_revision": 1
+            },
+            "created_at": "2026-09-25T17:36:49.945380Z"
+          },
+          {
+            "turn_id": "turn_ee9940191d7d4ee5a4b013dbab633fd9",
+            "sequence": 3,
+            "role": "user",
+            "kind": "answer",
+            "content": {
+              "answers": {
+                "calorie_source": "I'll type the calories",
+                "daily_target": "Yes, a fixed number",
+                "extra_numbers": "Calories only"
+              }
+            },
+            "created_at": "2026-09-25T17:36:50.934014Z"
+          },
+          {
+            "turn_id": "turn_9c79b05f563a4af8b83f854f87d7acd4",
+            "sequence": 4,
+            "role": "assistant",
+            "kind": "assistant",
+            "content": {
+              "reply": "Locked in: you type the calories, one fixed daily target, calories only. I removed automatic calorie estimation from the brief entirely, so nothing depends on guesswork.\n\nYou'll set your target number inside the app on first use and can change it any time; past days keep the target they had.\n\nThe app: tap Add, type food, amount and calories, pick a meal. Today's screen shows the total and calories remaining. History opens any past date. Trends show daily totals with a 7-day average.\n\nOne honest limit: record storage and the on-screen interface aren't connected yet. The brief is complete, and Alpha builds this as soon as they land.",
+              "delivery": "app",
+              "interpretation": {
+                "outcome": "A personal food log on your Mac: quick entry per meal, daily totals against a fixed calorie target, full history and weekly trends.",
+                "main_input": "You typing each food, amount, unit and calories yourself, with frequent foods saved for one-tap repeat entry.",
+                "useful_result": "A meal logged in seconds, today's total and calories remaining, any past day retrievable, and daily totals with a 7-day average.",
+                "important_assumptions": [
+                  "You type calories, so no automatic estimation is needed.",
+                  "One fixed daily target, which you set in the app and can change later.",
+                  "Calories only \u2014 no protein, carbs or fat.",
+                  "A day is midnight to midnight, local time."
+                ]
+              },
+              "questions": [],
+              "model": "claude-opus-5[1m]",
+              "usage": {
+                "input_tokens": 4,
+                "output_tokens": 6813,
+                "cache_read_input_tokens": 14372,
+                "cache_creation_input_tokens": 8733,
+                "turns": 3,
+                "duration_ms": 64902,
+                "cost_usd": 0.264861,
+                "cost_basis": "subscription_unmetered",
+                "models": {
+                  "claude-opus-5[1m]": {
+                    "inputTokens": 4,
+                    "outputTokens": 6813,
+                    "costUSD": 0.264861
+                  }
+                }
+              },
+              "brief_revision": 2
+            },
+            "created_at": "2026-09-25T17:37:56.135222Z"
+          }
+        ],
+        "current_brief": {
+          "contract_version": "0.2",
+          "id": "brief_2f0c6850ece8424996638b2f223203ef",
+          "revision": 2,
+          "conversation_id": "conv_a35c00bdcfca4f9490f2d500cee98d36",
+          "created_at": "2026-09-25T17:37:56.135183Z",
+          "goal": "Let me log everything I eat with amounts and calories I type myself, and see my daily total against a fixed target, my past days, and how my intake trends over time.",
+          "success_summary": "A meal is logged in under fifteen seconds. Today's screen shows the running calorie total and calories remaining against my fixed target. History shows any past day's meals. Trends show daily totals and a 7-day average over recent weeks.",
+          "delivery": "app",
+          "surfaces": [
+            "custom_ui",
+            "conversation"
+          ],
+          "inputs": [],
+          "primary_journey": [
+            {
+              "action": "Open the app, tap Add, type the food, the amount and the calories, and pick a meal.",
+              "expected_result": "The entry is saved with today's date and time, and today's total and calories remaining update immediately."
+            },
+            {
+              "action": "Pick a frequent food from the quick list instead of typing.",
+              "expected_result": "Amount, unit and calories are prefilled from the saved food; one confirm saves it."
+            },
+            {
+              "action": "Look at today's screen.",
+              "expected_result": "Today's entries grouped by meal, the day's calorie total, and calories remaining against the target."
+            },
+            {
+              "action": "Tap an entry to correct the amount or calories, or delete it.",
+              "expected_result": "The entry updates or disappears and the day's total recalculates at once."
+            },
+            {
+              "action": "Open history or trends.",
+              "expected_result": "History shows any chosen past day's meals and total; trends show daily totals over recent weeks with a 7-day average, the average per day, and days within target."
+            }
+          ],
+          "data_needs": [
+            {
+              "collection": "Food entries",
+              "purpose": "The record of each thing eaten, which every total and trend is calculated from.",
+              "fields": [
+                {
+                  "name": "Eaten at",
+                  "kind": "datetime",
+                  "description": "Date and time of the food, defaulting to now, editable for back-dating.",
+                  "required": true
+                },
+                {
+                  "name": "Food",
+                  "kind": "text",
+                  "description": "What was eaten, in your own words.",
+                  "required": true
+                },
+                {
+                  "name": "Amount",
+                  "kind": "number",
+                  "description": "How much, as a number greater than zero.",
+                  "required": true
+                },
+                {
+                  "name": "Unit",
+                  "kind": "text",
+                  "description": "Unit for the amount, such as g, ml, bowl, slice.",
+                  "required": true
+                },
+                {
+                  "name": "Calories",
+                  "kind": "number",
+                  "description": "Calories for that amount, typed by you.",
+                  "required": true
+                },
+                {
+                  "name": "Meal",
+                  "kind": "choice",
+                  "description": "Breakfast, lunch, dinner or snack.",
+                  "required": true
+                }
+              ],
+              "provenance": "user",
+              "retention": "until the user deletes it"
+            },
+            {
+              "collection": "Daily target",
+              "purpose": "The fixed calorie goal each day is measured against, so the app can show calories remaining.",
+              "fields": [
+                {
+                  "name": "Daily calorie target",
+                  "kind": "number",
+                  "description": "Your fixed goal calories per day, set in the app and changeable.",
+                  "required": true
+                },
+                {
+                  "name": "In effect from",
+                  "kind": "date",
+                  "description": "The date this target started, so older days keep the target they had.",
+                  "required": true
+                }
+              ],
+              "provenance": "user",
+              "retention": "until the user deletes it"
+            },
+            {
+              "collection": "Saved foods",
+              "purpose": "Foods you eat often, so repeat entries are one tap instead of retyping.",
+              "fields": [
+                {
+                  "name": "Food",
+                  "kind": "text",
+                  "description": "Name of the food.",
+                  "required": true
+                },
+                {
+                  "name": "Usual amount",
+                  "kind": "number",
+                  "description": "The portion you usually have.",
+                  "required": true
+                },
+                {
+                  "name": "Unit",
+                  "kind": "text",
+                  "description": "Unit for the usual amount.",
+                  "required": true
+                },
+                {
+                  "name": "Calories for that amount",
+                  "kind": "number",
+                  "description": "Calories for the usual portion.",
+                  "required": true
+                },
+                {
+                  "name": "Times used",
+                  "kind": "number",
+                  "description": "How often it has been logged, used to order the quick-pick list.",
+                  "required": false
+                }
+              ],
+              "provenance": "user",
+              "retention": "until the user deletes it"
+            }
+          ],
+          "actions": [
+            {
+              "id": "log_food",
+              "title": "Log a food entry",
+              "description": "Save a food with its amount, unit, typed calories and meal, timestamped now unless another date and time is given. If the food matches a saved food, prefill the amount, unit and calories.",
+              "inputs": [
+                "food",
+                "amount",
+                "unit",
+                "calories",
+                "meal",
+                "eaten at (optional)"
+              ],
+              "outputs": [
+                "the saved entry",
+                "the updated total and remaining for that day"
+              ],
+              "effect_class": "local_write",
+              "required_capabilities": [
+                "records"
+              ]
+            },
+            {
+              "id": "day_summary",
+              "title": "Summarise a day",
+              "description": "For a chosen date, gather that day's entries grouped by meal, add up the calories, and compare against the target in effect for that date to show calories remaining or over.",
+              "inputs": [
+                "date"
+              ],
+              "outputs": [
+                "entries by meal",
+                "day total",
+                "target and remaining"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "records",
+                "compute"
+              ]
+            },
+            {
+              "id": "trend_view",
+              "title": "Show the trend",
+              "description": "Over a chosen window such as the last 30 days, compute each day's total, a rolling 7-day average, the overall daily average, and how many days stayed within the target.",
+              "inputs": [
+                "number of days"
+              ],
+              "outputs": [
+                "daily totals",
+                "7-day rolling average",
+                "average per day",
+                "days within target"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "records",
+                "compute"
+              ]
+            },
+            {
+              "id": "correct_entry",
+              "title": "Correct or remove an entry",
+              "description": "Change any detail of a logged entry, or delete it, and recompute the affected day's total and remaining.",
+              "inputs": [
+                "entry",
+                "changed values or delete"
+              ],
+              "outputs": [
+                "updated entry or confirmation of deletion",
+                "updated day total"
+              ],
+              "effect_class": "local_write",
+              "required_capabilities": [
+                "records"
+              ]
+            },
+            {
+              "id": "set_target",
+              "title": "Set or change the daily target",
+              "description": "Save a fixed daily calorie target from the date it is set, leaving earlier days measured against the target they had.",
+              "inputs": [
+                "daily calorie target",
+                "in effect from (defaults to today)"
+              ],
+              "outputs": [
+                "the saved target",
+                "today's recalculated remaining"
+              ],
+              "effect_class": "local_write",
+              "required_capabilities": [
+                "records"
+              ]
+            }
+          ],
+          "recurrence": null,
+          "constraints": [
+            "All entries stay on this Mac; nothing is sent anywhere.",
+            "Calories are always typed by the user; the app never guesses them.",
+            "Calories must be zero or positive; amounts must be greater than zero.",
+            "A day runs midnight to midnight in the user's local time.",
+            "Changing the daily target does not change totals or remaining figures already recorded for past days.",
+            "Only calories are tracked per food; no protein, carbs or fat."
+          ],
+          "acceptance_examples": [
+            {
+              "description": "Logging a simple breakfast entry with typed calories.",
+              "action_id": "log_food",
+              "input": {
+                "food": "Porridge with milk",
+                "amount": 250,
+                "unit": "g",
+                "calories": 310,
+                "meal": "breakfast"
+              },
+              "expected": {
+                "saved": true,
+                "eaten_at": "today, current time",
+                "today_total": "310 kcal, shown under Breakfast",
+                "remaining": "target minus 310"
+              },
+              "kind": "success"
+            },
+            {
+              "description": "A day with three entries and a 2000 kcal fixed target.",
+              "action_id": "day_summary",
+              "input": {
+                "date": "2026-09-24",
+                "entry_calories": [
+                  310,
+                  640,
+                  820
+                ],
+                "target": 2000
+              },
+              "expected": {
+                "day_total": 1770,
+                "remaining": 230,
+                "grouped_by_meal": true
+              },
+              "kind": "success"
+            },
+            {
+              "description": "An amount of zero is not a valid entry.",
+              "action_id": "log_food",
+              "input": {
+                "food": "Apple",
+                "amount": 0,
+                "unit": "piece",
+                "calories": 95
+              },
+              "expected": {
+                "saved": false,
+                "message": "Amount must be greater than zero. The entry stays in the form so nothing is retyped."
+              },
+              "kind": "failure"
+            }
+          ],
+          "assumptions": [
+            {
+              "text": "You type calories yourself; no automatic estimation is part of the app.",
+              "source": "user_answer",
+              "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+            },
+            {
+              "text": "One fixed daily target, set inside the app and changeable, with past days keeping the target they had.",
+              "source": "user_answer",
+              "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+            },
+            {
+              "text": "Calories only per food \u2014 no protein, carbs or fat.",
+              "source": "user_answer",
+              "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+            },
+            {
+              "text": "Entries are timestamped now and can be back-dated.",
+              "source": "user_answer",
+              "turn_ref": "turn_ee9940191d7d4ee5a4b013dbab633fd9"
+            },
+            {
+              "text": "Meals are grouped as breakfast, lunch, dinner, snack.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Amount is a number plus a free-text unit (150 g, 1 bowl, 2 slices).",
+              "source": "model_default",
+              "turn_ref": null
+            }
+          ],
+          "open_questions": [],
+          "unavailable_capabilities": [
+            "records",
+            "custom_ui"
+          ],
+          "selected_context_snapshot_id": "conv_a35c00bdcfca4f9490f2d500cee98d36.context.r2",
+          "supersedes_revision": 1
+        },
+        "interpretation": {
+          "outcome": "A personal food log on your Mac: quick entry per meal, daily totals against a fixed calorie target, full history and weekly trends.",
+          "main_input": "You typing each food, amount, unit and calories yourself, with frequent foods saved for one-tap repeat entry.",
+          "useful_result": "A meal logged in seconds, today's total and calories remaining, any past day retrievable, and daily totals with a 7-day average.",
+          "important_assumptions": [
+            "You type calories, so no automatic estimation is needed.",
+            "One fixed daily target, which you set in the app and can change later.",
+            "Calories only \u2014 no protein, carbs or fat.",
+            "A day is midnight to midnight, local time."
+          ]
+        },
+        "questions": [],
+        "reply": "Locked in: you type the calories, one fixed daily target, calories only. I removed automatic calorie estimation from the brief entirely, so nothing depends on guesswork.\n\nYou'll set your target number inside the app on first use and can change it any time; past days keep the target they had.\n\nThe app: tap Add, type food, amount and calories, pick a meal. Today's screen shows the total and calories remaining. History opens any past date. Trends show daily totals with a 7-day average.\n\nOne honest limit: record storage and the on-screen interface aren't connected yet. The brief is complete, and Alpha builds this as soon as they land.",
+        "delivery": "app",
+        "error": null,
+        "brief_history": [
+          1,
+          2
+        ],
+        "_elapsed_seconds": 65.8
+      }
+    },
+    "artifact": {
+      "first": {
+        "state": "waiting_for_user",
+        "delivery": "task",
+        "elapsed_seconds": 59.6,
+        "interpretation": {
+          "outcome": "A single one-page brief, built from your meeting notes, ready to copy and send to your team.",
+          "main_input": "Your meeting notes, pasted into the conversation as text.",
+          "useful_result": "A short brief with a summary line, key decisions, action items with owners and dates, and open questions \u2014 fitting on one page.",
+          "important_assumptions": [
+            "You paste the notes here rather than pointing at a file, since Alpha cannot open files you select yet.",
+            "The brief is produced in the conversation as text you copy; Alpha cannot yet save it as a document file.",
+            "Lines with cues like 'Decision:', 'Action:', 'Owner:', 'Due:' or a question mark are sorted into sections; other lines stay under Notes.",
+            "Wording from your notes is reused, not rewritten, because runtime rewriting by a model is not connected yet.",
+            "One page means roughly 350 words; anything longer is flagged so you can trim."
+          ]
+        },
+        "reply": "I'll set this up as a one-off task: you paste your meeting notes, and Alpha returns a clean one-page brief \u2014 summary, decisions, action items with owner and due date, open questions.\n\nTwo limits, straight up: Alpha can't open a notes file you pick, and can't save the brief as a document yet, so you paste notes in and copy the brief out. It also reuses your own wording rather than rewriting it, since runtime rewriting isn't connected yet.\n\nTwo quick questions so the brief lands right the first time.",
+        "questions": [
+          {
+            "id": "sections",
+            "question": "Which sections must the brief always include?",
+            "options": [
+              "Summary, decisions, action items, open questions (default)",
+              "Also attendees and date",
+              "Also risks / blockers",
+              "Something else \u2014 tell me"
+            ],
+            "why_it_matters": "It decides what gets pulled out of your notes and what gets dropped to keep it to one page."
+          },
+          {
+            "id": "owners",
+            "question": "Should action items always show an owner and due date, even when your notes don't say?",
+            "options": [
+              "Yes \u2014 flag missing ones as TBD",
+              "No \u2014 leave blank if not in my notes"
+            ],
+            "why_it_matters": "Decides whether Alpha flags gaps as 'owner: TBD' or leaves them blank."
+          }
+        ],
+        "brief_revision": 1,
+        "unavailable_capabilities": [
+          "files",
+          "artifacts",
+          "models"
+        ],
+        "assumptions": [
+          {
+            "text": "This is a one-off task, not a reusable app, since each brief comes from one set of notes.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Notes arrive as plain pasted text, including bullets or rough shorthand.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Output is plain text with simple headings, easy to paste into email or chat.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Nothing is stored between runs.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Dates found in the notes are repeated exactly as written, not converted.",
+            "source": "model_default",
+            "turn_ref": null
+          }
+        ],
+        "data_needs": [
+          "Meeting notes submission"
+        ],
+        "actions": [
+          "sort_notes",
+          "extract_owner_due",
+          "build_brief",
+          "length_check"
+        ],
+        "error": null
+      },
+      "conversation_id": "conv_fc64f0ce9e9a49f7b72d036501cc4d45",
+      "full_conversation": {
+        "conversation_id": "conv_fc64f0ce9e9a49f7b72d036501cc4d45",
+        "state": "waiting_for_user",
+        "route_id": "claude-code-cli",
+        "created_at": "2026-09-25T17:37:56.768500Z",
+        "updated_at": "2026-09-25T17:38:55.582205Z",
+        "turns": [
+          {
+            "turn_id": "turn_98e47af5fa2c4317ac4005cf136a3535",
+            "sequence": 1,
+            "role": "user",
+            "kind": "request",
+            "content": {
+              "text": "Turn my meeting notes into a one-page brief I can send to my team."
+            },
+            "created_at": "2026-09-25T17:37:56.768633Z"
+          },
+          {
+            "turn_id": "turn_df57e16dbf554e889d8c9a337acb75a5",
+            "sequence": 2,
+            "role": "assistant",
+            "kind": "assistant",
+            "content": {
+              "reply": "I'll set this up as a one-off task: you paste your meeting notes, and Alpha returns a clean one-page brief \u2014 summary, decisions, action items with owner and due date, open questions.\n\nTwo limits, straight up: Alpha can't open a notes file you pick, and can't save the brief as a document yet, so you paste notes in and copy the brief out. It also reuses your own wording rather than rewriting it, since runtime rewriting isn't connected yet.\n\nTwo quick questions so the brief lands right the first time.",
+              "delivery": "task",
+              "interpretation": {
+                "outcome": "A single one-page brief, built from your meeting notes, ready to copy and send to your team.",
+                "main_input": "Your meeting notes, pasted into the conversation as text.",
+                "useful_result": "A short brief with a summary line, key decisions, action items with owners and dates, and open questions \u2014 fitting on one page.",
+                "important_assumptions": [
+                  "You paste the notes here rather than pointing at a file, since Alpha cannot open files you select yet.",
+                  "The brief is produced in the conversation as text you copy; Alpha cannot yet save it as a document file.",
+                  "Lines with cues like 'Decision:', 'Action:', 'Owner:', 'Due:' or a question mark are sorted into sections; other lines stay under Notes.",
+                  "Wording from your notes is reused, not rewritten, because runtime rewriting by a model is not connected yet.",
+                  "One page means roughly 350 words; anything longer is flagged so you can trim."
+                ]
+              },
+              "questions": [
+                {
+                  "id": "sections",
+                  "question": "Which sections must the brief always include?",
+                  "options": [
+                    "Summary, decisions, action items, open questions (default)",
+                    "Also attendees and date",
+                    "Also risks / blockers",
+                    "Something else \u2014 tell me"
+                  ],
+                  "why_it_matters": "It decides what gets pulled out of your notes and what gets dropped to keep it to one page."
+                },
+                {
+                  "id": "owners",
+                  "question": "Should action items always show an owner and due date, even when your notes don't say?",
+                  "options": [
+                    "Yes \u2014 flag missing ones as TBD",
+                    "No \u2014 leave blank if not in my notes"
+                  ],
+                  "why_it_matters": "Decides whether Alpha flags gaps as 'owner: TBD' or leaves them blank."
+                }
+              ],
+              "model": "claude-opus-5[1m]",
+              "usage": {
+                "input_tokens": 4,
+                "output_tokens": 5769,
+                "cache_read_input_tokens": 10264,
+                "cache_creation_input_tokens": 3369,
+                "turns": 3,
+                "duration_ms": 58514,
+                "cost_usd": 0.18306699999999998,
+                "cost_basis": "subscription_unmetered",
+                "models": {
+                  "claude-opus-5[1m]": {
+                    "inputTokens": 4,
+                    "outputTokens": 5769,
+                    "costUSD": 0.18306699999999998
+                  }
+                }
+              },
+              "brief_revision": 1
+            },
+            "created_at": "2026-09-25T17:38:55.582243Z"
+          }
+        ],
+        "current_brief": {
+          "contract_version": "0.2",
+          "id": "brief_e9b5600f45a84122a14d87441d56e7c1",
+          "revision": 1,
+          "conversation_id": "conv_fc64f0ce9e9a49f7b72d036501cc4d45",
+          "created_at": "2026-09-25T17:38:55.582205Z",
+          "goal": "Turn a set of pasted meeting notes into a single, shareable one-page brief for the user's team.",
+          "success_summary": "The user pastes raw meeting notes and gets back a structured brief \u2014 summary, decisions, action items with owners and due dates, open questions \u2014 short enough for one page and ready to copy into an email.",
+          "delivery": "task",
+          "surfaces": [
+            "conversation"
+          ],
+          "inputs": [],
+          "primary_journey": [
+            {
+              "action": "User pastes their meeting notes into the conversation.",
+              "expected_result": "Alpha confirms it has the notes and how many lines it will work from."
+            },
+            {
+              "action": "Alpha sorts the lines into brief sections using cues in the text.",
+              "expected_result": "Decisions, action items and open questions are separated from general notes."
+            },
+            {
+              "action": "Alpha assembles the one-page brief.",
+              "expected_result": "A formatted brief appears with headings, in the agreed order."
+            },
+            {
+              "action": "Alpha checks the length.",
+              "expected_result": "If the brief runs past about 350 words, it says so and names the longest section to trim."
+            },
+            {
+              "action": "User copies the brief and sends it to the team.",
+              "expected_result": "The text pastes cleanly into email or chat with headings intact."
+            }
+          ],
+          "data_needs": [
+            {
+              "collection": "Meeting notes submission",
+              "purpose": "Hold the raw text the user pastes for this one brief.",
+              "fields": [
+                {
+                  "name": "notes text",
+                  "kind": "text",
+                  "description": "The full pasted meeting notes.",
+                  "required": true
+                },
+                {
+                  "name": "meeting title",
+                  "kind": "text",
+                  "description": "Optional heading for the brief.",
+                  "required": false
+                },
+                {
+                  "name": "meeting date",
+                  "kind": "text",
+                  "description": "Optional date as written by the user.",
+                  "required": false
+                }
+              ],
+              "provenance": "user",
+              "retention": "held only for this conversation, not stored"
+            }
+          ],
+          "actions": [
+            {
+              "id": "sort_notes",
+              "title": "Sort notes into brief sections",
+              "description": "Read the pasted notes line by line and place each line under Decisions, Action items, Open questions or Notes, using cues such as 'decided', 'Decision:', 'Action:', 'will', 'TODO' or a trailing question mark.",
+              "inputs": [
+                "notes text"
+              ],
+              "outputs": [
+                "sorted sections"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "compute"
+              ]
+            },
+            {
+              "id": "extract_owner_due",
+              "title": "Pull owner and due date from action lines",
+              "description": "For each action line, find a named owner and any date or deadline written in the line, and show them alongside the action.",
+              "inputs": [
+                "sorted sections"
+              ],
+              "outputs": [
+                "action items with owner and due date"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "compute"
+              ]
+            },
+            {
+              "id": "build_brief",
+              "title": "Assemble the one-page brief",
+              "description": "Put the sections in the agreed order under plain headings, with a short summary line built from the meeting title, date and the count of decisions and actions.",
+              "inputs": [
+                "sorted sections",
+                "action items with owner and due date"
+              ],
+              "outputs": [
+                "brief text"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "compute"
+              ]
+            },
+            {
+              "id": "length_check",
+              "title": "Check it fits one page",
+              "description": "Count the words in the finished brief and, if it exceeds roughly 350, report the total and name the longest section so the user can trim.",
+              "inputs": [
+                "brief text"
+              ],
+              "outputs": [
+                "length warning"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "compute"
+              ]
+            }
+          ],
+          "recurrence": null,
+          "constraints": [
+            "Notes must be pasted as text; Alpha cannot open a file the user selects.",
+            "The brief is delivered as text in the conversation, not saved as a document file.",
+            "Wording is reused from the notes; Alpha does not rephrase into new words.",
+            "Nothing is invented \u2014 anything absent from the notes is shown as missing, never guessed."
+          ],
+          "acceptance_examples": [
+            {
+              "description": "Typical notes with a decision and an action produce a complete brief.",
+              "action_id": "build_brief",
+              "input": {
+                "notes text": "Weekly sync 24 Sep\nDecided: ship pricing page on 3 Oct\nAction: Priya to draft copy by Mon\nDo we need legal review?"
+              },
+              "expected": {
+                "brief text": "Weekly sync \u2014 24 Sep. 1 decision, 1 action.\nDecisions: Ship pricing page on 3 Oct.\nAction items: Priya \u2014 draft copy \u2014 due Mon.\nOpen questions: Do we need legal review?"
+              },
+              "kind": "success"
+            },
+            {
+              "description": "An action line with no owner named is flagged rather than guessed.",
+              "action_id": "extract_owner_due",
+              "input": {
+                "notes text": "Action: update the deck before Friday"
+              },
+              "expected": {
+                "action items with owner and due date": "Update the deck \u2014 owner: TBD \u2014 due Friday"
+              },
+              "kind": "boundary"
+            },
+            {
+              "description": "Empty or whitespace-only notes are refused clearly.",
+              "action_id": "sort_notes",
+              "input": {
+                "notes text": "   "
+              },
+              "expected": {
+                "sorted sections": "No brief produced. Message: 'I need the meeting notes pasted in before I can build the brief.'"
+              },
+              "kind": "failure"
+            }
+          ],
+          "assumptions": [
+            {
+              "text": "This is a one-off task, not a reusable app, since each brief comes from one set of notes.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Notes arrive as plain pasted text, including bullets or rough shorthand.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Output is plain text with simple headings, easy to paste into email or chat.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Nothing is stored between runs.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Dates found in the notes are repeated exactly as written, not converted.",
+              "source": "model_default",
+              "turn_ref": null
+            }
+          ],
+          "open_questions": [
+            {
+              "id": "sections",
+              "question": "Which sections must the brief always include?",
+              "options": [
+                "Summary, decisions, action items, open questions (default)",
+                "Also attendees and date",
+                "Also risks / blockers",
+                "Something else \u2014 tell me"
+              ],
+              "why_it_matters": "It decides what gets pulled out of your notes and what gets dropped to keep it to one page."
+            },
+            {
+              "id": "owners",
+              "question": "Should action items always show an owner and due date, even when your notes don't say?",
+              "options": [
+                "Yes \u2014 flag missing ones as TBD",
+                "No \u2014 leave blank if not in my notes"
+              ],
+              "why_it_matters": "Decides whether Alpha flags gaps as 'owner: TBD' or leaves them blank."
+            }
+          ],
+          "unavailable_capabilities": [
+            "files",
+            "artifacts",
+            "models"
+          ],
+          "selected_context_snapshot_id": "conv_fc64f0ce9e9a49f7b72d036501cc4d45.context.r1",
+          "supersedes_revision": null
+        },
+        "interpretation": {
+          "outcome": "A single one-page brief, built from your meeting notes, ready to copy and send to your team.",
+          "main_input": "Your meeting notes, pasted into the conversation as text.",
+          "useful_result": "A short brief with a summary line, key decisions, action items with owners and dates, and open questions \u2014 fitting on one page.",
+          "important_assumptions": [
+            "You paste the notes here rather than pointing at a file, since Alpha cannot open files you select yet.",
+            "The brief is produced in the conversation as text you copy; Alpha cannot yet save it as a document file.",
+            "Lines with cues like 'Decision:', 'Action:', 'Owner:', 'Due:' or a question mark are sorted into sections; other lines stay under Notes.",
+            "Wording from your notes is reused, not rewritten, because runtime rewriting by a model is not connected yet.",
+            "One page means roughly 350 words; anything longer is flagged so you can trim."
+          ]
+        },
+        "questions": [
+          {
+            "id": "sections",
+            "question": "Which sections must the brief always include?",
+            "options": [
+              "Summary, decisions, action items, open questions (default)",
+              "Also attendees and date",
+              "Also risks / blockers",
+              "Something else \u2014 tell me"
+            ],
+            "why_it_matters": "It decides what gets pulled out of your notes and what gets dropped to keep it to one page."
+          },
+          {
+            "id": "owners",
+            "question": "Should action items always show an owner and due date, even when your notes don't say?",
+            "options": [
+              "Yes \u2014 flag missing ones as TBD",
+              "No \u2014 leave blank if not in my notes"
+            ],
+            "why_it_matters": "Decides whether Alpha flags gaps as 'owner: TBD' or leaves them blank."
+          }
+        ],
+        "reply": "I'll set this up as a one-off task: you paste your meeting notes, and Alpha returns a clean one-page brief \u2014 summary, decisions, action items with owner and due date, open questions.\n\nTwo limits, straight up: Alpha can't open a notes file you pick, and can't save the brief as a document yet, so you paste notes in and copy the brief out. It also reuses your own wording rather than rewriting it, since runtime rewriting isn't connected yet.\n\nTwo quick questions so the brief lands right the first time.",
+        "delivery": "task",
+        "error": null,
+        "brief_history": [
+          1
+        ],
+        "_elapsed_seconds": 59.6
+      }
+    },
+    "unsupported": {
+      "first": {
+        "state": "waiting_for_user",
+        "delivery": "app",
+        "elapsed_seconds": 67.8,
+        "interpretation": {
+          "outcome": "Each morning your mom gets a short WhatsApp message with today's Ahmedabad weather.",
+          "main_input": "Today's Ahmedabad forecast, plus your mom's WhatsApp number.",
+          "useful_result": "A friendly one-message summary (high/low, rain chance, one practical tip) arriving on her phone every morning without you doing anything.",
+          "important_assumptions": [
+            "Send time is 7:00 AM India time unless you say otherwise.",
+            "Message is in English, short and warm, signed from you.",
+            "Nothing is sent on a day the forecast can't be read; you'd be told instead."
+          ]
+        },
+        "reply": "Good news and a limit. This is recurring, so Alpha will keep it as a small daily solution: read today's Ahmedabad forecast, write a warm short message, send it to your mom on WhatsApp each morning. Three pieces aren't connected yet: web access for the forecast, WhatsApp messaging, and daily scheduling. Messaging isn't planned for the first release, so automatic sending can't happen yet. What works today: you paste the forecast and Alpha writes the ready-to-send message for you to copy into WhatsApp. To finish the brief: what's your mom's number, what should the message include, and what send time?",
+        "questions": [
+          {
+            "id": "mom_number",
+            "question": "What's your mom's WhatsApp number, with country code?",
+            "options": [],
+            "why_it_matters": "It's the one fact the solution can't guess, and it decides where the message goes."
+          },
+          {
+            "id": "message_content",
+            "question": "What should the message include?",
+            "options": [
+              "High and low temperature",
+              "Rain chance",
+              "A practical tip (umbrella, heat, water)",
+              "All of these"
+            ],
+            "why_it_matters": "It defines what counts as a useful message for her."
+          },
+          {
+            "id": "send_time",
+            "question": "What time each morning should it arrive?",
+            "options": [
+              "6:30 AM",
+              "7:00 AM",
+              "8:00 AM",
+              "Another time"
+            ],
+            "why_it_matters": "The message should land before she starts her day."
+          }
+        ],
+        "brief_revision": 1,
+        "unavailable_capabilities": [
+          "messaging",
+          "http",
+          "schedules",
+          "records"
+        ],
+        "assumptions": [
+          {
+            "text": "Timezone is Asia/Kolkata.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Location is Ahmedabad city, no specific area.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Temperatures in Celsius.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Plain text message, no images or links.",
+            "source": "model_default",
+            "turn_ref": null
+          },
+          {
+            "text": "Each day's message is kept so you can see what she received.",
+            "source": "model_default",
+            "turn_ref": null
+          }
+        ],
+        "data_needs": [
+          "Recipient settings",
+          "Daily weather summary",
+          "Sent messages"
+        ],
+        "actions": [
+          "get_forecast",
+          "compose_message",
+          "send_whatsapp",
+          "run_each_morning",
+          "record_day"
+        ],
+        "error": null
+      },
+      "conversation_id": "conv_89ea435dbd974feba36d699d7e971038",
+      "full_conversation": {
+        "conversation_id": "conv_89ea435dbd974feba36d699d7e971038",
+        "state": "waiting_for_user",
+        "route_id": "claude-code-cli",
+        "created_at": "2026-09-25T17:38:56.411095Z",
+        "updated_at": "2026-09-25T17:40:03.880912Z",
+        "turns": [
+          {
+            "turn_id": "turn_97e54abf67f3440aab9b1b6e9c0730a1",
+            "sequence": 1,
+            "role": "user",
+            "kind": "request",
+            "content": {
+              "text": "Every morning, send my mom a WhatsApp message with today's weather for Ahmedabad."
+            },
+            "created_at": "2026-09-25T17:38:56.411195Z"
+          },
+          {
+            "turn_id": "turn_74b0ad164fb9477b9fac4aaa8c5b0707",
+            "sequence": 2,
+            "role": "assistant",
+            "kind": "assistant",
+            "content": {
+              "reply": "Good news and a limit. This is recurring, so Alpha will keep it as a small daily solution: read today's Ahmedabad forecast, write a warm short message, send it to your mom on WhatsApp each morning. Three pieces aren't connected yet: web access for the forecast, WhatsApp messaging, and daily scheduling. Messaging isn't planned for the first release, so automatic sending can't happen yet. What works today: you paste the forecast and Alpha writes the ready-to-send message for you to copy into WhatsApp. To finish the brief: what's your mom's number, what should the message include, and what send time?",
+              "delivery": "app",
+              "interpretation": {
+                "outcome": "Each morning your mom gets a short WhatsApp message with today's Ahmedabad weather.",
+                "main_input": "Today's Ahmedabad forecast, plus your mom's WhatsApp number.",
+                "useful_result": "A friendly one-message summary (high/low, rain chance, one practical tip) arriving on her phone every morning without you doing anything.",
+                "important_assumptions": [
+                  "Send time is 7:00 AM India time unless you say otherwise.",
+                  "Message is in English, short and warm, signed from you.",
+                  "Nothing is sent on a day the forecast can't be read; you'd be told instead."
+                ]
+              },
+              "questions": [
+                {
+                  "id": "mom_number",
+                  "question": "What's your mom's WhatsApp number, with country code?",
+                  "options": [],
+                  "why_it_matters": "It's the one fact the solution can't guess, and it decides where the message goes."
+                },
+                {
+                  "id": "message_content",
+                  "question": "What should the message include?",
+                  "options": [
+                    "High and low temperature",
+                    "Rain chance",
+                    "A practical tip (umbrella, heat, water)",
+                    "All of these"
+                  ],
+                  "why_it_matters": "It defines what counts as a useful message for her."
+                },
+                {
+                  "id": "send_time",
+                  "question": "What time each morning should it arrive?",
+                  "options": [
+                    "6:30 AM",
+                    "7:00 AM",
+                    "8:00 AM",
+                    "Another time"
+                  ],
+                  "why_it_matters": "The message should land before she starts her day."
+                }
+              ],
+              "model": "claude-opus-5[1m]",
+              "usage": {
+                "input_tokens": 4,
+                "output_tokens": 6292,
+                "cache_read_input_tokens": 10280,
+                "cache_creation_input_tokens": 3373,
+                "turns": 3,
+                "duration_ms": 67170,
+                "cost_usd": 0.19619,
+                "cost_basis": "subscription_unmetered",
+                "models": {
+                  "claude-opus-5[1m]": {
+                    "inputTokens": 4,
+                    "outputTokens": 6292,
+                    "costUSD": 0.19619
+                  }
+                }
+              },
+              "brief_revision": 1
+            },
+            "created_at": "2026-09-25T17:40:03.880956Z"
+          }
+        ],
+        "current_brief": {
+          "contract_version": "0.2",
+          "id": "brief_8c025a0e45b14dfa9106f40ee4452115",
+          "revision": 1,
+          "conversation_id": "conv_89ea435dbd974feba36d699d7e971038",
+          "created_at": "2026-09-25T17:40:03.880912Z",
+          "goal": "Send my mom a short WhatsApp message every morning with today's weather for Ahmedabad.",
+          "success_summary": "Every morning at the chosen time, my mom receives one clear, friendly WhatsApp message about today's Ahmedabad weather, and I can see it was sent.",
+          "delivery": "app",
+          "surfaces": [
+            "background",
+            "external_update",
+            "conversation"
+          ],
+          "inputs": [],
+          "primary_journey": [
+            {
+              "action": "I set it up once with my mom's number, the send time, and what to include.",
+              "expected_result": "It confirms the settings and says when the first message goes out."
+            },
+            {
+              "action": "Each morning it reads today's Ahmedabad forecast.",
+              "expected_result": "It has the high, low, conditions and rain chance for the day."
+            },
+            {
+              "action": "It writes a short warm message from that forecast.",
+              "expected_result": "One or two sentences, easy to read on a phone."
+            },
+            {
+              "action": "It sends that message to my mom on WhatsApp.",
+              "expected_result": "She receives it at the chosen time."
+            },
+            {
+              "action": "I open the solution and look at recent days.",
+              "expected_result": "I see each day's message and whether it was delivered."
+            }
+          ],
+          "data_needs": [
+            {
+              "collection": "Recipient settings",
+              "purpose": "Know who to message, when, and what to include.",
+              "fields": [
+                {
+                  "name": "Recipient name",
+                  "kind": "text",
+                  "description": "For example, Mom.",
+                  "required": true
+                },
+                {
+                  "name": "WhatsApp number",
+                  "kind": "text",
+                  "description": "With country code.",
+                  "required": true
+                },
+                {
+                  "name": "Send time",
+                  "kind": "text",
+                  "description": "Local morning time in India.",
+                  "required": true
+                },
+                {
+                  "name": "Include rain chance",
+                  "kind": "boolean",
+                  "description": "",
+                  "required": false
+                },
+                {
+                  "name": "Include practical tip",
+                  "kind": "boolean",
+                  "description": "",
+                  "required": false
+                }
+              ],
+              "provenance": "user",
+              "retention": "until the user deletes it"
+            },
+            {
+              "collection": "Daily weather summary",
+              "purpose": "Keep the forecast each message was based on.",
+              "fields": [
+                {
+                  "name": "Date",
+                  "kind": "date",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "High temperature",
+                  "kind": "number",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "Low temperature",
+                  "kind": "number",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "Conditions",
+                  "kind": "text",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "Rain chance",
+                  "kind": "number",
+                  "description": "",
+                  "required": false
+                }
+              ],
+              "provenance": "read from a public weather source",
+              "retention": "last 90 days"
+            },
+            {
+              "collection": "Sent messages",
+              "purpose": "Show what was sent each day and whether it went through.",
+              "fields": [
+                {
+                  "name": "Date",
+                  "kind": "date",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "Message text",
+                  "kind": "text",
+                  "description": "",
+                  "required": true
+                },
+                {
+                  "name": "Status",
+                  "kind": "choice",
+                  "description": "Sent, failed, or skipped.",
+                  "required": true
+                },
+                {
+                  "name": "Reason if not sent",
+                  "kind": "text",
+                  "description": "",
+                  "required": false
+                }
+              ],
+              "provenance": "system",
+              "retention": "last 90 days"
+            }
+          ],
+          "actions": [
+            {
+              "id": "get_forecast",
+              "title": "Get today's Ahmedabad forecast",
+              "description": "Read today's high, low, conditions and rain chance for Ahmedabad from a public weather source.",
+              "inputs": [
+                "Today's date",
+                "City: Ahmedabad"
+              ],
+              "outputs": [
+                "Daily weather summary for today"
+              ],
+              "effect_class": "external_read",
+              "required_capabilities": [
+                "http"
+              ]
+            },
+            {
+              "id": "compose_message",
+              "title": "Write the morning message",
+              "description": "Turn the forecast into one short warm message: greeting, high and low, rain chance if enabled, and a practical tip if enabled.",
+              "inputs": [
+                "Daily weather summary",
+                "Recipient settings"
+              ],
+              "outputs": [
+                "Message text"
+              ],
+              "effect_class": "none",
+              "required_capabilities": [
+                "compute"
+              ]
+            },
+            {
+              "id": "send_whatsapp",
+              "title": "Send the message on WhatsApp",
+              "description": "Send the composed message to the saved WhatsApp number and note whether it was delivered.",
+              "inputs": [
+                "Message text",
+                "WhatsApp number"
+              ],
+              "outputs": [
+                "Send status"
+              ],
+              "effect_class": "external_write",
+              "required_capabilities": [
+                "messaging"
+              ]
+            },
+            {
+              "id": "run_each_morning",
+              "title": "Run every morning",
+              "description": "At the chosen local time each day, get the forecast, write the message and send it once.",
+              "inputs": [
+                "Send time",
+                "Timezone"
+              ],
+              "outputs": [
+                "One run per day"
+              ],
+              "effect_class": "external_write",
+              "required_capabilities": [
+                "schedules"
+              ]
+            },
+            {
+              "id": "record_day",
+              "title": "Save the day's result",
+              "description": "Store the forecast used, the message text and the send status so recent days can be reviewed.",
+              "inputs": [
+                "Daily weather summary",
+                "Message text",
+                "Send status"
+              ],
+              "outputs": [
+                "Saved records"
+              ],
+              "effect_class": "local_write",
+              "required_capabilities": [
+                "records"
+              ]
+            }
+          ],
+          "recurrence": {
+            "type": "daily",
+            "description": "Once each morning at the chosen local time.",
+            "timezone": "Asia/Kolkata"
+          },
+          "constraints": [
+            "One message per day, never more.",
+            "Never send if the forecast could not be read; record it as skipped and tell me.",
+            "Message stays under about 300 characters so it reads well on a phone.",
+            "The number is used only for this message and never shared elsewhere."
+          ],
+          "acceptance_examples": [
+            {
+              "description": "Warm dry day with the tip enabled.",
+              "action_id": "compose_message",
+              "input": {
+                "high": 36,
+                "low": 27,
+                "conditions": "Sunny",
+                "rain_chance": 5,
+                "include_tip": true
+              },
+              "expected": {
+                "message": "Good morning Mom! Ahmedabad today: sunny, 27-36C, almost no rain. Please carry water if you go out."
+              },
+              "kind": "success"
+            },
+            {
+              "description": "Heavy rain day with rain chance included.",
+              "action_id": "compose_message",
+              "input": {
+                "high": 30,
+                "low": 25,
+                "conditions": "Heavy rain",
+                "rain_chance": 85,
+                "include_tip": true
+              },
+              "expected": {
+                "message": "Good morning Mom! Ahmedabad today: heavy rain, 25-30C, 85% chance of rain. Please take an umbrella."
+              },
+              "kind": "success"
+            },
+            {
+              "description": "The forecast source cannot be reached.",
+              "action_id": "get_forecast",
+              "input": {
+                "forecast_available": false
+              },
+              "expected": {
+                "message_sent": false,
+                "status": "skipped",
+                "reason": "Could not read today's forecast",
+                "user_told": true
+              },
+              "kind": "failure"
+            }
+          ],
+          "assumptions": [
+            {
+              "text": "Timezone is Asia/Kolkata.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Location is Ahmedabad city, no specific area.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Temperatures in Celsius.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Plain text message, no images or links.",
+              "source": "model_default",
+              "turn_ref": null
+            },
+            {
+              "text": "Each day's message is kept so you can see what she received.",
+              "source": "model_default",
+              "turn_ref": null
+            }
+          ],
+          "open_questions": [
+            {
+              "id": "mom_number",
+              "question": "What's your mom's WhatsApp number, with country code?",
+              "options": [],
+              "why_it_matters": "It's the one fact the solution can't guess, and it decides where the message goes."
+            },
+            {
+              "id": "message_content",
+              "question": "What should the message include?",
+              "options": [
+                "High and low temperature",
+                "Rain chance",
+                "A practical tip (umbrella, heat, water)",
+                "All of these"
+              ],
+              "why_it_matters": "It defines what counts as a useful message for her."
+            },
+            {
+              "id": "send_time",
+              "question": "What time each morning should it arrive?",
+              "options": [
+                "6:30 AM",
+                "7:00 AM",
+                "8:00 AM",
+                "Another time"
+              ],
+              "why_it_matters": "The message should land before she starts her day."
+            }
+          ],
+          "unavailable_capabilities": [
+            "messaging",
+            "http",
+            "schedules",
+            "records"
+          ],
+          "selected_context_snapshot_id": "conv_89ea435dbd974feba36d699d7e971038.context.r1",
+          "supersedes_revision": null
+        },
+        "interpretation": {
+          "outcome": "Each morning your mom gets a short WhatsApp message with today's Ahmedabad weather.",
+          "main_input": "Today's Ahmedabad forecast, plus your mom's WhatsApp number.",
+          "useful_result": "A friendly one-message summary (high/low, rain chance, one practical tip) arriving on her phone every morning without you doing anything.",
+          "important_assumptions": [
+            "Send time is 7:00 AM India time unless you say otherwise.",
+            "Message is in English, short and warm, signed from you.",
+            "Nothing is sent on a day the forecast can't be read; you'd be told instead."
+          ]
+        },
+        "questions": [
+          {
+            "id": "mom_number",
+            "question": "What's your mom's WhatsApp number, with country code?",
+            "options": [],
+            "why_it_matters": "It's the one fact the solution can't guess, and it decides where the message goes."
+          },
+          {
+            "id": "message_content",
+            "question": "What should the message include?",
+            "options": [
+              "High and low temperature",
+              "Rain chance",
+              "A practical tip (umbrella, heat, water)",
+              "All of these"
+            ],
+            "why_it_matters": "It defines what counts as a useful message for her."
+          },
+          {
+            "id": "send_time",
+            "question": "What time each morning should it arrive?",
+            "options": [
+              "6:30 AM",
+              "7:00 AM",
+              "8:00 AM",
+              "Another time"
+            ],
+            "why_it_matters": "The message should land before she starts her day."
+          }
+        ],
+        "reply": "Good news and a limit. This is recurring, so Alpha will keep it as a small daily solution: read today's Ahmedabad forecast, write a warm short message, send it to your mom on WhatsApp each morning. Three pieces aren't connected yet: web access for the forecast, WhatsApp messaging, and daily scheduling. Messaging isn't planned for the first release, so automatic sending can't happen yet. What works today: you paste the forecast and Alpha writes the ready-to-send message for you to copy into WhatsApp. To finish the brief: what's your mom's number, what should the message include, and what send time?",
+        "delivery": "app",
+        "error": null,
+        "brief_history": [
+          1
+        ],
+        "_elapsed_seconds": 67.8
+      }
+    }
+  },
+  "routes": {
+    "routes": [
+      {
+        "route_id": "fake",
+        "provider": "fake",
+        "model": "none",
+        "cost_basis": "unavailable",
+        "harness": "fake",
+        "live": false,
+        "enabled": true,
+        "notes": [
+          "deterministic control fixture; proves lifecycle only"
+        ]
+      },
+      {
+        "route_id": "claude-code-cli",
+        "provider": "anthropic-claude-code-cli",
+        "model": "default",
+        "cost_basis": "subscription_unmetered",
+        "harness": "claude-code-cli",
+        "live": true,
+        "enabled": true,
+        "notes": [
+          "founder decision 2026-09-25: subscription login owned by the CLI; internal use only",
+          "reported cost is a provider-equivalent estimate, not a charge"
+        ]
+      }
+    ]
+  },
+  "model_usage": [
+    {
+      "usage_id": "usage_9ae47fc048e049b0a575c2523b82154a",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_a35c00bdcfca4f9490f2d500cee98d36",
+      "input_tokens": 4,
+      "output_tokens": 7336,
+      "cache_read_input_tokens": 10256,
+      "cache_creation_input_tokens": 3916,
+      "turns": 3,
+      "duration_ms": 79641,
+      "cost_usd": 0.22770799999999997,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.22770799999999997, \"inputTokens\": 4, \"outputTokens\": 7336}}",
+      "recorded_at": "2026-09-25T17:36:49.944844Z"
+    },
+    {
+      "usage_id": "usage_895ea54d1d7b4d27a4e69b127607de78",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_a35c00bdcfca4f9490f2d500cee98d36",
+      "input_tokens": 4,
+      "output_tokens": 6813,
+      "cache_read_input_tokens": 14372,
+      "cache_creation_input_tokens": 8733,
+      "turns": 3,
+      "duration_ms": 64902,
+      "cost_usd": 0.264861,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.264861, \"inputTokens\": 4, \"outputTokens\": 6813}}",
+      "recorded_at": "2026-09-25T17:37:56.134573Z"
+    },
+    {
+      "usage_id": "usage_36ebe00e4db741ce86ab94781ba919c4",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_fc64f0ce9e9a49f7b72d036501cc4d45",
+      "input_tokens": 4,
+      "output_tokens": 5769,
+      "cache_read_input_tokens": 10264,
+      "cache_creation_input_tokens": 3369,
+      "turns": 3,
+      "duration_ms": 58514,
+      "cost_usd": 0.18306699999999998,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.18306699999999998, \"inputTokens\": 4, \"outputTokens\": 5769}}",
+      "recorded_at": "2026-09-25T17:38:55.581863Z"
+    },
+    {
+      "usage_id": "usage_19b1241dcce1482892ba58166ec351b2",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_89ea435dbd974feba36d699d7e971038",
+      "input_tokens": 4,
+      "output_tokens": 6292,
+      "cache_read_input_tokens": 10280,
+      "cache_creation_input_tokens": 3373,
+      "turns": 3,
+      "duration_ms": 67170,
+      "cost_usd": 0.19619,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.19619, \"inputTokens\": 4, \"outputTokens\": 6292}}",
+      "recorded_at": "2026-09-25T17:40:03.880511Z"
+    }
+  ],
+  "builds_count": 0,
+  "runs_count": 0,
+  "verdicts": {
+    "tracker_routes_to_app": true,
+    "tracker_asks_material_questions": true,
+    "tracker_brief_revised_with_provenance": true,
+    "artifact_routes_to_task": true,
+    "artifact_names_unavailable_files": true,
+    "unsupported_named_not_promised": true,
+    "no_app_or_task_records_created": true
+  },
+  "secret_scan": {
+    "needles_found": []
+  }
+}

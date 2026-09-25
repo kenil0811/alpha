@@ -1,0 +1,80 @@
+uv run python tools/verify_ticket.py F04
+
+=== check: just check
+uv run ruff format --check .
+60 files already formatted
+uv run ruff check .
+All checks passed!
+uv run mypy
+Success: no issues found in 55 source files
+uv run python -m alpha_contracts.export --check
+contract schemas up to date (6 files)
+pnpm --filter @alpha/contracts check
+
+> @alpha/contracts@0.2.0 check /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/contracts
+> node generate.mjs --check
+
+contract TypeScript up to date (6 files)
+pnpm --filter @alpha/ui-bridge typecheck
+
+> @alpha/ui-bridge@0.2.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/desktop typecheck
+
+> @alpha/desktop@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && tsc --noEmit -p tsconfig.json
+
+fixture up to date
+uv run pytest packages/contracts services/core -q
+..................                                                       [100%]
+18 passed in 0.08s
+=== check: exit 0
+
+=== test-ui: just test-ui
+pnpm --filter @alpha/ui-bridge test
+
+> @alpha/ui-bridge@0.2.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> vitest run
+
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  18:42:11
+   Duration  227ms (tests 70%, transform 22%, import 6%, worker 2%)
+
+pnpm --filter @alpha/desktop test
+
+> @alpha/desktop@0.1.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && vitest run
+
+fixture up to date
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+
+alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
+
+ Test Files  5 passed (5)
+      Tests  15 passed (15)
+   Start at  18:42:12
+   Duration  1.77s (environment 51%, tests 30%, setup 12%, transform 5%, import 2%)
+
+alpha.main INFO shutdown: interrupted runs []
+=== test-ui: exit 0
+
+=== test-assistant: uv run pytest tests/integration/test_assistant.py -q -m integration
+.......                                                                  [100%]
+7 passed in 6.66s
+=== test-assistant: exit 0
+
+=== required checks for F04 (from task_state.json; helper-audited bookkeeping)
+  F04.C01   live_model   pending  (live_model evidence required)
+  F04.C02   integration  pending  (automated here)
+  F04.C03   rendered_ui  pending  (rendered_ui evidence required)
+  Note: native/live/rendered/review/user checks are not run by this command.
+  Live check command (explicit opt-in): just qualify-assistant (opt-in live route; three request families)
+
+verify-ticket F04: automated checks passed
