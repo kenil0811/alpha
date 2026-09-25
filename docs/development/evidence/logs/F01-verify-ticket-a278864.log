@@ -1,0 +1,80 @@
+uv run python tools/verify_ticket.py F01
+
+=== check: just check
+uv run ruff format --check .
+32 files already formatted
+uv run ruff check .
+All checks passed!
+uv run mypy
+Success: no issues found in 29 source files
+uv run python -m alpha_contracts.export --check
+contract schemas up to date (2 files)
+pnpm --filter @alpha/contracts check
+
+> @alpha/contracts@0.2.0 check /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/contracts
+> node generate.mjs --check
+
+contract TypeScript up to date (2 files)
+pnpm --filter @alpha/desktop typecheck
+
+> @alpha/desktop@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> tsc --noEmit -p tsconfig.json
+
+uv run pytest packages/contracts services/core -q
+.........                                                                [100%]
+9 passed in 0.06s
+=== check: exit 0
+
+=== test-core: just test-core
+uv run pytest packages/contracts services/core -q
+.........                                                                [100%]
+9 passed in 0.06s
+=== test-core: exit 0
+
+=== test-ui: just test-ui
+pnpm --filter @alpha/desktop test
+
+> @alpha/desktop@0.1.0 test /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> vitest run
+
+
+ RUN  v5.0.2 /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+
+alpha.main INFO exit requested (runtime_quit): interrupted runs []
+
+ Test Files  4 passed (4)
+      Tests  12 passed (12)
+   Start at  16:34:20
+   Duration  1.83s (environment 54%, tests 27%, setup 13%, transform 4%, import 1%)
+
+alpha.main INFO shutdown: interrupted runs []
+=== test-ui: exit 0
+
+=== test-integration: just test-integration
+uv run pytest tests/integration -q -m integration
+............................                                             [100%]
+28 passed in 26.64s
+=== test-integration: exit 0
+
+=== toolchain-locks: just verify-locks
+uv run python tools/verify_locks.py
+uv: required 0.12.17, actual 0.12.17
+pnpm: required 10.34.5, actual 10.34.5
+node: required 24.21.0, actual 24.21.0
+python: pinned 3.13.9, running 3.13.9
+uv lock --check: exit 0
+pnpm install --frozen-lockfile --offline: exit 0
+tampered uv.lock --check: exit 2 (expected nonzero)
+locks and tool versions verified
+=== toolchain-locks: exit 0
+
+=== required checks for F01 (from task_state.json; helper-audited bookkeeping)
+  F01.C01   native       pending  (native evidence required)
+  F01.C02   native       pending  (native evidence required)
+  F01.C03   integration  passed   (automated here)
+  F01.C04   native       pending  (native evidence required)
+  F01.C05   integration  passed   (automated here)
+  Note: native/live/rendered/review/user checks are not run by this command.
+
+verify-ticket F01: automated checks passed
+exit=0

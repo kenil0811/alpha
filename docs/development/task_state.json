@@ -7,40 +7,46 @@
   },
   "tickets": {
     "F01": {
-      "status": "in_progress",
+      "status": "complete",
       "implementation_ref": "a6b1121443f1d3cbd3d6bca94f43fde404286eac",
       "notes": [
-        "Implementation complete; automated checks passed on this commit. Native checks C01/C02/C04 partially re-observed on this build; remaining desktop steps pending because the user is using the Mac (see docs/development/tasks/F01.md)."
+        "Code at a6b1121; evidence/notes committed afterwards. Native checks observed on the debug .app built from a6b1121 on the supported Mac; integration checks from the full suite on the same commit. Self-review; see docs/development/tasks/F01.md."
       ],
       "checks": {
         "F01.C01": {
-          "result": "pending",
+          "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C01.md",
-          "note": "native steps partially observed; finish on this build"
+          "evidence_sha256": "8d11a34ddda54727c87be4573cf2edc070f2a8607eedd17df799c7179625474b",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         },
         "F01.C02": {
-          "result": "pending",
+          "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C02.md",
-          "note": "native steps partially observed; finish on this build"
+          "evidence_sha256": "9d76f589500932ef77e5cb438e8838ecbe94d06b338d8dc720898663ef1fabb0",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         },
         "F01.C03": {
           "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C03.md",
           "evidence_sha256": "c196f1f184e9ea61199834ee40920ce105c26f9cf6fe9965ad497e830f211123",
           "evidence_kind": "integration",
-          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app"
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         },
         "F01.C04": {
-          "result": "pending",
+          "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C04.md",
-          "note": "native steps partially observed; finish on this build"
+          "evidence_sha256": "859a241fa9d6e96459e507e72fb44e4c679eb6463233489d088df454db011cf5",
+          "evidence_kind": "native",
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         },
         "F01.C05": {
           "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C05.md",
           "evidence_sha256": "badafa10792b5bcc1d4eced4c372d9b678a6b0544b342d4a69a8a71bb9fee65e",
           "evidence_kind": "integration",
-          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app"
+          "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         }
       }
     },
