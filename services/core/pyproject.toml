@@ -19,3 +19,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["alpha"]
+
+[tool.uv]
+# Rebuild the installed (non-editable) package whenever its source changes, not only when
+# pyproject.toml changes; the platform runtime must never run stale Core code.
+cache-keys = [{ file = "pyproject.toml" }, { file = "**/*.py" }]

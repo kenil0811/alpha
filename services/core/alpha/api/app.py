@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import sys
 from collections.abc import AsyncIterator
 from typing import Any
@@ -11,6 +13,7 @@ from typing import Any
 from alpha_contracts import CONTRACT_VERSION
 from alpha_contracts.runs import Run, RunEvent, RunOrigin
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +22,8 @@ from alpha.api.auth import make_auth_middleware
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
+
+log = logging.getLogger("alpha.api")
 
 
 class SyntheticRunRequest(BaseModel):
@@ -54,9 +59,48 @@ class RunList(BaseModel):
     runs: list[Run]
 
 
+# WebKit (the Tauri WebView on macOS) does not hand small streamed-fetch chunks to JavaScript
+# until enough bytes accumulate; a live SSE stream with ~1 KB frames stalls after the first few.
+# Every frame is followed by a comment of this size so each write is flushed to the consumer.
+# Comments are ignored by SSE parsers, and the stream is loopback-only.
+SSE_FLUSH_PADDING = b": " + b" " * 8192 + b"\n\n"
+SSE_POLL_SECONDS = 0.2
+# WebKit also holds the most recent chunk until a following one arrives, so an idle stream sends a
+# keepalive comment about once per second; that releases the final frames of a finished run.
+SSE_KEEPALIVE_TICKS = 5
+
+
 def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoordinator) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.middleware("http")(make_auth_middleware(settings.session_token, settings.allowed_origins))
+    # The trusted shell runs on a different origin (tauri://localhost, or the Vite dev server),
+    # so its browser engine preflights every credentialed request. Answer preflights only for
+    # the host-approved origins; everything else gets no CORS allowance. This is outermost so a
+    # preflight (which carries no bearer token by design) never reaches the auth middleware.
+    if os.environ.get("ALPHA_LOG_REQUESTS") == "1":
+
+        @app.middleware("http")
+        async def log_requests(request: Request, call_next: Any) -> Any:
+            response = await call_next(request)
+            log.info(
+                "%s %s origin=%s host=%s auth=%s -> %s",
+                request.method,
+                request.url.path,
+                request.headers.get("origin"),
+                request.headers.get("host"),
+                "yes" if request.headers.get("authorization") else "no",
+                response.status_code,
+            )
+            return response
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=sorted(settings.allowed_origins),
+        allow_methods=["GET", "POST"],
+        allow_headers=["authorization", "content-type"],
+        allow_credentials=False,
+        max_age=600,
+    )
 
     @app.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -115,7 +159,8 @@ def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoor
 
         async def generate() -> AsyncIterator[bytes]:
             cursor = after
-            yield b": connected\n\n"
+            idle_ticks = 0
+            yield b": connected\n\n" + SSE_FLUSH_PADDING
             while True:
                 if await request.is_disconnected():
                     return
@@ -126,9 +171,16 @@ def create_app(settings: CoreSettings, store: ControlStore, coordinator: RunCoor
                         "event": event.model_dump(mode="json"),
                         "run": run.model_dump(mode="json"),
                     }
-                    yield f"id: {cursor}\nevent: run_event\ndata: {json.dumps(body)}\n\n".encode()
-                if not batch:
-                    await asyncio.sleep(0.2)
+                    frame = f"id: {cursor}\nevent: run_event\ndata: {json.dumps(body)}\n\n"
+                    yield frame.encode() + SSE_FLUSH_PADDING
+                if batch:
+                    idle_ticks = 0
+                    continue
+                idle_ticks += 1
+                if idle_ticks >= SSE_KEEPALIVE_TICKS:
+                    idle_ticks = 0
+                    yield b": keepalive\n\n" + SSE_FLUSH_PADDING
+                await asyncio.sleep(SSE_POLL_SECONDS)
 
         return StreamingResponse(
             generate(),

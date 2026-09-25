@@ -77,3 +77,40 @@ def test_core_refuses_to_start_without_credentials(data_dir: object) -> None:
     )
     assert result.returncode == 2
     assert result.stdout.startswith("ALPHA_CORE_ERROR ")
+
+
+def test_cors_preflight_only_for_approved_origin(core: CoreProcess) -> None:
+    approved = httpx.options(
+        f"{core.base_url}/api/runs",
+        headers={
+            "Origin": core.allowed_origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization, content-type",
+        },
+        timeout=5,
+    )
+    assert approved.status_code == 200
+    assert approved.headers["access-control-allow-origin"] == core.allowed_origin
+    assert "authorization" in approved.headers["access-control-allow-headers"].lower()
+
+    unapproved = httpx.options(
+        f"{core.base_url}/api/runs",
+        headers={
+            "Origin": "http://evil.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization",
+        },
+        timeout=5,
+    )
+    assert unapproved.status_code in (400, 403)
+    assert "access-control-allow-origin" not in unapproved.headers
+
+
+def test_actual_response_carries_cors_header_only_for_approved_origin(core: CoreProcess) -> None:
+    with core.client(origin=core.allowed_origin) as client:
+        response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == core.allowed_origin
+    with core.client() as client:
+        response = client.get("/api/health")
+    assert "access-control-allow-origin" not in response.headers

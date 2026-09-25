@@ -23,12 +23,14 @@ const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const QUIT_GRACE: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CoreSession {
     base_url: String,
     token: String,
 }
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimeInfo {
     core_pid: u32,
     core_port: u16,
@@ -94,7 +96,8 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         "tauri://localhost"
     };
 
-    let mut child = Command::new(&python)
+    let mut command = Command::new(&python);
+    command
         .args(["-I", "-m", "alpha.main"])
         .env_clear()
         .env("ALPHA_DATA_DIR", &data_dir)
@@ -105,7 +108,14 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .env("LC_ALL", "C.UTF-8")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    if cfg!(debug_assertions) {
+        // Development diagnostics only: forward an explicit request-logging switch.
+        if let Ok(value) = std::env::var("ALPHA_LOG_REQUESTS") {
+            command.env("ALPHA_LOG_REQUESTS", value);
+        }
+    }
+    let mut child = command
         .spawn()
         .map_err(|e| format!("spawn core ({}): {e}", python.display()))?;
 
@@ -238,6 +248,13 @@ pub fn run() {
                 Err(error) => {
                     eprintln!("[host] core launch failed: {error}");
                     *app.state::<HostState>().launch_error.lock().unwrap() = Some(error);
+                }
+            }
+
+            #[cfg(debug_assertions)]
+            if std::env::var("ALPHA_OPEN_DEVTOOLS").as_deref() == Ok("1") {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
                 }
             }
 

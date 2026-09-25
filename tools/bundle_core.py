@@ -71,11 +71,31 @@ def main() -> int:
     interpreter = next((c for c in candidates if c.name == "python3"), candidates[0])
     run(["uv", "venv", str(VENV), "--python", str(interpreter), "--clear"])
     run(
-        ["uv", "sync", "--frozen", "--no-dev", "--no-editable"],
+        [
+            "uv",
+            "sync",
+            "--frozen",
+            "--no-dev",
+            "--no-editable",
+            "--reinstall-package",
+            "alpha-core",
+            "--reinstall-package",
+            "alpha-contracts",
+        ],
         UV_PROJECT_ENVIRONMENT=str(VENV),
         UV_PYTHON=str(interpreter),
     )
     venv_python = VENV / "bin" / "python"
+    probe = (
+        "import alpha.main, pathlib, sys;"
+        " sys.stdout.write(pathlib.Path(alpha.main.__file__).read_text())"
+    )
+    installed = subprocess.run(
+        [str(venv_python), "-I", "-c", probe], capture_output=True, text=True, check=True, env={}
+    ).stdout
+    if installed != (REPO_ROOT / "services/core/alpha/main.py").read_text(encoding="utf-8"):
+        print("installed alpha.main differs from source; runtime is stale", file=sys.stderr)
+        return 1
     check = subprocess.run(
         [
             str(venv_python),

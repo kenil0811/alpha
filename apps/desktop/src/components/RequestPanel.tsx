@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { SyntheticRunRequest } from "../core/client";
 
 const MODES: { value: NonNullable<SyntheticRunRequest["mode"]>; label: string }[] = [
@@ -12,6 +12,7 @@ export function RequestPanel({ onSubmit }: { onSubmit: (request: SyntheticRunReq
   const [text, setText] = useState("");
   const [mode, setMode] = useState<NonNullable<SyntheticRunRequest["mode"]>>("succeed");
   const [busy, setBusy] = useState(false);
+  const textArea = useRef<HTMLTextAreaElement>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -22,6 +23,8 @@ export function RequestPanel({ onSubmit }: { onSubmit: (request: SyntheticRunReq
       setText("");
     } finally {
       setBusy(false);
+      // Quick entry: the next request starts where the last one did.
+      textArea.current?.focus();
     }
   }
 
@@ -37,6 +40,7 @@ export function RequestPanel({ onSubmit }: { onSubmit: (request: SyntheticRunReq
           <label htmlFor="request-text">Text to send</label>
           <textarea
             id="request-text"
+            ref={textArea}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type anything…"

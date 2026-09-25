@@ -8,6 +8,22 @@ interface TauriWindow {
   __TAURI_INTERNALS__?: unknown;
 }
 
+/** Validate the host's answer instead of trusting its shape: a wrong field name must produce a
+ *  precise runtime error, not an unreachable fetch. */
+export function parseSession(value: unknown): CoreSession {
+  const candidate = value as Partial<CoreSession> | null;
+  if (
+    !candidate ||
+    typeof candidate.baseUrl !== "string" ||
+    !/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(candidate.baseUrl) ||
+    typeof candidate.token !== "string" ||
+    candidate.token.length < 32
+  ) {
+    throw new Error(`host returned an invalid core session: ${JSON.stringify(value)}`);
+  }
+  return { baseUrl: candidate.baseUrl, token: candidate.token };
+}
+
 export function hasTauri(): boolean {
   return typeof window !== "undefined" && (window as unknown as TauriWindow).__TAURI_INTERNALS__ !== undefined;
 }
@@ -18,7 +34,7 @@ export async function resolveSession(): Promise<SessionResolution> {
   if (hasTauri()) {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      const session = await invoke<CoreSession>("core_session");
+      const session = parseSession(await invoke<unknown>("core_session"));
       return { kind: "ready", session, source: "tauri" };
     } catch (error) {
       return { kind: "unavailable", reason: `Runtime did not start: ${String(error)}` };

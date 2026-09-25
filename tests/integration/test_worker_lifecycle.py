@@ -141,3 +141,56 @@ def test_sse_stream_resumes_from_cursor(core: CoreProcess) -> None:
     assert seen[0]["cursor"] == 1
     assert [e["kind"] for e in seen][0] == "run.queued"
     assert seen[-1]["kind"] == "run.succeeded"
+
+
+def test_sse_stream_delivers_every_event_in_order(core: CoreProcess) -> None:
+    """A consumer connected before the run must receive the complete event sequence."""
+    import json
+    import threading
+
+    received: list[tuple[int, int, str]] = []
+    stop = threading.Event()
+
+    def consume() -> None:
+        with (
+            core.client() as client,
+            client.stream("GET", "/api/events/stream", params={"after": 0}) as response,
+        ):
+            current_id = 0
+            for line in response.iter_lines():
+                if line.startswith("id: "):
+                    current_id = int(line[4:])
+                elif line.startswith("data: "):
+                    event = json.loads(line[6:])["event"]
+                    received.append((current_id, event["sequence"], event["kind"]))
+                    if event["kind"] == "run.succeeded":
+                        stop.set()
+                        return
+
+    consumer = threading.Thread(target=consume, daemon=True)
+    consumer.start()
+    created = core.submit(text="every event", steps=3, spawn_child=True)
+    core.wait_for_state(created["run_id"], {"succeeded"})
+    assert stop.wait(10), "stream did not deliver run.succeeded"
+    stored = [(e["sequence"], e["kind"]) for e in core.events(created["run_id"])]
+    assert [(s, k) for _, s, k in received] == stored
+    cursors = [c for c, _, _ in received]
+    assert cursors == sorted(cursors) and len(set(cursors)) == len(cursors)
+
+
+def test_idle_sse_stream_sends_keepalives(core: CoreProcess) -> None:
+    import time as _time
+
+    seen_keepalive = False
+    deadline = _time.monotonic() + 4
+    with (
+        core.client() as client,
+        client.stream("GET", "/api/events/stream", params={"after": 0}) as response,
+    ):
+        for line in response.iter_lines():
+            if line.startswith(": keepalive"):
+                seen_keepalive = True
+                break
+            if _time.monotonic() > deadline:
+                break
+    assert seen_keepalive, "idle stream sent no keepalive within 4 s"

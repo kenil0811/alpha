@@ -22,6 +22,7 @@ describe("shell request/result path", () => {
     const list = await screen.findByRole("list", { name: "Runs" });
     expect(within(list).getByText("Queued")).toBeInTheDocument();
     expect(screen.getByLabelText("Text to send")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("Text to send")).toHaveFocus());
 
     await act(async () => {
       client.start("run_1");
@@ -33,6 +34,28 @@ describe("shell request/result path", () => {
     expect(within(list).getByText(/2 words · 11 characters/)).toBeInTheDocument();
     expect(within(list).getByText(/4 events · 1 progress updates/)).toBeInTheDocument();
     expect(within(list).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("keeps every event when Core emits before the create response returns", async () => {
+    const client = new FakeCoreClient();
+    client.beforeCreateResolves = (runId) => {
+      client.start(runId);
+      client.progress(runId, 1);
+      client.progress(runId, 2);
+    };
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    await user.type(screen.getByLabelText("Text to send"), "fast");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    const list = await screen.findByRole("list", { name: "Runs" });
+    await act(async () => {
+      client.progress("run_1", 3);
+      client.succeed("run_1", { upper: "FAST", words: 1, characters: 4 });
+    });
+    await waitFor(() => expect(within(list).getByText("Done")).toBeInTheDocument());
+    // queued, started, 3 progress, succeeded
+    expect(within(list).getByText(/6 events · 3 progress updates/)).toBeInTheDocument();
   });
 
   it("displays a failed run with a plain-language reason", async () => {

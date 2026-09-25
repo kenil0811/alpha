@@ -9,6 +9,9 @@ export class FakeCoreClient implements CoreClient {
   private cursor = 0;
   private sequence = new Map<string, number>();
   failCreate = false;
+  /** Simulate Core dispatching faster than the HTTP response returns: these run before
+   *  createRun resolves. */
+  beforeCreateResolves: ((runId: string) => void) | null = null;
 
   async health(): Promise<HealthInfo> {
     return {
@@ -50,6 +53,10 @@ export class FakeCoreClient implements CoreClient {
     };
     this.runs.set(run.run_id, run);
     this.emit(run.run_id, "run.queued", { origin: "user", text: request.text, mode: request.mode });
+    if (this.beforeCreateResolves) {
+      this.beforeCreateResolves(run.run_id);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     return run;
   }
 
