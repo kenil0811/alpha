@@ -3,10 +3,13 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 export PYTHONDONTWRITEBYTECODE := "1"
 
-# Pinned Node (see package.json engines). A Homebrew node@24 keg is preferred automatically when
-# present; otherwise the node on PATH must match the pin (verify-locks checks it).
+# Toolchain locations that are often missing from an interactive shell's PATH: the pinned
+# Homebrew node@24 keg and rustup's cargo bin. Each is prepended only when present; the versions
+# on PATH must still match the pins (verify-locks checks them).
 node_keg := "/opt/homebrew/opt/node@24/bin"
-export PATH := if path_exists(node_keg) == "true" { node_keg + ":" + env_var("PATH") } else { env_var("PATH") }
+cargo_bin := env_var("HOME") + "/.cargo/bin"
+path_with_node := if path_exists(node_keg) == "true" { node_keg + ":" + env_var("PATH") } else { env_var("PATH") }
+export PATH := if path_exists(cargo_bin) == "true" { cargo_bin + ":" + path_with_node } else { path_with_node }
 
 default:
     @just --list
