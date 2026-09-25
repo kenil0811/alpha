@@ -1,0 +1,43 @@
+{
+  "run_id": "run_368636abafa24799866cbe59059b44a2",
+  "report": {
+    "artifact_id": "art_9230306c24c34cc1ae1bf3de521978a0",
+    "local_sha256": "3867c3e9be6c06288f7eef9b0285954a4c285122ff59a06c67e43d466ec990e9",
+    "provenance": {
+      "action_id": "make_report",
+      "created_by": "app_run",
+      "derived_from": [],
+      "model_call_ids": [],
+      "package_sha256": "b2615bfac3c163cda52d469331a97547a34c25fd0171d2e8bf057a97f4c961b0",
+      "run_id": "run_368636abafa24799866cbe59059b44a2",
+      "version_id": "ver_b2615bfac3c163cda52d4693"
+    },
+    "rows": 3,
+    "sha256": "3867c3e9be6c06288f7eef9b0285954a4c285122ff59a06c67e43d466ec990e9",
+    "size_bytes": 78
+  },
+  "metadata": {
+    "contract_version": "0.2",
+    "artifact_id": "art_9230306c24c34cc1ae1bf3de521978a0",
+    "owner": {
+      "kind": "app",
+      "id": "items-fixture"
+    },
+    "media_type": "text/csv",
+    "display_name": "items.csv",
+    "size_bytes": 78,
+    "sha256": "3867c3e9be6c06288f7eef9b0285954a4c285122ff59a06c67e43d466ec990e9",
+    "provenance": {
+      "created_by": "app_run",
+      "run_id": "run_368636abafa24799866cbe59059b44a2",
+      "action_id": "make_report",
+      "version_id": "ver_b2615bfac3c163cda52d4693",
+      "package_sha256": "b2615bfac3c163cda52d469331a97547a34c25fd0171d2e8bf057a97f4c961b0",
+      "derived_from": [],
+      "model_call_ids": []
+    },
+    "created_at": "2026-09-25T20:29:52.414250Z",
+    "retention": "until_deleted",
+    "storage_ref": "blob:sha256:3867c3e9be6c06288f7eef9b0285954a4c285122ff59a06c67e43d466ec990e9"
+  }
+}

@@ -148,21 +148,39 @@
       }
     },
     "F05": {
-      "status": "in_progress",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "694cc0874c954a81d48ab499377d104bc5d8eb39",
+      "notes": [
+        "Self-review. Worker capability channel is the supervised pipe plus a per-run token (decision 2026-09-25-f05). Default profile = SDK + worker wheels only on pinned CPython; Core verifies, never installs. Functional shared-profile proof only; F20 owns containment, F09 concurrency."
+      ],
       "checks": {
         "F05.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F05.C01.md",
+          "evidence_sha256": "697066efb87e02ab87628cec3b59fa16b26e671c4bc85180141bfe036e653a2c",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9; real Core and SQLite; App workers on runtime profile pyprof-48e953297d79b3ac3547 (uv 0.12.17); fake model route"
         },
         "F05.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F05.C02.md",
+          "evidence_sha256": "98f50e216ab90214d88dc876e26b872b2c21767a7adcd1af5195cc8c95814c67",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9; real Core and SQLite; App workers on runtime profile pyprof-48e953297d79b3ac3547 (uv 0.12.17)"
         },
         "F05.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F05.C03.md",
+          "evidence_sha256": "c6caa8a5235366c417446b55bb1fc3a3d72e8e5df7d572ef8e4ad43abd7f0484",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9; real Core and SQLite; App workers on runtime profile pyprof-48e953297d79b3ac3547; fake route plus a supplementary claude-code-cli live smoke (Claude Code CLI 2.1.278, claude-opus-5[1m])"
         },
         "F05.C04": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F05.C04.md",
+          "evidence_sha256": "133d663664a975e87afbf6a4bde662b1a61b6d51e8d776a8694b422f9517a151",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9 (cpython-3.13.9-macos-aarch64-none); runtime profile pyprof-48e953297d79b3ac3547 built with uv 0.12.17; Core started without PATH"
         }
       }
     },

@@ -1,0 +1,58 @@
+{
+  "estimate": {
+    "call_id": "mcall_60e4f055a3b34400a9b57145fed72ae9",
+    "id": "rec_d276c78862994158a338e6d2c601c8bf",
+    "is_estimate": true,
+    "model": "fake",
+    "quantity": 50,
+    "revision": 1,
+    "route": "fake"
+  },
+  "model_calls": [
+    {
+      "call_id": "mcall_60e4f055a3b34400a9b57145fed72ae9",
+      "run_id": "run_4300478094564c18bf74a52adf7a40c2",
+      "owner_ref": "app:items-fixture",
+      "route_id": "fake",
+      "model": "fake",
+      "status": "ok",
+      "instruction_chars": 65,
+      "input_bytes": 22,
+      "output_json": "{\"quantity\": 50}",
+      "error": null,
+      "elapsed_ms": 0,
+      "created_at": "2026-09-25T20:29:54.805539Z"
+    }
+  ],
+  "usage": [
+    [
+      "fake",
+      "app_run"
+    ]
+  ],
+  "corrected_record": {
+    "created_at": "2026-09-25T20:29:54.806298+00:00",
+    "id": "rec_d276c78862994158a338e6d2c601c8bf",
+    "provenance": {
+      "quantity": {
+        "at": "2026-09-25T20:29:54.958390Z",
+        "call_id": null,
+        "model": null,
+        "previous": {
+          "call_id": "mcall_60e4f055a3b34400a9b57145fed72ae9",
+          "source": "model_estimate",
+          "value": 50
+        },
+        "route": null,
+        "source": "user_correction"
+      }
+    },
+    "revision": 2,
+    "updated_at": "2026-09-25T20:29:54.958390+00:00",
+    "values": {
+      "category": "general",
+      "quantity": 12,
+      "title": "batteries"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+uv run python tools/verify_ticket.py F05
+
+=== check: just check
+uv run ruff format --check .
+103 files already formatted
+uv run ruff check .
+All checks passed!
+uv run mypy
+Success: no issues found in 94 source files
+uv run python -m alpha_contracts.export --check
+contract schemas up to date (20 files)
+pnpm --filter @alpha/contracts check
+
+> @alpha/contracts@0.2.0 check /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/contracts
+> node generate.mjs --check
+
+contract TypeScript up to date (20 files)
+pnpm --filter @alpha/ui-bridge typecheck
+
+> @alpha/ui-bridge@0.2.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/packages/ui-bridge
+> tsc --noEmit -p tsconfig.json
+
+pnpm --filter @alpha/desktop typecheck
+
+> @alpha/desktop@0.1.0 typecheck /Users/kenil/Desktop/dev/alpha/alpha-platform/apps/desktop
+> node scripts/build-fixture.mjs && tsc --noEmit -p tsconfig.json
+
+fixture up to date
+uv run pytest packages/contracts packages/app-sdk services/core -q
+......................................................                   [100%]
+54 passed in 0.13s
+=== check: exit 0
+
+=== toolchain-locks: just verify-locks
+uv run python tools/verify_locks.py
+uv: required 0.12.17, actual 0.12.17
+pnpm: required 10.34.5, actual 10.34.5
+node: required 24.21.0, actual 24.21.0
+python: pinned 3.13.9, running 3.13.9
+uv lock --check: exit 0
+pnpm install --frozen-lockfile --offline: exit 0
+tampered uv.lock --check: exit 2 (expected nonzero)
+locks and tool versions verified
+=== toolchain-locks: exit 0
+
+=== test-apps: uv run pytest tests/integration/test_app_records.py tests/integration/test_app_rejections.py tests/integration/test_app_artifacts_models.py tests/integration/test_app_profile_sharing.py -q -m integration
+.....................................                                    [100%]
+37 passed in 35.34s
+=== test-apps: exit 0
+
+=== test-integration-regression: just test-integration
+uv run pytest tests/integration -q -m integration
+........................................................................ [ 87%]
+..........                                                               [100%]
+82 passed in 78.06s (0:01:18)
+=== test-integration-regression: exit 0
+
+=== required checks for F05 (from task_state.json; helper-audited bookkeeping)
+  F05.C01   integration  pending  (automated here)
+  F05.C02   integration  pending  (automated here)
+  F05.C03   integration  pending  (automated here)
+  F05.C04   integration  pending  (automated here)
+  Note: native/live/rendered/review/user checks are not run by this command.
+
+verify-ticket F05: automated checks passed

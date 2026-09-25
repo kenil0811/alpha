@@ -1,0 +1,119 @@
+{
+  "before_row": {
+    "profile_id": "pyprof-48e953297d79b3ac3547",
+    "kind": "python_runtime",
+    "role": "app_task_compute",
+    "manifest": {
+      "profile_id": "pyprof-48e953297d79b3ac3547",
+      "kind": "python_runtime",
+      "role": "app_task_compute",
+      "target": {
+        "os": "macos",
+        "arch": "arm64",
+        "python_implementation": "cpython",
+        "python_version": "3.13.9",
+        "python_abi": "cp313",
+        "interpreter_build": "cpython-3.13.9-macos-aarch64-none",
+        "ui_toolchain": null
+      },
+      "locks": [
+        {
+          "path": "requirements.lock",
+          "sha256": "79a4946c275822aa01d368694453b7df69b33bca8bd90ac7f73f767a93be4db8"
+        }
+      ],
+      "packages": [
+        {
+          "name": "alpha-sdk",
+          "version": "0.1.0",
+          "artifact_sha256": "1f4dd676bb35c0ce3590f3ea6267e615e0722d0b75fb685a567aadbf6ecd0686",
+          "artifact": "alpha_sdk-0.1.0-py3-none-any.whl"
+        },
+        {
+          "name": "alpha-app-worker",
+          "version": "0.1.0",
+          "artifact_sha256": "281152f8a4b9288bf3cc0518268bd19613887dac5df7975d92ca8393fce71190",
+          "artifact": "alpha_app_worker-0.1.0-py3-none-any.whl"
+        }
+      ],
+      "compatibility": {
+        "contract_version": "0.2",
+        "sdk_version": "0.1.0",
+        "worker_protocol": 1,
+        "kit_version": null,
+        "bridge_version": null
+      },
+      "manifest_sha256": "a6fe680a08c63c6c754bf39a81f1dcd1b3eb704ccc0dc37b32304598a247217e"
+    },
+    "manifest_sha256": "a6fe680a08c63c6c754bf39a81f1dcd1b3eb704ccc0dc37b32304598a247217e",
+    "state": "ready",
+    "reason": null,
+    "verified_at": "2026-09-25T20:29:59.647965Z",
+    "installed_tree_sha256": "5a5c2035478df7b9dc9bf3c644de6319189cf31d601678eb266a9f229a8e7c36"
+  },
+  "after_row": {
+    "profile_id": "pyprof-48e953297d79b3ac3547",
+    "kind": "python_runtime",
+    "role": "app_task_compute",
+    "manifest": {
+      "profile_id": "pyprof-48e953297d79b3ac3547",
+      "kind": "python_runtime",
+      "role": "app_task_compute",
+      "target": {
+        "os": "macos",
+        "arch": "arm64",
+        "python_implementation": "cpython",
+        "python_version": "3.13.9",
+        "python_abi": "cp313",
+        "interpreter_build": "cpython-3.13.9-macos-aarch64-none",
+        "ui_toolchain": null
+      },
+      "locks": [
+        {
+          "path": "requirements.lock",
+          "sha256": "79a4946c275822aa01d368694453b7df69b33bca8bd90ac7f73f767a93be4db8"
+        }
+      ],
+      "packages": [
+        {
+          "name": "alpha-sdk",
+          "version": "0.1.0",
+          "artifact_sha256": "1f4dd676bb35c0ce3590f3ea6267e615e0722d0b75fb685a567aadbf6ecd0686",
+          "artifact": "alpha_sdk-0.1.0-py3-none-any.whl"
+        },
+        {
+          "name": "alpha-app-worker",
+          "version": "0.1.0",
+          "artifact_sha256": "281152f8a4b9288bf3cc0518268bd19613887dac5df7975d92ca8393fce71190",
+          "artifact": "alpha_app_worker-0.1.0-py3-none-any.whl"
+        }
+      ],
+      "compatibility": {
+        "contract_version": "0.2",
+        "sdk_version": "0.1.0",
+        "worker_protocol": 1,
+        "kit_version": null,
+        "bridge_version": null
+      },
+      "manifest_sha256": "a6fe680a08c63c6c754bf39a81f1dcd1b3eb704ccc0dc37b32304598a247217e"
+    },
+    "manifest_sha256": "a6fe680a08c63c6c754bf39a81f1dcd1b3eb704ccc0dc37b32304598a247217e",
+    "state": "ready",
+    "reason": null,
+    "verified_at": "2026-09-25T20:30:00.323553Z",
+    "installed_tree_sha256": "5a5c2035478df7b9dc9bf3c644de6319189cf31d601678eb266a9f229a8e7c36"
+  },
+  "tree_before": {
+    "sha256": "20c8badef2486938e38bb3b7a1e5951680fb93fe3c38a258aa8ac9ef690f8b5e",
+    "entries": 53
+  },
+  "tree_after": {
+    "sha256": "20c8badef2486938e38bb3b7a1e5951680fb93fe3c38a258aa8ac9ef690f8b5e",
+    "entries": 53
+  },
+  "listing": [
+    "pyprof-48e953297d79b3ac3547"
+  ],
+  "first_prefix": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/pytest-of-kenil/pytest-114/profiles0/pyprof-48e953297d79b3ac3547/venv",
+  "again_prefix": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/pytest-of-kenil/pytest-114/profiles0/pyprof-48e953297d79b3ac3547/venv"
+}
