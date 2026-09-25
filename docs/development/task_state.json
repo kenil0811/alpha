@@ -23,7 +23,7 @@
         "F01.C02": {
           "result": "passed",
           "evidence_path": "docs/development/evidence/F01.C02.md",
-          "evidence_sha256": "9d76f589500932ef77e5cb438e8838ecbe94d06b338d8dc720898663ef1fabb0",
+          "evidence_sha256": "5364bbcad236621a654239676aa1e588ecdecd90a9dfcdaf6ec4f93dc7759df9",
           "evidence_kind": "native",
           "environment": "macOS 26.6.2 (25G83) arm64; uv 0.12.17; CPython 3.13.9 (uv-managed); Node 24.21.0; pnpm 10.34.5; rustc 1.98.1; Tauri 2.11.6 debug .app built from a6b1121"
         },
