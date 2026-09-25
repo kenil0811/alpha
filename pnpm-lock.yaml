@@ -13,6 +13,9 @@ importers:
       '@alpha/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@alpha/ui-bridge':
+        specifier: workspace:*
+        version: link:../../packages/ui-bridge
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -66,10 +69,33 @@ importers:
         specifier: 16.0.0
         version: 16.0.0
 
+  packages/ui-bridge:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.2
+        version: 5.0.2(@types/node@24.13.6)(jsdom@30.1.1)(vite@8.3.1(@types/node@24.13.6))
+
+  tests/qualification/sandbox:
+    devDependencies:
+      '@anthropic-ai/sandbox-runtime':
+        specifier: 0.0.77
+        version: 0.0.77
+
 packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@anthropic-ai/sandbox-runtime@0.0.77':
+    resolution: {integrity: sha512-uOe6kkAbo91r5shXXBxZ1DKbOpWmnXkNDDujXrFJRaHSG7D7s8b7Yfsu0pGDkYFgKZ2ECtVCNisl6pCYcaMF7A==}
+    engines: {node: '>=20.11.0'}
+    hasBin: true
 
   '@apidevtools/json-schema-ref-parser@11.9.3':
     resolution: {integrity: sha512-60vepv88RwcJtSHrD6MjIL6Ta3SOYbgfnkHb+ppAVK+o9mXprRtulx7VlRl3lN3bbvysAfCS7WMVfhUYemB0IQ==}
@@ -159,6 +185,9 @@ packages:
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
+
+  '@pondwader/socks5-server@1.0.10':
+    resolution: {integrity: sha512-bQY06wzzR8D2+vVCUoBsr5QS2U6UgPUQRmErNwtsuI6vLcyRKkafjkr3KxbtGFf9aBBIV2mcvlsKD1UYaIV+sg==}
 
   '@rolldown/binding-android-arm-eabi@1.2.11':
     resolution: {integrity: sha512-A5kXfGKvKWWZE0TtPrfsvT+q4Y5d1QG8gGUzpYjGydM+fARM9MuX90PrXYXe0XbsDVgyxxNzHo6giCj90bsFNw==}
@@ -581,6 +610,10 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
+
   css-tree@3.2.1:
     resolution: {integrity: sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==}
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0}
@@ -778,6 +811,10 @@ packages:
     resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
+
+  node-forge@1.4.0:
+    resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
+    engines: {node: '>= 6.13.0'}
 
   obug@2.2.1:
     resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
@@ -1008,9 +1045,19 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
 snapshots:
 
   '@adobe/css-tools@4.5.0': {}
+
+  '@anthropic-ai/sandbox-runtime@0.0.77':
+    dependencies:
+      '@pondwader/socks5-server': 1.0.10
+      commander: 12.1.0
+      node-forge: 1.4.0
+      zod: 3.25.76
 
   '@apidevtools/json-schema-ref-parser@11.9.3':
     dependencies:
@@ -1085,6 +1132,8 @@ snapshots:
   '@jsdevtools/ono@7.1.3': {}
 
   '@oxc-project/types@0.151.0': {}
+
+  '@pondwader/socks5-server@1.0.10': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.11':
     optional: true
@@ -1342,6 +1391,8 @@ snapshots:
 
   chai@6.2.2: {}
 
+  commander@12.1.0: {}
+
   css-tree@3.2.1:
     dependencies:
       mdn-data: 2.27.1
@@ -1507,6 +1558,8 @@ snapshots:
   minimist@1.2.8: {}
 
   nanoid@3.3.19: {}
+
+  node-forge@1.4.0: {}
 
   obug@2.2.1: {}
 
@@ -1697,3 +1750,5 @@ snapshots:
   xml-name-validator@5.0.0: {}
 
   xmlchars@2.2.0: {}
+
+  zod@3.25.76: {}

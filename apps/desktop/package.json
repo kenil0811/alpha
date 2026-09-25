@@ -4,18 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "dev": "node scripts/build-fixture.mjs && vite",
+    "build": "node scripts/build-fixture.mjs && tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
-    "tauri": "tauri"
+    "typecheck": "node scripts/build-fixture.mjs && tsc --noEmit -p tsconfig.json",
+    "test": "node scripts/build-fixture.mjs && vitest run",
+    "tauri": "tauri",
+    "build:fixture": "node scripts/build-fixture.mjs"
   },
   "dependencies": {
     "@alpha/contracts": "workspace:*",
     "@tauri-apps/api": "2.11.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@alpha/ui-bridge": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.5",

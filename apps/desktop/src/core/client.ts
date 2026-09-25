@@ -36,6 +36,7 @@ export interface CoreClient {
   health(): Promise<HealthInfo>;
   listRuns(): Promise<Run[]>;
   createRun(request: SyntheticRunRequest): Promise<Run>;
+  run(runId: string): Promise<Run>;
   cancelRun(runId: string): Promise<Run>;
   events(runId: string): Promise<RunEvent[]>;
   stream(after: number, onItem: (item: StreamItem) => void, signal: AbortSignal): Promise<void>;
@@ -116,6 +117,10 @@ export class HttpCoreClient implements CoreClient {
 
   createRun(request: SyntheticRunRequest): Promise<Run> {
     return this.request<Run>("/api/runs", { method: "POST", body: JSON.stringify(request) });
+  }
+
+  run(runId: string): Promise<Run> {
+    return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}`);
   }
 
   cancelRun(runId: string): Promise<Run> {

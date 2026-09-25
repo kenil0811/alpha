@@ -5,6 +5,7 @@ import { resolveSession } from "./core/session";
 import { RequestPanel } from "./components/RequestPanel";
 import { RunList } from "./components/RunList";
 import { useRuns } from "./components/useRuns";
+import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 
 type Runtime =
   | { kind: "connecting" }
@@ -13,6 +14,7 @@ type Runtime =
 
 export function App({ client: injected }: { client?: CoreClient } = {}) {
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
+  const [showFixture, setShowFixture] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,11 +49,21 @@ export function App({ client: injected }: { client?: CoreClient } = {}) {
             Internal development build · runs while Alpha is running on this Mac · closing the window keeps it running
           </div>
         </div>
-        <RuntimeStatus runtime={runtime} />
+        <div className="row">
+          {runtime.kind === "connected" ? (
+            <button type="button" className="button" onClick={() => setShowFixture((v) => !v)}>
+              {showFixture ? "Hide isolation fixture" : "Isolation fixture"}
+            </button>
+          ) : null}
+          <RuntimeStatus runtime={runtime} />
+        </div>
       </header>
-      <main className="frame__main">
+      <main className={showFixture ? "frame__main frame__main--three" : "frame__main"}>
         {runtime.kind === "connected" ? (
-          <Connected client={runtime.client} />
+          <>
+            <Connected client={runtime.client} />
+            {showFixture ? <GeneratedUiFixture client={runtime.client} /> : null}
+          </>
         ) : (
           <section className="panel">
             <h2>Runtime</h2>

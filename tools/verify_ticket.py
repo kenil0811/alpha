@@ -20,7 +20,10 @@ TASKS = REPO_ROOT / "docs" / "alpha-r2" / "delivery" / "TASKS.json"
 STATE = REPO_ROOT / "docs" / "development" / "task_state.json"
 
 AUTOMATED_KINDS = {"integration", "unit"}
-LIVE_COMMANDS = {"F02": "just qualify-builder  (opt-in live route; see docs/development/decisions)"}
+LIVE_COMMANDS = {
+    "F02": "just qualify-builder  (opt-in live route; see docs/development/decisions)",
+    "F03": "just qualify-sandbox (real macOS sandbox probes) + desktop fixture run (native)",
+}
 
 # Ticket -> ordered list of (label, argv). Only tickets with real implemented checks appear.
 RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
@@ -30,6 +33,10 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
         ("test-ui", ["just", "test-ui"]),
         ("test-integration", ["just", "test-integration"]),
         ("toolchain-locks", ["just", "verify-locks"]),
+    ],
+    "F03": [
+        ("check", ["just", "check"]),
+        ("test-ui", ["just", "test-ui"]),
     ],
     "F02": [
         ("check", ["just", "check"]),

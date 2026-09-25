@@ -60,6 +60,12 @@ export class FakeCoreClient implements CoreClient {
     return run;
   }
 
+  async run(runId: string): Promise<Run> {
+    const run = this.runs.get(runId);
+    if (!run) throw new Error("run_not_found");
+    return run;
+  }
+
   async cancelRun(runId: string): Promise<Run> {
     return this.transition(runId, "cancelled", "run.cancelled", "cancelled_by_user");
   }

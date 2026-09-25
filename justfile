@@ -28,6 +28,7 @@ check:
     uv run mypy
     uv run python -m alpha_contracts.export --check
     pnpm --filter @alpha/contracts check
+    pnpm --filter @alpha/ui-bridge typecheck
     pnpm --filter @alpha/desktop typecheck
     uv run pytest packages/contracts services/core -q
 
@@ -35,8 +36,9 @@ check:
 test-core:
     uv run pytest packages/contracts services/core -q
 
-# Shell component/interaction tests.
+# Shell component/interaction tests and bridge protocol tests.
 test-ui:
+    pnpm --filter @alpha/ui-bridge test
     pnpm --filter @alpha/desktop test
 
 # Real processes, SQLite and loopback transport.
@@ -50,6 +52,10 @@ verify-locks:
 # Opt-in live builder qualification on the founder's Claude subscription (F02.C01). Writes evidence logs.
 qualify-builder *args:
     uv run python tools/qualify_builder.py {{args}}
+
+# F03 local containment feasibility probes on the pinned sandbox-runtime candidate (real macOS seatbelt).
+qualify-sandbox *args:
+    uv run python tests/qualification/sandbox/run_probes.py {{args}}
 
 # Ticket verification dispatcher; unknown/unimplemented tickets fail.
 verify-ticket ticket:

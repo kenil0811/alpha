@@ -1,0 +1,54 @@
+contract_version: '0.2'
+app_id: expense_summary
+name: Expense Summary
+description: >-
+  Summarise plain-text expense lines into per-category totals and an overall
+  total, ignoring any line that cannot be understood.
+runtime_profile: platform-runtime-3.13.9
+sdk_version: none
+actions:
+  - id: summarize_expenses
+    title: Summarize expenses
+    description: >-
+      Parse newline-separated expense lines of the form
+      "<ISO date> <category> <amount>" and report the total per category, the
+      overall total (both rounded to 2 decimals) and how many lines were
+      ignored. Blank lines are skipped and are not counted as ignored.
+    handler: expenses:summarize_expenses
+    input_schema:
+      type: object
+      properties:
+        lines:
+          type: string
+          description: >-
+            Newline-separated expense lines, e.g.
+            "2026-09-03 groceries 42.50\n2026-09-04 fuel 61.10".
+      required:
+        - lines
+      additionalProperties: false
+    output_schema:
+      type: object
+      properties:
+        totals:
+          type: object
+          description: Total amount per category, rounded to 2 decimals.
+          additionalProperties:
+            type: number
+        overall:
+          type: number
+          description: Total of all parsed amounts, rounded to 2 decimals.
+        ignored:
+          type: integer
+          minimum: 0
+          description: Number of non-blank lines that could not be parsed.
+      required:
+        - totals
+        - overall
+        - ignored
+      additionalProperties: false
+    capability_requirements: []
+    effect_class: none
+    invocable_from:
+      - assistant
+    timeout_seconds: 5
+    retry_class: pure

@@ -24,6 +24,7 @@ export type ErrorCode =
   | "unsupported"
   | "not_found"
   | "revoked"
+  | "throttled"
   | "internal";
 
 export interface BridgeGrant {
