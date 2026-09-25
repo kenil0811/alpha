@@ -303,6 +303,8 @@ class ClaudeCliHarness:
     ) -> Iterator[HarnessEvent]:
         kind = message.get("type")
         if kind == "system":
+            if message.get("subtype") != "init":
+                return  # progress-only system messages (e.g. thinking token counters)
             yield HarnessEvent(
                 "harness.system",
                 {

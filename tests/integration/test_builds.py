@@ -4,6 +4,7 @@ The fake harness proves controls only; generation quality is proven by the live 
 
 from __future__ import annotations
 
+import json
 import signal
 import sqlite3
 import subprocess
@@ -105,6 +106,16 @@ def test_fake_build_is_validated_sealed_and_invocable(core: CoreProcess, data_di
 
     workspace = data_dir / "builds" / final["attempts"][0]["workspace_ref"]
     assert (workspace / "package.index.json").is_file()
+    index = json.loads((workspace / "package.index.json").read_text())
+    assert [f["path"] for f in index["files"]] == ["app.yaml", "src/word_stats.py"]
+    assert not (workspace / "package" / "src" / "__pycache__").exists()
+    normalized = [
+        e for e in build_events(core, created["build_id"]) if e["kind"] == "validation.normalized"
+    ]
+    assert (
+        normalized
+        and "src/__pycache__/word_stats.cpython-313.pyc" in normalized[0]["payload"]["removed"]
+    )
     assert (workspace / "validation.report.json").is_file()
     assert (data_dir / "builds" / created["build_id"] / "brief.r1.json").is_file()
 

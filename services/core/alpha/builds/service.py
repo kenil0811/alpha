@@ -638,6 +638,9 @@ class BuildService:
         ):
             finish_failed(FailureCategory.NO_PACKAGE, "no_package_written")
             return
+        stripped = _strip_bytecode(package_dir)
+        if stripped:
+            self._append(build_id, attempt_id, "validation.normalized", {"removed": stripped})
         try:
             index = self._seal_index(package_dir)
             check(
@@ -1003,6 +1006,22 @@ class BuildService:
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
             latest_sequence=int(row["latest_sequence"]),
         )
+
+
+def _strip_bytecode(package_dir: Path) -> list[str]:
+    """Bytecode caches are build residue, not source; remove them before sealing so the sealed
+    bytes are exactly the source tree. Returns the removed paths (relative)."""
+    removed: list[str] = []
+    for path in sorted(package_dir.rglob("*"), reverse=True):
+        if path.is_symlink():
+            continue
+        if path.is_file() and path.suffix == ".pyc":
+            path.unlink()
+            removed.append(path.relative_to(package_dir).as_posix())
+        elif path.is_dir() and path.name == "__pycache__" and not any(path.iterdir()):
+            path.rmdir()
+            removed.append(path.relative_to(package_dir).as_posix() + "/")
+    return removed
 
 
 def _parse_manifest(path: Path) -> dict[str, Any]:

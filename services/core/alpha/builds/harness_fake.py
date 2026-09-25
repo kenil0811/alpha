@@ -119,10 +119,15 @@ class FakeHarness:
                 path = workspace / "package" / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
+
                 yield HarnessEvent(
                     "harness.file_written",
                     {"path": relative, "sha256": hashlib.sha256(content.encode()).hexdigest()},
                 )
+            # Real builders leave bytecode caches behind; the platform must strip them.
+            cache = workspace / "package" / "src" / "__pycache__"
+            cache.mkdir(exist_ok=True)
+            (cache / "word_stats.cpython-313.pyc").write_bytes(b"\x00residue")
         yield HarnessEvent(
             "harness.assistant_text",
             {"text": "Done." if session.mode != "fail" else "I could not complete this."},
