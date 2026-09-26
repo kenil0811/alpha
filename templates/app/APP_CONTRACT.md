@@ -121,6 +121,11 @@ Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `m
 The screen is type-checked with TypeScript (strict) against the kit's own types before it is
 built: every required prop must be given, and a type error fails the build with the exact line.
 
+Unknown is not zero. When a value is missing (a day with no entries, an estimate that could not
+be made), keep it unknown and show it as such. An average over days counts only the days with
+entries and says how many there were ("1,060 per logged day · 1 of 7 days logged"). A value the
+person enters as 0 is a real zero.
+
 Say each thing once and in the person's words. `QuickEntry` and `Form` already announce their
 own saved or failed outcome, so do not add a second status line for the same event. Label a
 yes/no value by what it means in both states (a "Finished" column shows "Yes" or "Not yet", never

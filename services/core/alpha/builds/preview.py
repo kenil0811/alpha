@@ -17,11 +17,12 @@ from pathlib import Path
 from typing import Any
 
 from alpha_contracts.apps import Invocable
+from alpha_contracts.broker import ModelEstimate, StructuredModelCall
 from alpha_contracts.records import Filter, Record, RecordQuery
 from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 
 from alpha.artifacts.service import ArtifactService
-from alpha.capabilities.errors import OperationFailed
+from alpha.capabilities.errors import OperationFailed, unavailable
 from alpha.data.packages import SealedPackage
 from alpha.data.store import RecordService
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
@@ -41,6 +42,37 @@ _ORIGIN_PREFERENCE = (
     (Invocable.ASSISTANT, RunOrigin.ASSISTANT),
     (Invocable.TRIGGER, RunOrigin.TRIGGER),
 )
+
+
+class FaultableModels:
+    """The preview's model service. A check can make it fail on purpose, exactly as a real
+    failure reaches an App: unavailable, a timeout, or an answer outside the requested bounds."""
+
+    def __init__(self, inner: AppModelService) -> None:
+        self._inner = inner
+        self.fault = "normal"
+
+    def __getattr__(self, name: str) -> Any:  # everything else is the real service
+        return getattr(self._inner, name)
+
+    def call(self, run_id: str, owner_ref: str, request: StructuredModelCall) -> ModelEstimate:
+        if self.fault == "unavailable":
+            raise unavailable(
+                "the model call failed: the model service is unavailable",
+                reason="checked_unavailable",
+            )
+        if self.fault == "timeout":
+            raise OperationFailed(
+                "timed_out",
+                "the model call failed: it took too long",
+                {"reason": "checked_timeout"},
+            )
+        if self.fault == "malformed":
+            raise unavailable(
+                "the model returned values outside the requested bounds; nothing was stored",
+                reason="model_output_out_of_bounds",
+            )
+        return self._inner.call(run_id, owner_ref, request)
 
 
 @dataclass(frozen=True)
@@ -63,8 +95,13 @@ class PreviewPlatform:
         def on_event(run_id: str, kind: str, payload: dict[str, Any]) -> None:
             self.store.append_event(run_id, kind, payload)
 
+        self.models = FaultableModels(deps.models(self.store))
         self.broker = CapabilityBroker(
-            self.store, self.records, artifacts, deps.models(self.store), on_event=on_event
+            self.store,
+            self.records,
+            artifacts,
+            self.models,  # type: ignore[arg-type]  # same interface as AppModelService
+            on_event=on_event,
         )
         self.coordinator = RunCoordinator(
             self.store, deps.supervisor, workspace_id="preview", default_timeout_seconds=60

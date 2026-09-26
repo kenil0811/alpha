@@ -25,6 +25,7 @@ from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.profiles import ProfileInventory
+from alpha.models.disclosure import app_data_notice
 from alpha.models.runtime import AppModelService
 from alpha.solutions.registry import AppRegistry
 
@@ -52,6 +53,17 @@ class ActionRunRequest(BaseModel):
 
     input: dict[str, Any] = Field(default_factory=dict)
     origin: RunOrigin = RunOrigin.USER
+
+
+def _app_notice(platform: AppPlatform, capabilities: list[str]) -> str:
+    if "models" not in capabilities:
+        return "Its records stay on this Mac."
+    route = platform.models.route()
+    if route is None:
+        return (
+            "Its records stay on this Mac. Its estimates are not available on this Mac right now."
+        )
+    return app_data_notice(route)
 
 
 def _fail(exc: OperationFailed) -> HTTPException:
@@ -98,6 +110,8 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
                 for a in source.actions
             ],
             "record_counts": platform.records.store(app_id).counts(),
+            # Where this App's data goes, from the configured route (F11).
+            "data_notice": _app_notice(platform, source.capabilities),
             "ui": source.ui.model_dump(mode="json", by_alias=True) if source.ui else None,
         }
 

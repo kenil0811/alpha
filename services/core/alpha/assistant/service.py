@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 from alpha.assistant.fake_model import fake_assistant
 from alpha.assistant.prompts import system_prompt, turn_prompt
 from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
+from alpha.models.disclosure import data_notice, ground_output, is_remote
 from alpha.models.gateway import ModelGateway, ModelRoute
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, NotFoundError, new_id, utc_now
@@ -87,6 +88,8 @@ class ConversationTurn(BaseModel):
 
 class ConversationRecord(BaseModel):
     conversation_id: str
+    # Where this conversation's data goes, from the configured routes (never from the model).
+    data_notice: str | None = None
     state: str
     route_id: str
     created_at: str
@@ -109,11 +112,13 @@ class AssistantService:
         inference: StructuredInference,
         *,
         default_route: str,
+        app_model_route: str | None = None,
     ) -> None:
         self._store = store
         self._gateway = gateway
         self._inference = inference
         self._default_route = default_route
+        self._app_model_route = app_model_route
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
 
@@ -183,6 +188,15 @@ class AssistantService:
         self._spawn_turn(conversation_id, route, dict(latest.content))
         return self.get(conversation_id)
 
+    def _notice(self, route: ModelRoute) -> str:
+        apps = None
+        if self._app_model_route:
+            try:
+                apps = self._gateway.route(self._app_model_route)
+            except Exception:
+                apps = None
+        return data_notice(route, apps)
+
     def reconcile_on_startup(self) -> list[str]:
         """A turn cannot continue across a restart: say so, so the person can retry it."""
         rows = self._store.query(
@@ -234,7 +248,7 @@ class AssistantService:
             prompt = turn_prompt(history, current, latest)
             result = self._inference.call(
                 route,
-                system=system_prompt(),
+                system=system_prompt(self._notice(route)),
                 prompt=prompt,
                 schema=turn_output_schema(),
                 scope_kind="assistant_turn",
@@ -242,6 +256,11 @@ class AssistantService:
                 fake=fake_assistant if route.route_id == "fake" else None,
             )
             output = AssistantTurnOutput.model_validate(result.output)
+            grounded: list[str] = []
+            if is_remote(route):
+                output, grounded = ground_output(output, self._notice(route))
+            if grounded:
+                log.info("grounded data-location claims in %s: %s", conversation_id, grounded)
         except InferenceError as exc:
             log.warning("assistant turn failed for %s: %s", conversation_id, exc)
             self._fail(conversation_id, _PLAIN_FAILURE.get(exc.code, "the model service failed"))
@@ -255,7 +274,12 @@ class AssistantService:
             self._fail(conversation_id, "something went wrong inside Alpha")
             return
         self._apply_turn(
-            conversation_id, latest, output, result.model, result.usage.model_dump(mode="json")
+            conversation_id,
+            latest,
+            output,
+            result.model,
+            result.usage.model_dump(mode="json"),
+            grounded,
         )
 
     def _apply_turn(
@@ -265,6 +289,7 @@ class AssistantService:
         output: AssistantTurnOutput,
         model: str,
         usage: dict[str, Any],
+        grounded: list[str] | None = None,
     ) -> None:
         record = self.get(conversation_id)
         user_turn = record.turns[-1]
@@ -282,6 +307,8 @@ class AssistantService:
                     "questions": [q.model_dump() for q in output.questions],
                     "model": model,
                     "usage": usage,
+                    # Parts where Core replaced an untrue data-location claim (F11).
+                    **({"grounded": grounded} if grounded else {}),
                 },
             )
             brief: SolutionBrief | None = None
@@ -496,7 +523,14 @@ class AssistantService:
             delivery=Delivery(row["delivery"]) if row["delivery"] else None,
             error=row["error"],
             brief_history=history,
+            data_notice=self._notice_for(row["route_id"]),
         )
+
+    def _notice_for(self, route_id: str) -> str | None:
+        try:
+            return self._notice(self._gateway.route(route_id))
+        except Exception:
+            return None
 
 
 class ConflictError(Exception):

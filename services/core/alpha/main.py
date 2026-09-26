@@ -102,7 +102,13 @@ def build(
         log.warning(
             "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
         )
-    assistant = AssistantService(store, gateway, inference, default_route=settings.assistant_route)
+    assistant = AssistantService(
+        store,
+        gateway,
+        inference,
+        default_route=settings.assistant_route,
+        app_model_route=settings.app_model_route,
+    )
     creations = CreationService(
         store,
         assistant,

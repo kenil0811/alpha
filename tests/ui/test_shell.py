@@ -106,7 +106,7 @@ def test_the_shell_uses_the_window_and_keeps_a_request_through_navigation(
     for m in result["layouts"]:
         where = f"{m['surface']} at {m['width']}px: {m}"
         assert not m["sideways_scroll"], where
-        if m["surface"] in ("Assistant", "My workflows"):
+        if m["surface"] in ("Assistant", "My workflows", "Activity"):
             # Reading surfaces: full width up to 880px, centred.
             assert m["surface_width"] >= min(880, m["available"]) - 1, where
             assert abs(2 * m["surface_left"] + m["surface_width"] - m["available"]) <= 2, where

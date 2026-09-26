@@ -62,7 +62,7 @@ export function Workspace({
       ) : null}
       {detail ? (
         <p className="workspace__meta" title={`Version ${detail.version_id} · runtime ${detail.runtime_profile_id}`}>
-          Runs on this Mac. What it saves stays with this workflow.
+          {detail.data_notice ?? "Its records stay on this Mac."}
         </p>
       ) : null}
     </section>

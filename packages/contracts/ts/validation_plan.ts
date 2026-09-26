@@ -441,6 +441,7 @@ export interface InvokeStep {
     [k: string]: unknown;
   };
   kind?: "invoke";
+  model?: "normal" | "unavailable" | "malformed" | "timeout";
   output?: {
     [k: string]: unknown;
   } | null;

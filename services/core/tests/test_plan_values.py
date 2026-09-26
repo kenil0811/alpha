@@ -84,3 +84,11 @@ def test_star_expectations_from_the_planner_become_any_value() -> None:
     assert steps[0].output == {"id": {"$any": True}, "revision": {"$any": True}}
     assert steps[0].input == {"food": "*"}, "inputs are data and stay as written"
     assert steps[1].includes == [{"food": {"$any": True}, "id": {"$any": True}}]
+
+
+def test_an_expected_null_means_unknown() -> None:
+    """A record whose estimate was unavailable stores the field as unknown (absent or null)."""
+    assert matches({"title": "x", "minutes": None}, {"title": "x"})
+    assert matches({"minutes": None}, {"minutes": None})
+    assert not matches({"minutes": None}, {"minutes": 30})
+    assert not matches({"minutes": None}, {"minutes": 0}), "zero is a value, not unknown"

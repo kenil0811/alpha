@@ -64,6 +64,8 @@ export interface Conversation {
   reply: string | null;
   delivery: "answer" | "task" | "app" | null;
   error: string | null;
+  /** Where this conversation's data goes, stated by Core from the configured routes. */
+  data_notice?: string | null;
 }
 
 export interface ConversationReply {
@@ -133,6 +135,8 @@ export interface AppDetail {
   actions: ActionSummary[];
   collections: CollectionSummary[];
   record_counts: Record<string, number>;
+  /** Where this App's data goes, stated by Core from the configured routes. */
+  data_notice?: string;
 }
 
 export interface JsonSchema {

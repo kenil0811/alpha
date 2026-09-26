@@ -88,7 +88,13 @@ ctx.records.create(
 ```
 
 `fields` use the same field kinds as collections. Pass the result in `estimated` so the saved
-value is labelled an estimate the person can correct. At most 10 model calls per run. A call
+value is labelled an estimate the person can correct.
+
+When no estimate is available, `ctx.models.structured` raises `Unavailable` (or an
+`OperationError` with code `timed_out`). Never replace it with a guess or a default number:
+either save the value as unknown (`None`) and let the screen say "not estimated", or refuse with a
+plain message asking the person to type the value. Verification makes the model fail on purpose
+and rejects an App that stores a made-up number. At most 10 model calls per run. A call
 usually takes a few seconds; give an action that makes several calls `timeout_seconds: 120`.
 
 ## Artifacts

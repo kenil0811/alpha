@@ -134,6 +134,16 @@
           "default": "invoke",
           "type": "string"
         },
+        "model": {
+          "default": "normal",
+          "enum": [
+            "normal",
+            "unavailable",
+            "malformed",
+            "timeout"
+          ],
+          "type": "string"
+        },
         "output": {
           "anyOf": [
             {

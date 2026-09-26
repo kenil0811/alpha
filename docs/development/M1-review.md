@@ -89,6 +89,23 @@ technical ids on screen. Evidence: `docs/development/evidence/M1-R01.md`.
 
 Original checks F01.C04, F04.C03, F08.C02 and F08.C03 stay pending until the final freeze.
 
+### M1-R02: truthful data and provider claims (done, 26 September 2026)
+
+**F04.** A failed model estimate can no longer pass as a saved number:
+- a required `model.failure.<action>` check runs every model-using action with the model
+  unavailable, malformed and timed out;
+- plans can make the model fail on purpose;
+- `null` means unknown.
+
+**F08.** "Unknown is not zero" is now in the App contract, the builder rules and the planner
+rules. The deterministic calorie assertions run in M1-R07.
+
+**F11.** Data-location statements come from the configured routes: DATA FACTS in the assistant
+prompt, turns grounded before they are stored, and "Where your data goes" in briefs and
+workspaces.
+
+Evidence: `docs/development/evidence/M1-R02.md`.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

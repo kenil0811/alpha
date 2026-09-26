@@ -39,6 +39,10 @@ class InvokeStep(ContractModel):
     expect: Literal["succeeded", "failed"] = "succeeded"
     output: dict[str, Any] | None = None
     exact: bool = False
+    # How the platform's model service behaves during this step. Anything but "normal" makes every
+    # model call in the step fail the way a real failure would, so a plan can require an honest
+    # outcome (a refusal, or the estimated value left unknown) instead of an invented number.
+    model: Literal["normal", "unavailable", "malformed", "timeout"] = "normal"
 
 
 class RecordsStep(ContractModel):

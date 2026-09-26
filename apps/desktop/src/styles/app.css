@@ -135,6 +135,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brief__section--limit { color: var(--color-warning); }
 .brief__tag { font-size: var(--text-xs); color: var(--color-text-muted); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 var(--space-1); margin-left: var(--space-1); }
 .brief__meta { font-size: var(--text-xs); color: var(--color-text-muted); }
+.brief__notice { margin: 0; font-size: var(--text-xs); color: var(--color-text-muted); }
 .correction { display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* F06 UI kit fixture: compositions get the full width so their own layouts can be checked at

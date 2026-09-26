@@ -70,6 +70,12 @@ Rules:
   Label fields and buttons exactly as PLAN.md names them.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
+- Model estimates: store every model result with estimated= so people see it as an estimate.
+  If ctx.models.structured raises, never substitute a guess or a default number: save the value
+  as unknown (None) and say so, or refuse with a plain message asking the person to type it.
+  PLAN.md checks this by making the model fail on purpose.
+- Missing data is unknown, not zero: averages count only periods that have entries and say how
+  many had entries. A value the person enters as 0 is a real zero.
 - Check your Python compiles with the platform interpreter given below
   (<python> -m py_compile <file>). Optional supplementary tests go in package/tests/ (unittest).
 - Do not create git repositories. Finish with one sentence naming the actions and the screen.

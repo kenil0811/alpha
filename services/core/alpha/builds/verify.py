@@ -37,7 +37,7 @@ from alpha_contracts.verification import (
     VerificationReport,
 )
 
-from alpha.builds.plan import run_scenario
+from alpha.builds.plan import run_model_failures, run_scenario
 from alpha.builds.preview import PreviewDeps, PreviewPlatform
 from alpha.builds.ui_check import UiRenderCheck
 from alpha.capabilities.errors import OperationFailed
@@ -425,6 +425,29 @@ class CandidateVerifier:
             )
             for result in results:
                 run.add(result)
+        # Actions that use model estimates must stay honest when the model fails (F04).
+        scenarios_ok = all(
+            c.status is CheckStatus.PASSED for c in run.checks if c.stage == "behavior"
+        )
+        assert run.source is not None
+        model_actions = [a.id for a in run.source.actions if "models" in a.capability_requirements]
+        if model_actions and scenarios_ok:
+            for result in run_model_failures(
+                lambda name: self._preview(run, name),
+                lambda preview: self._install(run, preview),
+                run.plan,
+                model_actions,
+            ):
+                run.add(result)
+        elif model_actions:
+            for action in model_actions:
+                run.add(
+                    _skipped(
+                        f"model.failure.{action}",
+                        "behavior",
+                        "not run: the behaviour checks did not pass",
+                    )
+                )
 
     def _ui(self, run: _Run) -> None:
         """The sealed screen, driven in the pinned headless browser."""

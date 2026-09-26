@@ -14,13 +14,14 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from alpha_contracts.runs import RunState
+from alpha_contracts.runs import Run, RunState
 from alpha_contracts.verification import (
     CheckResult,
     CheckStatus,
     InvokeStep,
     RecordsStep,
     Scenario,
+    ValidationPlan,
 )
 
 from alpha.builds.preview import PreviewPlatform
@@ -65,7 +66,7 @@ def is_any(value: Any) -> bool:
 def matches(expected: Any, observed: Any, *, exact: bool = False) -> bool:
     """Deep match. Objects match when every expected key matches (all keys, if exact); lists
     match element-wise with the same length; numbers compare by value; `{"$any": true}`
-    matches any non-null value."""
+    matches any non-null value; an expected null matches an absent or empty value (unknown)."""
     if is_any(expected):
         return observed is not None
     if isinstance(expected, dict):
@@ -73,8 +74,12 @@ def matches(expected: Any, observed: Any, *, exact: bool = False) -> bool:
             return False
         if exact and set(expected) != set(observed):
             return False
+        # An expected null means "unknown": the value is absent or empty.
         return all(
-            k in observed and matches(v, observed[k], exact=exact) for k, v in expected.items()
+            (observed.get(k) is None)
+            if v is None
+            else (k in observed and matches(v, observed[k], exact=exact))
+            for k, v in expected.items()
         )
     if isinstance(expected, list):
         return (
@@ -111,6 +116,7 @@ def run_invoke(
         )
     except UnresolvedReference as exc:
         return _check(check_id, CheckStatus.FAILED, f"the plan could not be applied: {exc}")
+    preview.models.fault = step.model
     try:
         run = preview.invoke_and_wait(step.action, payload)
     except OperationFailed as exc:
@@ -123,6 +129,8 @@ def run_invoke(
             f"{step.action} was refused: {exc.message}",
             {"input": payload, "expected": step.expect, "observed": observed},
         )
+    finally:
+        preview.models.fault = "normal"
     detail: dict[str, Any] = {
         "action": step.action,
         "input": payload,
@@ -130,6 +138,8 @@ def run_invoke(
         "state": run.state.value,
         "run_id": run.run_id,
     }
+    if step.model != "normal":
+        detail["model"] = step.model
     if run.state is RunState.SUCCEEDED:
         outputs[step.id] = run.output or {}
         detail["output"] = run.output
@@ -231,3 +241,181 @@ def run_scenario(
         return results
     finally:
         preview.close()
+
+
+# ----- model failure (M1 review finding F04) -------------------------------------------------
+
+MODEL_FAULTS = ("unavailable", "malformed", "timeout")
+_Snapshot = dict[str, dict[str, tuple[int, dict[str, Any], dict[str, Any]]]]
+
+
+def _snapshot(preview: PreviewPlatform, collections: list[str]) -> _Snapshot:
+    found: _Snapshot = {}
+    for name in collections:
+        try:
+            records = preview.records_in(name)
+        except OperationFailed:
+            records = []
+        found[name] = {
+            r.id: (r.revision, dict(r.values), {k: v.source for k, v in r.provenance.items()})
+            for r in records
+        }
+    return found
+
+
+def _changed(
+    before: _Snapshot, after: _Snapshot
+) -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
+    """(collection, values, provenance sources) of every record the step created or changed."""
+    out = []
+    for name, records in after.items():
+        for rid, (revision, values, sources) in records.items():
+            if before.get(name, {}).get(rid, (0,))[0] != revision:
+                out.append((name, values, sources))
+    return out
+
+
+def _run_until(
+    preview: PreviewPlatform, scenario: Scenario, index: int, model: str
+) -> tuple[Run | None, _Snapshot, _Snapshot, dict[str, Any]]:
+    """Run a scenario's steps before `index` as written, then that invoke step with the model
+    service behaving as `model`. Returns the step's run (None if an earlier step did not pass)
+    and the stored records around it."""
+    collections = [c.name for c in preview.app.source.collections]
+    outputs: dict[str, Any] = {}
+    for step in scenario.steps[:index]:
+        if isinstance(step, InvokeStep):
+            result = run_invoke(preview, step, outputs, "model.prefix")
+        else:
+            result = run_records(preview, step, outputs, "model.prefix")
+        if result.status is not CheckStatus.PASSED:
+            return None, {}, {}, outputs
+    target = scenario.steps[index]
+    assert isinstance(target, InvokeStep)
+    before = _snapshot(preview, collections)
+    try:
+        payload = resolve_values(target.input, outputs, preview.timezone)
+    except UnresolvedReference:
+        return None, before, before, outputs
+    preview.models.fault = model
+    try:
+        run = preview.invoke_and_wait(target.action, payload)
+    except OperationFailed:
+        return None, before, _snapshot(preview, collections), outputs
+    finally:
+        preview.models.fault = "normal"
+    return run, before, _snapshot(preview, collections), outputs
+
+
+def run_model_failures(
+    make_preview: Callable[[str], PreviewPlatform],
+    install: Callable[[PreviewPlatform], None],
+    plan: ValidationPlan,
+    actions: list[str],
+) -> list[CheckResult]:
+    """For every action that uses model estimates: find a planned step where it really calls the
+    model, learn which stored fields hold the estimate (they carry model provenance), then run
+    that step again with the model unavailable, malformed and timed out. The action must refuse
+    and store nothing, or store the entry with those fields left unknown. An invented number
+    fails, and so does a model result stored without being labelled an estimate."""
+    results: list[CheckResult] = []
+    for action in actions:
+        check_id = f"model.failure.{action}"
+        found: tuple[Scenario, int, list[tuple[str, dict[str, Any], dict[str, Any]]]] | None = None
+        for scenario in plan.scenarios:
+            for index, step in enumerate(scenario.steps):
+                if not (
+                    isinstance(step, InvokeStep)
+                    and step.action == action
+                    and step.expect == "succeeded"
+                    and step.model == "normal"
+                ):
+                    continue
+                preview = make_preview(f"model-{action}-normal")
+                try:
+                    install(preview)
+                    run, before, after, _ = _run_until(preview, scenario, index, "normal")
+                    calls = preview.models.calls_for_run(run.run_id) if run else []
+                finally:
+                    preview.close()
+                if run is not None and run.state is RunState.SUCCEEDED and calls:
+                    found = (scenario, index, _changed(before, after))
+                    break
+            if found:
+                break
+        if found is None:
+            results.append(
+                CheckResult(
+                    id=check_id,
+                    stage="behavior",
+                    status=CheckStatus.SKIPPED,
+                    required=False,
+                    summary=f"no planned step makes {action} call the model, so its failure path "
+                    "was not checked",
+                )
+            )
+            continue
+        scenario, index, stored = found
+        estimate_fields = sorted(
+            {
+                (c, f)
+                for c, _, sources in stored
+                for f, src in sources.items()
+                if src == "model_estimate"
+            }
+        )
+        problems: list[str] = []
+        detail: dict[str, Any] = {
+            "scenario": scenario.id,
+            "step": scenario.steps[index].id,
+            "estimate_fields": [f"{c}.{f}" for c, f in estimate_fields],
+            "faults": {},
+        }
+        if stored and not estimate_fields:
+            problems.append(
+                f"{action} stored a model result without labelling it an estimate "
+                "(pass the model result in estimated= when saving)"
+            )
+        for fault in MODEL_FAULTS:
+            preview = make_preview(f"model-{action}-{fault}")
+            try:
+                install(preview)
+                run, before, after, _ = _run_until(preview, scenario, index, fault)
+            finally:
+                preview.close()
+            changed = _changed(before, after)
+            state = run.state.value if run else "refused"
+            detail["faults"][fault] = {"state": state, "changed": [c for c, _, _ in changed]}
+            if run is None or run.state is not RunState.SUCCEEDED:
+                if changed:
+                    problems.append(
+                        f"model {fault}: {action} failed but still changed {changed[0][0]}"
+                    )
+                continue
+            for collection, values, sources in changed:
+                for c, f in estimate_fields:
+                    if c != collection:
+                        continue
+                    if values.get(f) is not None:
+                        problems.append(
+                            f"model {fault}: {action} saved {f}={values[f]!r} in {collection} "
+                            "although no estimate was available; leave it unknown or refuse"
+                        )
+                    elif sources.get(f) == "model_estimate":
+                        problems.append(
+                            f"model {fault}: {f} is labelled an estimate but none was made"
+                        )
+            if not stored and run.output:
+                detail["faults"][fault]["output"] = run.output
+        results.append(
+            CheckResult(
+                id=check_id,
+                stage="behavior",
+                status=CheckStatus.FAILED if problems else CheckStatus.PASSED,
+                summary=("; ".join(dict.fromkeys(problems)))[:1000]
+                if problems
+                else f"{action} stays honest when the model is unavailable, malformed or too slow",
+                detail=detail,
+            )
+        )
+    return results

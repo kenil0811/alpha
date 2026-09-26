@@ -26,8 +26,15 @@ Your job each turn:
 Output only the structured object."""
 
 
-def system_prompt() -> str:
-    return f"{SYSTEM_RULES}\n\n{catalog_prompt_text()}"
+def system_prompt(data_notice: str | None = None) -> str:
+    facts = ""
+    if data_notice:
+        facts = (
+            "\n\nDATA FACTS (from Alpha's configuration; state them accurately and never contradict "
+            f"them): {data_notice} Never say that nothing leaves this Mac or that nothing is sent "
+            "anywhere; say what is stored on this Mac and what is sent to the model service."
+        )
+    return f"{SYSTEM_RULES}{facts}\n\n{catalog_prompt_text()}"
 
 
 def turn_prompt(

@@ -201,7 +201,7 @@ describe("an App with its own screen", () => {
     render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByText("Actions and saved data")).toBeInTheDocument();
-    expect(screen.getByText("Runs on this Mac. What it saves stays with this workflow.")).toBeInTheDocument();
+    expect(screen.getByText("Its records stay on this Mac.")).toBeInTheDocument();
     expect(screen.queryByText(/pyprof|ver_/)).not.toBeInTheDocument();
   });
 });
@@ -278,5 +278,15 @@ describe("what the shell says around an App's own screen", () => {
     // Found natively: a runtime problem was shown as "not allowed"; ordinary failures belong to the screen.
     expect(screenProblem({ code: "invalid_request", message: "Food is needed" })).toBeNull();
     expect(screenProblem({ internal: "TypeError" })).toBeNull();
+  });
+});
+
+describe("where the data goes", () => {
+  it("shows Core's statement for an App that sends things for estimates", async () => {
+    const client = new FakeWorkflowsClient();
+    const notice = "Its records stay on this Mac. To make an estimate, it sends what the estimate is about (such as a description you typed) to Anthropic's Claude service over the internet.";
+    client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
+    render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
+    expect(await screen.findByText(notice)).toBeInTheDocument();
   });
 });

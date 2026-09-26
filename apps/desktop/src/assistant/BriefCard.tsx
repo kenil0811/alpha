@@ -1,7 +1,7 @@
 import type { SolutionBrief } from "@alpha/contracts";
 import { briefKeeps, capabilityLabel, deliveryLabel } from "./plain";
 
-export function BriefCard({ brief }: { brief: SolutionBrief }) {
+export function BriefCard({ brief, dataNotice }: { brief: SolutionBrief; dataNotice?: string | null }) {
   const keeps = briefKeeps(brief);
   return (
     <section className="brief" aria-label="What Alpha understood">
@@ -52,6 +52,11 @@ export function BriefCard({ brief }: { brief: SolutionBrief }) {
             ))}
           </ul>
         </div>
+      ) : null}
+      {dataNotice ? (
+        <p className="brief__notice">
+          <strong>Where your data goes:</strong> {dataNotice}
+        </p>
       ) : null}
       <div className="brief__meta">Understanding {brief.revision}</div>
     </section>

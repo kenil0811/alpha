@@ -291,6 +291,76 @@ def notes_slow(p: Path) -> None:
     )
 
 
+def _timed_note(p: Path, on_failure: str, labelled: bool) -> None:
+    """Adds `add_timed_note`, which asks the model how many minutes a note will take."""
+    _edit(_yaml(p), "capabilities: [records]", "capabilities: [records, models]")
+    _edit(
+        _yaml(p),
+        "      - {name: noted_on, kind: date, required: true}\n",
+        "      - {name: noted_on, kind: date, required: true}\n"
+        "      - {name: minutes, kind: number}\n",
+    )
+    _edit(
+        _yaml(p),
+        "  - id: count_notes\n",
+        "  - id: add_timed_note\n"
+        "    title: Add a note with a time estimate\n"
+        "    description: Save one note with an estimate of how long it takes.\n"
+        "    handler: notes_app.handlers:add_timed_note\n"
+        "    invocable_from: [manual]\n"
+        "    effect_class: local_write\n"
+        "    capability_requirements: [records, models]\n"
+        "    input_schema:\n"
+        "      type: object\n"
+        "      required: [title]\n"
+        "      properties: {title: {type: string, minLength: 1}}\n"
+        "    output_schema:\n"
+        "      type: object\n"
+        "      required: [id, revision]\n"
+        "      properties: {id: {type: string}, revision: {type: integer}}\n"
+        "  - id: count_notes\n",
+    )
+    label = "estimated" if labelled else "None"
+    _edit(
+        _handlers(p),
+        "def count_notes(",
+        "def add_timed_note(ctx: Context, title: str) -> dict[str, Any]:\n"
+        "    try:\n"
+        "        guess = ctx.models.structured(\n"
+        "            'Estimate how many minutes this task takes.',\n"
+        "            input={'task': title},\n"
+        "            fields={'minutes': {'kind': 'number', 'minimum': 0, 'maximum': 600,\n"
+        "                                'required': True}},\n"
+        "        )\n"
+        "        minutes, estimated = guess['minutes'], {'minutes': guess}\n"
+        "    except Exception:\n"
+        f"        minutes, estimated = {on_failure}, None\n"
+        "    record = ctx.records.create(\n"
+        "        'notes',\n"
+        "        {'title': title.strip(), 'noted_on': ctx.today().isoformat(),\n"
+        "         'minutes': minutes},\n"
+        f"        estimated={label},\n"
+        "    )\n"
+        "    return {'id': record.id, 'revision': record.revision}\n\n\n"
+        "def count_notes(",
+    )
+
+
+def estimate_honest(p: Path) -> None:
+    """Not a defect: without an estimate, the note is saved with minutes unknown."""
+    _timed_note(p, "None", labelled=True)
+
+
+def estimate_invented(p: Path) -> None:
+    """When the model fails, saves an invented 30 minutes (the G1 calorie defect, F04)."""
+    _timed_note(p, "30", labelled=True)
+
+
+def estimate_unlabelled(p: Path) -> None:
+    """Stores the model's minutes as if a person had typed them."""
+    _timed_note(p, "None", labelled=False)
+
+
 VARIANTS: dict[str, Callable[[Path], None]] = {
     f.__name__: f
     for f in (
@@ -310,6 +380,9 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         missing_prop,
         entry_only,
         notes_slow,
+        estimate_honest,
+        estimate_invented,
+        estimate_unlabelled,
     )
 }
 

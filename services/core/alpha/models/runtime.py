@@ -26,7 +26,7 @@ from alpha.capabilities.errors import (
     unavailable,
 )
 from alpha.data.values import fields_to_json_schema, validate_values
-from alpha.models.gateway import ModelGateway, RouteUnavailable
+from alpha.models.gateway import ModelGateway, ModelRoute, RouteUnavailable
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
@@ -118,6 +118,13 @@ class AppModelService:
     @property
     def route_id(self) -> str:
         return self._route_id
+
+    def route(self) -> ModelRoute | None:
+        """The configured route, or None when it is not enabled on this Mac."""
+        try:
+            return self._gateway.route(self._route_id)
+        except RouteUnavailable:
+            return None
 
     def call(self, run_id: str, owner_ref: str, request: StructuredModelCall) -> ModelEstimate:
         for spec in request.fields:

@@ -107,3 +107,19 @@ describe("assistant surface", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("could not work this out");
   });
 });
+
+describe("the brief says where data goes", () => {
+  it("shows Core's statement under the brief", async () => {
+    const client = scriptedTracker();
+    const base = client.assistantScript!;
+    const notice = "Your records and files are stored on this Mac. What you type to the assistant is sent to Anthropic's Claude service over the internet.";
+    client.assistantScript = (c, r) => ({ ...base(c, r), data_notice: notice });
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    const brief = await screen.findByLabelText("What Alpha understood");
+    expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
+  });
+});

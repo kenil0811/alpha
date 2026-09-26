@@ -169,7 +169,7 @@ export function AssistantPanel({
               onDefaults={() => reply({ use_defaults: true })}
             />
           ) : null}
-          {conversation.current_brief && conversation.state !== "thinking" ? <BriefCard brief={conversation.current_brief} /> : null}
+          {conversation.current_brief && conversation.state !== "thinking" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
           {conversation.state === "briefed" &&
           conversation.delivery === "app" &&
           conversation.current_brief &&
