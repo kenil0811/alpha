@@ -384,7 +384,57 @@ async function main() {
           check(`ui.primary.shows.${plan.shows.indexOf(text) + 1}`, seen ? "passed" : "failed", seen ? `shows "${text}" after the interaction` : `"${text}" is not visible after the interaction`);
         }
         cleanCheck("ui.primary.clean", mark, "primary interaction");
+        // Rapid repeated entry (M1 review, R05): the same entry again straight away, without
+        // reloading, is saved again, or the screen says plainly why not.
+        if (plan.saved && plan.saved_collection) {
+          const countBefore = (await ask({ kind: "control", op: "count", collection: plan.saved_collection })).result?.count;
+          const redo = await perform(page, frame, plan.primary);
+          await settle(page);
+          const countAfter = (await ask({ kind: "control", op: "count", collection: plan.saved_collection })).result?.count;
+          const savedAgain = redo.ok && typeof countBefore === "number" && countAfter === countBefore + 1;
+          const explained = redo.ok && !savedAgain ? await alertShown(frame) : null;
+          check(
+            "ui.primary.repeat",
+            savedAgain || explained ? "passed" : "failed",
+            savedAgain
+              ? "a second entry made straight after the first was saved without reloading"
+              : explained
+                ? `a second identical entry was refused with: ${explained}`
+                : redo.ok
+                  ? `a second entry made straight after the first was not saved (${countBefore} → ${countAfter}) and nothing said why`
+                  : `the interaction could not be repeated: ${redo.message}`,
+            { count_before: countBefore, count_after: countAfter },
+            [await screenshot(page, "primary-repeat-1280")],
+          );
+        }
       }
+    }
+
+    // 2b. The main interaction is where a person looks first: its first control is visible
+    // without scrolling in the space an App's screen gets in Alpha's default window.
+    if (plan && plan.primary?.length) {
+      await page.setViewportSize({ width: 1002, height: 480 });
+      frame = await open(page);
+      const firstStep = plan.primary[0];
+      const target = firstStep.kind === "click"
+        ? await clickable(frame, firstStep.label)
+        : ["fill", "select", "check"].includes(firstStep.kind)
+          ? await control(frame, firstStep.kind, firstStep.label)
+          : null;
+      if (target) {
+        const box = await target.boundingBox().catch(() => null);
+        const shown = box !== null && box.y >= 0 && box.y + box.height <= 480;
+        check(
+          "ui.primary.visible",
+          shown ? "passed" : "failed",
+          shown
+            ? `"${firstStep.label}" is visible without scrolling in Alpha's default workspace (1002×480)`
+            : `"${firstStep.label}" is not visible without scrolling in Alpha's default workspace (1002×480); put the main interaction first`,
+          { box },
+          [await screenshot(page, "primary-visible-1002")],
+        );
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
     }
 
     // 3. Populated state (data created through the App's own actions).
@@ -443,7 +493,8 @@ async function main() {
         const firstFill = plan.primary.find((s) => s.kind === "fill");
         if (firstFill) {
           const value = await (await control(frame, "fill", firstFill.label)).inputValue().catch(() => null);
-          check("ui.error.save_input_kept", value === firstFill.text ? "passed" : "failed", value === firstFill.text ? "the typed input is kept after a failed save" : "the typed input was lost after a failed save", { value }, [], false);
+          // Required (M1 review, R05/R06): a failed save must not throw away what was typed.
+          check("ui.error.save_input_kept", value === firstFill.text ? "passed" : "failed", value === firstFill.text ? "the typed input is kept after a failed save" : "the typed input was lost after a failed save", { value });
         }
       }
       state.faults.action = false;

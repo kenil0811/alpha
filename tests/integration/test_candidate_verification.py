@@ -547,3 +547,28 @@ def test_seeded_builds_are_refused_unless_the_host_enables_them(build_core: Core
             },
         )
     assert response.status_code == 409 and "not enabled" in response.json()["detail"]
+
+
+@needs_browser
+def test_a_main_interaction_that_starts_off_screen_is_rejected(once_core: CoreProcess) -> None:
+    """M1-R05 (review: large stacked forms above the working area): the first control of the
+    main interaction must be visible without scrolling in Alpha's default workspace."""
+    final, rep = build(once_core, "fake:package ui_entry_below")
+    assert final["state"] == "failed"
+    found = checks(rep)
+    assert found["ui.primary.steps"]["status"] == "passed", "the interaction itself still works"
+    visible = found["ui.primary.visible"]
+    assert visible["status"] == "failed" and visible["required"] is True
+    assert "not visible without scrolling" in visible["summary"]
+
+
+@needs_browser
+def test_a_screen_that_loses_typed_input_on_a_failed_save_is_rejected(
+    once_core: CoreProcess,
+) -> None:
+    """M1-R05/R06: keeping what was typed after a failed save is now required."""
+    final, rep = build(once_core, "fake:package ui_clears_on_failure")
+    assert final["state"] == "failed"
+    kept = checks(rep)["ui.error.save_input_kept"]
+    assert kept["status"] == "failed" and kept["required"] is True
+    assert checks(rep)["ui.primary.repeat"]["status"] == "passed"

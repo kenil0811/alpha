@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import threading
 import uuid
 from collections.abc import Callable
@@ -62,6 +63,26 @@ class DispatchSpec:
     validate_output: Callable[[dict[str, Any]], str | None] | None = None
     on_finish: Callable[[str], None] | None = None
     reason_from_error_code: bool = False
+
+
+_EXCEPTION_PREFIX = re.compile(r"^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)): (.*)$", re.DOTALL)
+# An App raises these to refuse an input in its own words.
+_REFUSALS = {"ValueError", "InvalidValue"}
+
+
+def plain_worker_error(message: dict[str, Any]) -> dict[str, Any]:
+    """What a person reads when an App's handler raised: a refusal in the App's own words, or a
+    plain "something went wrong" for anything else. The exception's class name and text stay in
+    `technical` for Activity details (M1 review: exception names leaked into refusals)."""
+    if message.get("code") != "handler_exception":
+        return message
+    text = str(message.get("message", ""))
+    match = _EXCEPTION_PREFIX.match(text)
+    if match is None:
+        return message
+    kind, said = match.group(1).rsplit(".", 1)[-1], match.group(2).strip()
+    plain = said if kind in _REFUSALS and said else "Something went wrong in this workflow."
+    return {**message, "message": plain, "technical": text, "exception": kind}
 
 
 class RunCoordinator:
@@ -325,6 +346,7 @@ class RunCoordinator:
                 collected["result"] = output if isinstance(output, dict) else None
                 self._store.append_event(run_id, "worker.result", message)
             elif kind == "error":
+                message = plain_worker_error(message)
                 collected["error"] = message
                 self._store.append_event(run_id, "worker.error", message)
             else:

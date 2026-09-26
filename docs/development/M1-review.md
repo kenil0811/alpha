@@ -132,6 +132,22 @@ changing the App isn't available yet. Corrections wait while a creation runs.
 
 Evidence: `docs/development/evidence/M1-R04.md`.
 
+### M1-R05: shared interaction quality (done, 26 September 2026)
+
+**The chart.** The trend chart is a fixed 160 px with 12 px lettering at 1002 and 670 px. The old
+one measured 2,488 px tall with 171 px lettering. It also shows coverage ("Days with entries").
+
+**The kit form.** It enforces required fields, returns focus for the next entry, and keeps the
+draft after a failed save. Refusals are shown in the App's own words.
+
+**The render check** now requires:
+- the main interaction visible without scrolling in Alpha's workspace;
+- repeated entry;
+- a kept draft after a failed save.
+
+The kit ships in the next UI profile, and existing sealed profiles are unchanged. Evidence:
+`docs/development/evidence/M1-R05.md`.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

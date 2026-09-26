@@ -92,3 +92,21 @@ def test_an_expected_null_means_unknown() -> None:
     assert matches({"minutes": None}, {"minutes": None})
     assert not matches({"minutes": None}, {"minutes": 30})
     assert not matches({"minutes": None}, {"minutes": 0}), "zero is a value, not unknown"
+
+
+def test_handler_exceptions_reach_people_in_plain_words() -> None:
+    """M1-R05: "ValueError: Paste your to-do list…" showed a Python class name to the person."""
+    from alpha.execution.coordinator import plain_worker_error
+
+    refusal = plain_worker_error(
+        {"kind": "error", "code": "handler_exception", "message": "ValueError: Amount is needed."}
+    )
+    assert refusal["message"] == "Amount is needed."
+    assert refusal["technical"] == "ValueError: Amount is needed."
+    crash = plain_worker_error(
+        {"kind": "error", "code": "handler_exception", "message": "KeyError: 'calories'"}
+    )
+    assert crash["message"] == "Something went wrong in this workflow."
+    assert crash["exception"] == "KeyError"
+    sdk = {"kind": "error", "code": "operation_failed", "message": "Food is needed."}
+    assert plain_worker_error(sdk) == sdk

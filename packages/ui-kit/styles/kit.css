@@ -58,6 +58,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ----- forms ------------------------------------------------------------------------- */
 .a-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.a-form__missing { margin: 0; color: var(--color-danger); font-size: var(--text-sm); }
 .a-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .a-field__label { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
 .a-field__required { color: var(--color-danger); margin-left: var(--space-1); }
@@ -176,12 +177,19 @@ textarea.a-input { min-height: 5rem; resize: vertical; }
 .a-trend { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .a-trend__header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-2); }
 .a-trend__caption { font-weight: var(--weight-semibold); }
-.a-trend__svg { width: 100%; height: auto; display: block; }
-.a-trend__bar { fill: var(--chart-1); }
-.a-trend__zero { stroke: var(--chart-1); stroke-width: 2; }
-.a-trend__missing { fill: none; stroke: var(--chart-missing); stroke-dasharray: 3 3; }
-.a-trend__grid { stroke: var(--chart-grid); stroke-width: 1; }
-.a-trend__axis { fill: var(--color-text-muted); font-size: 11px; }
+/* A fixed pixel height and fixed-size lettering whatever the width or the number of days. */
+.a-trend__plot { display: grid; grid-template-rows: auto 1fr auto; gap: var(--space-1); max-width: 100%; }
+.a-trend__bars {
+  display: flex; align-items: flex-end; gap: 6px; min-height: 0;
+  border-bottom: 1px solid var(--chart-grid); border-top: 1px dashed var(--chart-grid);
+}
+.a-trend__bars--dense { gap: 2px; }
+.a-trend__slot { flex: 1 1 0; max-width: 48px; min-width: 2px; height: 100%; display: flex; align-items: flex-end; }
+.a-trend__bar { display: block; width: 100%; background: var(--chart-1); border-radius: 2px 2px 0 0; }
+.a-trend__zero { border-bottom: 2px solid var(--chart-1); }
+.a-trend__missing { border: 1px dashed var(--chart-missing); border-bottom: none; border-radius: 2px 2px 0 0; }
+.a-trend__days { display: flex; justify-content: space-between; }
+.a-trend__axis { color: var(--color-text-muted); font-size: 0.75rem; line-height: 1.2; }
 .a-trend__legend { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-muted); }
 .a-trend__swatch { display: inline-block; width: 0.75rem; height: 0.75rem; margin-right: var(--space-1); vertical-align: -0.1em; border-radius: 2px; }
 .a-trend__swatch--value { background: var(--chart-1); }

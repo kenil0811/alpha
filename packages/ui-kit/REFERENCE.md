@@ -44,6 +44,18 @@ CSP blocks them.
 Tables are one option, not the default. Write custom React when no pattern fits; keep kit tokens
 and classes so it looks and behaves like the rest.
 
+**Lay the screen out around that choice.** Alpha shows an App's screen in about 1000 × 480 px in
+its default window (670 px wide at the smallest). The render check requires the main
+interaction's first control to be visible there without scrolling, and a second entry straight
+after the first to be saved.
+1. Put the main interaction at the top.
+2. Put the working list or today's summary right after it.
+3. Keep secondary forms (corrections, settings, rare actions) in a `DetailDrawer` or a
+   collapsed `<details>`, not stacked above the list.
+4. Mark required fields `required`: `Form` stops an empty submission, says which fields are
+   missing and focuses the first. After a save that clears the fields, focus returns to the
+   first one.
+
 ## Data: views, actions and outcomes
 
 - `useView(viewId, { where, order_by, limit })` → `{ records, loading, error, refresh, next, previous, hasNext, hasPrevious, page }`.
@@ -114,6 +126,10 @@ Formatting: `formatNumber`, `formatWithUnit`, `formatDay`, `today`, `addDays`, `
 - Model estimates are labelled (`ProvenanceNote`) and easy to correct.
 - Everything works with the keyboard alone; every control has a visible label; focus is visible.
 - No horizontal scrolling at 768 px; long titles wrap.
+- A failed save keeps what was typed (required by the render check); clear fields only after a
+  save succeeded.
+- Averages over time count only periods with entries and say how many there were; `TrendChart`
+  shows "Days with entries: n of m".
 - Words are the person's words: no field ids, collection names, JSON or error codes on screen.
 
 ## Testing a composition without Alpha

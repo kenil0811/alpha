@@ -361,6 +361,64 @@ def estimate_unlabelled(p: Path) -> None:
     _timed_note(p, "None", labelled=False)
 
 
+def ui_entry_below(p: Path) -> None:
+    """Puts a tall introduction above the entry, so the main interaction starts off-screen."""
+    _edit(
+        _screen(p),
+        '      <Section title="Add">',
+        '      <Section title="About">\n'
+        "        <div style={{ height: 900 }}>These notes are yours. Scroll down to add.</div>\n"
+        "      </Section>\n"
+        '      <Section title="Add">',
+    )
+
+
+def ui_clears_on_failure(p: Path) -> None:
+    """A hand-made entry form that empties the field before the save is known to succeed."""
+    _edit(
+        _screen(p),
+        'import { StrictMode } from "react";',
+        'import { StrictMode, useState } from "react";',
+    )
+    _edit(
+        _screen(p),
+        "import { AlphaApp, Page, QuickEntry,",
+        "import { AlphaApp, Button, Form, OperationStatus, Page, QuickEntry, TextField,",
+    )
+    _edit(
+        _screen(p),
+        '  const recent = useView<Note>("notes.recent", { limit: 20 });\n',
+        '  const recent = useView<Note>("notes.recent", { limit: 20 });\n'
+        '  const [title, setTitle] = useState("");\n',
+    )
+    _edit(
+        _screen(p),
+        "        <QuickEntry\n"
+        '          label="Note"\n'
+        '          parse={(text) => (text.trim() ? { status: "ok", value: text.trim(), '
+        'summary: text.trim() } : { status: "empty" })}\n'
+        "          onSubmit={async (title) => void (await add.run({ title }))}\n"
+        "        />",
+        """        <Form
+          onSubmit={async () => {
+            const typed = title;
+            setTitle("");
+            try {
+              await add.run({ title: typed });
+            } catch {
+              /* OperationStatus shows it */
+            }
+          }}
+        >
+          <TextField label="Note" required value={title}
+            onChange={(e) => setTitle(e.target.value)} />
+          <Button type="submit">Add</Button>
+          <OperationStatus state={add.state} error={add.error} />
+        </Form>""",
+    )
+    _edit(_screen(p), "Page, QuickEntry, TextField,", "Page, TextField,")
+
+
 def no_primary(p: Path) -> None:
     """Names no primary action: without its own screen, a person would get every step as a form."""
     _edit(_yaml(p), "primary_action: add_note\n", "")
@@ -389,6 +447,8 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         estimate_invented,
         estimate_unlabelled,
         no_primary,
+        ui_entry_below,
+        ui_clears_on_failure,
     )
 }
 

@@ -64,7 +64,7 @@ export function RunList({
               <pre className="run__output">{`${String(output.upper ?? "")}\n${String(output.words ?? 0)} words · ${String(output.characters ?? 0)} characters`}</pre>
             ) : null}
             {run.terminal_reason && run.state !== "succeeded" ? (
-              <div className="notice">Reason: {describeReason(run.terminal_reason)}</div>
+              <div className="notice">{whyNotDone(run.terminal_reason, events)}</div>
             ) : null}
             <details className="run__events">
               <summary>
@@ -84,6 +84,14 @@ export function RunList({
       })}
     </ul>
   );
+}
+
+/** The App's own plain message when it refused or failed, otherwise the platform's reason. */
+function whyNotDone(reason: string, events: RunView["events"]): string {
+  const error = [...events].reverse().find((e) => e.kind === "worker.error");
+  const said = error && typeof error.payload.message === "string" ? error.payload.message.trim() : "";
+  if (said) return `Not done: ${said}`;
+  return `Reason: ${describeReason(reason)}`;
 }
 
 function describeReason(reason: string): string {

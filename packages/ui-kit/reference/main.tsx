@@ -375,6 +375,31 @@ function Reference() {
   );
 }
 
+/** Trend qualification gallery (?charts=1): the cases M1 review finding F09 names, at whatever
+ *  width the window has. Measured by tests/ui/test_kit_trend.py. */
+function ChartGallery() {
+  const end = today();
+  const series = (days: number, fill: (i: number) => number | null) =>
+    Array.from({ length: days }, (_, i) => ({ day: addDays(end, -(days - 1 - i)), value: fill(i) }));
+  const charts: Array<[string, string, ReturnType<typeof series>]> = [
+    ["1-point", "One day", series(1, () => 1060)],
+    ["7-one-logged", "Seven days, one logged", series(7, (i) => (i === 6 ? 1060 : null))],
+    ["7-empty", "Seven days, none logged", series(7, () => null)],
+    ["7-zero", "Seven days with a recorded zero", series(7, (i) => [1200, 0, null, 900, 1500, null, 1060][i])],
+    ["30-mixed", "Thirty days", series(30, (i) => (i % 4 === 0 ? null : 800 + ((i * 37) % 700)))],
+    ["long-title", "Daily calories from everything eaten, including snacks and drinks, over the last week", series(7, (i) => 900 + i * 50)],
+  ];
+  return (
+    <Page title="Trend qualification" description="Short and long ranges, gaps, zero and a long title.">
+      {charts.map(([id, title, points]) => (
+        <div key={id} data-chart={id}>
+          <TrendChart title={title} unit="kcal" points={points} />
+        </div>
+      ))}
+    </Page>
+  );
+}
+
 declare global {
   interface Window {
     __alphaAxe?: () => Promise<Array<{ id: string; impact: string | null | undefined; nodes: number; targets: string[] }>>;
@@ -386,7 +411,5 @@ window.__alphaAxe = async () => {
 };
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Reference />
-  </StrictMode>,
+  <StrictMode>{new URLSearchParams(window.location.search).has("charts") ? <ChartGallery /> : <Reference />}</StrictMode>,
 );
