@@ -133,3 +133,21 @@ def test_a_model_result_stored_without_an_estimate_label_is_caught(once_core: Co
     check = found["model.failure.add_timed_note"]
     assert check["status"] == "failed"
     assert "without labelling it an estimate" in check["summary"]
+
+
+def test_an_unexercised_model_action_does_not_hold_back_the_screen_checks(
+    once_core: CoreProcess,
+) -> None:
+    """M1-R07: when no planned step makes an action call the model, its model-failure check is
+    an advisory skip. That skip used to stop the screen checks, so the build could never pass
+    (the calorie tracker's edit_entry, three attempts)."""
+    created = submit(once_core, "fake:package estimate_honest", copy.deepcopy(NOTES_PLAN))
+    final = wait_build(once_core, created["build_id"])
+    found = checks(report(once_core, final))
+    advisory = found["model.failure.add_timed_note"]
+    assert advisory["status"] == "skipped" and advisory["required"] is False, advisory
+    assert "ui.not_run" not in found
+    assert found["ui.primary.steps"]["status"] == "passed"
+    assert final["state"] == "ready", {
+        k: v["summary"] for k, v in found.items() if v["status"] != "passed"
+    }

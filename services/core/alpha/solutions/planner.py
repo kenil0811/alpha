@@ -44,7 +44,7 @@ Rules:
 - Assert exact values for everything computed from values the scenario itself supplied: totals, counts, averages, remaining time, what fits and what does not. Use {"$any": true} only for values the App chooses freely (ids, revisions, timestamps) or that come from a model estimate.
 - Missing data is unknown, not zero. An average over days (or weeks, or items) counts only the periods that have entries, and the result says how many periods had entries; a value the person enters as 0 is a real zero. When the brief has such a figure, add a scenario with a gap and assert both numbers exactly.
 - If an action fills a value from a model estimate, add one scenario where that invoke step has "model": "unavailable" (the platform makes the model fail). Then require an honest outcome: either "expect": "failed" followed by a records step showing nothing new was stored, or a stored record whose estimated field is null (null means unknown). Never accept a number there. Also show that a value the person types themselves is saved without the model.
-- Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. Without "custom_ui", set "ui" to null.
+- Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. The screen is checked in this order, each from its own starting point: empty; then the primary interaction on an App with nothing saved, so "saved" and "shows" describe only what that one interaction produces (a count of 1 for one entry, and totals of that entry alone); then the seed data alone for "seed_shows" (the interaction's entry is gone by then). Without "custom_ui", set "ui" to null.
 - Cover the whole brief: every action in it runs successfully in some scenario; for an action that computes something (effect "none"), assert at least one exact value it returns; after each action that saves, changes or deletes data, a records step in the same scenario reads back what is stored.
 - Every step id is unique within its scenario, lowercase snake_case.
 - Also give app_name: two to four plain words naming the App for the person.
@@ -98,6 +98,13 @@ def consistency_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str
         problems.append("the brief asks for a screen but the plan has no ui checks")
     if not wants_ui(brief) and plan.ui is not None:
         problems.append("the plan checks a screen the brief does not ask for")
+    saved = plan.ui.saved if plan.ui is not None else None
+    if saved is not None and saved.count is not None and saved.count > 1:
+        # Found in M1-R07: a plan counted its sample data here, which no screen could satisfy.
+        problems.append(
+            "the screen's interaction starts with nothing saved, so ui.saved can count only "
+            f"what that interaction stores, not {saved.count}; sample data belongs to seed_shows"
+        )
     return problems + coverage_problems(plan, brief)
 
 

@@ -8,9 +8,14 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from alpha.solutions.planner import AcceptancePlanner, PlanningFailed, coverage_problems
+from alpha.solutions.planner import (
+    AcceptancePlanner,
+    PlanningFailed,
+    consistency_problems,
+    coverage_problems,
+)
 from alpha_contracts.briefs import SolutionBrief
-from alpha_contracts.verification import ValidationPlan
+from alpha_contracts.verification import UiPlan, ValidationPlan
 
 BRIEF = SolutionBrief.model_validate(
     {
@@ -111,6 +116,30 @@ def test_stored_data_is_matched_by_action_not_by_how_the_brief_names_it() -> Non
     # Reading before the write, or only after a failed write, does not count.
     early = plan({**READ, "count": 0}, LOG, OFFLINE, TRENDS_EXACT)
     assert coverage_problems(early, labelled) == ["the plan never reads back what log_entry stores"]
+
+
+def test_the_screen_interaction_is_planned_on_an_app_with_nothing_saved() -> None:
+    """Found in M1-R07: the plan expected the interaction's save to make 3 entries and a total
+    including the sample data, which is seeded later and alone, so no screen could pass."""
+    screen = BRIEF.model_copy(update={"surfaces": ["conversation", "custom_ui"]})
+    ui = {
+        "primary": [
+            {"kind": "fill", "label": "Food", "text": "apple"},
+            {"kind": "click", "label": "Save"},
+        ],
+        "saved": {**READ, "id": "saved", "count": 3},
+        "shows": ["apple"],
+        "seed": [{**LOG, "id": "seed"}],
+        "seed_shows": ["apple"],
+    }
+    counted = COMPLETE.model_copy(update={"ui": UiPlan.model_validate(ui)})
+    problem = (
+        "the screen's interaction starts with nothing saved, so ui.saved can count only what "
+        "that interaction stores, not 3; sample data belongs to seed_shows"
+    )
+    assert problem in consistency_problems(counted, screen)
+    one = UiPlan.model_validate({**ui, "saved": {**READ, "id": "saved", "count": 1}})
+    assert consistency_problems(COMPLETE.model_copy(update={"ui": one}), screen) == []
 
 
 class Inference:

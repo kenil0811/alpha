@@ -80,6 +80,16 @@ def _result(
     )
 
 
+def _stage_ok(run: _Run, stage: str) -> bool:
+    """Every required check of the stage passed. An advisory check that was skipped (such as
+    model.failure.<action> when no planned step makes the action call the model) does not hold
+    back the next stage. Found in M1-R07: it did, so the screen was never checked and no attempt
+    of an App with an unexercised model action could pass."""
+    return all(
+        c.status is CheckStatus.PASSED for c in run.checks if c.stage == stage and c.required
+    )
+
+
 def _skipped(check_id: str, stage: str, summary: str) -> CheckResult:
     return CheckResult(id=check_id, stage=stage, status=CheckStatus.SKIPPED, summary=summary)
 
@@ -446,9 +456,7 @@ class CandidateVerifier:
             for result in results:
                 run.add(result)
         # Actions that use model estimates must stay honest when the model fails (F04).
-        scenarios_ok = all(
-            c.status is CheckStatus.PASSED for c in run.checks if c.stage == "behavior"
-        )
+        scenarios_ok = _stage_ok(run, "behavior")
         assert run.source is not None
         model_actions = [a.id for a in run.source.actions if "models" in a.capability_requirements]
         if model_actions and scenarios_ok:
@@ -471,9 +479,7 @@ class CandidateVerifier:
 
     def _ui(self, run: _Run) -> None:
         """The sealed screen, driven in the pinned headless browser."""
-        behaviour_ok = all(
-            c.status is CheckStatus.PASSED for c in run.checks if c.stage == "behavior"
-        )
+        behaviour_ok = _stage_ok(run, "behavior")
         run.reached = "ui"
         if not run.has_ui:
             return
