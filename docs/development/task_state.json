@@ -259,21 +259,39 @@
       }
     },
     "F08": {
-      "status": "pending",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "f7b80727d1026513732414e3a1bc14d39d37f4c2",
+      "notes": [
+        "Self-review. G1 on frozen platform code f7dada6: calorie tracker (own screen, 1 attempt), job-opening tracker (own screen, 2 attempts after a caught type error) and a held-out day planner with no custom screen (1 attempt), each through live generation, primary use and reopen; two generated Apps share one runtime profile with a cancelled run isolated. Three failed G1 attempts kept (CLI schema keyword, timed-out attempt with unused budget, literal '*' expectations), each fixed in platform code followed by a re-freeze and a fresh run. Not verified by the agent: generated screens in the native Alpha window (left to the M1 review). Stopped at M1: docs/development/M1-review.md."
+      ],
       "checks": {
         "F08.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F08.C01.md",
+          "evidence_sha256": "00df093418bb9e10ccfafb9a370773f9b9bb3993ce524fffeea3772bed1c0255",
+          "evidence_kind": "live_model",
+          "environment": "macOS 26.6 (Darwin 25.6.0) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b (TypeScript 7.0.2, React 19.3.0, Vite 8.3.1); Playwright 1.62.0, Chrome for Testing 151.0.7922.34; Claude Code CLI 2.1.278 route on the founder's subscription (claude-opus-5[1m]) for assistant, planner, builder and App model calls; platform frozen at f7dada6, G1 driver 4b2c77a"
         },
         "F08.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F08.C02.md",
+          "evidence_sha256": "c83550b13fbfe4113afca2ec576f224e20f9ec7e501ae0360ef05c7c685bfd37",
+          "evidence_kind": "rendered_ui",
+          "environment": "macOS 26.6 (Darwin 25.6.0) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b (TypeScript 7.0.2, React 19.3.0, Vite 8.3.1); Playwright 1.62.0, Chrome for Testing 151.0.7922.34; Claude Code CLI 2.1.278 route on the founder's subscription (claude-opus-5[1m]) for assistant, planner, builder and App model calls; platform frozen at f7dada6, G1 driver 4b2c77a; headless at 1280 and 768 px with the shell's bridge host against the real Core (native-window view left to the M1 review)"
         },
         "F08.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F08.C03.md",
+          "evidence_sha256": "d4e5f926f3f2edee7c3085a8d8db243136751b7f00d81ad322d9a139ba7d0598",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6 (Darwin 25.6.0) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b (TypeScript 7.0.2, React 19.3.0, Vite 8.3.1); Playwright 1.62.0, Chrome for Testing 151.0.7922.34; deterministic fake assistant/planner/builder for control tests (log at 518d187; full suite green at f2cb237, 45f962c, f7dada6, f7b8072) plus the live G1 reopen"
         },
         "F08.C04": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F08.C04.md",
+          "evidence_sha256": "fe96e093ed198de0b2e79e4248e1b01787af065be6cb72945ff7c8f5904b684d",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6 (Darwin 25.6.0) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b (TypeScript 7.0.2, React 19.3.0, Vite 8.3.1); Playwright 1.62.0, Chrome for Testing 151.0.7922.34; Claude Code CLI 2.1.278 route on the founder's subscription (claude-opus-5[1m]) for assistant, planner, builder and App model calls; platform frozen at f7dada6, G1 driver 4b2c77a; two G1-generated Apps on one installed profile"
         }
       }
     },
