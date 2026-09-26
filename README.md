@@ -5,10 +5,11 @@ one-off tasks and artifacts. This repository is the clean-start R2 implementatio
 planning snapshot lives in [docs/alpha-r2](docs/alpha-r2) (start with its START_HERE.md); actual
 progress is recorded in [docs/development](docs/development).
 
-**Status: internal development build.** F01–F06 are complete (desktop/Core/worker bootstrap,
-real builder route, UI isolation, conversation to SolutionBrief, records/artifacts/model SDK on a
-shared App runtime profile, interaction kit and pinned UI build profile). F07–F08 remain before the
-M1 review. See
+**Status: internal development build.** F01–F07 are complete: the desktop, Core and worker
+bootstrap; the real builder route; UI isolation; conversation to SolutionBrief; the
+records/artifacts/model SDK on a shared App runtime profile; the interaction kit and pinned UI
+build profile; and candidate verification with bounded repair. F08 remains before the M1 review.
+See
 [docs/development/task_state.json](docs/development/task_state.json).
 
 ## Toolchain (exact pins)

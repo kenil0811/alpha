@@ -222,21 +222,39 @@
       }
     },
     "F07": {
-      "status": "pending",
-      "implementation_ref": null,
-      "notes": [],
+      "status": "complete",
+      "implementation_ref": "3e9780a4d4967ef7b20ebf67029beeb65b92bb9d",
+      "notes": [
+        "Self-review. Live qualification on the founder's subscription: a seeded defect repaired in two live repairs, a contradictory plan honestly not gamed and stopped at the limit, and a new App generated and verified on the first attempt. Found and fixed during qualification: render-check label matching, untyped screens (now type-checked), builder shell allowlist, two error checks demanded where they cannot apply. F08 inherits: plans from briefs, host configuration of the UI toolchain, a sleep assertion during builds."
+      ],
       "checks": {
         "F07.C01": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F07.C01.md",
+          "evidence_sha256": "f21466c0407652afe1227a61211890a1730ef63027f770490f3c36d7fb3074af",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b (TypeScript 7.0.2, React 19.3.0, Vite 8.3.1); Playwright 1.62.0, Chrome for Testing 151.0.7922.34; deterministic fake builder"
         },
         "F07.C02": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F07.C02.md",
+          "evidence_sha256": "bf01e714f353cdecce2de1eb75f8a0a4ce8eb4a4682480871b702b5c6032da6b",
+          "evidence_kind": "rendered_ui",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b; headless Chrome for Testing 151.0.7922.34 via Playwright 1.62.0 at 1280 and 768 px; deterministic fake builder"
         },
         "F07.C03": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F07.C03.md",
+          "evidence_sha256": "8ce29fcd239987c87d1d1630369ca9fa75c71504cb61f17d878412b7e6af75e0",
+          "evidence_kind": "live_model",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; Claude Code CLI route on the founder's subscription (claude-opus-5[1m]); UI profiles uiprof-a6692c4f81d89a55ea70 (repair) and uiprof-5a3bad2e0741affeb06b (limit, generate); Playwright 1.62.0, Chrome for Testing 151.0.7922.34"
         },
         "F07.C04": {
-          "result": "pending"
+          "result": "passed",
+          "evidence_path": "docs/development/evidence/F07.C04.md",
+          "evidence_sha256": "126d823250de21877722e6a75c94e1fdaf12e4a78724ba7b44edb88d3b7870a0",
+          "evidence_kind": "integration",
+          "environment": "macOS 26.6.2 (25G83) arm64; CPython 3.13.9 Core; runtime profile pyprof-391f9ca6e9db5bc54576; UI profile uiprof-5a3bad2e0741affeb06b; private profile copies for tampering tests"
         }
       }
     },

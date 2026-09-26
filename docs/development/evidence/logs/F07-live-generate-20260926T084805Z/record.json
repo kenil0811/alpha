@@ -1,0 +1,2956 @@
+{
+  "scenario": "generate",
+  "commit": "3e9780a4d4967ef7b20ebf67029beeb65b92bb9d",
+  "worktree_clean": false,
+  "started_at": "20260926T084805Z",
+  "profiles": {
+    "runtime": {
+      "profile_id": "pyprof-391f9ca6e9db5bc54576",
+      "manifest_sha256": "52ce6009e7e20f10e622b6cc87c1be82ba3f49488c81033b5772cd488ad26ced",
+      "path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/profiles/pyprof-391f9ca6e9db5bc54576",
+      "published": true
+    },
+    "ui": {
+      "profile_id": "uiprof-5a3bad2e0741affeb06b",
+      "manifest_sha256": "868834cdbea25370db352619fdd9235457bcdb0aa2cc3f3debee262d3e772b43",
+      "path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/profiles/uiprof-5a3bad2e0741affeb06b",
+      "published": true
+    }
+  },
+  "spec": {
+    "goal": "Help me keep a reading list: I add a book by its title, and I can see the books I have added, newest first. I also want to mark a book as finished.",
+    "instructions": "Collection books with fields title (text, required) and finished (boolean, required). Actions: add_book (input title; stores finished=false; returns id and revision; usable from the screen and manually) and finish_book (input id; sets finished=true; usable from the screen and manually). The screen has a quick entry labelled 'Title' and a list of books, newest first.",
+    "plan": {
+      "scenarios": [
+        {
+          "id": "add_and_finish",
+          "description": "A book is added as unfinished and can then be marked finished",
+          "steps": [
+            {
+              "kind": "invoke",
+              "id": "add",
+              "action": "add_book",
+              "input": {
+                "title": "The Left Hand of Darkness"
+              },
+              "output": {}
+            },
+            {
+              "kind": "records",
+              "id": "added",
+              "collection": "books",
+              "count": 1,
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": false
+                }
+              ]
+            },
+            {
+              "kind": "invoke",
+              "id": "finish",
+              "action": "finish_book",
+              "input": {
+                "id": {
+                  "$ref": "add.output.id"
+                }
+              }
+            },
+            {
+              "kind": "records",
+              "id": "finished",
+              "collection": "books",
+              "count": 1,
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blank_title_refused",
+          "description": "A book without a title is refused and nothing is stored",
+          "steps": [
+            {
+              "kind": "invoke",
+              "id": "blank",
+              "action": "add_book",
+              "input": {
+                "title": ""
+              },
+              "expect": "failed"
+            },
+            {
+              "kind": "records",
+              "id": "none",
+              "collection": "books",
+              "count": 0
+            }
+          ]
+        }
+      ],
+      "ui": {
+        "primary": [
+          {
+            "kind": "fill",
+            "label": "Title",
+            "text": "Piranesi"
+          },
+          {
+            "kind": "press",
+            "key": "Enter"
+          }
+        ],
+        "saved": {
+          "kind": "records",
+          "id": "saved",
+          "collection": "books",
+          "includes": [
+            {
+              "title": "Piranesi"
+            }
+          ]
+        },
+        "shows": [
+          "Piranesi"
+        ],
+        "seed": [
+          {
+            "kind": "invoke",
+            "id": "seed_book",
+            "action": "add_book",
+            "input": {
+              "title": "A Memory Called Empire"
+            }
+          }
+        ],
+        "seed_shows": [
+          "A Memory Called Empire"
+        ]
+      }
+    },
+    "seed": null
+  },
+  "work_dir": "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8",
+  "elapsed_seconds": 193.0,
+  "build": {
+    "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+    "state": "ready",
+    "goal": "Help me keep a reading list: I add a book by its title, and I can see the books I have added, newest first. I also want to mark a book as finished.",
+    "instructions": "Collection books with fields title (text, required) and finished (boolean, required). Actions: add_book (input title; stores finished=false; returns id and revision; usable from the screen and manually) and finish_book (input id; sets finished=true; usable from the screen and manually). The screen has a quick entry labelled 'Title' and a list of books, newest first.",
+    "plan": {
+      "contract_version": "0.2",
+      "scenarios": [
+        {
+          "id": "add_and_finish",
+          "description": "A book is added as unfinished and can then be marked finished",
+          "steps": [
+            {
+              "kind": "invoke",
+              "id": "add",
+              "action": "add_book",
+              "input": {
+                "title": "The Left Hand of Darkness"
+              },
+              "expect": "succeeded",
+              "output": {},
+              "exact": false
+            },
+            {
+              "kind": "records",
+              "id": "added",
+              "collection": "books",
+              "where": null,
+              "count": 1,
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": false
+                }
+              ]
+            },
+            {
+              "kind": "invoke",
+              "id": "finish",
+              "action": "finish_book",
+              "input": {
+                "id": {
+                  "$ref": "add.output.id"
+                }
+              },
+              "expect": "succeeded",
+              "output": null,
+              "exact": false
+            },
+            {
+              "kind": "records",
+              "id": "finished",
+              "collection": "books",
+              "where": null,
+              "count": 1,
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blank_title_refused",
+          "description": "A book without a title is refused and nothing is stored",
+          "steps": [
+            {
+              "kind": "invoke",
+              "id": "blank",
+              "action": "add_book",
+              "input": {
+                "title": ""
+              },
+              "expect": "failed",
+              "output": null,
+              "exact": false
+            },
+            {
+              "kind": "records",
+              "id": "none",
+              "collection": "books",
+              "where": null,
+              "count": 0,
+              "includes": []
+            }
+          ]
+        }
+      ],
+      "ui": {
+        "primary": [
+          {
+            "kind": "fill",
+            "label": "Title",
+            "text": "Piranesi",
+            "key": null
+          },
+          {
+            "kind": "press",
+            "label": null,
+            "text": null,
+            "key": "Enter"
+          }
+        ],
+        "saved": {
+          "kind": "records",
+          "id": "saved",
+          "collection": "books",
+          "where": null,
+          "count": null,
+          "includes": [
+            {
+              "title": "Piranesi"
+            }
+          ]
+        },
+        "shows": [
+          "Piranesi"
+        ],
+        "seed": [
+          {
+            "kind": "invoke",
+            "id": "seed_book",
+            "action": "add_book",
+            "input": {
+              "title": "A Memory Called Empire"
+            },
+            "expect": "succeeded",
+            "output": null,
+            "exact": false
+          }
+        ],
+        "seed_shows": [
+          "A Memory Called Empire"
+        ]
+      }
+    },
+    "route_id": "claude-code-cli",
+    "harness": "claude-code-cli",
+    "budget": {
+      "max_turns": 60,
+      "max_attempt_seconds": 720,
+      "max_total_seconds": 1800,
+      "max_repair_attempts": 2,
+      "max_cost_usd": null,
+      "cost_basis": "subscription_unmetered"
+    },
+    "brief_ref": "build_a010b50dc77849c38240f6de2ffd635b.brief.r1",
+    "created_at": "2026-09-26T08:48:08.023512Z",
+    "updated_at": "2026-09-26T08:51:19.833952Z",
+    "finished_at": "2026-09-26T08:51:19.833837Z",
+    "terminal_reason": null,
+    "failure_category": null,
+    "attempts": [
+      {
+        "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+        "number": 1,
+        "status": "candidate",
+        "failure_category": null,
+        "workspace_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1",
+        "started_at": "2026-09-26T08:48:08.028650Z",
+        "finished_at": "2026-09-26T08:51:19.833670Z",
+        "usage": {
+          "input_tokens": 30,
+          "output_tokens": 13239,
+          "cache_read_input_tokens": 348608,
+          "cache_creation_input_tokens": 29358,
+          "turns": 23,
+          "duration_ms": 184337,
+          "cost_usd": 0.799009,
+          "cost_basis": "subscription_unmetered",
+          "models": {
+            "claude-opus-5[1m]": {
+              "inputTokens": 30,
+              "outputTokens": 13239,
+              "cacheReadInputTokens": 348608,
+              "cacheCreationInputTokens": 29358,
+              "costUSD": 0.799009
+            }
+          }
+        },
+        "harness_exit": {
+          "exit_code": 0,
+          "descendant_cleanup": {
+            "pgid": 18276,
+            "grace_seconds": 2.0,
+            "sigterm_sent": false,
+            "already_gone": true
+          },
+          "stderr_tail": ""
+        },
+        "report_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/verification.report.json"
+      }
+    ],
+    "candidate": {
+      "app_id": "reading-list",
+      "name": "Reading list",
+      "version_id": "ver_bc890f115d38524b2f08187b",
+      "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda",
+      "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+      "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+      "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+      "actions": [
+        "add_book",
+        "finish_book"
+      ],
+      "has_ui": true,
+      "version_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/version/ver_bc890f115d38524b2f08187b",
+      "report_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/verification.report.json",
+      "handlers_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/handlers.report.json",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "attempt_number": 1,
+      "activated": false
+    },
+    "validation": {
+      "contract_version": "0.2",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "attempt_number": 1,
+      "lineage": [
+        "attempt_09cc4c4e7e2a404392baa6793e1cbce1"
+      ],
+      "builder_status": "candidate",
+      "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda",
+      "version_id": "ver_bc890f115d38524b2f08187b",
+      "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+      "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+      "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+      "environment": {
+        "os": "Darwin 25.6.0 arm64",
+        "core_python": "3.13.9",
+        "runtime_profile": "pyprof-391f9ca6e9db5bc54576",
+        "python": "3.13.9",
+        "sdk": "0.1.0",
+        "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+        "ui_browser": "151.0.7922.34",
+        "ui_playwright": "1.62.0",
+        "ui_node": "v24.21.0",
+        "ui_blocked_requests": "0"
+      },
+      "checks": [
+        {
+          "id": "package.contract",
+          "stage": "package",
+          "required": true,
+          "status": "passed",
+          "summary": "app.yaml declares reading-list",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "package.layout",
+          "stage": "package",
+          "required": true,
+          "status": "passed",
+          "summary": "5 file(s) follow the layout",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "deps.profiles",
+          "stage": "deps",
+          "required": true,
+          "status": "passed",
+          "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "seal.ui_build",
+          "stage": "seal",
+          "required": true,
+          "status": "passed",
+          "summary": "UI compiled against uiprof-5a3bad2e0741affeb06b (252880 bytes)",
+          "detail": {
+            "modules": {
+              "app": [
+                "index.html",
+                "main.tsx"
+              ],
+              "packages": {
+                "@alpha/ui-bridge@0.2.0": 1,
+                "@alpha/ui-kit@0.1.0": 8,
+                "react-dom@19.3.0": 4,
+                "react@19.3.0": 4,
+                "scheduler@0.28.0": 2
+              },
+              "unpinned": [],
+              "virtual": 5
+            },
+            "csp": "default-src 'none'; script-src 'sha256-aw4HeCPVH9GM1AUKosSyeceVUT/fBp91dt1m/vav6Vo='; style-src 'sha256-fwGNfBI/opI90ZSCtnDpIaiDCEm+wyoWNaCUlURA8EM='; connect-src 'none'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none'"
+          },
+          "evidence": []
+        },
+        {
+          "id": "seal.package",
+          "stage": "seal",
+          "required": true,
+          "status": "passed",
+          "summary": "sealed ver_bc890f115d38524b2f08187b (12 files) in 1.0s",
+          "detail": {
+            "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda"
+          },
+          "evidence": []
+        },
+        {
+          "id": "handlers.imports",
+          "stage": "handlers",
+          "required": true,
+          "status": "passed",
+          "summary": "imports are the standard library, the SDK and the package's own modules",
+          "detail": {
+            "stdlib": [
+              "__future__",
+              "typing"
+            ],
+            "local": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "handlers.bind",
+          "stage": "handlers",
+          "required": true,
+          "status": "passed",
+          "summary": "2 handler(s) bound on pyprof-391f9ca6e9db5bc54576",
+          "detail": {
+            "actions": [
+              {
+                "id": "add_book",
+                "handler": "app_code.handlers:add_book",
+                "signature": "(ctx: 'Context', title: 'str') -> 'dict[str, Any]'",
+                "ok": true
+              },
+              {
+                "id": "finish_book",
+                "handler": "app_code.handlers:finish_book",
+                "signature": "(ctx: 'Context', id: 'str') -> 'dict[str, Any]'",
+                "ok": true
+              }
+            ]
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.add_and_finish.add",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "add_book succeeded as expected",
+          "detail": {
+            "action": "add_book",
+            "input": {
+              "title": "The Left Hand of Darkness"
+            },
+            "expect": "succeeded",
+            "state": "succeeded",
+            "run_id": "run_319c732f98f04ffcae1cee5ad20b2257",
+            "output": {
+              "id": "rec_05118d8b06d1440ca9f7b7afb5695714",
+              "revision": 1
+            },
+            "expected_output": {}
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.add_and_finish.added",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "1 books record(s) saved as expected",
+          "detail": {
+            "collection": "books",
+            "count": 1,
+            "values": [
+              {
+                "finished": false,
+                "title": "The Left Hand of Darkness"
+              }
+            ],
+            "includes": [
+              {
+                "title": "The Left Hand of Darkness",
+                "finished": false
+              }
+            ]
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.add_and_finish.finish",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "finish_book succeeded as expected",
+          "detail": {
+            "action": "finish_book",
+            "input": {
+              "id": "rec_05118d8b06d1440ca9f7b7afb5695714"
+            },
+            "expect": "succeeded",
+            "state": "succeeded",
+            "run_id": "run_03cf5aed793541d7a7dda796b60512fd",
+            "output": {
+              "id": "rec_05118d8b06d1440ca9f7b7afb5695714",
+              "revision": 2
+            }
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.add_and_finish.finished",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "1 books record(s) saved as expected",
+          "detail": {
+            "collection": "books",
+            "count": 1,
+            "values": [
+              {
+                "finished": true,
+                "title": "The Left Hand of Darkness"
+              }
+            ],
+            "includes": [
+              {
+                "title": "The Left Hand of Darkness",
+                "finished": true
+              }
+            ]
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.blank_title_refused.blank",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "add_book was refused: the input for add_book is not valid",
+          "detail": {
+            "input": {
+              "title": ""
+            },
+            "expected": "failed",
+            "observed": {
+              "refused": {
+                "code": "invalid_input",
+                "message": "the input for add_book is not valid",
+                "details": {
+                  "problems": [
+                    "title: '' should be non-empty"
+                  ]
+                }
+              }
+            }
+          },
+          "evidence": []
+        },
+        {
+          "id": "behavior.blank_title_refused.none",
+          "stage": "behavior",
+          "required": true,
+          "status": "passed",
+          "summary": "0 books record(s) saved as expected",
+          "detail": {
+            "collection": "books",
+            "count": 0,
+            "values": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.seed.seed_book",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "add_book succeeded as expected",
+          "detail": {
+            "action": "add_book",
+            "input": {
+              "title": "A Memory Called Empire"
+            },
+            "expect": "succeeded",
+            "state": "succeeded",
+            "run_id": "run_372d7ec3f5d345228a3900ea86410e9e",
+            "output": {
+              "id": "rec_ba15bd603aca4229adffb124e56116a6",
+              "revision": 1
+            }
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.empty.render",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "rendered \"Reading list\"",
+          "detail": {},
+          "evidence": [
+            "evidence/ui/empty-1280.png"
+          ]
+        },
+        {
+          "id": "ui.empty.no_error",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "no error shown when nothing is saved yet",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "ui.empty.clean",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "empty state: no script errors",
+          "detail": {
+            "errors": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.empty.layout_768",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "no sideways scrolling at 768px",
+          "detail": {
+            "scroll_width": 768,
+            "client_width": 768
+          },
+          "evidence": [
+            "evidence/ui/empty-768.png"
+          ]
+        },
+        {
+          "id": "ui.primary.steps",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "performed 2 step(s)",
+          "detail": {
+            "steps": [
+              {
+                "kind": "fill",
+                "label": "Title",
+                "text": "Piranesi"
+              },
+              {
+                "kind": "press",
+                "key": "Enter"
+              }
+            ]
+          },
+          "evidence": [
+            "evidence/ui/primary-1280.png"
+          ]
+        },
+        {
+          "id": "ui.primary.action",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "the screen invoked 1 declared action(s)",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "ui.primary.outcome",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "every action the screen started succeeded",
+          "detail": {
+            "states": {
+              "run_24764a1f848843b69148dd87671171d0": "succeeded"
+            }
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.primary.saved",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "1 books record(s) saved as expected",
+          "detail": {
+            "collection": "books",
+            "count": 1,
+            "values": [
+              {
+                "finished": false,
+                "title": "Piranesi"
+              }
+            ],
+            "includes": [
+              {
+                "title": "Piranesi"
+              }
+            ]
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.primary.shows.1",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "shows \"Piranesi\" after the interaction",
+          "detail": {},
+          "evidence": []
+        },
+        {
+          "id": "ui.primary.clean",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "primary interaction: no script errors",
+          "detail": {
+            "errors": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.populated.seed",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "created sample data with 1 action run(s)",
+          "detail": {
+            "ok": true,
+            "summary": "1 sample run(s)"
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.populated.shows.1",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "shows \"A Memory Called Empire\" with saved data",
+          "detail": {},
+          "evidence": [
+            "evidence/ui/populated-1280.png"
+          ]
+        },
+        {
+          "id": "ui.populated.clean",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "populated state: no script errors",
+          "detail": {
+            "errors": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.populated.layout_768",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "no sideways scrolling at 768px",
+          "detail": {
+            "scroll_width": 768,
+            "client_width": 768
+          },
+          "evidence": [
+            "evidence/ui/populated-768.png"
+          ]
+        },
+        {
+          "id": "ui.error.read",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "a failed read shows: Books on the reading list, newest first could not be loaded\n\nAlpha could not read the saved data right now.\n\nTry again",
+          "detail": {},
+          "evidence": [
+            "evidence/ui/error-read.png"
+          ]
+        },
+        {
+          "id": "ui.error.read_clean",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "failed read: no script errors",
+          "detail": {
+            "errors": []
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.error.save",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "a failed save shows: \u00d7\nProblem:\nNot saved. Alpha could not save this right now. Your text is still there; press Enter to try again.",
+          "detail": {},
+          "evidence": [
+            "evidence/ui/error-save.png"
+          ]
+        },
+        {
+          "id": "ui.error.save_nothing_stored",
+          "stage": "ui",
+          "required": true,
+          "status": "passed",
+          "summary": "nothing was stored by the failed save",
+          "detail": {
+            "before": 2,
+            "after": 2
+          },
+          "evidence": []
+        },
+        {
+          "id": "ui.error.save_input_kept",
+          "stage": "ui",
+          "required": false,
+          "status": "passed",
+          "summary": "the typed input is kept after a failed save",
+          "detail": {
+            "value": "Piranesi"
+          },
+          "evidence": []
+        }
+      ],
+      "supplementary": [
+        {
+          "id": "candidate_tests",
+          "stage": "tests",
+          "required": false,
+          "status": "passed",
+          "summary": "5 candidate test(s); all passed (supplementary, not acceptance evidence)",
+          "detail": {
+            "present": true,
+            "ran": 5,
+            "ok": true,
+            "failures": [],
+            "skipped": 0,
+            "log_tail": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+          },
+          "evidence": []
+        }
+      ],
+      "qualification_requests": [],
+      "unresolved_limits": [
+        "App and builder processes are not yet OS-sandboxed (F20)"
+      ],
+      "passed": true
+    },
+    "seed_package": null,
+    "latest_sequence": 95
+  },
+  "events": [
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_6bf121595f4045d0b6e45f17151e8842",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": null,
+      "sequence": 1,
+      "kind": "build.queued",
+      "occurred_at": "2026-09-26T08:48:08.024065Z",
+      "payload": {
+        "ahead": 0,
+        "route_id": "claude-code-cli"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_637ca02852574f688da00c289d5fcfe1",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 2,
+      "kind": "build.attempt_started",
+      "occurred_at": "2026-09-26T08:48:08.028843Z",
+      "payload": {
+        "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+        "deadline_seconds": 720,
+        "harness": "claude-code-cli",
+        "number": 1,
+        "repair": false,
+        "seed_package": null
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_b1f4df10ebc8483da81d540f281c5d81",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 3,
+      "kind": "builder.capabilities",
+      "occurred_at": "2026-09-26T08:48:08.096864Z",
+      "payload": {
+        "capabilities": {
+          "cancel": true,
+          "name": "claude-code-cli",
+          "notes": [
+            "subscription login owned by the CLI; platform cannot inject a scoped credential",
+            "config home strategy: user_default_settings_ignored"
+          ],
+          "resume": false,
+          "structured_events": true,
+          "usage_reporting": true,
+          "version": "2.1.278"
+        }
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a1d4380ab9ea40789e075278a3af55db",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 4,
+      "kind": "builder.harness_started",
+      "occurred_at": "2026-09-26T08:48:08.099163Z",
+      "payload": {
+        "session_ref": "claude-cli-18278"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_43432a3e102a432b95036a2b9653efc2",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 5,
+      "kind": "harness.harness.started",
+      "occurred_at": "2026-09-26T08:48:08.099290Z",
+      "payload": {
+        "harness": "claude-code-cli",
+        "pid": 18278
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ef1463a7d1b84cdaabe29af5a2437520",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 6,
+      "kind": "harness.harness.system",
+      "occurred_at": "2026-09-26T08:48:08.318693Z",
+      "payload": {
+        "model": "claude-opus-5[1m]",
+        "permission_mode": "acceptEdits",
+        "subtype": "init",
+        "tools": [
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ]
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_084920d3309e4fc1a6b2aeeae325cb66",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 7,
+      "kind": "harness.harness.assistant_text",
+      "occurred_at": "2026-09-26T08:48:10.544635Z",
+      "payload": {
+        "text": "I'll start by reading the plan and reference files."
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_c2e7b0d59507483f8531ce46b570fc84",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 8,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:11.872034Z",
+      "payload": {
+        "input": {
+          "command": "ls -la /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_d720acfec3d9402391045383a7a51f39",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 9,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:11.933744Z",
+      "payload": {
+        "is_error": false,
+        "preview": "total 24\ndrwxr-xr-x@ 8 kenil  staff   256 Sep 26 09:48 .\ndrwxr-xr-x@ 5 kenil  staff   160 Sep 26 09:48 ..\ndrwxr-xr-x@ 2 kenil  staff    64 Sep 26 09:48 .claude-home\n-rw-r--r--@ 1 kenil  staff  2052 Sep 26 09:48 PLAN.md\n-rw-r--r--@ 1 kenil  staff   953 Sep 26 09:48 harness.argv.json\ndrwxr-xr-x@ 5 ken"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_389b932015ac4d21bfcae7e494b57b58",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 10,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:12.791452Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/PLAN.md"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_c5e561e68d8040e1bfc71496dd58ae7a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 11,
+      "kind": "harness.harness.message",
+      "occurred_at": "2026-09-26T08:48:12.800493Z",
+      "payload": {
+        "type": "rate_limit_event"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_e4304c444046420f8fb738a50ca54f88",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 12,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:12.803556Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t# Independent checks for this App\n2\t\n3\tThe platform runs these checks against the sealed package through real action runs and a\n4\treal browser. They were written before the build; changing this file changes nothing.\n5\t`{\"$ref\": \"<step>.output.<key>\"}` is a value an earlier step returned and\n6\t`{\"$"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_406f62d541e54054a15a395e43b7e347",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 13,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:20.015255Z",
+      "payload": {
+        "input": {
+          "command": "find /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a4ac2f17b82c440cae2c8cf8a2d6babb",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 14,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:20.039183Z",
+      "payload": {
+        "is_error": false,
+        "preview": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/ui/src/main.tsx\n/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/at"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_15e102762ce14e0b95828fd5d7e92ce1",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 15,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:21.021821Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/reference/APP_CONTRACT.md"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_efc50534eb4e45c9bc90aaee5e6d69ee",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 16,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:21.032743Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t# The App package (contract 0.2), for the builder\n2\t\n3\tAn App is a folder the platform seals into an immutable Version:\n4\t\n5\t```\n6\tapp.yaml        what the App is: data, actions, screen, profile identities\n7\tsrc/            Python action handlers (import only the standard library, alpha_sdk, own m"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_69942a2cabad4cbe8546ae82d97a1fd4",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 17,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:28.346720Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/reference/SDK.md"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f6829fcd55f64660b5bd2d19c168b956",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 18,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:28.352479Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t# alpha_sdk reference (for generated App code)\n2\t\n3\tHandlers import only the Python standard library, `alpha_sdk` and the package's own modules.\n4\tThey have no files, network, subprocesses, environment variables or credentials; everything\n5\tgoes through the Context the platform passes as the first"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_5de00c52c85e47089d6d71e2aeaeddbb",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 19,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:29.396030Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/reference/UI_KIT.md"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_7401b15f918c406b881ec33b70bf606d",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 20,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:29.405266Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t# @alpha/ui-kit reference (for generated App UI)\n2\t\n3\tThis sheet ships inside the pinned UI build profile. Generated UI imports only `react`,\n4\t`react-dom`, `@alpha/ui-kit` and its own files. It runs in a sandboxed frame with no network;\n5\teverything it reads or changes goes through the App's decl"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_51d41ac9d1254f6e8e2e0c9209dfdbe4",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 21,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:35.172977Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/app.yaml"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_403431e204174222bc7fbb0cf975d3bf",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 22,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:35.182035Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\tcontract_version: \"0.2\"\n2\tapp_id: \"{{APP_ID}}\"\n3\tname: \"{{APP_NAME}}\"\n4\tdescription: \"{{ONE_SENTENCE_PURPOSE}}\"\n5\truntime_profile: \"pyprof-391f9ca6e9db5bc54576\"\n6\tsdk_version: \"0.1.0\"\n7\tcapabilities: [records]\n8\tcollections:\n9\t  - name: items\n10\t    fields:\n11\t      - {name: title, kind: text, req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_89b642c2860040f0b83c53df77cefc00",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 23,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:36.308015Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_15016b83382c4eab84193238d7b5bda9",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 24,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:36.316380Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t\"\"\"Action handlers. Each takes the Context first, then the action's declared inputs.\"\"\"\n2\t\n3\tfrom __future__ import annotations\n4\t\n5\tfrom typing import Any\n6\t\n7\tfrom alpha_sdk import Context\n8\t\n9\t\n10\tdef add_item(ctx: Context, title: str) -> dict[str, Any]:\n11\t    record = ctx.records.create(\n12\t "
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_72455293516a4348ad00e03e6cde7cb5",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 25,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:37.314241Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/ui/src/main.tsx"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_88226fa9e1564adbbf7909fd9a9ac7b5",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 26,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:37.324723Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t// Template UI: a quick entry and the recent list. Replace with the App's real interaction.\n2\timport { StrictMode } from \"react\";\n3\timport { createRoot } from \"react-dom/client\";\n4\timport \"@alpha/ui-kit/styles.css\";\n5\timport { AlphaApp, Page, QuickEntry, RecordTable, Section, formatDay, useAction,"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_4de25b04a9b2419085fdc9af52a6825d",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 27,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:43.026090Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/plan.json"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_61f27e6894ef4dc585da480e0bb39fc4",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 28,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:43.033568Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t{\n2\t  \"contract_version\": \"0.2\",\n3\t  \"scenarios\": [\n4\t    {\n5\t      \"id\": \"add_and_finish\",\n6\t      \"description\": \"A book is added as unfinished and can then be marked finished\",\n7\t      \"steps\": [\n8\t        {\n9\t          \"kind\": \"invoke\",\n10\t          \"id\": \"add\",\n11\t          \"action\": \"add_boo"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_03c53d9c23624f61863b76e629e7f6d0",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 29,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:48:44.606175Z",
+      "payload": {
+        "input": {
+          "command": "ls /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/ 2>/dev/null; ls /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/profiles/ 2>/dev/n"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ce6e4a922f3743eda4458048a1a7fa9c",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 30,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:48:44.632235Z",
+      "payload": {
+        "is_error": true,
+        "preview": "Permission for this tool use was denied. It requires approval, and this session has no approval surface \u2014 nobody can answer a permission prompt here \u2014 so it was denied automatically. The action was NOT performed; do not claim it succeeded, and do not retry it: this action, and anything else that req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_66ffe7688eab4723a7ce01d0d0e39ab4",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 31,
+      "kind": "harness.harness.assistant_text",
+      "occurred_at": "2026-09-26T08:49:20.251489Z",
+      "payload": {
+        "text": "Now I'll write the package. Starting with `app.yaml`:"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_15b27874768244cd80d5ab857393bd43",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 32,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:49:29.852844Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/app.yaml"
+        },
+        "tool": "Write"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_aba71b9d76954ec58452c1ca5e90bfa1",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 33,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:49:29.862431Z",
+      "payload": {
+        "is_error": false,
+        "preview": "The file /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/app.yaml has been updated successfully. (file state is current in your context \u2014 no need to Read it back)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f464b843f76a42098fdcf4157507bd75",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 34,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:49:33.898484Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py"
+        },
+        "tool": "Write"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_def8c0c55cfd4c709ba58912c4704378",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 35,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:49:33.908002Z",
+      "payload": {
+        "is_error": false,
+        "preview": "The file /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py has been updated successfully. (file state is current in your context \u2014 no need to Read it back)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a5f2daf6b02d4aa2937e06140b9c3c51",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 36,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:49:49.081675Z",
+      "payload": {
+        "input": {
+          "command": "/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/profiles/pyprof-391f9ca6e9db5bc54576/venv/bin/python -c \"\nimport alpha_sdk, inspect\nprint([n for n in dir(alpha_sdk) if not n.s"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_66b5e46f029740a78ce3a555a2f7b383",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 37,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:49:49.089660Z",
+      "payload": {
+        "is_error": true,
+        "preview": "Permission for this tool use was denied. It requires approval, and this session has no approval surface \u2014 nobody can answer a permission prompt here \u2014 so it was denied automatically. The action was NOT performed; do not claim it succeeded, and do not retry it: this action, and anything else that req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_46cf479a142b4c0fa261b5a77fa2a14a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 38,
+      "kind": "harness.harness.assistant_text",
+      "occurred_at": "2026-09-26T08:50:00.226330Z",
+      "payload": {
+        "text": "Running the platform interpreter was denied by the sandbox, so I can't introspect `alpha_sdk`. I'll stick strictly to what the reference documents guarantee and avoid unverifiable imports:"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_2e8c09872b644410b154e19cb9fd9190",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 39,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:03.245106Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py"
+        },
+        "tool": "Edit"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_d928190d577446c49572f243b7f81408",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 40,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:03.260320Z",
+      "payload": {
+        "is_error": false,
+        "preview": "The file /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py has been updated successfully. (file state is current in your context \u2014 no need to Read it back)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_c292566c3ca24f118841f5b3624ea6c0",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 41,
+      "kind": "harness.harness.assistant_text",
+      "occurred_at": "2026-09-26T08:50:04.949555Z",
+      "payload": {
+        "text": "Now the screen:"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_bfea3a80d9ef436cb486efe097585326",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 42,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:14.826247Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/ui/src/main.tsx"
+        },
+        "tool": "Write"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_d0cc8e777b4c4c43adda4d2ceb782cc7",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 43,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:14.836294Z",
+      "payload": {
+        "is_error": false,
+        "preview": "The file /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/ui/src/main.tsx has been updated successfully. (file state is current in your context \u2014 no need to Read it back)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_c9906e1c45774bc094d610f7904f81aa",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 44,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:32.264706Z",
+      "payload": {
+        "input": {
+          "command": "python3 -m py_compile package/src/app_code/handlers.py package/src/app_code/__init__.py && echo COMPILE_OK && python3 -c \"import sys,json;print(sys.version)\""
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_7d98b1b9c00e499cae79e959b362a5a3",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 45,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:32.273933Z",
+      "payload": {
+        "is_error": true,
+        "preview": "Permission for this tool use was denied. It requires approval, and this session has no approval surface \u2014 nobody can answer a permission prompt here \u2014 so it was denied automatically. The action was NOT performed; do not claim it succeeded, and do not retry it: this action, and anything else that req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_e2bbd4e250784876835274f26ac59b57",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 46,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:34.703595Z",
+      "payload": {
+        "input": {
+          "command": "python3 -m py_compile package/src/app_code/handlers.py"
+        },
+        "tool": "Bash"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_846bad53d1de4319be62855286ee387f",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 47,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:34.710082Z",
+      "payload": {
+        "is_error": true,
+        "preview": "Permission for this tool use was denied. It requires approval, and this session has no approval surface \u2014 nobody can answer a permission prompt here \u2014 so it was denied automatically. The action was NOT performed; do not claim it succeeded, and do not retry it: this action, and anything else that req"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_cb170db01c8a42329169c32a4c1b7e3a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 48,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:46.787038Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/__init__.py"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_8ed5a94da3ea4bbc9934b67f7463baa0",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 49,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:46.798475Z",
+      "payload": {
+        "is_error": false,
+        "preview": "<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_183e10c8272d4589a91f48dd820ca24e",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 50,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:50:58.836538Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/tests/test_handlers.py"
+        },
+        "tool": "Write"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_7dd0dcca815e44dc8c5438c607ed47a8",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 51,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:50:58.844203Z",
+      "payload": {
+        "is_error": false,
+        "preview": "File created successfully at: /private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/tests/test_handlers.py (file state is current in your context \u2014 no need to Read it back)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ff6208579d74457284b93094976a71cf",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 52,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:51:03.009869Z",
+      "payload": {
+        "input": {
+          "file_path": "/private/var/folders/sr/81_5d60n0vn6vyh8pkxhz_vm0000gn/T/alpha-f07-live-fjohxtq8/data/builds/build_a010b50dc77849c38240f6de2ffd635b/attempt-1/package/src/app_code/handlers.py"
+        },
+        "tool": "Read"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_9bae055579cc4ae498fd4cc1ea4cf35d",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 53,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:51:03.018027Z",
+      "payload": {
+        "is_error": false,
+        "preview": "1\t\"\"\"Action handlers. Each takes the Context first, then the action's declared inputs.\"\"\"\n2\t\n3\tfrom __future__ import annotations\n4\t\n5\tfrom typing import Any\n6\t\n7\tfrom alpha_sdk import Context\n8\t\n9\t\n10\tdef add_book(ctx: Context, title: str) -> dict[str, Any]:\n11\t    \"\"\"Add one book to the reading li"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a196e688237746a6833c21195c01363a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 54,
+      "kind": "harness.harness.tool_use",
+      "occurred_at": "2026-09-26T08:51:03.348035Z",
+      "payload": {
+        "input": {
+          "pattern": "package/**/*"
+        },
+        "tool": "Glob"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_3b19ba527e9e4dd8bd183910db08af9a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 55,
+      "kind": "harness.harness.tool_result",
+      "occurred_at": "2026-09-26T08:51:03.364927Z",
+      "payload": {
+        "is_error": false,
+        "preview": "package/src/app_code/__init__.py\npackage/app.yaml\npackage/src/app_code/handlers.py\npackage/ui/src/main.tsx\npackage/tests/test_handlers.py"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_550316c32d7c40c2b90185a4864217ab",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 56,
+      "kind": "harness.harness.assistant_text",
+      "occurred_at": "2026-09-26T08:51:12.615998Z",
+      "payload": {
+        "text": "Done. Two things to flag honestly:\n\n- **I could not run any command in this session** \u2014 every Bash call (including `<python> -m py_compile`, and inspecting `alpha_sdk`) was denied with no approval surface. So the Python is reviewed by eye, not compile-checked, and `package/tests/test_handlers.py` was never executed.\n- Because I couldn't confirm that `InvalidValue` is exported from `alpha_sdk` top-level (SDK.md shows only `Context, Conflict, NotFound` imported), `add_book` raises a plain `ValueError` for a whitespace-only title rather than risking a module-level import error that would break every action. The empty-title case (`\"\"`) is already refused by `input_schema`'s `minLength: 1` before the handler runs, so nothing is stored either way.\n\nWhat's in the package: collection `books` (`title` text required, `finished` boolean required); actions **`add_book`** (title \u2192 stores `finished: false`, returns `id` and `revision`; `invocable_from: [ui, manual]`) and **`finish_book`** (id \u2192 sets `finished: true`, idempotent); view `books.recent` ordered `created_at` desc; and the screen **`ui/src/main.tsx`**, a \"Reading list\" page with a `QuickEntry` labelled **Title** (Enter submits, text kept on failure, `OperationStatus` for errors) above a `RecordTable` of books newest first with a \"Mark finished\" button per unfinished book."
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f2b414899b6d41e890313959e5a46815",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 57,
+      "kind": "harness.harness.result",
+      "occurred_at": "2026-09-26T08:51:12.618836Z",
+      "payload": {
+        "duration_ms": 184337,
+        "is_error": false,
+        "num_turns": 23,
+        "result_preview": "Done. Two things to flag honestly:\n\n- **I could not run any command in this session** \u2014 every Bash call (including `<python> -m py_compile`, and inspecting `alpha_sdk`) was denied with no approval surface. So the Python is reviewed by eye, not compile-checked, and `package/tests/test_handlers.py` was never executed.\n- Because I couldn't confirm that `InvalidValue` is exported from `alpha_sdk` top-level (SDK.md shows only `Context, Conflict, NotFound` imported), `add_book` raises a plain `ValueEr",
+        "subtype": "success",
+        "total_cost_usd": 0.799009
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_079fa85ed2784c6c8760cd2073ae9fd8",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 58,
+      "kind": "builder.result",
+      "occurred_at": "2026-09-26T08:51:12.628407Z",
+      "payload": {
+        "summary": {
+          "exit_code": 0,
+          "failure_category": null,
+          "final_text": "Done. Two things to flag honestly:\n\n- **I could not run any command in this session** \u2014 every Bash call (including `<python> -m py_compile`, and inspecting `alpha_sdk`) was denied with no approval surface. So the Python is reviewed by eye, not compile-checked, and `package/tests/test_handlers.py` wa",
+          "harness": "claude-code-cli",
+          "harness_version": "2.1.278",
+          "status": "candidate"
+        }
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_e55b9ef51c6646b8a88da95bf23ccc80",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 59,
+      "kind": "builder.exited",
+      "occurred_at": "2026-09-26T08:51:12.638673Z",
+      "payload": {
+        "descendant_cleanup": {
+          "already_gone": true,
+          "grace_seconds": 2.0,
+          "pgid": 18276,
+          "sigterm_sent": false
+        },
+        "exit_code": 0,
+        "stderr_tail": ""
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_44531b38679248c193df62753244eb84",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 60,
+      "kind": "build.validating",
+      "occurred_at": "2026-09-26T08:51:12.639125Z",
+      "payload": {
+        "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+        "harness_status": "candidate"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_5e9b8ad29f174a6088b9b5f6624c4cbc",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 61,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:12.643155Z",
+      "payload": {
+        "check": "package.contract",
+        "required": true,
+        "stage": "package",
+        "status": "passed",
+        "summary": "app.yaml declares reading-list"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ea7d5918ee6649d089542f2c12877571",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 62,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:12.644153Z",
+      "payload": {
+        "check": "package.layout",
+        "required": true,
+        "stage": "package",
+        "status": "passed",
+        "summary": "5 file(s) follow the layout"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_156a09feddd94b26b6d1a27c2430c061",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 63,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:12.725722Z",
+      "payload": {
+        "check": "deps.profiles",
+        "required": true,
+        "stage": "deps",
+        "status": "passed",
+        "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_995bae4bbc10463aa7bf07e7df5d3d77",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 64,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.704140Z",
+      "payload": {
+        "check": "seal.ui_build",
+        "required": true,
+        "stage": "seal",
+        "status": "passed",
+        "summary": "UI compiled against uiprof-5a3bad2e0741affeb06b (252880 bytes)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_b68abd7d87a34b548ffadaf83243d1da",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 65,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.704320Z",
+      "payload": {
+        "check": "seal.package",
+        "required": true,
+        "stage": "seal",
+        "status": "passed",
+        "summary": "sealed ver_bc890f115d38524b2f08187b (12 files) in 1.0s"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_cd72b8893ef84a148d7043843ffd198d",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 66,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.740977Z",
+      "payload": {
+        "check": "handlers.imports",
+        "required": true,
+        "stage": "handlers",
+        "status": "passed",
+        "summary": "imports are the standard library, the SDK and the package's own modules"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_88dca6e939dc4021b1e3c23c25bee7f7",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 67,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.741229Z",
+      "payload": {
+        "check": "handlers.bind",
+        "required": true,
+        "stage": "handlers",
+        "status": "passed",
+        "summary": "2 handler(s) bound on pyprof-391f9ca6e9db5bc54576"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_726feff2c56748239d3acf160f77930f",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 68,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.868952Z",
+      "payload": {
+        "check": "behavior.add_and_finish.add",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "add_book succeeded as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_cf1f68840483497db817bf14107ddac8",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 69,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.869122Z",
+      "payload": {
+        "check": "behavior.add_and_finish.added",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "1 books record(s) saved as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_c8d444291cdf43229cbae5a8691ae0df",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 70,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.869238Z",
+      "payload": {
+        "check": "behavior.add_and_finish.finish",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "finish_book succeeded as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_42158e4a42ac4b0ca8b2078329be893a",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 71,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.869371Z",
+      "payload": {
+        "check": "behavior.add_and_finish.finished",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "1 books record(s) saved as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_2ce4e69d4741400081aa8d643da9e886",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 72,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.874637Z",
+      "payload": {
+        "check": "behavior.blank_title_refused.blank",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "add_book was refused: the input for add_book is not valid"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_8949063cb5b04bec95a4521c41c6e952",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 73,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:13.874751Z",
+      "payload": {
+        "check": "behavior.blank_title_refused.none",
+        "required": true,
+        "stage": "behavior",
+        "status": "passed",
+        "summary": "0 books record(s) saved as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_872e83666a1348b4815cacff0fe267e2",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 74,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793224Z",
+      "payload": {
+        "check": "ui.seed.seed_book",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "add_book succeeded as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_03e4d751e3b8474caf05b53ae2f4ea02",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 75,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793450Z",
+      "payload": {
+        "check": "ui.empty.render",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "rendered \"Reading list\""
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_fc6d2363465e45e1b1706d6be86e26aa",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 76,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793608Z",
+      "payload": {
+        "check": "ui.empty.no_error",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "no error shown when nothing is saved yet"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ef3d56da8a0448ab8f13686bf3187327",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 77,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793713Z",
+      "payload": {
+        "check": "ui.empty.clean",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "empty state: no script errors"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_315047ea1f094bccad0c8d2d2a048143",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 78,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793823Z",
+      "payload": {
+        "check": "ui.empty.layout_768",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "no sideways scrolling at 768px"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_02bb538692b44ca3bba58be94e7757a7",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 79,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.793965Z",
+      "payload": {
+        "check": "ui.primary.steps",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "performed 2 step(s)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f4164dbe37d3421685c742308b4259b6",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 80,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794060Z",
+      "payload": {
+        "check": "ui.primary.action",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "the screen invoked 1 declared action(s)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_93fb5d51b9c84423b7ddb3c6e4ce16e4",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 81,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794184Z",
+      "payload": {
+        "check": "ui.primary.outcome",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "every action the screen started succeeded"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_8a847a3479f94ea3b7e4a292f56f6a1e",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 82,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794308Z",
+      "payload": {
+        "check": "ui.primary.saved",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "1 books record(s) saved as expected"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_be5af8de38d44456b953635d65ace5a0",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 83,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794406Z",
+      "payload": {
+        "check": "ui.primary.shows.1",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "shows \"Piranesi\" after the interaction"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_42524dda5f6445e894184012d1ebbed8",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 84,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794496Z",
+      "payload": {
+        "check": "ui.primary.clean",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "primary interaction: no script errors"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_03cb847fa84e4474b01a41a7ed1fc0f1",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 85,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794600Z",
+      "payload": {
+        "check": "ui.populated.seed",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "created sample data with 1 action run(s)"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_5ed4cacac65d4d50a6d84e703911b0c3",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 86,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794726Z",
+      "payload": {
+        "check": "ui.populated.shows.1",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "shows \"A Memory Called Empire\" with saved data"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_f272a3060b6847ca824727f4400a103f",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 87,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794832Z",
+      "payload": {
+        "check": "ui.populated.clean",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "populated state: no script errors"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_176030647b2d46c08316198f6af9cf64",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 88,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.794946Z",
+      "payload": {
+        "check": "ui.populated.layout_768",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "no sideways scrolling at 768px"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_d325bb45b32b471aad231c0d2f429980",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 89,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.795078Z",
+      "payload": {
+        "check": "ui.error.read",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "a failed read shows: Books on the reading list, newest first could not be loaded\n\nAlpha could not read the saved data right now.\n\nTry again"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_24fc442d709144c1ba35f969cac94cdc",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 90,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.795179Z",
+      "payload": {
+        "check": "ui.error.read_clean",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "failed read: no script errors"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_efa2fd8501cd44b0a42f6c137b6bab06",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 91,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.795275Z",
+      "payload": {
+        "check": "ui.error.save",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "a failed save shows: \u00d7\nProblem:\nNot saved. Alpha could not save this right now. Your text is still there; press Enter to try again."
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_ecbc12a2fd9f42feaf3898a81a896d39",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 92,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.795372Z",
+      "payload": {
+        "check": "ui.error.save_nothing_stored",
+        "required": true,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "nothing was stored by the failed save"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_a10af158accf4990a56692338ed0f624",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 93,
+      "kind": "validation.check",
+      "occurred_at": "2026-09-26T08:51:19.795465Z",
+      "payload": {
+        "check": "ui.error.save_input_kept",
+        "required": false,
+        "stage": "ui",
+        "status": "passed",
+        "summary": "the typed input is kept after a failed save"
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_35c1e9d03c244647a5ede46fe611a6eb",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 94,
+      "kind": "validation.report",
+      "occurred_at": "2026-09-26T08:51:19.833357Z",
+      "payload": {
+        "failed": [],
+        "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda",
+        "passed": true,
+        "skipped_required": []
+      }
+    },
+    {
+      "contract_version": "0.2",
+      "event_id": "bevt_bc25d0ebe7c14768910d7b4f4233fbac",
+      "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+      "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+      "sequence": 95,
+      "kind": "build.ready",
+      "occurred_at": "2026-09-26T08:51:19.833952Z",
+      "payload": {
+        "candidate": {
+          "actions": [
+            "add_book",
+            "finish_book"
+          ],
+          "activated": false,
+          "app_id": "reading-list",
+          "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+          "attempt_number": 1,
+          "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+          "handlers_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/handlers.report.json",
+          "has_ui": true,
+          "name": "Reading list",
+          "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda",
+          "report_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/verification.report.json",
+          "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+          "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+          "version_id": "ver_bc890f115d38524b2f08187b",
+          "version_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/version/ver_bc890f115d38524b2f08187b"
+        }
+      }
+    }
+  ],
+  "attempts": [
+    {
+      "attempt": {
+        "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+        "number": 1,
+        "status": "candidate",
+        "failure_category": null,
+        "workspace_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1",
+        "started_at": "2026-09-26T08:48:08.028650Z",
+        "finished_at": "2026-09-26T08:51:19.833670Z",
+        "usage": {
+          "input_tokens": 30,
+          "output_tokens": 13239,
+          "cache_read_input_tokens": 348608,
+          "cache_creation_input_tokens": 29358,
+          "turns": 23,
+          "duration_ms": 184337,
+          "cost_usd": 0.799009,
+          "cost_basis": "subscription_unmetered",
+          "models": {
+            "claude-opus-5[1m]": {
+              "inputTokens": 30,
+              "outputTokens": 13239,
+              "cacheReadInputTokens": 348608,
+              "cacheCreationInputTokens": 29358,
+              "costUSD": 0.799009
+            }
+          }
+        },
+        "harness_exit": {
+          "exit_code": 0,
+          "descendant_cleanup": {
+            "pgid": 18276,
+            "grace_seconds": 2.0,
+            "sigterm_sent": false,
+            "already_gone": true
+          },
+          "stderr_tail": ""
+        },
+        "report_ref": "build_a010b50dc77849c38240f6de2ffd635b/attempt-1/verification.report.json"
+      },
+      "report": {
+        "contract_version": "0.2",
+        "build_id": "build_a010b50dc77849c38240f6de2ffd635b",
+        "attempt_id": "attempt_09cc4c4e7e2a404392baa6793e1cbce1",
+        "attempt_number": 1,
+        "lineage": [
+          "attempt_09cc4c4e7e2a404392baa6793e1cbce1"
+        ],
+        "builder_status": "candidate",
+        "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda",
+        "version_id": "ver_bc890f115d38524b2f08187b",
+        "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+        "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+        "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+        "environment": {
+          "os": "Darwin 25.6.0 arm64",
+          "core_python": "3.13.9",
+          "runtime_profile": "pyprof-391f9ca6e9db5bc54576",
+          "python": "3.13.9",
+          "sdk": "0.1.0",
+          "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+          "ui_browser": "151.0.7922.34",
+          "ui_playwright": "1.62.0",
+          "ui_node": "v24.21.0",
+          "ui_blocked_requests": "0"
+        },
+        "checks": [
+          {
+            "id": "package.contract",
+            "stage": "package",
+            "required": true,
+            "status": "passed",
+            "summary": "app.yaml declares reading-list",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "package.layout",
+            "stage": "package",
+            "required": true,
+            "status": "passed",
+            "summary": "5 file(s) follow the layout",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "deps.profiles",
+            "stage": "deps",
+            "required": true,
+            "status": "passed",
+            "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "seal.ui_build",
+            "stage": "seal",
+            "required": true,
+            "status": "passed",
+            "summary": "UI compiled against uiprof-5a3bad2e0741affeb06b (252880 bytes)",
+            "detail": {
+              "modules": {
+                "app": [
+                  "index.html",
+                  "main.tsx"
+                ],
+                "packages": {
+                  "@alpha/ui-bridge@0.2.0": 1,
+                  "@alpha/ui-kit@0.1.0": 8,
+                  "react-dom@19.3.0": 4,
+                  "react@19.3.0": 4,
+                  "scheduler@0.28.0": 2
+                },
+                "unpinned": [],
+                "virtual": 5
+              },
+              "csp": "default-src 'none'; script-src 'sha256-aw4HeCPVH9GM1AUKosSyeceVUT/fBp91dt1m/vav6Vo='; style-src 'sha256-fwGNfBI/opI90ZSCtnDpIaiDCEm+wyoWNaCUlURA8EM='; connect-src 'none'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none'"
+            },
+            "evidence": []
+          },
+          {
+            "id": "seal.package",
+            "stage": "seal",
+            "required": true,
+            "status": "passed",
+            "summary": "sealed ver_bc890f115d38524b2f08187b (12 files) in 1.0s",
+            "detail": {
+              "package_sha256": "bc890f115d38524b2f08187b70e92d68d9b0c3f208c95263b93e4ffe25408dda"
+            },
+            "evidence": []
+          },
+          {
+            "id": "handlers.imports",
+            "stage": "handlers",
+            "required": true,
+            "status": "passed",
+            "summary": "imports are the standard library, the SDK and the package's own modules",
+            "detail": {
+              "stdlib": [
+                "__future__",
+                "typing"
+              ],
+              "local": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "handlers.bind",
+            "stage": "handlers",
+            "required": true,
+            "status": "passed",
+            "summary": "2 handler(s) bound on pyprof-391f9ca6e9db5bc54576",
+            "detail": {
+              "actions": [
+                {
+                  "id": "add_book",
+                  "handler": "app_code.handlers:add_book",
+                  "signature": "(ctx: 'Context', title: 'str') -> 'dict[str, Any]'",
+                  "ok": true
+                },
+                {
+                  "id": "finish_book",
+                  "handler": "app_code.handlers:finish_book",
+                  "signature": "(ctx: 'Context', id: 'str') -> 'dict[str, Any]'",
+                  "ok": true
+                }
+              ]
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.add_and_finish.add",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "add_book succeeded as expected",
+            "detail": {
+              "action": "add_book",
+              "input": {
+                "title": "The Left Hand of Darkness"
+              },
+              "expect": "succeeded",
+              "state": "succeeded",
+              "run_id": "run_319c732f98f04ffcae1cee5ad20b2257",
+              "output": {
+                "id": "rec_05118d8b06d1440ca9f7b7afb5695714",
+                "revision": 1
+              },
+              "expected_output": {}
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.add_and_finish.added",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "1 books record(s) saved as expected",
+            "detail": {
+              "collection": "books",
+              "count": 1,
+              "values": [
+                {
+                  "finished": false,
+                  "title": "The Left Hand of Darkness"
+                }
+              ],
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": false
+                }
+              ]
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.add_and_finish.finish",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "finish_book succeeded as expected",
+            "detail": {
+              "action": "finish_book",
+              "input": {
+                "id": "rec_05118d8b06d1440ca9f7b7afb5695714"
+              },
+              "expect": "succeeded",
+              "state": "succeeded",
+              "run_id": "run_03cf5aed793541d7a7dda796b60512fd",
+              "output": {
+                "id": "rec_05118d8b06d1440ca9f7b7afb5695714",
+                "revision": 2
+              }
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.add_and_finish.finished",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "1 books record(s) saved as expected",
+            "detail": {
+              "collection": "books",
+              "count": 1,
+              "values": [
+                {
+                  "finished": true,
+                  "title": "The Left Hand of Darkness"
+                }
+              ],
+              "includes": [
+                {
+                  "title": "The Left Hand of Darkness",
+                  "finished": true
+                }
+              ]
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.blank_title_refused.blank",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "add_book was refused: the input for add_book is not valid",
+            "detail": {
+              "input": {
+                "title": ""
+              },
+              "expected": "failed",
+              "observed": {
+                "refused": {
+                  "code": "invalid_input",
+                  "message": "the input for add_book is not valid",
+                  "details": {
+                    "problems": [
+                      "title: '' should be non-empty"
+                    ]
+                  }
+                }
+              }
+            },
+            "evidence": []
+          },
+          {
+            "id": "behavior.blank_title_refused.none",
+            "stage": "behavior",
+            "required": true,
+            "status": "passed",
+            "summary": "0 books record(s) saved as expected",
+            "detail": {
+              "collection": "books",
+              "count": 0,
+              "values": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.seed.seed_book",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "add_book succeeded as expected",
+            "detail": {
+              "action": "add_book",
+              "input": {
+                "title": "A Memory Called Empire"
+              },
+              "expect": "succeeded",
+              "state": "succeeded",
+              "run_id": "run_372d7ec3f5d345228a3900ea86410e9e",
+              "output": {
+                "id": "rec_ba15bd603aca4229adffb124e56116a6",
+                "revision": 1
+              }
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.empty.render",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "rendered \"Reading list\"",
+            "detail": {},
+            "evidence": [
+              "evidence/ui/empty-1280.png"
+            ]
+          },
+          {
+            "id": "ui.empty.no_error",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "no error shown when nothing is saved yet",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "ui.empty.clean",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "empty state: no script errors",
+            "detail": {
+              "errors": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.empty.layout_768",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "no sideways scrolling at 768px",
+            "detail": {
+              "scroll_width": 768,
+              "client_width": 768
+            },
+            "evidence": [
+              "evidence/ui/empty-768.png"
+            ]
+          },
+          {
+            "id": "ui.primary.steps",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "performed 2 step(s)",
+            "detail": {
+              "steps": [
+                {
+                  "kind": "fill",
+                  "label": "Title",
+                  "text": "Piranesi"
+                },
+                {
+                  "kind": "press",
+                  "key": "Enter"
+                }
+              ]
+            },
+            "evidence": [
+              "evidence/ui/primary-1280.png"
+            ]
+          },
+          {
+            "id": "ui.primary.action",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "the screen invoked 1 declared action(s)",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "ui.primary.outcome",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "every action the screen started succeeded",
+            "detail": {
+              "states": {
+                "run_24764a1f848843b69148dd87671171d0": "succeeded"
+              }
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.primary.saved",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "1 books record(s) saved as expected",
+            "detail": {
+              "collection": "books",
+              "count": 1,
+              "values": [
+                {
+                  "finished": false,
+                  "title": "Piranesi"
+                }
+              ],
+              "includes": [
+                {
+                  "title": "Piranesi"
+                }
+              ]
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.primary.shows.1",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "shows \"Piranesi\" after the interaction",
+            "detail": {},
+            "evidence": []
+          },
+          {
+            "id": "ui.primary.clean",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "primary interaction: no script errors",
+            "detail": {
+              "errors": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.populated.seed",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "created sample data with 1 action run(s)",
+            "detail": {
+              "ok": true,
+              "summary": "1 sample run(s)"
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.populated.shows.1",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "shows \"A Memory Called Empire\" with saved data",
+            "detail": {},
+            "evidence": [
+              "evidence/ui/populated-1280.png"
+            ]
+          },
+          {
+            "id": "ui.populated.clean",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "populated state: no script errors",
+            "detail": {
+              "errors": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.populated.layout_768",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "no sideways scrolling at 768px",
+            "detail": {
+              "scroll_width": 768,
+              "client_width": 768
+            },
+            "evidence": [
+              "evidence/ui/populated-768.png"
+            ]
+          },
+          {
+            "id": "ui.error.read",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "a failed read shows: Books on the reading list, newest first could not be loaded\n\nAlpha could not read the saved data right now.\n\nTry again",
+            "detail": {},
+            "evidence": [
+              "evidence/ui/error-read.png"
+            ]
+          },
+          {
+            "id": "ui.error.read_clean",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "failed read: no script errors",
+            "detail": {
+              "errors": []
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.error.save",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "a failed save shows: \u00d7\nProblem:\nNot saved. Alpha could not save this right now. Your text is still there; press Enter to try again.",
+            "detail": {},
+            "evidence": [
+              "evidence/ui/error-save.png"
+            ]
+          },
+          {
+            "id": "ui.error.save_nothing_stored",
+            "stage": "ui",
+            "required": true,
+            "status": "passed",
+            "summary": "nothing was stored by the failed save",
+            "detail": {
+              "before": 2,
+              "after": 2
+            },
+            "evidence": []
+          },
+          {
+            "id": "ui.error.save_input_kept",
+            "stage": "ui",
+            "required": false,
+            "status": "passed",
+            "summary": "the typed input is kept after a failed save",
+            "detail": {
+              "value": "Piranesi"
+            },
+            "evidence": []
+          }
+        ],
+        "supplementary": [
+          {
+            "id": "candidate_tests",
+            "stage": "tests",
+            "required": false,
+            "status": "passed",
+            "summary": "5 candidate test(s); all passed (supplementary, not acceptance evidence)",
+            "detail": {
+              "present": true,
+              "ran": 5,
+              "ok": true,
+              "failures": [],
+              "skipped": 0,
+              "log_tail": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+            },
+            "evidence": []
+          }
+        ],
+        "qualification_requests": [],
+        "unresolved_limits": [
+          "App and builder processes are not yet OS-sandboxed (F20)"
+        ],
+        "passed": true
+      },
+      "repair_request": null,
+      "package": {
+        "app.yaml": "contract_version: \"0.2\"\napp_id: \"reading-list\"\nname: \"Reading list\"\ndescription: \"Add books by title, see them newest first, and mark one as finished.\"\nruntime_profile: \"pyprof-391f9ca6e9db5bc54576\"\nsdk_version: \"0.1.0\"\ncapabilities: [records]\ncollections:\n  - name: books\n    description: One book on the reading list.\n    fields:\n      - {name: title, kind: text, required: true, max_length: 200}\n      - {name: finished, kind: boolean, required: true}\n    indexes: [[finished]]\nactions:\n  - id: add_book\n    title: Add a book\n    description: Add one book to the reading list, not finished yet.\n    handler: app_code.handlers:add_book\n    invocable_from: [ui, manual]\n    effect_class: local_write\n    capability_requirements: [records]\n    timeout_seconds: 30\n    retry_class: pure\n    input_schema:\n      type: object\n      required: [title]\n      additionalProperties: false\n      properties: {title: {type: string, minLength: 1, maxLength: 200}}\n    output_schema:\n      type: object\n      required: [id, revision]\n      properties: {id: {type: string}, revision: {type: integer}}\n  - id: finish_book\n    title: Mark a book finished\n    description: Mark one book on the reading list as finished.\n    handler: app_code.handlers:finish_book\n    invocable_from: [ui, manual]\n    effect_class: local_write\n    capability_requirements: [records]\n    timeout_seconds: 30\n    retry_class: idempotent\n    input_schema:\n      type: object\n      required: [id]\n      additionalProperties: false\n      properties: {id: {type: string, minLength: 1}}\n    output_schema:\n      type: object\n      required: [id, revision]\n      properties: {id: {type: string}, revision: {type: integer}}\nui:\n  entry: ui/src/main.tsx\n  build_profile: \"uiprof-5a3bad2e0741affeb06b\"\n  kit_version: \"0.1.0\"\n  bridge_version: \"0.2.0\"\n  views:\n    - id: books.recent\n      collection: books\n      fields: [title, finished]\n      filterable: [finished]\n      sortable: [title, created_at]\n      default_order: [{field: created_at, direction: desc}]\n      max_limit: 100\n  actions: [add_book, finish_book]\n",
+        "src/app_code/__init__.py": "",
+        "src/app_code/handlers.py": "\"\"\"Action handlers. Each takes the Context first, then the action's declared inputs.\"\"\"\n\nfrom __future__ import annotations\n\nfrom typing import Any\n\nfrom alpha_sdk import Context\n\n\ndef add_book(ctx: Context, title: str) -> dict[str, Any]:\n    \"\"\"Add one book to the reading list, not finished yet.\"\"\"\n    clean = title.strip()\n    if not clean:\n        raise ValueError(\"A book needs a title.\")\n    record = ctx.records.create(\"books\", {\"title\": clean, \"finished\": False})\n    return {\"id\": record.id, \"revision\": record.revision}\n\n\ndef finish_book(ctx: Context, id: str) -> dict[str, Any]:\n    \"\"\"Mark one book as finished. Already finished books stay finished.\"\"\"\n    record = ctx.records.get(\"books\", id)\n    if record.get(\"finished\"):\n        return {\"id\": record.id, \"revision\": record.revision}\n    updated = ctx.records.update(\n        \"books\",\n        record.id,\n        expected_revision=record.revision,\n        changes={\"finished\": True},\n    )\n    return {\"id\": updated.id, \"revision\": updated.revision}\n",
+        "tests/test_handlers.py": "\"\"\"Supplementary tests for the reading list handlers, with a stand-in Context.\"\"\"\n\nfrom __future__ import annotations\n\nimport unittest\n\nfrom app_code.handlers import add_book, finish_book\n\n\nclass FakeRecord:\n    def __init__(self, record_id: str, revision: int, values: dict) -> None:\n        self.id = record_id\n        self.revision = revision\n        self.values = dict(values)\n\n    def get(self, name: str):\n        return self.values.get(name)\n\n\nclass FakeRecords:\n    def __init__(self) -> None:\n        self.rows: dict[str, FakeRecord] = {}\n        self.next_id = 1\n\n    def create(self, collection: str, values: dict) -> FakeRecord:\n        assert collection == \"books\"\n        record_id = \"book-%d\" % self.next_id\n        self.next_id += 1\n        record = FakeRecord(record_id, 1, values)\n        self.rows[record_id] = record\n        return record\n\n    def get(self, collection: str, record_id: str) -> FakeRecord:\n        assert collection == \"books\"\n        if record_id not in self.rows:\n            raise KeyError(record_id)\n        return self.rows[record_id]\n\n    def update(self, collection: str, record_id: str, *, expected_revision: int, changes: dict):\n        assert collection == \"books\"\n        record = self.rows[record_id]\n        if record.revision != expected_revision:\n            raise AssertionError(\"stale revision\")\n        record.values.update(changes)\n        record.revision += 1\n        return record\n\n\nclass FakeContext:\n    def __init__(self) -> None:\n        self.records = FakeRecords()\n\n\nclass AddBookTests(unittest.TestCase):\n    def test_stores_an_unfinished_book(self) -> None:\n        ctx = FakeContext()\n        out = add_book(ctx, title=\"The Left Hand of Darkness\")\n        stored = ctx.records.rows[out[\"id\"]]\n        self.assertEqual(stored.values, {\"title\": \"The Left Hand of Darkness\", \"finished\": False})\n        self.assertEqual(out[\"revision\"], stored.revision)\n\n    def test_trims_surrounding_spaces(self) -> None:\n        ctx = FakeContext()\n        out = add_book(ctx, title=\"  Piranesi  \")\n        self.assertEqual(ctx.records.rows[out[\"id\"]].values[\"title\"], \"Piranesi\")\n\n    def test_refuses_a_blank_title(self) -> None:\n        ctx = FakeContext()\n        with self.assertRaises(ValueError):\n            add_book(ctx, title=\"   \")\n        self.assertEqual(ctx.records.rows, {})\n\n\nclass FinishBookTests(unittest.TestCase):\n    def test_marks_the_book_finished(self) -> None:\n        ctx = FakeContext()\n        added = add_book(ctx, title=\"Piranesi\")\n        out = finish_book(ctx, id=added[\"id\"])\n        self.assertTrue(ctx.records.rows[added[\"id\"]].values[\"finished\"])\n        self.assertEqual(out[\"id\"], added[\"id\"])\n\n    def test_finishing_twice_is_harmless(self) -> None:\n        ctx = FakeContext()\n        added = add_book(ctx, title=\"Piranesi\")\n        finish_book(ctx, id=added[\"id\"])\n        out = finish_book(ctx, id=added[\"id\"])\n        self.assertTrue(ctx.records.rows[added[\"id\"]].values[\"finished\"])\n        self.assertEqual(out[\"revision\"], ctx.records.rows[added[\"id\"]].revision)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+        "ui/src/main.tsx": "// Reading list: type a title to add a book, see every book newest first, mark one finished.\nimport { StrictMode } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nimport \"@alpha/ui-kit/styles.css\";\nimport {\n  AlphaApp,\n  Badge,\n  Button,\n  OperationStatus,\n  Page,\n  QuickEntry,\n  RecordTable,\n  Section,\n  useAction,\n  useView,\n  type RecordRow,\n} from \"@alpha/ui-kit\";\n\ntype Book = { title: string; finished: boolean };\n\nfunction App() {\n  const add = useAction(\"add_book\");\n  const finish = useAction(\"finish_book\");\n  const books = useView<Book>(\"books.recent\", { limit: 100 });\n\n  return (\n    <Page title=\"Reading list\" description=\"Add a book by its title. The newest book is at the top.\">\n      <Section title=\"Add a book\">\n        <QuickEntry\n          label=\"Title\"\n          parse={(text) => {\n            const title = text.trim();\n            return title ? { status: \"ok\", value: title, summary: title } : { status: \"empty\" };\n          }}\n          onSubmit={async (title) => {\n            await add.run({ title });\n          }}\n        />\n        <OperationStatus state={add.state} error={add.error} />\n      </Section>\n\n      <Section title=\"Books\" description=\"Newest first.\">\n        <RecordTable<RecordRow<Book>>\n          caption=\"Books on the reading list, newest first\"\n          columns={[\n            { id: \"title\", header: \"Title\", cell: (row) => row.values.title },\n            {\n              id: \"finished\",\n              header: \"Finished\",\n              cell: (row) =>\n                row.values.finished ? (\n                  <Badge tone=\"success\">Finished</Badge>\n                ) : (\n                  <Badge tone=\"info\">Reading</Badge>\n                ),\n            },\n            {\n              id: \"mark\",\n              header: \"Mark finished\",\n              cell: (row) =>\n                row.values.finished ? null : (\n                  <Button\n                    small\n                    variant=\"secondary\"\n                    busy={finish.state === \"saving\"}\n                    busyLabel=\"Saving\u2026\"\n                    onClick={async () => {\n                      try {\n                        await finish.run({ id: row.id });\n                      } catch {\n                        /* OperationStatus below explains what went wrong. */\n                      }\n                    }}\n                  >\n                    Mark finished\n                  </Button>\n                ),\n            },\n          ]}\n          rows={books.records}\n          getRowId={(row) => row.id}\n          getRowLabel={(row) => row.values.title}\n          loading={books.loading}\n          error={books.error}\n          onRetry={books.refresh}\n          empty={{ title: \"No books yet\", message: \"Add your first book above.\" }}\n        />\n        <OperationStatus state={finish.state} error={finish.error} />\n      </Section>\n    </Page>\n  );\n}\n\ncreateRoot(document.getElementById(\"root\")!).render(\n  <StrictMode>\n    <AlphaApp>\n      <App />\n    </AlphaApp>\n  </StrictMode>,\n);\n"
+      },
+      "screenshots": [
+        "empty-1280.png",
+        "empty-768.png",
+        "error-read.png",
+        "error-save.png",
+        "populated-1280.png",
+        "populated-768.png",
+        "primary-1280.png"
+      ]
+    }
+  ],
+  "dependency_requests": [],
+  "preview_invoke": {
+    "preview": true,
+    "version_id": "ver_bc890f115d38524b2f08187b",
+    "operation_id": "run_88eef3d2bdfa41958dcee7156d3f4ca1",
+    "state": "succeeded",
+    "output": {
+      "id": "rec_369cb0351b384854a9a5d793cd5d4417",
+      "revision": 1
+    },
+    "error": null
+  },
+  "secret_scan": {
+    "needles": [
+      "sk-ant-",
+      "Bearer ",
+      "oauth",
+      "access_token",
+      "<session token>"
+    ],
+    "found": []
+  }
+}

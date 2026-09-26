@@ -1,0 +1,150 @@
+{
+  "commit": "3e9780a4d4967ef7b20ebf67029beeb65b92bb9d",
+  "profiles": {
+    "runtime": "pyprof-391f9ca6e9db5bc54576",
+    "ui": "uiprof-5a3bad2e0741affeb06b"
+  },
+  "cases": {
+    "notes_ok": {
+      "state": "ready",
+      "ui": {
+        "ui.seed.long": "passed",
+        "ui.empty.render": "passed",
+        "ui.empty.no_error": "passed",
+        "ui.empty.clean": "passed",
+        "ui.empty.layout_768": "passed",
+        "ui.primary.steps": "passed",
+        "ui.primary.action": "passed",
+        "ui.primary.outcome": "passed",
+        "ui.primary.saved": "passed",
+        "ui.primary.shows.1": "passed",
+        "ui.primary.clean": "passed",
+        "ui.populated.seed": "passed",
+        "ui.populated.shows.1": "passed",
+        "ui.populated.clean": "passed",
+        "ui.populated.layout_768": "passed",
+        "ui.error.read": "passed",
+        "ui.error.read_clean": "passed",
+        "ui.error.save": "passed",
+        "ui.error.save_nothing_stored": "passed",
+        "ui.error.save_input_kept": "passed"
+      },
+      "failed": [],
+      "environment": {
+        "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+        "ui_browser": "151.0.7922.34",
+        "ui_playwright": "1.62.0",
+        "ui_node": "v24.21.0",
+        "ui_blocked_requests": "0"
+      }
+    },
+    "overflow": {
+      "state": "failed",
+      "ui": {
+        "ui.seed.long": "passed",
+        "ui.empty.render": "passed",
+        "ui.empty.no_error": "passed",
+        "ui.empty.clean": "passed",
+        "ui.empty.layout_768": "failed",
+        "ui.primary.steps": "passed",
+        "ui.primary.action": "passed",
+        "ui.primary.outcome": "passed",
+        "ui.primary.saved": "passed",
+        "ui.primary.shows.1": "passed",
+        "ui.primary.clean": "passed",
+        "ui.populated.seed": "passed",
+        "ui.populated.shows.1": "passed",
+        "ui.populated.clean": "passed",
+        "ui.populated.layout_768": "failed",
+        "ui.error.read": "passed",
+        "ui.error.read_clean": "passed",
+        "ui.error.save": "passed",
+        "ui.error.save_nothing_stored": "passed",
+        "ui.error.save_input_kept": "passed"
+      },
+      "failed": [
+        "ui.empty.layout_768",
+        "ui.populated.layout_768"
+      ],
+      "environment": {
+        "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+        "ui_browser": "151.0.7922.34",
+        "ui_playwright": "1.62.0",
+        "ui_node": "v24.21.0",
+        "ui_blocked_requests": "0"
+      }
+    },
+    "ui_fake_save": {
+      "state": "failed",
+      "ui": {
+        "ui.seed.long": "passed",
+        "ui.empty.render": "passed",
+        "ui.empty.no_error": "passed",
+        "ui.empty.clean": "passed",
+        "ui.empty.layout_768": "passed",
+        "ui.primary.steps": "passed",
+        "ui.primary.action": "failed",
+        "ui.primary.outcome": "passed",
+        "ui.primary.saved": "failed",
+        "ui.primary.shows.1": "passed",
+        "ui.primary.clean": "passed",
+        "ui.populated.seed": "passed",
+        "ui.populated.shows.1": "passed",
+        "ui.populated.clean": "passed",
+        "ui.populated.layout_768": "passed",
+        "ui.error.read": "passed",
+        "ui.error.read_clean": "passed",
+        "ui.error.save": "failed"
+      },
+      "failed": [
+        "ui.primary.action",
+        "ui.primary.saved",
+        "ui.error.save"
+      ],
+      "environment": {
+        "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+        "ui_browser": "151.0.7922.34",
+        "ui_playwright": "1.62.0",
+        "ui_node": "v24.21.0",
+        "ui_blocked_requests": "0"
+      }
+    },
+    "ui_hides_errors": {
+      "state": "failed",
+      "ui": {
+        "ui.seed.long": "passed",
+        "ui.empty.render": "passed",
+        "ui.empty.no_error": "passed",
+        "ui.empty.clean": "passed",
+        "ui.empty.layout_768": "passed",
+        "ui.primary.steps": "passed",
+        "ui.primary.action": "passed",
+        "ui.primary.outcome": "passed",
+        "ui.primary.saved": "passed",
+        "ui.primary.shows.1": "passed",
+        "ui.primary.clean": "passed",
+        "ui.populated.seed": "passed",
+        "ui.populated.shows.1": "passed",
+        "ui.populated.clean": "passed",
+        "ui.populated.layout_768": "passed",
+        "ui.error.read": "failed",
+        "ui.error.read_clean": "passed",
+        "ui.error.save": "failed",
+        "ui.error.save_nothing_stored": "passed",
+        "ui.error.save_input_kept": "failed"
+      },
+      "failed": [
+        "ui.error.read",
+        "ui.error.save",
+        "ui.error.save_input_kept"
+      ],
+      "environment": {
+        "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+        "ui_browser": "151.0.7922.34",
+        "ui_playwright": "1.62.0",
+        "ui_node": "v24.21.0",
+        "ui_blocked_requests": "0"
+      }
+    }
+  }
+}
