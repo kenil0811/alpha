@@ -51,9 +51,13 @@ export interface BridgeHandlers {
 }
 
 export interface BridgeHostEvent {
-  kind: "ready" | "request" | "result" | "error" | "revoked" | "dropped";
+  kind: "ready" | "request" | "result" | "error" | "revoked" | "dropped" | "renewed";
   detail: Record<string, unknown>;
 }
+
+/** The trusted caller's answer when a session has expired: keep going until a new expiry, or
+ *  end the session because the App's release or grant is no longer what it was. */
+export type RenewOutcome = { expires_at: string } | { revoke: string };
 
 export interface BridgeHostOptions {
   session: BridgeSession;
@@ -61,6 +65,8 @@ export interface BridgeHostOptions {
   now?: () => number;
   onEvent?: (event: BridgeHostEvent) => void;
   maxInFlight?: number;
+  /** Called when a request arrives after expiry. Without it, expiry revokes the session. */
+  renew?: (session: BridgeSession) => Promise<RenewOutcome>;
 }
 
 export class BridgeError extends Error {
@@ -83,6 +89,9 @@ export class BridgeHost {
   private readonly now: () => number;
   private readonly onEvent: (event: BridgeHostEvent) => void;
   private readonly maxInFlight: number;
+  private readonly renewer: BridgeHostOptions["renew"];
+  private renewing: Promise<RenewOutcome> | null = null;
+  private expiresAt: string;
   private port: MessagePort | null = null;
   private revoked = false;
   private inFlight = 0;
@@ -95,6 +104,13 @@ export class BridgeHost {
     this.now = options.now ?? (() => Date.now());
     this.onEvent = options.onEvent ?? (() => undefined);
     this.maxInFlight = options.maxInFlight ?? 16;
+    this.renewer = options.renew;
+    this.expiresAt = options.session.expires_at;
+  }
+
+  /** The session's current expiry (it moves forward when the caller renews it). */
+  get expires(): string {
+    return this.expiresAt;
   }
 
   get isRevoked(): boolean {
@@ -159,8 +175,18 @@ export class BridgeHost {
   }
 
   private expired(): boolean {
-    const expiry = Date.parse(this.session.expires_at);
+    const expiry = Date.parse(this.expiresAt);
     return Number.isFinite(expiry) && this.now() > expiry;
+  }
+
+  /** One renewal at a time; concurrent requests wait for the same answer. */
+  private renewOnce(): Promise<RenewOutcome> {
+    if (!this.renewing) {
+      this.renewing = this.renewer!(this.session).finally(() => {
+        this.renewing = null;
+      });
+    }
+    return this.renewing;
   }
 
   /** Public for tests; the port handler calls this. */
@@ -176,9 +202,38 @@ export class BridgeHost {
     }
     const request = validation.request;
     if (this.expired()) {
-      this.respondError(request.request_id, { code: "revoked", message: "session expired", recovery: "reload the workflow" });
-      this.revoke("expired");
-      return;
+      if (!this.renewer) {
+        this.respondError(request.request_id, { code: "revoked", message: "session expired", recovery: "reload the workflow" });
+        this.revoke("expired");
+        return;
+      }
+      // The request is held, never replayed: it runs once after renewal, or not at all.
+      let outcome: RenewOutcome;
+      try {
+        outcome = await this.renewOnce();
+      } catch {
+        this.respondError(request.request_id, {
+          code: "internal",
+          message: "Alpha could not confirm this screen's access just now",
+          recovery: "Try again in a moment.",
+        });
+        return;
+      }
+      if (this.revoked || !this.port) {
+        this.onEvent({ kind: "dropped", detail: { reason: "revoked" } });
+        return;
+      }
+      if ("revoke" in outcome) {
+        this.respondError(request.request_id, {
+          code: "revoked",
+          message: "this workflow changed since the screen was opened",
+          recovery: "Reopen the workflow; what you typed is still on the screen.",
+        });
+        this.revoke(outcome.revoke);
+        return;
+      }
+      this.expiresAt = outcome.expires_at;
+      this.onEvent({ kind: "renewed", detail: { session_id: this.session.session_id, expires_at: outcome.expires_at } });
     }
     if (this.inFlight >= this.maxInFlight) {
       this.respondError(request.request_id, { code: "throttled", message: "too many requests in flight" });

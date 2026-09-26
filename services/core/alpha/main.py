@@ -116,6 +116,7 @@ def build(
         AcceptancePlanner(inference),
         gateway,
         CreationRoutes(planner=settings.assistant_route, builder=settings.builder_route),
+        poll_seconds=settings.creation_poll_seconds,
     )
     stalled = assistant.reconcile_on_startup()
     if stalled:

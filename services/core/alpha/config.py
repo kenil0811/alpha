@@ -33,6 +33,9 @@ class CoreSettings:
     assistant_route: str = "fake"
     # Route the builder uses for creations (F08); the planner uses the assistant route.
     builder_route: str = "fake"
+    # How often a creation checks its build (seconds). Tests widen it to open the window between
+    # "build ready" and switching on.
+    creation_poll_seconds: float = 0.5
     profiles_dir: Path | None = None
     app_model_route: str = "fake"
     timezone: str = "UTC"
@@ -95,6 +98,7 @@ class CoreSettings:
             builder_home=env.get("ALPHA_BUILDER_HOME") or None,
             assistant_route=assistant_route,
             builder_route=builder_route,
+            creation_poll_seconds=float(env.get("ALPHA_CREATION_POLL_SECONDS") or 0.5),
             app_model_route=app_model_route,
             timezone=timezone,
             profiles_dir=Path(profiles) if profiles else None,

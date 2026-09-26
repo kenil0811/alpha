@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { BridgeHost } from "@alpha/ui-bridge";
 import type { AppDetail, AppsClient } from "../core/client";
 import { hasTauri } from "../core/session";
-import { appBridgeHandlers, appSession } from "../apps/appBridge";
+import { appBridgeHandlers, appSession, appSessionRenewer } from "../apps/appBridge";
 
 /** What the shell adds around an App's own screen when a request fails. Ordinary failures (a
  *  refused input, a failed save) are the screen's to show; the shell speaks only about what the
@@ -17,6 +17,15 @@ export function screenProblem(detail: Record<string, unknown> | undefined): stri
   const code = typeof detail?.code === "string" ? detail.code : null;
   if (code === "forbidden") return "Alpha blocked a request from this screen that it is not allowed to make.";
   if (code === "unsupported") return "This App can't run right now: its runtime on this Mac needs attention. Your saved data is safe.";
+  return null;
+}
+
+/** When the shell ends a screen's session because the workflow changed underneath it. */
+export function revokedProblem(detail: Record<string, unknown> | undefined): string | null {
+  const reason = typeof detail?.reason === "string" ? detail.reason : null;
+  if (reason === "release_changed" || reason === "grant_changed") {
+    return "This workflow was updated while its screen was open. Reopen it to continue; what you typed is still on the screen.";
+  }
   return null;
 }
 
@@ -38,8 +47,9 @@ export function GeneratedScreen({ client, detail }: { client: AppsClient; detail
       host = new BridgeHost({
         session: appSession(detail),
         handlers: appBridgeHandlers(client, detail.app_id),
+        renew: appSessionRenewer(client, detail.app_id),
         onEvent: (e) => {
-          const problem = e.kind === "error" ? screenProblem(e.detail) : null;
+          const problem = e.kind === "error" ? screenProblem(e.detail) : e.kind === "revoked" ? revokedProblem(e.detail) : null;
           if (problem) setProblem(problem);
         },
       });

@@ -290,3 +290,26 @@ describe("where the data goes", () => {
     expect(await screen.findByText(notice)).toBeInTheDocument();
   });
 });
+
+describe("stopping at the end of a creation", () => {
+  it("offers no Stop once switching on has begun", async () => {
+    const client = new FakeWorkflowsClient();
+    const started = await client.startCreation("conv_1");
+    client.creations.set(started.creation_id, { ...started, state: "activating", stage: "activating", label: "Getting it ready to use" });
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    expect(await screen.findByText(/this can no longer be stopped/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+  });
+
+  it("shows Core's answer when Stop arrives too late", async () => {
+    const client = new FakeWorkflowsClient();
+    client.cancelCreation = async () => {
+      throw new Error("it is already being switched on and can no longer be stopped");
+    };
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    await user.click(await screen.findByRole("button", { name: "Stop" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("can no longer be stopped");
+  });
+});

@@ -133,9 +133,13 @@ export function CreationCard({
         requests.
       </p>
       <div className="row">
-        <button type="button" className="button" onClick={() => void cancel()}>
-          Stop
-        </button>
+        {creation.state === "activating" ? (
+          <span className="panel__hint">Switching it on now; this can no longer be stopped.</span>
+        ) : (
+          <button type="button" className="button" onClick={() => void cancel()}>
+            Stop
+          </button>
+        )}
         {reconnecting ? (
           <button type="button" className="button" onClick={refresh}>
             Check now

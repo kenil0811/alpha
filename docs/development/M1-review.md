@@ -106,6 +106,19 @@ workspaces.
 
 Evidence: `docs/development/evidence/M1-R02.md`.
 
+### M1-R03: cancellation and session lifetime (done, 26 September 2026)
+
+**F13.** Stop and switching on are conditional transitions in one serialised store:
+- an accepted Stop prevents any release;
+- a Stop that arrives after switching on began is refused with the true reason;
+- a build submitted while Stop landed is cancelled.
+
+**F10.** An expired generated-screen session is renewed, without replaying the request, only
+while the App's release and grant are unchanged. A change ends the session, and the screen keeps
+what the person typed.
+
+Evidence: `docs/development/evidence/M1-R03.md`.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

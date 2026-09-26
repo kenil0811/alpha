@@ -4,7 +4,7 @@
  * never sees the session token, the Core port or anything beyond its grant; Core enforces the
  * views and validates every action input again.
  */
-import { BridgeError, type BridgeHandlers, type BridgeSession, type ErrorCode } from "@alpha/ui-bridge";
+import { BridgeError, type BridgeHandlers, type BridgeSession, type ErrorCode, type RenewOutcome } from "@alpha/ui-bridge";
 import { CoreError, type AppDetail, type AppsClient } from "../core/client";
 
 export function appSession(detail: AppDetail, minutes = 30): BridgeSession {
@@ -16,6 +16,26 @@ export function appSession(detail: AppDetail, minutes = 30): BridgeSession {
       read_views: (detail.ui?.views ?? []).map((v) => v.id),
     },
     expires_at: new Date(Date.now() + minutes * 60_000).toISOString(),
+  };
+}
+
+function sameGrant(session: BridgeSession, detail: AppDetail): boolean {
+  const actions = [...(detail.ui?.actions ?? [])].sort().join("\n");
+  const views = (detail.ui?.views ?? []).map((v) => v.id).sort().join("\n");
+  return actions === [...session.grant.actions].sort().join("\n") && views === [...session.grant.read_views].sort().join("\n");
+}
+
+/**
+ * Renew an expired session only while it still describes the App: the same current release and
+ * the same declared views and UI actions. Otherwise the session ends (M1 review finding F10).
+ * A failure to ask Core is thrown, so the host keeps the session and the person can try again.
+ */
+export function appSessionRenewer(client: AppsClient, appId: string, minutes = 30): (session: BridgeSession) => Promise<RenewOutcome> {
+  return async (session) => {
+    const current = await client.appDetail(appId);
+    if (current.release_id !== session.owner.release_id) return { revoke: "release_changed" };
+    if (!sameGrant(session, current)) return { revoke: "grant_changed" };
+    return { expires_at: new Date(Date.now() + minutes * 60_000).toISOString() };
   };
 }
 

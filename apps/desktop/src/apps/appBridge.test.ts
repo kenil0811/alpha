@@ -3,7 +3,7 @@ import type { Run, RunEvent } from "@alpha/contracts";
 import { describe, expect, it } from "vitest";
 import { CoreError, outcomeFromEvents } from "../core/client";
 import { FakeWorkflowsClient, sampleDetail } from "../test/fakeWorkflows";
-import { appBridgeHandlers, appSession } from "./appBridge";
+import { appBridgeHandlers, appSession, appSessionRenewer } from "./appBridge";
 
 describe("an App's UI session", () => {
   it("grants only the views and UI actions the App declared, owned by its current release", () => {
@@ -97,5 +97,36 @@ describe("a finished run's outcome", () => {
     });
     expect(outcomeFromEvents(run("cancelled", "cancelled_by_user"), []).error).toEqual({ code: "cancelled_by_user", message: "cancelled_by_user" });
     expect(outcomeFromEvents(run("interrupted"), []).error).toEqual({ code: "interrupted", message: "The action interrupted." });
+  });
+});
+
+describe("renewing an open screen's session", () => {
+  const base = sampleDetail({
+    release_id: "rel_9",
+    ui: { entry: "ui/src/main.tsx", views: [{ id: "recent_notes" } as never], actions: ["add_note"] },
+  });
+
+  it("renews while the release and grant are unchanged", async () => {
+    const client = new FakeWorkflowsClient();
+    client.details.set(base.app_id, base);
+    const renew = appSessionRenewer(client, base.app_id, 30);
+    const outcome = await renew(appSession(base));
+    expect("expires_at" in outcome).toBe(true);
+    const minutes = (Date.parse((outcome as { expires_at: string }).expires_at) - Date.now()) / 60_000;
+    expect(minutes).toBeGreaterThan(29);
+  });
+
+  it("ends the session when the App's release or grant changed", async () => {
+    const client = new FakeWorkflowsClient();
+    const session = appSession(base);
+    client.details.set(base.app_id, { ...base, release_id: "rel_10" });
+    expect(await appSessionRenewer(client, base.app_id)(session)).toEqual({ revoke: "release_changed" });
+    client.details.set(base.app_id, { ...base, ui: { entry: "ui/src/main.tsx", views: [], actions: ["add_note", "delete_note"] } });
+    expect(await appSessionRenewer(client, base.app_id)(session)).toEqual({ revoke: "grant_changed" });
+  });
+
+  it("lets a failed check surface so the session is kept", async () => {
+    const client = new FakeWorkflowsClient();
+    await expect(appSessionRenewer(client, "missing")(appSession(base))).rejects.toThrow();
   });
 });

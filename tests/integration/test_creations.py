@@ -352,3 +352,61 @@ def test_two_created_results_share_a_profile_with_independent_data_and_scratch(
             "notes_b": [n["values"]["title"] for n in notes(core, b)],
         },
     )
+
+
+def test_stop_accepted_at_the_ready_boundary_leaves_no_release(
+    data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
+) -> None:
+    """M1-R03 (review finding F13) on the real stack: the build is ready but the creation has not
+    switched it on yet (its next check is seconds away). Stop is accepted, and no release, App or
+    activation appears afterwards."""
+    core = start_build_core(
+        data_dir, build_profiles.root, build_packages, {"ALPHA_CREATION_POLL_SECONDS": "8"}
+    )
+    try:
+        creation = start_creation(
+            core, briefed(core, "Keep a notes list for me, no screen"), "package notes_ok"
+        )
+        deadline = time.monotonic() + 60
+        build: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            current = get_creation(core, creation["creation_id"])
+            if current.get("build_id"):
+                build = build_of(core, current["build_id"])
+                if build["state"] == "ready":
+                    break
+            time.sleep(0.2)
+        assert build.get("state") == "ready", build
+        with core.client() as client:
+            stopped = client.post(f"/api/creations/{creation['creation_id']}/cancel")
+        assert stopped.status_code == 200, stopped.text
+        assert stopped.json()["state"] == "cancelled"
+        time.sleep(10)  # past the creation's next check
+        final = get_creation(core, creation["creation_id"])
+        assert final["state"] == "cancelled" and final["release_id"] is None
+        assert final["app_id"] not in apps(core)
+        with core.client() as client:
+            kinds = [
+                e["kind"]
+                for e in client.get(f"/api/builds/{build['build_id']}/events").json()["events"]
+            ]
+        assert "build.activated" not in kinds
+    finally:
+        core.stop()
+
+
+def test_stop_after_completion_is_refused_with_the_true_outcome(build_core: CoreProcess) -> None:
+    final = create(build_core, "Keep a notes list for me, no screen")
+    assert final["state"] == "active"
+    with build_core.client() as client:
+        refused = client.post(f"/api/creations/{final['creation_id']}/cancel")
+    assert refused.status_code == 409
+    assert "already active" in refused.text
+    assert get_creation(build_core, final["creation_id"])["state"] == "active"
+    assert final["app_id"] in apps(build_core)
+
+
+def get_creation(core: CoreProcess, creation_id: str) -> dict[str, Any]:
+    with core.client() as client:
+        data: dict[str, Any] = client.get(f"/api/creations/{creation_id}").json()
+    return data

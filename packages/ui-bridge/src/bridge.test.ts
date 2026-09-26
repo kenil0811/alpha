@@ -2,7 +2,7 @@
  *  real MessagePorts. */
 import { describe, expect, it, vi } from "vitest";
 import { BridgeClient, BridgeRequestError } from "./client";
-import { BridgeError, BridgeHost, type BridgeHandlers } from "./host";
+import { BridgeError, BridgeHost, type BridgeHandlers, type BridgeHostOptions } from "./host";
 import { PROTOCOL_VERSION, type BridgeSession } from "./protocol";
 
 function session(id: string, actions: string[] = ["synthetic.echo"], views: string[] = []): BridgeSession {
@@ -14,10 +14,10 @@ function session(id: string, actions: string[] = ["synthetic.echo"], views: stri
   };
 }
 
-function pair(s: BridgeSession, handlers: BridgeHandlers = {}, now?: () => number) {
+function pair(s: BridgeSession, handlers: BridgeHandlers = {}, now?: () => number, extra: Partial<BridgeHostOptions> = {}) {
   const channel = new MessageChannel();
   const events: string[] = [];
-  const host = new BridgeHost({ session: s, handlers, now, onEvent: (e) => events.push(`${e.kind}:${JSON.stringify(e.detail)}`) });
+  const host = new BridgeHost({ session: s, handlers, now, onEvent: (e) => events.push(`${e.kind}:${JSON.stringify(e.detail)}`), ...extra });
   host.bind(channel.port1);
   const client = BridgeClient.fromPort(channel.port2, s.session_id);
   return { host, client, channel, events };
@@ -138,6 +138,66 @@ describe("bridge session", () => {
     clock = Date.parse(s.expires_at) + 1;
     await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).rejects.toMatchObject({ code: "revoked" });
     expect(host.isRevoked).toBe(true);
+  });
+
+  it("an expired session is renewed when the trusted caller confirms it, without replaying", async () => {
+    let clock = Date.now();
+    const s = session("s7r");
+    const invoked: string[] = [];
+    let renewals = 0;
+    const { client, host } = pair(
+      s,
+      { ...handlers, actionInvoke: async (_session, payload) => (invoked.push(payload.action_id), { operation_id: "op_1" }) },
+      () => clock,
+      {
+        renew: async () => {
+          renewals += 1;
+          return { expires_at: new Date(clock + 30 * 60_000).toISOString() };
+        },
+      },
+    );
+    await client.whenReady();
+    clock = Date.parse(s.expires_at) + 1;
+    await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).resolves.toMatchObject({ operation_id: "op_1" });
+    expect(invoked).toEqual(["synthetic.echo"]);
+    expect(renewals).toBe(1);
+    expect(host.isRevoked).toBe(false);
+    expect(Date.parse(host.expires)).toBeGreaterThan(clock);
+  });
+
+  it("a changed release or grant ends an expired session instead of renewing it", async () => {
+    let clock = Date.now();
+    const s = session("s7c");
+    const invoked: string[] = [];
+    const { client, host } = pair(
+      s,
+      { ...handlers, actionInvoke: async (_session, payload) => (invoked.push(payload.action_id), { operation_id: "op_1" }) },
+      () => clock,
+      { renew: async () => ({ revoke: "release_changed" }) },
+    );
+    await client.whenReady();
+    clock = Date.parse(s.expires_at) + 1;
+    await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).rejects.toMatchObject({ code: "revoked" });
+    expect(invoked).toEqual([]);
+    expect(host.isRevoked).toBe(true);
+  });
+
+  it("a failed renewal check keeps the session and asks to try again", async () => {
+    let clock = Date.now();
+    const s = session("s7f");
+    let fail = true;
+    const { client, host } = pair(s, handlers, () => clock, {
+      renew: async () => {
+        if (fail) throw new Error("Core unreachable");
+        return { expires_at: new Date(clock + 60_000).toISOString() };
+      },
+    });
+    await client.whenReady();
+    clock = Date.parse(s.expires_at) + 1;
+    await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).rejects.toMatchObject({ code: "internal" });
+    expect(host.isRevoked).toBe(false);
+    fail = false;
+    await expect(client.request("action.invoke", { action_id: "synthetic.echo", input: {} })).resolves.toBeTruthy();
   });
 
   it("handler failures are reported without internals", async () => {

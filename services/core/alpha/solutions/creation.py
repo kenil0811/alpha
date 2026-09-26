@@ -243,17 +243,32 @@ class CreationService:
         return [self._record(r) for r in rows]
 
     def cancel(self, creation_id: str) -> CreationRecord:
-        record = self.get(creation_id)
-        if record.state in TERMINAL:
-            raise OperationFailed("conflict", f"the creation is already {record.state}")
+        """Stop a creation. Accepted only before it starts switching on, and decided in the same
+        transaction that reads the state, so an accepted Stop always prevents a new release.
+        Once switching on has begun the creation completes or fails, and says which (F13)."""
+        with self._store.transaction() as conn:
+            row = conn.execute(
+                "SELECT state, build_id FROM creations WHERE creation_id = ?", (creation_id,)
+            ).fetchone()
+            if row is None:
+                raise OperationFailed("not_found", f"no creation {creation_id!r}")
+            if row["state"] in TERMINAL:
+                raise OperationFailed("conflict", f"the creation is already {row['state']}")
+            if row["state"] == "activating":
+                raise OperationFailed(
+                    "conflict", "it is already being switched on and can no longer be stopped"
+                )
+            self._finish_locked(
+                conn, creation_id, "cancelled", None, {"reason": "cancelled_by_user"}
+            )
+            build_id = row["build_id"]
         with self._lock:
             self._cancelled.add(creation_id)
-        if record.build_id:
+        if build_id:
             try:
-                self._builds.cancel(record.build_id)
+                self._builds.cancel(build_id)
             except Exception:
-                pass  # already finished; the watcher records the outcome
-        self._finish(creation_id, "cancelled", None, {"reason": "cancelled_by_user"})
+                pass  # already finished; nothing of it is switched on
         return self.get(creation_id)
 
     def reconcile_on_startup(self) -> list[str]:
@@ -340,11 +355,22 @@ class CreationService:
             app_id=app_id,
         )
         with self._store.transaction() as conn:
-            conn.execute(
+            moved = conn.execute(
                 "UPDATE creations SET build_id = ?, state = ?, updated_at = ?"
-                " WHERE creation_id = ?",
+                " WHERE creation_id = ? AND state NOT IN ('active', 'failed', 'cancelled')",
                 (build.build_id, "building", _now(), creation_id),
-            )
+            ).rowcount
+            if not moved:  # stopped while the build was being submitted
+                conn.execute(
+                    "UPDATE creations SET build_id = ? WHERE creation_id = ?",
+                    (build.build_id, creation_id),
+                )
+        if not moved:
+            try:
+                self._builds.cancel(build.build_id)
+            except Exception:
+                pass
+            return
         self._note(creation_id, "building", "Building it")
         final = self._wait_for_build(creation_id, build.build_id)
         if final is None:
@@ -352,7 +378,8 @@ class CreationService:
         if final.state is not BuildState.READY:
             self._finish(creation_id, "failed", None, self._build_failure(final))
             return
-        self._note(creation_id, "activating", "Getting it ready to use")
+        if not self._claim_activation(creation_id):
+            return  # stopped before switching on: nothing is switched on
         try:
             activated = self._builds.activate(
                 final.build_id, expected_release_id=None, creation_id=creation_id
@@ -448,6 +475,26 @@ class CreationService:
                 (stage, json.dumps(history), _now(), creation_id),
             )
 
+    def _claim_activation(self, creation_id: str) -> bool:
+        """Move to `activating` unless the creation was stopped. The same transaction boundary
+        as `cancel` decides which one wins."""
+        with self._store.transaction() as conn:
+            row = conn.execute(
+                "SELECT state, history_json FROM creations WHERE creation_id = ?", (creation_id,)
+            ).fetchone()
+            if row is None or row["state"] in TERMINAL or row["state"] == "activating":
+                return False
+            history = json.loads(row["history_json"])
+            history.append(
+                {"stage": "activating", "label": "Getting it ready to use", "at": _now()}
+            )
+            conn.execute(
+                """UPDATE creations SET state = 'activating', history_json = ?, updated_at = ?
+                   WHERE creation_id = ?""",
+                (json.dumps(history), _now(), creation_id),
+            )
+            return True
+
     def _finish(
         self,
         creation_id: str,
@@ -456,29 +503,37 @@ class CreationService:
         failure: dict[str, Any] | None,
     ) -> None:
         with self._store.transaction() as conn:
-            row = conn.execute(
-                "SELECT state, history_json FROM creations WHERE creation_id = ?", (creation_id,)
-            ).fetchone()
-            if row is None or row["state"] in TERMINAL:
-                return
-            history = json.loads(row["history_json"])
-            label = {"active": "Ready to use", "failed": "Not made", "cancelled": "Cancelled"}[
-                state
-            ]
-            history.append({"stage": state, "label": label, "at": _now()})
-            conn.execute(
-                """UPDATE creations SET state = ?, release_id = ?, version_id = ?,
-                   failure_json = ?, history_json = ?, updated_at = ? WHERE creation_id = ?""",
-                (
-                    state,
-                    activated["release_id"] if activated else None,
-                    activated["version_id"] if activated else None,
-                    json.dumps(failure) if failure else None,
-                    json.dumps(history),
-                    _now(),
-                    creation_id,
-                ),
-            )
+            self._finish_locked(conn, creation_id, state, activated, failure)
+
+    def _finish_locked(
+        self,
+        conn: Any,
+        creation_id: str,
+        state: str,
+        activated: dict[str, Any] | None,
+        failure: dict[str, Any] | None,
+    ) -> None:
+        row = conn.execute(
+            "SELECT state, history_json FROM creations WHERE creation_id = ?", (creation_id,)
+        ).fetchone()
+        if row is None or row["state"] in TERMINAL:
+            return
+        history = json.loads(row["history_json"])
+        label = {"active": "Ready to use", "failed": "Not made", "cancelled": "Cancelled"}[state]
+        history.append({"stage": state, "label": label, "at": _now()})
+        conn.execute(
+            """UPDATE creations SET state = ?, release_id = ?, version_id = ?,
+               failure_json = ?, history_json = ?, updated_at = ? WHERE creation_id = ?""",
+            (
+                state,
+                activated["release_id"] if activated else None,
+                activated["version_id"] if activated else None,
+                json.dumps(failure) if failure else None,
+                json.dumps(history),
+                _now(),
+                creation_id,
+            ),
+        )
 
     def _record(self, row: Any) -> CreationRecord:
         history = json.loads(row["history_json"])
