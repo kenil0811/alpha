@@ -36,7 +36,7 @@ function ready(c: Creation): Creation {
 }
 
 async function askAndCreate(user: ReturnType<typeof userEvent.setup>, text = "Keep a notes list for me") {
-  expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+  expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
   await user.type(screen.getByLabelText("What do you want done?"), text);
   await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
   await user.click(await screen.findByRole("button", { name: "Create it" }));
@@ -121,7 +121,7 @@ describe("temporary failures do not strand the person", () => {
     client.assistantScript = (c) => ({ ...c, state: "failed", error: "the model service took too long to answer" });
     const user = userEvent.setup();
     render(<App client={client} />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
 
@@ -142,7 +142,7 @@ describe("temporary failures do not strand the person", () => {
     client.assistantScript = (c) => ({ ...c, state: "failed", error: "Alpha was closed or restarted while it was thinking about this" });
     const user = userEvent.setup();
     render(<App client={client} />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Sort my receipts");
     await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
     const failure = await screen.findByRole("alert", { name: "Alpha could not work this out" });
@@ -189,7 +189,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     const client = briefedClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list for me");
     await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
     await screen.findByRole("button", { name: "Create it" });

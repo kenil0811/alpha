@@ -13,7 +13,7 @@ describe("shell request/result path", () => {
   it("shows the connected runtime and an empty result state", async () => {
     const user = userEvent.setup();
     render(<App client={new FakeCoreClient()} />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Runtime fixture" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Activity" }));

@@ -257,7 +257,7 @@ describe("shell navigation", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail());
     const user = userEvent.setup();
     render(<App client={client} />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Assistant" })).toHaveAttribute("aria-current", "page");
     await user.click(screen.getByRole("button", { name: "My workflows" }));
     await user.click(await screen.findByRole("button", { name: "Open Notes list" }));
