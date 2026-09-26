@@ -37,3 +37,50 @@ def test_matching_is_a_subset_unless_exact() -> None:
     assert not matches({"done": 0}, observed), "booleans never equal numbers"
     assert not matches({"items": []}, observed), "lists must have the same length"
     assert matches(observed, observed, exact=True)
+
+
+def test_any_value_requires_presence_not_a_particular_value() -> None:
+    expected = {"id": {"$any": True}, "revision": {"$any": True}, "calories_are_estimated": True}
+    observed = {"id": "rec_1", "revision": 1, "calories_are_estimated": True, "extra": 3}
+    assert matches(expected, observed)
+    assert not matches(expected, {"revision": 1, "calories_are_estimated": True})
+    assert not matches(expected, {**observed, "id": None})
+    assert not matches({"id": "*"}, {"id": "rec_1"}), "a literal star is only a literal"
+
+
+def test_star_expectations_from_the_planner_become_any_value() -> None:
+    """Found in G1: the planner wrote {"id": "*", "revision": "*"}; every check failed."""
+    from alpha.solutions.planner import normalize_expectations
+    from alpha_contracts.verification import ValidationPlan
+
+    plan = ValidationPlan.model_validate(
+        {
+            "scenarios": [
+                {
+                    "id": "log",
+                    "description": "log one",
+                    "steps": [
+                        {
+                            "kind": "invoke",
+                            "id": "add",
+                            "action": "log_food",
+                            "input": {"food": "*"},
+                            "output": {"id": "*", "revision": "*"},
+                        },
+                        {
+                            "kind": "records",
+                            "id": "stored",
+                            "collection": "food",
+                            "includes": [{"food": "*", "id": "*"}],
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+    fixed, changed = normalize_expectations(plan)
+    steps = fixed.scenarios[0].steps
+    assert changed == 4
+    assert steps[0].output == {"id": {"$any": True}, "revision": {"$any": True}}
+    assert steps[0].input == {"food": "*"}, "inputs are data and stay as written"
+    assert steps[1].includes == [{"food": {"$any": True}, "id": {"$any": True}}]

@@ -143,8 +143,9 @@ def render_plan(plan: ValidationPlan) -> str:
         "",
         "The platform runs these checks against the sealed package through real action runs and a",
         "real browser. They were written before the build; changing this file changes nothing.",
-        '`{"$ref": "<step>.output.<key>"}` is a value an earlier step returned and',
-        "`{\"$today\": n}` is today's date (plus n days) in the person's timezone.",
+        '`{"$ref": "<step>.output.<key>"}` is a value an earlier step returned,',
+        "`{\"$today\": n}` is today's date (plus n days) in the person's timezone, and",
+        '`{"$any": true}` means the key must be present with a value of your choosing.',
         "",
         "## Behaviour scenarios",
     ]

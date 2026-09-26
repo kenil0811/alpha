@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from alpha_contracts.briefs import SolutionBrief, Surface
 from alpha_contracts.verification import (
@@ -38,7 +39,7 @@ Rules:
 - Use the brief's action ids and collection and field names exactly (lowercase snake_case). If the brief lacks one you need, choose a clear snake_case name and use it consistently.
 - Write 2 to 4 behaviour scenarios that cover the primary journey, plus one refused case (an empty or invalid input with "expect": "failed", followed by a records step showing nothing was stored).
 - After every action that should save something, add a records step that reads storage: "includes" lists field values the scenario supplied (subset match), and "count" when you are certain of it. Never check storage by trusting an action's output.
-- Action inputs are flat JSON objects whose keys are the action's inputs. Outputs are matched as subsets; only assert values the App cannot choose freely. An action that creates a record should return at least {"id", "revision"}; to act on it later use {"$ref": "<step id>.output.id"}.
+- Action inputs are flat JSON objects whose keys are the action's inputs. Outputs are matched as subsets; only assert values the App cannot choose freely. To require a key whose value the App chooses, write {"$any": true} as its value (never "*"). An action that creates a record should return at least {"id": {"$any": true}, "revision": {"$any": true}}; to act on it later use {"$ref": "<step id>.output.id"}.
 - Dates: use {"$today": 0} for today (and -1 for yesterday) wherever the App records a date for the person. Never assert an exact value that comes from a model estimate; assert only that the record exists with the values the person typed.
 - Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. Without "custom_ui", set "ui" to null.
 - Every step id is unique within its scenario, lowercase snake_case.
@@ -92,6 +93,44 @@ def consistency_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str
     if not wants_ui(brief) and plan.ui is not None:
         problems.append("the plan checks a screen the brief does not ask for")
     return problems
+
+
+def _star_to_any(value: Any) -> tuple[Any, int]:
+    """Replace the literal "*" a model writes for "any value" with {"$any": true}."""
+    if value == "*":
+        return {"$any": True}, 1
+    if isinstance(value, dict):
+        pairs = [(k, _star_to_any(v)) for k, v in value.items()]
+        return {k: v for k, (v, _) in pairs}, sum(n for _, (_, n) in pairs)
+    if isinstance(value, list):
+        items = [_star_to_any(v) for v in value]
+        return [v for v, _ in items], sum(n for _, n in items)
+    return value, 0
+
+
+def normalize_expectations(plan: ValidationPlan) -> tuple[ValidationPlan, int]:
+    """Expected outputs and stored values use {"$any": true} for "any value". Found in G1: the
+    planner wrote {"id": "*"}, which the matcher compares literally, so every check failed and
+    no honest repair could pass. Inputs are left alone ("*" there is data)."""
+    data = plan.model_dump(mode="json")
+    changed = 0
+
+    def fix(step: dict[str, Any]) -> None:
+        nonlocal changed
+        for key in ("output", "includes"):
+            if step.get(key) is not None:
+                step[key], n = _star_to_any(step[key])
+                changed += n
+
+    for scenario in data["scenarios"]:
+        for step in scenario["steps"]:
+            fix(step)
+    if data.get("ui"):
+        if data["ui"].get("saved"):
+            fix(data["ui"]["saved"])
+        for step in data["ui"].get("seed") or []:
+            fix(step)
+    return ValidationPlan.model_validate(data), changed
 
 
 def plan_prompt(brief: SolutionBrief) -> str:
@@ -195,10 +234,12 @@ class AcceptancePlanner:
             draft = PlanDraft.model_validate(result.output)
         except (InferenceError, ValidationError) as exc:
             raise PlanningFailed(f"the checks could not be written: {str(exc)[:300]}") from None
-        problems = consistency_problems(draft.validation_plan, brief)
+        plan, replaced = normalize_expectations(draft.validation_plan)
+        problems = consistency_problems(plan, brief)
         if problems:
             raise PlanningFailed("the checks are inconsistent: " + "; ".join(problems[:5]))
-        return AcceptancePlan(draft.app_name, draft.validation_plan, "model", [])
+        notes = [f'{replaced} "*" expectation(s) read as any value'] if replaced else []
+        return AcceptancePlan(draft.app_name, plan, "model", notes)
 
     def _fake(self, brief: SolutionBrief) -> AcceptancePlan:
         plan = plan_from_brief_examples(brief)

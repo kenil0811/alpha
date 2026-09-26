@@ -57,9 +57,17 @@ def resolve_values(value: Any, outputs: dict[str, Any], timezone: str) -> Any:
     return value
 
 
+def is_any(value: Any) -> bool:
+    """`{"$any": true}`: the key must be present with a non-null value; which value is free."""
+    return isinstance(value, dict) and set(value) == {"$any"} and value["$any"] is True
+
+
 def matches(expected: Any, observed: Any, *, exact: bool = False) -> bool:
     """Deep match. Objects match when every expected key matches (all keys, if exact); lists
-    match element-wise with the same length; numbers compare by value."""
+    match element-wise with the same length; numbers compare by value; `{"$any": true}`
+    matches any non-null value."""
+    if is_any(expected):
+        return observed is not None
     if isinstance(expected, dict):
         if not isinstance(observed, dict):
             return False
