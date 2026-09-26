@@ -194,3 +194,17 @@ def test_capability_calls_are_closed() -> None:
         CapabilityCall.model_validate({**call, "owner": {"kind": "app", "app_id": "x"}})
     with pytest.raises(ValidationError):
         CapabilityCall.model_validate({**call, "version": 2})
+
+
+def test_primary_action_names_a_manual_action() -> None:
+    """M1 review finding F03: the one action a person runs must exist and be runnable by hand."""
+    base = source()
+    action_id = base["actions"][0]["id"]
+    assert (
+        AppSource.model_validate({**base, "primary_action": action_id}).primary_action == action_id
+    )
+    with pytest.raises(ValidationError, match="not declared"):
+        AppSource.model_validate({**base, "primary_action": "missing"})
+    helper = {**base["actions"][0], "invocable_from": ["assistant"]}
+    with pytest.raises(ValidationError, match="manual"):
+        AppSource.model_validate({**base, "actions": [helper], "primary_action": action_id})

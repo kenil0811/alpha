@@ -5,6 +5,7 @@ description: A neutral list of short notes, used to qualify candidate verificati
 runtime_profile: "{{RUNTIME_PROFILE}}"
 sdk_version: "{{SDK_VERSION}}"
 capabilities: [records]
+primary_action: add_note
 collections:
   - name: notes
     fields:

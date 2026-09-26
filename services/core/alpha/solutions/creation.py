@@ -152,8 +152,11 @@ def build_instructions(brief: SolutionBrief, *, with_ui: bool, app_name: str) ->
         "",
         "Build a screen for this App (ui/src/main.tsx) using the labels PLAN.md names."
         if with_ui
-        else "This App has no custom screen: leave ui out of app.yaml. People run its actions "
-        "from Alpha's own view, so give every action a clear title and description.",
+        else "This App has no custom screen: leave ui out of app.yaml. Alpha shows one form for "
+        "primary_action, the action the person runs to get the result; set it, give it a clear "
+        "title and description, mark pasted or long text inputs multiline: true, and return "
+        "readable data (lists of entries become tables). Keep helper steps internal: do not list "
+        "an action as manual if it needs another step's output.",
     ]
     return "\n".join(lines)
 

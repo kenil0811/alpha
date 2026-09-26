@@ -119,6 +119,19 @@ what the person typed.
 
 Evidence: `docs/development/evidence/M1-R03.md`.
 
+### M1-R04: usable outputs and honest scope (done, 26 September 2026)
+
+**F03.** An App without its own screen has one clear form: its declared `primary_action`, which
+verification requires. It takes multi-line and list inputs, shows readable tables and lists (no
+JSON), and keeps helper steps internal. This was tested on the real G1 held-out manifest.
+
+**F07.** After an App is made, the Assistant offers "Create a separate workflow" and says that
+changing the App isn't available yet. Corrections wait while a creation runs.
+
+**F12.** File delivery is marked unavailable until F11, and the example prompt is replaced.
+
+Evidence: `docs/development/evidence/M1-R04.md`.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

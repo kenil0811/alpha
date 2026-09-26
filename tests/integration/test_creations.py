@@ -410,3 +410,26 @@ def get_creation(core: CoreProcess, creation_id: str) -> dict[str, Any]:
     with core.client() as client:
         data: dict[str, Any] = client.get(f"/api/creations/{creation_id}").json()
     return data
+
+
+def test_an_app_without_a_screen_must_name_its_main_action(
+    data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
+) -> None:
+    """M1-R04 (review finding F03): without its own screen, Alpha offers one form for the App's
+    primary action, so a screenless candidate that names none is not made ready."""
+    core = start_build_core(
+        data_dir, build_profiles.root, build_packages, {"ALPHA_BUILD_MAX_TOTAL_SECONDS": "1"}
+    )
+    try:
+        final = create(core, "Keep a notes list for me, no screen", "package no_primary")
+        assert final["state"] == "failed", final
+        build = build_of(core, final["build_id"])
+        check = checks(report(core, build))["package.primary_action"]
+        assert check["status"] == "failed", check
+        assert "primary_action" in check["summary"]
+
+        made = create(core, "Keep a notes list for me, no screen", "package notes_ok")
+        assert made["state"] == "active", made
+        assert detail(core, made["app_id"])["primary_action"] == "add_note"
+    finally:
+        core.stop()

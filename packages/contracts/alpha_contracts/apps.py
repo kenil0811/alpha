@@ -101,6 +101,10 @@ class AppSource(ContractModel):
     actions: list[ActionDefinition] = Field(min_length=1, max_length=50)
     capabilities: list[str] = Field(default_factory=list, max_length=16)
     ui: UiDeclaration | None = None
+    # The one action a person runs to get this App's result. Required (by verification) for an
+    # App without its own screen, so Alpha can offer one clear form instead of every internal
+    # step (M1 review finding F03).
+    primary_action: str | None = Field(default=None, max_length=64)
     trigger_templates: list[dict[str, Any]] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
@@ -128,6 +132,12 @@ class AppSource(ContractModel):
                 raise ValueError(f"action {action.id!r} requires undeclared capabilities {extra}")
         if self.collections and "records" not in self.capabilities:
             raise ValueError("an App with collections must declare the records capability")
+        if self.primary_action is not None:
+            primary = self.action(self.primary_action)
+            if primary is None:
+                raise ValueError(f"primary_action {self.primary_action!r} is not declared")
+            if Invocable.MANUAL not in primary.invocable_from:
+                raise ValueError("primary_action must list manual in invocable_from")
         if self.ui is not None:
             by_name = {c.name: c for c in self.collections}
             view_ids = [v.id for v in self.ui.views]

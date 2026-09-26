@@ -137,6 +137,8 @@ export interface AppDetail {
   record_counts: Record<string, number>;
   /** Where this App's data goes, stated by Core from the configured routes. */
   data_notice?: string;
+  /** The one action a person runs to get this App's result (Apps without their own screen). */
+  primary_action?: string | null;
 }
 
 export interface JsonSchema {
@@ -151,6 +153,8 @@ export interface JsonSchema {
   maximum?: number;
   minLength?: number;
   maxLength?: number;
+  /** Presentation hint from the App: show this text input as a multi-line box. */
+  multiline?: boolean;
 }
 
 export interface ActionSummary {

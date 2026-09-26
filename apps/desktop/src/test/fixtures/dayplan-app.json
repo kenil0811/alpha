@@ -1,0 +1,373 @@
+{
+  "_source": "Converted unchanged from the G1 held-out App (docs/development/evidence/logs/G1-20260926/record/dayplan): its generated app.yaml actions and a real fit_plan result. Used to test the shell's actions view (M1 review finding F03).",
+  "app_id": "fits-in-today-planner-e40b8e",
+  "name": "Fits In Today Planner",
+  "actions": [
+    {
+      "id": "read_list",
+      "title": "Read my pasted to-do list",
+      "description": "Reads your pasted list one item per line, keeps the pasted order as the order of importance, and pulls out each rough time (90m, 1.5h, 1:30). A line with no time is given 30 minutes, marked as an estimate you can correct.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "list",
+          "hours_available"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Your to-do list, one item per line, most important first, with a rough time such as 90m, 1.5h or 1:30."
+          },
+          "hours_available": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "How many hours you have available today, for example 4."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "duration_minutes",
+                "estimated"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "hours_available": {
+            "type": "number"
+          },
+          "available_minutes": {
+            "type": "integer"
+          },
+          "total_minutes": {
+            "type": "integer"
+          }
+        }
+      },
+      "invocable_from": [
+        "manual",
+        "assistant"
+      ],
+      "effect_class": "none"
+    },
+    {
+      "id": "fit_plan",
+      "title": "Fit my list into today's hours",
+      "description": "Goes down your pasted list in order and adds each item whole while the running total stays within the hours you have. An item too long for the time left is set aside for \"won't fit\" and smaller items behind it can still use the gap.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "list",
+          "hours_available"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Your to-do list, one item per line, most important first, with a rough time such as 90m, 1.5h or 1:30."
+          },
+          "hours_available": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "How many hours you have available today, for example 4."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "plan",
+          "wont_fit",
+          "total_minutes",
+          "short_by_minutes"
+        ],
+        "properties": {
+          "plan": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "duration_minutes",
+                "running_minutes"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "running_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "wont_fit": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "duration_minutes"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "total_minutes": {
+            "type": "integer"
+          },
+          "short_by_minutes": {
+            "type": "integer"
+          },
+          "available_minutes": {
+            "type": "integer"
+          },
+          "minutes_spare": {
+            "type": "integer"
+          },
+          "hours_available": {
+            "type": "number"
+          }
+        }
+      },
+      "invocable_from": [
+        "manual",
+        "assistant"
+      ],
+      "effect_class": "none"
+    },
+    {
+      "id": "report_plan",
+      "title": "Write up the plan to read",
+      "description": "Writes the plan back in order with each item's time and the total used against the hours you have, then a short \"won't fit today\" list with the time each leftover needs and the total time you are short.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "plan",
+          "hours_available"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "plan": {
+            "type": "array",
+            "description": "The planned items in order, each with its name, time in minutes and running total.",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "duration_minutes"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "running_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "wont_fit": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "The items that won't fit today, each with the time it needs.",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "duration_minutes"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "integer"
+                },
+                "estimated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "hours_available": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "How many hours you have available today, for example 4."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "plan_text"
+        ],
+        "properties": {
+          "plan_text": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "total_minutes": {
+            "type": "integer"
+          },
+          "short_by_minutes": {
+            "type": "integer"
+          }
+        }
+      },
+      "invocable_from": [
+        "manual",
+        "assistant"
+      ],
+      "effect_class": "none"
+    }
+  ],
+  "fit_plan_output": {
+    "available_minutes": 240,
+    "hours_available": 4.0,
+    "items": [
+      {
+        "duration_minutes": 120,
+        "estimated": false,
+        "name": "Finish quarterly report"
+      },
+      {
+        "duration_minutes": 20,
+        "estimated": false,
+        "name": "Call the bank"
+      },
+      {
+        "duration_minutes": 45,
+        "estimated": false,
+        "name": "Review Asha's pull request"
+      },
+      {
+        "duration_minutes": 60,
+        "estimated": false,
+        "name": "Groceries"
+      },
+      {
+        "duration_minutes": 30,
+        "estimated": true,
+        "name": "Book dentist appointment"
+      },
+      {
+        "duration_minutes": 90,
+        "estimated": false,
+        "name": "Clean out email inbox"
+      }
+    ],
+    "minutes_spare": 25,
+    "plan": [
+      {
+        "duration_minutes": 120,
+        "estimated": false,
+        "name": "Finish quarterly report",
+        "running_minutes": 120
+      },
+      {
+        "duration_minutes": 20,
+        "estimated": false,
+        "name": "Call the bank",
+        "running_minutes": 140
+      },
+      {
+        "duration_minutes": 45,
+        "estimated": false,
+        "name": "Review Asha's pull request",
+        "running_minutes": 185
+      },
+      {
+        "duration_minutes": 30,
+        "estimated": true,
+        "name": "Book dentist appointment",
+        "running_minutes": 215
+      }
+    ],
+    "short_by_minutes": 150,
+    "total_minutes": 215,
+    "wont_fit": [
+      {
+        "duration_minutes": 60,
+        "estimated": false,
+        "name": "Groceries"
+      },
+      {
+        "duration_minutes": 90,
+        "estimated": false,
+        "name": "Clean out email inbox"
+      }
+    ]
+  }
+}

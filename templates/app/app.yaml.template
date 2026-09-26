@@ -5,6 +5,7 @@ description: "{{ONE_SENTENCE_PURPOSE}}"
 runtime_profile: "{{RUNTIME_PROFILE}}"
 sdk_version: "{{SDK_VERSION}}"
 capabilities: [records]
+primary_action: add_item   # the action a person runs to get the result (required without a screen)
 collections:
   - name: items
     fields:

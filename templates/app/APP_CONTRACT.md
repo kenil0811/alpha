@@ -131,4 +131,13 @@ own saved or failed outcome, so do not add a second status line for the same eve
 yes/no value by what it means in both states (a "Finished" column shows "Yes" or "Not yet", never
 an unrelated word). Mark values that came from a model estimate as estimates.
 
-An App without a screen leaves `ui` out; its actions are run by the person or the assistant.
+An App without a screen leaves `ui` out. Alpha then shows one form for its `primary_action`, the
+action a person runs to get the result, and shows what it returns. So:
+- set `primary_action` (required without a screen) and give it a clear title and description;
+- keep helper steps internal: an action that needs another step's output is not listed as
+  `manual`, and the primary action calls your helper functions directly;
+- mark a text input the person pastes or writes at length with `multiline: true` in its
+  input schema; a list of short texts can be an array of strings (one per line on the form);
+- return results as plain data a person can read: a list of entries becomes a table, a list of
+  words becomes a list. Name keys in the person's words (`wont_fit`, `total_minutes`); ids are
+  not shown.

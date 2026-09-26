@@ -49,13 +49,13 @@ export function Workspace({
             <GeneratedScreen client={client} detail={detail} />
             <details>
               <summary>Actions and saved data</summary>
-              <ActionsView client={client} appId={appId} actions={detail.actions} onChanged={changed} />
+              <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
               <SavedData client={client} appId={appId} collections={detail.collections} refresh={refresh} />
             </details>
           </>
         ) : (
           <>
-            <ActionsView client={client} appId={appId} actions={detail.actions} onChanged={changed} />
+            <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
             <SavedData client={client} appId={appId} collections={detail.collections} refresh={refresh} />
           </>
         )

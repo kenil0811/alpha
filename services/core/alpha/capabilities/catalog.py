@@ -3,9 +3,10 @@
 The assistant and builder plan against this list, never against a model's prior knowledge of a
 service (Resource Context and Integration Architecture, "Provider order"). A family is available
 only when a person can get a working solution that uses it, not when the platform part alone
-exists: records, artifacts, runtime model calls and the interaction kit became available with the
-creation and delivery loop (F08). An unavailable family names the ticket and the reason so the
-assistant can explain a useful partial outcome honestly.
+exists: records, runtime model calls and the interaction kit became available with the creation
+and delivery loop (F08); files wait until a person can open or save them (F11). An unavailable
+family names the ticket and the reason so the assistant can explain a useful partial outcome
+honestly.
 """
 
 from __future__ import annotations
@@ -55,13 +56,19 @@ CATALOG: tuple[CapabilityFamily, ...] = (
     ),
     CapabilityFamily(
         family="artifacts",
-        description="Files produced by a solution (reports, exports), kept with their origin.",
-        available=True,
+        description="Files produced by a solution (reports, exports) that the person opens or "
+        "saves.",
+        # The backend keeps files with their origin (F05), but no Alpha surface lets a person open
+        # or save one yet, so a file result would be an unusable handle (M1 review finding F12).
+        available=False,
         operations=(
             "artifacts.create(display_name, content, media_type)",
             "artifacts.read(artifact_id)",
             "artifacts.get(artifact_id)",
         ),
+        unavailable_reason="Alpha can keep files a solution makes, but you can't open or save them "
+        "from Alpha yet",
+        arrives_with="F11",
     ),
     CapabilityFamily(
         family="models",

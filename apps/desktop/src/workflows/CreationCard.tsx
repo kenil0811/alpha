@@ -4,7 +4,7 @@
  * checks' own screenshots with sample data, labelled as such; nothing here is the person's data.
  */
 import { useEffect, useState } from "react";
-import type { WorkflowsClient } from "../core/client";
+import type { Creation, WorkflowsClient } from "../core/client";
 import { useCreation } from "./useCreation";
 
 const STAGES: { key: string; label: string }[] = [
@@ -33,14 +33,20 @@ export function CreationCard({
   briefRevision,
   unavailable,
   onOpen,
+  onChange,
 }: {
   client: WorkflowsClient;
   conversationId: string;
   briefRevision: number;
   unavailable: string[];
   onOpen: (appId: string) => void;
+  /** Tells the surrounding conversation where the creation stands. */
+  onChange?: (creation: Creation | null) => void;
 }) {
   const { creation, loaded, error, busy, reconnecting, refresh, start, cancel } = useCreation(client, conversationId, briefRevision);
+  useEffect(() => {
+    if (loaded) onChange?.(creation);
+  }, [loaded, creation, onChange]);
 
   if (!loaded) {
     return (

@@ -5,7 +5,7 @@
  */
 import type { JsonSchema } from "../core/client";
 
-export type FieldKind = "text" | "longtext" | "number" | "integer" | "boolean" | "choice" | "json";
+export type FieldKind = "text" | "longtext" | "lines" | "number" | "integer" | "boolean" | "choice" | "json";
 
 export interface FormField {
   name: string;
@@ -31,8 +31,13 @@ export function formFields(schema: JsonSchema): FormField[] {
   return Object.entries(schema.properties ?? {}).map(([name, property]) => {
     const type = primaryType(property);
     let kind: FieldKind = "json";
+    // Explicit hints first: the App's `multiline`, a long maximum, or a description that asks
+    // for one entry per line. The field-name guess stays only as a last resort for older Apps.
+    const perLine = /one (?:item |entry |line )?per line|one \w+ per line/i.test(property.description ?? "");
     if (property.enum?.length) kind = "choice";
-    else if (type === "string") kind = (property.maxLength ?? 0) > 200 || /text|notes|lines|body/.test(name) ? "longtext" : "text";
+    else if (type === "string")
+      kind = property.multiline || perLine || (property.maxLength ?? 0) > 200 || /text|notes|lines|body/.test(name) ? "longtext" : "text";
+    else if (type === "array" && primaryType(property.items ?? {}) === "string") kind = "lines";
     else if (type === "number") kind = "number";
     else if (type === "integer") kind = "integer";
     else if (type === "boolean") kind = "boolean";
@@ -62,6 +67,12 @@ export function toInput(fields: FormField[], values: FormValues): { input: Recor
     const text = typeof raw === "string" ? raw.trim() : "";
     if (!text) {
       if (field.required) problems.push(`${field.label} is needed.`);
+      continue;
+    }
+    if (field.kind === "lines") {
+      const items = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (items.length) input[field.name] = items;
+      else if (field.required) problems.push(`${field.label} is needed.`);
       continue;
     }
     if (field.kind === "number" || field.kind === "integer") {

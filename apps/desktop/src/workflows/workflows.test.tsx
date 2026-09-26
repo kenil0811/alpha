@@ -230,22 +230,21 @@ describe("form fields from an input schema", () => {
       ["servings", "integer", "Servings", false],
       ["meal", "choice", "Meal", false],
       ["done", "boolean", "Done", false],
-      ["tags", "json", "Tags", false],
+      ["tags", "lines", "Tags", false],
     ]);
     expect(humanize("food_entries")).toBe("Food entries");
   });
 
   it("converts values and reports problems in plain words", () => {
     const fields = formFields(schema);
-    expect(toInput(fields, { food: " apple ", grams: "150", servings: "2", tags: '["fruit"]', done: true })).toEqual({
-      input: { food: "apple", grams: 150, servings: 2, tags: ["fruit"], done: true },
+    expect(toInput(fields, { food: " apple ", grams: "150", servings: "2", tags: "fruit\n\n  sweet  ", done: true })).toEqual({
+      input: { food: "apple", grams: 150, servings: 2, tags: ["fruit", "sweet"], done: true },
       problems: [],
     });
-    expect(toInput(fields, { grams: "lots", servings: "1.5", tags: "[" }).problems).toEqual([
+    expect(toInput(fields, { grams: "lots", servings: "1.5" }).problems).toEqual([
       "Food is needed.",
       "Amount (g) must be a number.",
       "Servings must be a whole number.",
-      "Tags is not in the expected form.",
     ]);
   });
 });

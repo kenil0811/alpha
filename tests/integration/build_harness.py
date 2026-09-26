@@ -361,6 +361,11 @@ def estimate_unlabelled(p: Path) -> None:
     _timed_note(p, "None", labelled=False)
 
 
+def no_primary(p: Path) -> None:
+    """Names no primary action: without its own screen, a person would get every step as a form."""
+    _edit(_yaml(p), "primary_action: add_note\n", "")
+
+
 VARIANTS: dict[str, Callable[[Path], None]] = {
     f.__name__: f
     for f in (
@@ -383,6 +388,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         estimate_honest,
         estimate_invented,
         estimate_unlabelled,
+        no_primary,
     )
 }
 

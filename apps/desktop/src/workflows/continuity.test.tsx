@@ -150,3 +150,35 @@ describe("temporary failures do not strand the person", () => {
     await waitFor(() => expect(screen.getByLabelText("What do you want done?")).toHaveValue("Sort my receipts"));
   });
 });
+
+describe("changing a request after its App was made (review finding F07)", () => {
+  it("offers a separate workflow instead of silently making a second App", async () => {
+    const client = briefedClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await askAndCreate(user);
+    expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
+    expect(screen.getByText(/You can change the request once this attempt finishes/)).toBeInTheDocument();
+
+    client.nextCreationState = ready;
+    await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
+    const after = await screen.findByLabelText("After it was made");
+    expect(after).toHaveTextContent("Changing Notes list after it was made isn't possible yet");
+    expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
+
+    await user.click(within(after).getByRole("button", { name: "Create a separate workflow" }));
+    expect(screen.getByLabelText("What do you want done?")).toHaveValue("Keep a notes list for me");
+    expect(client.creations.size).toBe(1);
+  });
+
+  it("still lets the person correct the request before anything is made", async () => {
+    const client = briefedClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
+    await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list for me");
+    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await screen.findByRole("button", { name: "Create it" });
+    expect(screen.getByLabelText("Change or add something")).toBeInTheDocument();
+  });
+});

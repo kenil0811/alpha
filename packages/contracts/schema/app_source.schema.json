@@ -746,6 +746,18 @@
       "minLength": 1,
       "type": "string"
     },
+    "primary_action": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "runtime_profile": {
       "maxLength": 64,
       "minLength": 1,

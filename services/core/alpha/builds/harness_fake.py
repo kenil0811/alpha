@@ -50,6 +50,7 @@ name: Word statistics fixture
 description: Deterministic control package produced by the fake harness.
 runtime_profile: {runtime_profile}
 sdk_version: {sdk_version}
+primary_action: summarize
 actions:
   - id: summarize
     title: Summarize text

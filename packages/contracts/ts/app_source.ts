@@ -84,6 +84,7 @@ export interface AppSource {
     [k: string]: string;
   };
   name: string;
+  primary_action?: string | null;
   runtime_profile: string;
   sdk_version: string;
   /**

@@ -96,6 +96,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             "dependency_manifest_sha256": version.dependency_manifest_sha256,
             "runtime_profile_id": version.runtime_profile_id,
             "capabilities": source.capabilities,
+            "primary_action": source.primary_action,
             "collections": [c.model_dump(mode="json") for c in source.collections],
             "actions": [
                 {

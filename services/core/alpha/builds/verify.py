@@ -260,6 +260,26 @@ class CandidateVerifier:
                     "package.identity", "package", True, "app_id is the identity Alpha assigned"
                 )
             )
+        if run.source.ui is None or run.source.ui.entry is None:
+            # Without its own screen, Alpha runs the App from one form (M1 review finding F03).
+            if run.source.primary_action is None:
+                return run.add(
+                    _result(
+                        "package.primary_action",
+                        "package",
+                        False,
+                        "an App without its own screen must name primary_action: the one action "
+                        "a person runs to get its result (keep helper steps off the manual list)",
+                    )
+                )
+            run.add(
+                _result(
+                    "package.primary_action",
+                    "package",
+                    True,
+                    f"people run {run.source.primary_action} to get the result",
+                )
+            )
         try:
             run.files = collect_files(run.package_dir, run.source)
         except Exception as exc:

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { BriefCard } from "./BriefCard";
@@ -7,7 +7,7 @@ import { useConversation } from "./useConversation";
 
 const EXAMPLES = [
   "Track what I eat and how much, with calories, history and trends",
-  "Turn my meeting notes into a one-page brief",
+  "Keep a reading list with what I thought of each book",
   "Keep a list of job openings I find and what I did about each",
 ];
 
@@ -52,6 +52,11 @@ export function AssistantPanel({
   const { conversation, loading, error, busy, reconnecting, start, reply, retry, reset } = useConversation(client, selected, select);
   const [text, setText] = useState("");
   const [correction, setCorrection] = useState("");
+  const [creation, setCreation] = useState<Creation | null>(null);
+  const onCreation = useCallback((c: Creation | null) => setCreation(c), []);
+  useEffect(() => setCreation(null), [conversation?.conversation_id]);
+  const made = creation?.state === "active";
+  const making = creation !== null && !CREATION_DONE.has(creation.state);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -180,9 +185,26 @@ export function AssistantPanel({
               briefRevision={conversation.current_brief.revision}
               unavailable={conversation.current_brief.unavailable_capabilities}
               onOpen={(appId) => onOpenApp?.(appId)}
+              onChange={onCreation}
             />
           ) : null}
-          {conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user" ? (
+          {made ? (
+            <div className="after-made" aria-label="After it was made">
+              <p className="panel__hint">
+                Changing {creation?.app_name ?? "this workflow"} after it was made isn't possible yet; that arrives in a later
+                release. You can describe a separate workflow instead; this one and its data stay as they are.
+              </p>
+              <div className="row">
+                <button type="button" className="button" onClick={startOver}>
+                  Create a separate workflow
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {making ? (
+            <p className="panel__hint">You can change the request once this attempt finishes, or after you stop it.</p>
+          ) : null}
+          {!made && !making && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user") ? (
             <form
               className="correction"
               onSubmit={(e) => {

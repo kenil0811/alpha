@@ -28,24 +28,49 @@ export async function runAndWait(
   return outcome;
 }
 
+/** Actions a person can fill in: every input is a plain field (no structured data to paste). */
+export function personActions(actions: ActionSummary[]): { usable: ActionSummary[]; internal: number } {
+  const runnable = actions.filter((a) => a.invocable_from.includes("manual") || a.invocable_from.includes("ui"));
+  const usable = runnable.filter((a) => formFields(a.input_schema).every((f) => f.kind !== "json"));
+  return { usable, internal: runnable.length - usable.length };
+}
+
 export function ActionsView({
   client,
   appId,
   actions,
+  primary = null,
   onChanged,
 }: {
   client: WorkflowsClient;
   appId: string;
   actions: ActionSummary[];
+  primary?: string | null;
   onChanged: () => void;
 }) {
-  const runnable = actions.filter((a) => a.invocable_from.includes("manual") || a.invocable_from.includes("ui"));
-  if (!runnable.length) return <p className="panel__hint">This App has nothing to run by hand.</p>;
+  const { usable, internal } = personActions(actions);
+  if (!usable.length) return <p className="panel__hint">This App has nothing to run by hand.</p>;
+  // The App's main action leads (M1 review finding F03); other simple actions stay reachable.
+  const main = usable.find((a) => a.id === primary) ?? (usable.length === 1 ? usable[0] : null);
+  const others = usable.filter((a) => a !== main);
   return (
     <div className="actions">
-      {runnable.map((action) => (
-        <ActionForm key={action.id} client={client} appId={appId} action={action} onChanged={onChanged} />
-      ))}
+      {main ? <ActionForm client={client} appId={appId} action={main} onChanged={onChanged} primary /> : null}
+      {main && others.length ? (
+        <details className="actions__more">
+          <summary>More actions ({others.length})</summary>
+          {others.map((action) => (
+            <ActionForm key={action.id} client={client} appId={appId} action={action} onChanged={onChanged} />
+          ))}
+        </details>
+      ) : (
+        others.map((action) => <ActionForm key={action.id} client={client} appId={appId} action={action} onChanged={onChanged} />)
+      )}
+      {internal ? (
+        <p className="panel__hint">
+          {internal === 1 ? "One more step runs" : `${internal} more steps run`} inside this workflow and needs no input from you.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -55,11 +80,13 @@ function ActionForm({
   appId,
   action,
   onChanged,
+  primary = false,
 }: {
   client: WorkflowsClient;
   appId: string;
   action: ActionSummary;
   onChanged: () => void;
+  primary?: boolean;
 }) {
   const fields = formFields(action.input_schema);
   const [values, setValues] = useState<FormValues>({});
@@ -99,7 +126,7 @@ function ActionForm({
 
   const headingId = `action-${action.id}`;
   return (
-    <form className="action" onSubmit={submit} aria-labelledby={headingId}>
+    <form className={primary ? "action action--primary" : "action"} onSubmit={submit} aria-labelledby={headingId}>
       <h3 id={headingId}>{action.title}</h3>
       <p className="panel__hint">{action.description}</p>
       {fields.map((field) => {
@@ -124,8 +151,8 @@ function ActionForm({
                   </option>
                 ))}
               </select>
-            ) : field.kind === "longtext" || field.kind === "json" ? (
-              <textarea id={id} value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-describedby={hintId} rows={field.kind === "json" ? 3 : 5} />
+            ) : field.kind === "longtext" || field.kind === "lines" ? (
+              <textarea id={id} value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-describedby={hintId} rows={6} />
             ) : (
               <input
                 id={id}
@@ -168,15 +195,80 @@ function ActionForm({
   );
 }
 
-function OutputView({ value }: { value: Record<string, unknown> }) {
-  return (
-    <dl className="output">
-      {Object.entries(value).map(([key, item]) => (
-        <div key={key} className="output__row">
-          <dt>{humanize(key)}</dt>
-          <dd>{typeof item === "object" && item !== null ? <pre>{JSON.stringify(item, null, 2)}</pre> : String(item)}</dd>
+/** Keys that identify stored things rather than tell the person anything. */
+const QUIET_KEY = /^(id|revision|call_id)$|_id$|_ids$/;
+
+function scalar(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return value.toLocaleString();
+  return String(value);
+}
+
+/** A result in plain form: tables for lists of entries, lists for lists of words, nested
+ *  details for groups. Never raw JSON (M1 review finding F03). */
+export function ResultValue({ value, name = "" }: { value: unknown; name?: string }) {
+  if (/artifact/i.test(name)) return <span>A file was made, but opening files from Alpha isn't available yet.</span>;
+  if (Array.isArray(value)) {
+    if (!value.length) return <span className="panel__hint">None</span>;
+    if (value.every((v) => v !== null && typeof v === "object" && !Array.isArray(v))) {
+      const rows = value as Record<string, unknown>[];
+      const columns = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((k) => !QUIET_KEY.test(k));
+      return (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                {columns.map((c) => (
+                  <th key={c} scope="col">
+                    {humanize(c)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i}>
+                  {columns.map((c) => (
+                    <td key={c}>
+                      {row[c] !== null && typeof row[c] === "object" ? <ResultValue value={row[c]} name={c} /> : scalar(row[c])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
-    </dl>
-  );
+      );
+    }
+    return (
+      <ul className="output__list">
+        {value.map((v, i) => (
+          <li key={i}>{v !== null && typeof v === "object" ? <ResultValue value={v} /> : scalar(v)}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(([k]) => !QUIET_KEY.test(k));
+    return (
+      <dl className="output">
+        {entries.map(([key, item]) => (
+          <div key={key} className="output__row">
+            <dt>{humanize(key)}</dt>
+            <dd>
+              <ResultValue value={item} name={key} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return <span>{scalar(value)}</span>;
+}
+
+function OutputView({ value }: { value: Record<string, unknown> }) {
+  const visible = Object.keys(value).filter((k) => !QUIET_KEY.test(k));
+  if (!visible.length) return null;
+  return <ResultValue value={value} />;
 }
