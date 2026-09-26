@@ -44,7 +44,7 @@ CSP blocks them.
 Tables are one option, not the default. Write custom React when no pattern fits; keep kit tokens
 and classes so it looks and behaves like the rest.
 
-**Lay the screen out around that choice.** Alpha shows an App's screen in about 1000 × 480 px in
+**Lay the screen out around that choice.** Alpha shows an App's screen in about 1000 × 380 px in
 its default window (670 px wide at the smallest). The render check requires the main
 interaction's first control to be visible there without scrolling, and a second entry straight
 after the first to be saved.

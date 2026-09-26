@@ -17,6 +17,8 @@ import { extname, join, normalize } from "node:path";
 
 const HARNESS = "http://harness.alpha.invalid";
 const APP = "http://app.alpha.invalid";
+// The space an App's screen gets in Alpha's default window (1100×760), measured in the window.
+const WORKSPACE = { width: 1000, height: 380 };
 const out = (message) => process.stdout.write(JSON.stringify(message) + "\n");
 
 const pending = new Map();
@@ -411,9 +413,10 @@ async function main() {
     }
 
     // 2b. The main interaction is where a person looks first: its first control is visible
-    // without scrolling in the space an App's screen gets in Alpha's default window.
+    // without scrolling in the space an App's screen gets in Alpha's default window. Measured in
+    // the Alpha window at its default 1100×760 (M1-R07): about 1001×381 CSS px.
     if (plan && plan.primary?.length) {
-      await page.setViewportSize({ width: 1002, height: 480 });
+      await page.setViewportSize({ width: WORKSPACE.width, height: WORKSPACE.height });
       frame = await open(page);
       const firstStep = plan.primary[0];
       const target = firstStep.kind === "click"
@@ -423,15 +426,15 @@ async function main() {
           : null;
       if (target) {
         const box = await target.boundingBox().catch(() => null);
-        const shown = box !== null && box.y >= 0 && box.y + box.height <= 480;
+        const shown = box !== null && box.y >= 0 && box.y + box.height <= WORKSPACE.height;
         check(
           "ui.primary.visible",
           shown ? "passed" : "failed",
           shown
-            ? `"${firstStep.label}" is visible without scrolling in Alpha's default workspace (1002×480)`
-            : `"${firstStep.label}" is not visible without scrolling in Alpha's default workspace (1002×480); put the main interaction first`,
+            ? `"${firstStep.label}" is visible without scrolling in Alpha's default workspace (${WORKSPACE.width}×${WORKSPACE.height})`
+            : `"${firstStep.label}" is not visible without scrolling in Alpha's default workspace (${WORKSPACE.width}×${WORKSPACE.height}); put the main interaction first`,
           { box },
-          [await screenshot(page, "primary-visible-1002")],
+          [await screenshot(page, "primary-visible-workspace")],
         );
       }
       await page.setViewportSize({ width: 1280, height: 900 });
