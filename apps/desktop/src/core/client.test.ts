@@ -25,4 +25,18 @@ describe("HttpCoreClient", () => {
     expect(seen[0].url).toBe("http://127.0.0.1:1/api/health");
     expect(seen[0].headers.Authorization).toBe(`Bearer ${"t".repeat(32)}`);
   });
+
+  it("gives up on a request a stalled Core never answers, so polling can report it", async () => {
+    // Core accepts the connection but never replies: only the request's own limit ends it.
+    const fetchImpl = ((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+      })) as typeof fetch;
+    const client = new HttpCoreClient({ baseUrl: "http://127.0.0.1:1", token: "t".repeat(32) }, fetchImpl, 50);
+    await expect(client.creation("create_1")).rejects.toMatchObject({
+      status: 0,
+      code: "timeout",
+      message: "Alpha's runtime did not answer in time.",
+    });
+  }, 2_000);
 });

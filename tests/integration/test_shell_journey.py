@@ -87,6 +87,7 @@ def test_a_person_creates_uses_and_reopens_a_result_through_the_shell(
     assert sum("Add note" in head for head in steps["activity"]) == 2, steps["activity"]
     assert any("Count notes" in head for head in steps["activity"]), steps["activity"]
     assert [n for n in steps["activity_not_done"] if n.startswith("Not done")], steps
+    assert abs(steps["activity_indent"]) <= 1, steps["activity_indent"]
 
     # Independently of the shell: exactly the one entry was stored.
     [app_id] = apps(build_core)

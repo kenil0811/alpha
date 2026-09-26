@@ -62,7 +62,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .status--connected .status__dot { background: var(--color-success); }
 .status--unavailable .status__dot { background: var(--color-danger); }
 
-.runs { display: flex; flex-direction: column; gap: var(--space-3); overflow: auto; min-height: 0; }
+.runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); overflow: auto; min-height: 0; }
 .run {
   border: 1px solid var(--color-border); border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);

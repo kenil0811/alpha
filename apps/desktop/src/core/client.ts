@@ -324,20 +324,34 @@ export function parseSseChunk(
   }
 }
 
+/** Every request Core serves returns promptly (long work runs in the background and is
+ *  polled), so a request still open after this long means Core is stalled. It fails, and the
+ *  caller's polling reports "reconnecting" and keeps asking; without a limit one stalled request
+ *  froze a progress card indefinitely. */
+export const REQUEST_TIMEOUT_MS = 20_000;
+
 export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
+    private readonly timeoutMs = REQUEST_TIMEOUT_MS,
   ) {}
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await this.fetchImpl(`${this.session.baseUrl}${path}`, {
       ...init,
+      signal: init.signal ?? AbortSignal.timeout(this.timeoutMs),
       headers: {
         Authorization: `Bearer ${this.session.token}`,
         "Content-Type": "application/json",
         ...(init.headers ?? {}),
       },
+    }).catch((error: unknown) => {
+      // Matched by name: the abort reason's DOMException may come from another realm.
+      if ((error as { name?: unknown } | null)?.name === "TimeoutError") {
+        throw new CoreError("Alpha's runtime did not answer in time.", 0, "timeout");
+      }
+      throw error;
     });
     if (!response.ok) {
       let detail = response.statusText;

@@ -82,6 +82,10 @@ try {
   await runs.waitFor({ timeout: 10_000 });
   result.steps.activity = await runs.locator(".run__head").allInnerTexts();
   result.steps.activity_not_done = await runs.locator(".run .notice").allInnerTexts();
+  // The run list lines up with the Activity heading (no stray list indent).
+  const heading = await page.getByRole("heading", { name: "Activity" }).boundingBox();
+  const card = await runs.locator(".run").first().boundingBox();
+  result.steps.activity_indent = Math.round(card.x - heading.x);
   await shot("activity");
 } catch (error) {
   result.error = String(error?.stack ?? error).slice(0, 2000);

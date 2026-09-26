@@ -171,6 +171,10 @@ Activity. That run found a naming mismatch on the ready card, now fixed.
 **`g1.py record`** collects a session in the Alpha window from the stores, read-only, so native
 evidence stays separate from API evidence.
 
+A follow-up found while preparing M1-R07: a stalled Core could hold a status request open
+indefinitely. Requests now time out after 20 s, so the card shows "reconnecting". The Activity
+list's stray indent is also gone.
+
 Evidence: `docs/development/evidence/M1-R06.md`.
 
 ---
