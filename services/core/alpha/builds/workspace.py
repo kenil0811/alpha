@@ -39,6 +39,8 @@ _IGNORE = shutil.ignore_patterns("__pycache__", ".DS_Store", "*.pyc")
 class TargetProfiles:
     runtime: InstalledProfile
     ui: InstalledProfile | None
+    # The App identity the platform assigned (creation), or None to let the builder choose.
+    app_id: str | None = None
 
     @property
     def sdk_version(self) -> str:
@@ -52,6 +54,8 @@ class TargetProfiles:
     def identities(self) -> dict[str, str]:
         """The exact values a package's app.yaml must name."""
         found = {"runtime_profile": self.runtime.profile_id, "sdk_version": self.sdk_version}
+        if self.app_id is not None:
+            found["app_id"] = self.app_id
         if self.ui is not None:
             found |= {
                 "ui_build_profile": self.ui.profile_id,
@@ -83,7 +87,7 @@ def materialize(
             (package / "app.yaml").write_text(text, encoding="utf-8")
             template.unlink()
     else:
-        _copy_template(resources, targets, package)
+        _copy_template(resources, targets, package, with_ui=plan.ui is not None)
     reference = attempt_dir / "reference"
     reference.mkdir()
     for source, name in (
@@ -107,17 +111,22 @@ def materialize(
                 shutil.copyfile(file, feedback / file.name)
 
 
-def _copy_template(resources: PlatformResources, targets: TargetProfiles, package: Path) -> None:
+def _copy_template(
+    resources: PlatformResources, targets: TargetProfiles, package: Path, *, with_ui: bool
+) -> None:
+    """The App template, with the platform's exact values filled in. The screen is included
+    only when the plan checks one and a UI build profile is installed."""
     template = resources.app_template
     package.mkdir(parents=True)
+    with_ui = with_ui and targets.ui is not None
     for area in ("src", "ui"):
-        if (template / area).is_dir() and (area != "ui" or targets.ui is not None):
+        if (template / area).is_dir() and (area != "ui" or with_ui):
             shutil.copytree(template / area, package / area, ignore=_IGNORE)
     text = (template / "app.yaml.template").read_text(encoding="utf-8")
     for key, value in targets.identities().items():
         text = text.replace("{{" + key.upper() + "}}", value)
-    if targets.ui is None:
-        # No UI build profile on this Mac: the template becomes an App without a custom screen.
+    if not with_ui:
+        # No screen checked (or no UI build profile): the template becomes an App without one.
         data = yaml.safe_load(text)
         data.pop("ui", None)
         text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)

@@ -89,6 +89,7 @@ class BuildRecord(BaseModel):
     candidate: dict[str, Any] | None = None
     validation: dict[str, Any] | None = None
     seed_package: str | None = None
+    app_id: str | None = None
     latest_sequence: int
 
 
@@ -158,6 +159,7 @@ CREATE TABLE IF NOT EXISTS dependency_requests (
 _MIGRATIONS = (
     ("builds", "plan_json", "TEXT"),
     ("builds", "seed_package", "TEXT"),
+    ("builds", "app_id", "TEXT"),
     ("build_attempts", "report_ref", "TEXT"),
 )
 
@@ -167,9 +169,7 @@ class BuildStore:
         self._db = db
         db.execute_script(_SCHEMA)
         for table, column, kind in _MIGRATIONS:
-            names = {r["name"] for r in db.query(f"PRAGMA table_info({table})")}
-            if column not in names:
-                db.execute_script(f"ALTER TABLE {table} ADD COLUMN {column} {kind};")
+            db.add_missing_columns(table, {column: kind})
 
     # ----- reads -------------------------------------------------------------------------
 
@@ -238,6 +238,7 @@ class BuildStore:
         instructions: str,
         plan: ValidationPlan,
         seed_package: str | None,
+        app_id: str | None,
         route_id: str,
         harness: str,
         budget: BuildBudget,
@@ -247,8 +248,9 @@ class BuildStore:
         with self._db.transaction() as conn:
             conn.execute(
                 """INSERT INTO builds(build_id, brief_ref, goal, instructions, acceptance_json,
-                   plan_json, seed_package, route_id, harness, budget_json, state, created_at,
-                   updated_at, latest_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+                   plan_json, seed_package, app_id, route_id, harness, budget_json, state,
+                   created_at, updated_at, latest_sequence)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
                 (
                     build_id,
                     brief_ref,
@@ -257,6 +259,7 @@ class BuildStore:
                     "[]",
                     plan.model_dump_json(),
                     seed_package,
+                    app_id,
                     route_id,
                     harness,
                     budget.model_dump_json(),
@@ -505,5 +508,6 @@ class BuildStore:
             candidate=json.loads(row["candidate_json"]) if row["candidate_json"] else None,
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
             seed_package=row["seed_package"],
+            app_id=row["app_id"],
             latest_sequence=int(row["latest_sequence"]),
         )

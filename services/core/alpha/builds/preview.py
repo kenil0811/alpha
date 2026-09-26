@@ -22,7 +22,6 @@ from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import OperationFailed
-from alpha.data.apps import AppRegistry, AppVersion, HandlerValidator
 from alpha.data.packages import SealedPackage
 from alpha.data.store import RecordService
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
@@ -32,6 +31,7 @@ from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.profiles import ProfileInventory
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.runtime import AppModelService
+from alpha.solutions.registry import AppRegistry, AppVersion, HandlerValidator
 from alpha.storage.control_store import ControlStore
 
 # Origins tried, in order, when a check needs to run an action: the first one the action allows.

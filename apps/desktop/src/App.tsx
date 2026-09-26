@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { CoreClient, HealthInfo } from "./core/client";
-import { HttpCoreClient } from "./core/client";
+import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
+import { WorkflowsPanel } from "./workflows/WorkflowsPanel";
+import { Workspace } from "./workflows/Workspace";
 import { resolveSession } from "./core/session";
 import { RequestPanel } from "./components/RequestPanel";
 import { RunList } from "./components/RunList";
@@ -8,15 +10,24 @@ import { useRuns } from "./components/useRuns";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 
+type Surface = { kind: "assistant" } | { kind: "workflows" } | { kind: "workspace"; appId: string } | { kind: "activity" };
+
+/** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
+function devTools(): boolean {
+  return import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("dev");
+}
+
 type Runtime =
   | { kind: "connecting" }
   | { kind: "connected"; client: CoreClient; health: HealthInfo }
   | { kind: "unavailable"; reason: string };
 
-export function App({ client: injected }: { client?: CoreClient } = {}) {
+export function App({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean } = {}) {
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
   const [showFixture, setShowFixture] = useState(false);
   const [showRuntime, setShowRuntime] = useState(false);
+  const [surface, setSurface] = useState<Surface>({ kind: "assistant" });
+  const dev = devOverride ?? devTools();
 
   useEffect(() => {
     let cancelled = false;
@@ -51,8 +62,32 @@ export function App({ client: injected }: { client?: CoreClient } = {}) {
             Internal development build · runs while Alpha is running on this Mac · closing the window keeps it running
           </div>
         </div>
+        {runtime.kind === "connected" ? (
+          <nav className="nav" aria-label="Alpha">
+            {(
+              [
+                ["assistant", "Assistant"],
+                ["workflows", "My workflows"],
+                ["activity", "Activity"],
+              ] as const
+            ).map(([kind, label]) => {
+              const current = surface.kind === kind || (kind === "workflows" && surface.kind === "workspace");
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  className={current ? "nav__item nav__item--current" : "nav__item"}
+                  aria-current={current ? "page" : undefined}
+                  onClick={() => setSurface({ kind })}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        ) : null}
         <div className="row">
-          {runtime.kind === "connected" ? (
+          {runtime.kind === "connected" && dev ? (
             <>
               <button type="button" className="button" onClick={() => setShowRuntime((v) => !v)}>
                 {showRuntime ? "Hide runtime fixture" : "Runtime fixture"}
@@ -65,12 +100,20 @@ export function App({ client: injected }: { client?: CoreClient } = {}) {
           <RuntimeStatus runtime={runtime} />
         </div>
       </header>
-      <main className={showFixture || showRuntime ? "frame__main frame__main--three" : "frame__main"}>
+      <main className={dev && (showFixture || showRuntime) ? "frame__main frame__main--three" : "frame__main"}>
         {runtime.kind === "connected" ? (
           <>
-            <AssistantPanel client={runtime.client} />
-            <Connected client={runtime.client} showRequest={showRuntime} />
-            {showFixture ? <GeneratedUiFixture client={runtime.client} /> : null}
+            {surface.kind === "assistant" ? (
+              <AssistantPanel client={runtime.client} onOpenApp={(appId) => setSurface({ kind: "workspace", appId })} />
+            ) : null}
+            {surface.kind === "workflows" && isWorkflowsClient(runtime.client) ? (
+              <WorkflowsPanel client={runtime.client} onOpen={(appId) => setSurface({ kind: "workspace", appId })} />
+            ) : null}
+            {surface.kind === "workspace" && isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
+              <Workspace client={runtime.client} appId={surface.appId} onBack={() => setSurface({ kind: "workflows" })} />
+            ) : null}
+            {surface.kind === "activity" || (dev && showRuntime) ? <Connected client={runtime.client} showRequest={dev && showRuntime} /> : null}
+            {dev && showFixture ? <GeneratedUiFixture client={runtime.client} /> : null}
           </>
         ) : (
           <section className="panel">

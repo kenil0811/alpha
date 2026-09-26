@@ -146,6 +146,15 @@ class ControlStore:
         with self._lock:
             self._conn.executescript(sql)
 
+    def add_missing_columns(self, table: str, columns: dict[str, str]) -> list[str]:
+        """Bring an existing table up to date: add each named column it lacks (with its SQL
+        type and default). Returns the columns added."""
+        present = {r["name"] for r in self.query(f"PRAGMA table_info({table})")}
+        added = [name for name in columns if name not in present]
+        for name in added:
+            self.execute_script(f"ALTER TABLE {table} ADD COLUMN {name} {columns[name]};")
+        return added
+
     def query(self, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
         with self._lock:
             return list(self._conn.execute(sql, params).fetchall())

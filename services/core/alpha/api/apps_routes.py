@@ -20,13 +20,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
-from alpha.data.apps import AppRegistry
 from alpha.data.store import RecordService
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.profiles import ProfileInventory
 from alpha.models.runtime import AppModelService
+from alpha.solutions.registry import AppRegistry
 
 _FIXTURE_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 

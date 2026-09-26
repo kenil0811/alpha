@@ -6,10 +6,11 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import threading
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from alpha_contracts import CONTRACT_VERSION
 from alpha_contracts.builds import BuildEvent
@@ -17,24 +18,25 @@ from alpha_contracts.runs import Run, RunEvent, RunOrigin
 from alpha_contracts.verification import ValidationPlan
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from alpha import __version__
+from alpha.api.apps_routes import AppPlatform
+from alpha.api.apps_routes import register as register_app_routes
 from alpha.api.auth import make_auth_middleware
+from alpha.api.creation_routes import register as register_creation_routes
 from alpha.assistant.service import AssistantService, ConversationRecord
 from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
 from alpha.builds.store import AcceptanceExample, BuildRecord, plan_from_examples
-from alpha.capabilities.catalog import catalog_entries
+from alpha.capabilities.catalog import catalog_entries, profile_versions
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
+from alpha.solutions.creation import CreationService
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
-
-if TYPE_CHECKING:
-    from alpha.api.apps_routes import AppPlatform
 
 log = logging.getLogger("alpha.api")
 
@@ -117,6 +119,12 @@ class InvokeRequest(BaseModel):
     input: dict[str, Any]
 
 
+class ActivateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_release_id: str | None = Field(default=None, max_length=80)
+
+
 class ConversationStart(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -142,6 +150,7 @@ class ConversationList(BaseModel):
 # Comments are ignored by SSE parsers, and the stream is loopback-only.
 SSE_FLUSH_PADDING = b": " + b" " * 8192 + b"\n\n"
 SSE_POLL_SECONDS = 0.2
+EVIDENCE_NAME = re.compile(r"^[a-z0-9-]{1,40}\.png$")
 # WebKit also holds the most recent chunk until a following one arrives, so an idle stream sends a
 # keepalive comment about once per second; that releases the final frames of a finished run.
 SSE_KEEPALIVE_TICKS = 5
@@ -155,6 +164,7 @@ def create_app(
     gateway: ModelGateway | None = None,
     assistant: AssistantService | None = None,
     platform: AppPlatform | None = None,
+    creations: CreationService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -242,6 +252,8 @@ def create_app(
         register_assistant_routes(app, assistant)
     if platform is not None:
         register_app_routes(app, platform)
+    if creations is not None:
+        register_creation_routes(app, creations)
 
     @app.get("/api/events/stream")
     async def stream_events(
@@ -350,9 +362,13 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
             ) from exc
 
     @app.post("/api/builds/{build_id}/activate")
-    def activate_candidate(build_id: str) -> dict[str, Any]:
-        """Install a ready candidate's exact sealed bytes (rechecked) as the App's Version."""
+    def activate_candidate(build_id: str, body: ActivateRequest | None = None) -> dict[str, Any]:
+        """Install a ready candidate's exact sealed bytes (rechecked) as the App's Version. With
+        `expected_release_id` (null for a new App), activation is a compare-and-swap: it is
+        refused if the App's current release has changed since the caller looked."""
         try:
+            if body is not None and "expected_release_id" in body.model_fields_set:
+                return builds.activate(build_id, expected_release_id=body.expected_release_id)
             return builds.activate(build_id)
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail="build_not_found") from exc
@@ -363,6 +379,21 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
                 status_code=HTTP_STATUS.get(exc.code, 500), detail=exc.as_error()
             ) from exc
 
+    @app.get("/api/builds/{build_id}/attempts/{number}/evidence/ui/{name}")
+    def build_evidence(build_id: str, number: int, name: str) -> FileResponse:
+        """A render-check screenshot of an attempt (sample data from the checks, never the
+        person's own records)."""
+        if not EVIDENCE_NAME.match(name) or not 1 <= number <= 10:
+            raise HTTPException(status_code=404, detail="evidence_not_found")
+        try:
+            builds.get(build_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="build_not_found") from exc
+        path = builds.evidence_path(build_id, number, name)
+        if path is None:
+            raise HTTPException(status_code=404, detail="evidence_not_found")
+        return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store"})
+
     @app.get("/api/dependency-requests")
     def dependency_requests(build_id: str | None = None) -> dict[str, Any]:
         return {"requests": builds.dependency_requests(build_id)}
@@ -370,8 +401,12 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
 
 def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None:
     @app.get("/api/capabilities")
-    def capabilities() -> dict[str, Any]:
-        return {"capabilities": catalog_entries()}
+    def capabilities(request: Request) -> dict[str, Any]:
+        platform: AppPlatform | None = request.app.state.platform
+        return {
+            "capabilities": catalog_entries(),
+            "profiles": profile_versions(platform.inventory) if platform else {},
+        }
 
     @app.post("/api/conversations", response_model=ConversationRecord, status_code=201)
     def start_conversation(body: ConversationStart) -> ConversationRecord:
@@ -417,9 +452,3 @@ def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail="revision_not_found") from exc
         return brief.model_dump(mode="json")
-
-
-def register_app_routes(app: FastAPI, platform: AppPlatform) -> None:
-    from alpha.api.apps_routes import register
-
-    register(app, platform)

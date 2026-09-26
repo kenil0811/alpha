@@ -121,4 +121,9 @@ Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `m
 The screen is type-checked with TypeScript (strict) against the kit's own types before it is
 built: every required prop must be given, and a type error fails the build with the exact line.
 
+Say each thing once and in the person's words. `QuickEntry` and `Form` already announce their
+own saved or failed outcome, so do not add a second status line for the same event. Label a
+yes/no value by what it means in both states (a "Finished" column shows "Yes" or "Not yet", never
+an unrelated word). Mark values that came from a model estimate as estimates.
+
 An App without a screen leaves `ui` out; its actions are run by the person or the assistant.

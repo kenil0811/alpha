@@ -33,7 +33,6 @@ from alpha.builds.toolchain import PlatformResources, UiToolchain
 from alpha.builds.ui_check import UiRenderCheck
 from alpha.builds.verify import CandidateVerifier
 from alpha.config import ConfigError, CoreSettings
-from alpha.data.apps import AppRegistry
 from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
@@ -43,6 +42,9 @@ from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
 from alpha.models.runtime import AppModelService
 from alpha.models.structured import StructuredInference
+from alpha.solutions.creation import CreationRoutes, CreationService
+from alpha.solutions.planner import AcceptancePlanner
+from alpha.solutions.registry import AppRegistry
 from alpha.storage.control_store import ControlStore
 from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
 
@@ -101,7 +103,18 @@ def build(
             "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
         )
     assistant = AssistantService(store, gateway, inference, default_route=settings.assistant_route)
-    app = create_app(settings, store, coordinator, builds, gateway, assistant, platform)
+    creations = CreationService(
+        store,
+        assistant,
+        builds,
+        AcceptancePlanner(inference),
+        gateway,
+        CreationRoutes(planner=settings.assistant_route, builder=settings.builder_route),
+    )
+    interrupted = creations.reconcile_on_startup()
+    if interrupted:
+        log.warning("marked %d unfinished creation(s) interrupted", len(interrupted))
+    app = create_app(settings, store, coordinator, builds, gateway, assistant, platform, creations)
     return app, store, coordinator, builds
 
 

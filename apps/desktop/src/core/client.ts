@@ -127,7 +127,123 @@ export interface AppDetail {
   release_id: string;
   package_sha256: string;
   runtime_profile_id: string;
-  ui: { views: ViewSpec[]; actions: string[] } | null;
+  ui: { entry?: string | null; views: ViewSpec[]; actions: string[] } | null;
+  actions: ActionSummary[];
+  collections: CollectionSummary[];
+  record_counts: Record<string, number>;
+}
+
+export interface JsonSchema {
+  type?: string | string[];
+  title?: string;
+  description?: string;
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+  enum?: unknown[];
+  items?: JsonSchema;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+}
+
+export interface ActionSummary {
+  id: string;
+  title: string;
+  description: string;
+  input_schema: JsonSchema;
+  output_schema: JsonSchema;
+  invocable_from: string[];
+  effect_class: string;
+}
+
+export interface CollectionSummary {
+  name: string;
+  description?: string;
+  fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null }[];
+}
+
+export interface AppSummary {
+  app_id: string;
+  name: string;
+  description: string;
+  origin: "created" | "fixture" | "build";
+  state: string;
+  has_ui: boolean;
+  actions: number;
+  current_version_id: string | null;
+  current_release_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecordRow {
+  id: string;
+  revision: number;
+  values: Record<string, unknown>;
+  provenance?: Record<string, { source: string }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreationFailure {
+  reason: string;
+  message: string;
+  next_step: "retry" | "revise";
+  failed_checks?: string[];
+  attempts?: number;
+}
+
+export interface CreationResult {
+  app_id: string;
+  name: string | null;
+  actions: string[];
+  has_ui: boolean;
+  checks_passed: number;
+  preview_images: { name: string; url: string }[];
+  attempts: number;
+}
+
+export interface Creation {
+  creation_id: string;
+  conversation_id: string;
+  brief_id: string;
+  brief_revision: number;
+  app_id: string | null;
+  app_name: string | null;
+  state: "planning" | "building" | "checking" | "activating" | "active" | "failed" | "cancelled";
+  stage: string;
+  label: string;
+  detail: string | null;
+  progress: { attempt?: number; max_attempts?: number; checks_run?: number; checks_failed?: number };
+  result: CreationResult | null;
+  failure: CreationFailure | null;
+  history: { stage: string; label: string; at: string }[];
+  created_at: string;
+  updated_at: string;
+}
+
+export const CREATION_DONE = new Set(["active", "failed", "cancelled"]);
+
+/** Creating results and using them (F08 routes). */
+export interface WorkflowsClient {
+  listApps(): Promise<AppSummary[]>;
+  appDetail(appId: string): Promise<AppDetail>;
+  startCreation(conversationId: string): Promise<Creation>;
+  creation(creationId: string): Promise<Creation>;
+  conversationCreations(conversationId: string): Promise<Creation[]>;
+  cancelCreation(creationId: string): Promise<Creation>;
+  runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
+  operationOutcome(runId: string): Promise<OperationOutcome>;
+  cancelRun(runId: string): Promise<Run>;
+  queryRecords(appId: string, collection: string, limit?: number): Promise<RecordRow[]>;
+  listRuns(): Promise<Run[]>;
+  /** An authenticated image from Core (check screenshots), as an object URL. */
+  imageUrl(path: string): Promise<string>;
+}
+
+export function isWorkflowsClient(client: unknown): client is WorkflowsClient {
+  return typeof (client as Partial<WorkflowsClient>)?.startCreation === "function";
 }
 
 export interface OperationOutcome {
@@ -141,7 +257,7 @@ export interface OperationOutcome {
 export interface AppsClient {
   appDetail(appId: string): Promise<AppDetail>;
   installFixtureApp(name: string): Promise<{ app_id: string }>;
-  runAppAction(appId: string, actionId: string, input: Record<string, unknown>): Promise<Run>;
+  runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
 }
@@ -196,7 +312,7 @@ export function parseSseChunk(
   }
 }
 
-export class HttpCoreClient implements CoreClient, AppsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -245,11 +361,55 @@ export class HttpCoreClient implements CoreClient, AppsClient {
     return this.request(`/api/dev/fixture-apps/${encodeURIComponent(name)}/install`, { method: "POST" });
   }
 
-  runAppAction(appId: string, actionId: string, input: Record<string, unknown>): Promise<Run> {
+  runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin: "ui" | "user" = "ui"): Promise<Run> {
     return this.request<Run>(`/api/apps/${encodeURIComponent(appId)}/actions/${encodeURIComponent(actionId)}/runs`, {
       method: "POST",
-      body: JSON.stringify({ input, origin: "ui" }),
+      body: JSON.stringify({ input, origin }),
     });
+  }
+
+  async listApps(): Promise<AppSummary[]> {
+    const page = await this.request<{ apps: AppSummary[] }>("/api/apps");
+    return page.apps;
+  }
+
+  startCreation(conversationId: string): Promise<Creation> {
+    return this.request<Creation>(`/api/conversations/${encodeURIComponent(conversationId)}/creations`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  creation(creationId: string): Promise<Creation> {
+    return this.request<Creation>(`/api/creations/${encodeURIComponent(creationId)}`);
+  }
+
+  async conversationCreations(conversationId: string): Promise<Creation[]> {
+    const page = await this.request<{ creations: Creation[] }>(
+      `/api/conversations/${encodeURIComponent(conversationId)}/creations`,
+    );
+    return page.creations;
+  }
+
+  cancelCreation(creationId: string): Promise<Creation> {
+    return this.request<Creation>(`/api/creations/${encodeURIComponent(creationId)}/cancel`, { method: "POST" });
+  }
+
+  async queryRecords(appId: string, collection: string, limit = 50): Promise<RecordRow[]> {
+    const page = await this.request<{ records: RecordRow[] }>(`/api/apps/${encodeURIComponent(appId)}/records/query`, {
+      method: "POST",
+      body: JSON.stringify({ collection, limit, order_by: [{ field: "created_at", direction: "desc" }] }),
+    });
+    return page.records;
+  }
+
+  async imageUrl(path: string): Promise<string> {
+    if (!path.startsWith("/api/")) throw new CoreError("not a Core path", 400);
+    const response = await this.fetchImpl(`${this.session.baseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${this.session.token}` },
+    });
+    if (!response.ok) throw new CoreError("image unavailable", response.status);
+    return URL.createObjectURL(await response.blob());
   }
 
   queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown> {

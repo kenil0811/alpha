@@ -78,6 +78,40 @@ CREATE TABLE IF NOT EXISTS app_releases (
 );
 """
 
+# Columns added after F05; an existing control store gains them on startup.
+_APP_COLUMNS = {
+    "origin": "TEXT NOT NULL DEFAULT 'fixture'",
+    "state": "TEXT NOT NULL DEFAULT 'active'",
+    "creation_id": "TEXT",
+}
+_RELEASE_COLUMNS = {
+    "previous_release_id": "TEXT",
+    "build_id": "TEXT",
+    "verification_ref": "TEXT",
+}
+
+
+class AnyRelease:
+    """Marker: activate whatever the current release is (development fixture installs)."""
+
+
+ANY_RELEASE = AnyRelease()
+
+
+@dataclass(frozen=True)
+class Activation:
+    """Where a Version comes from and what it must replace. `expected_release_id` is the
+    compare-and-swap guard: the App's current release must still be exactly this (None for a
+    new App), or activation is refused."""
+
+    kind: str = "installed"
+    origin: str = "fixture"
+    expected_release_id: str | None | AnyRelease = ANY_RELEASE
+    build_id: str | None = None
+    verification_ref: str | None = None
+    creation_id: str | None = None
+
+
 # (version_dir, source, profile) -> {"actions": [...], "imports": {...}} from a disposable worker
 HandlerValidator = Callable[[Path, AppSource, InstalledProfile], dict[str, Any]]
 
@@ -87,6 +121,8 @@ class AppVersion:
     app_id: str
     version_id: str
     release_id: str
+    origin: str
+    state: str
     package_sha256: str
     dependency_manifest_sha256: str
     dependency_manifest: DependencyManifest
@@ -158,6 +194,8 @@ class AppRegistry:
         self._validator = validator
         self._ui_builder = ui_builder
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("apps", _APP_COLUMNS)
+        store.add_missing_columns("app_releases", _RELEASE_COLUMNS)
         versions_root.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -207,9 +245,12 @@ class AppRegistry:
             ) from None
         return self.register(sealed, report)
 
-    def activate_sealed(self, candidate_dir: Path, package_sha256: str) -> AppVersion:
+    def activate_sealed(
+        self, candidate_dir: Path, package_sha256: str, activation: Activation
+    ) -> AppVersion:
         """Make a validated candidate current, after rechecking that its bytes and its profile
-        identities are exactly those it was validated with."""
+        identities are exactly those it was validated with, and that the App's current release
+        is still the one the activation expects."""
         verify_sealed(candidate_dir, package_sha256)
         source = load_source(candidate_dir)
         deps = resolve_dependencies(source, self._inventory)
@@ -247,90 +288,124 @@ class AppRegistry:
             dependency_manifest_sha256=index.dependency_manifest_sha256,
             ui_build=None,
         )
-        return self.register(sealed, report)
+        return self.register(sealed, report, activation)
 
-    def register(self, sealed: SealedPackage, report: dict[str, Any]) -> AppVersion:
-        """Record the Version and make it the App's current release."""
+    def register(
+        self,
+        sealed: SealedPackage,
+        report: dict[str, Any],
+        activation: Activation | None = None,
+    ) -> AppVersion:
+        """Record the Version (once) and make it the App's current release."""
+        activation = activation or Activation()
         source = sealed.source
-        existing = self._version_row(sealed.version_id)
-        if existing is not None:
-            return self._ensure_release(existing)
-        store = self._records.store(source.app_id)
-        store.register_collections(source.collections)
+        self._records.store(source.app_id).register_collections(source.collections)
         now = _now()
-        release_id = new_id("rel")
         with self._store.transaction() as conn:
-            row = conn.execute(
+            self._check_expected(conn, source.app_id, activation)
+            app = conn.execute(
                 "SELECT app_id FROM apps WHERE app_id = ?", (source.app_id,)
             ).fetchone()
-            if row is None:
+            if app is None:
                 conn.execute(
-                    """INSERT INTO apps(app_id, name, description, created_at, updated_at)
-                       VALUES (?,?,?,?,?)""",
-                    (source.app_id, source.name, source.description, now, now),
+                    """INSERT INTO apps(app_id, name, description, created_at, updated_at,
+                       origin, state, creation_id) VALUES (?,?,?,?,?,?,?,?)""",
+                    (
+                        source.app_id,
+                        source.name,
+                        source.description,
+                        now,
+                        now,
+                        activation.origin,
+                        "active",
+                        activation.creation_id,
+                    ),
                 )
+            known = conn.execute(
+                "SELECT version_id FROM app_versions WHERE version_id = ?", (sealed.version_id,)
+            ).fetchone()
+            if known is None:
+                conn.execute(
+                    """INSERT INTO app_versions(version_id, app_id, package_sha256, source_json,
+                       dependency_manifest_json, dependency_manifest_sha256, runtime_profile_id,
+                       location_ref, validation_json, created_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        sealed.version_id,
+                        source.app_id,
+                        sealed.package_sha256,
+                        source.model_dump_json(),
+                        sealed.dependency_manifest.model_dump_json(),
+                        sealed.dependency_manifest_sha256,
+                        sealed.dependency_manifest.runtime_profile_id,
+                        str(sealed.path),
+                        json.dumps(report),
+                        now,
+                    ),
+                )
+            current = conn.execute(
+                "SELECT current_version_id, current_release_id FROM apps WHERE app_id = ?",
+                (source.app_id,),
+            ).fetchone()
+            if current["current_version_id"] != sealed.version_id or activation.build_id:
+                self._make_current(conn, source.app_id, sealed.version_id, activation, now)
             conn.execute(
-                """INSERT INTO app_versions(version_id, app_id, package_sha256, source_json,
-                   dependency_manifest_json, dependency_manifest_sha256, runtime_profile_id,
-                   location_ref, validation_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    sealed.version_id,
-                    source.app_id,
-                    sealed.package_sha256,
-                    source.model_dump_json(),
-                    sealed.dependency_manifest.model_dump_json(),
-                    sealed.dependency_manifest_sha256,
-                    sealed.dependency_manifest.runtime_profile_id,
-                    str(sealed.path),
-                    json.dumps(report),
-                    now,
-                ),
-            )
-            conn.execute(
-                """INSERT INTO app_releases(release_id, app_id, version_id, kind, created_at)
-                   VALUES (?,?,?,?,?)""",
-                (release_id, source.app_id, sealed.version_id, "installed", now),
-            )
-            conn.execute(
-                """UPDATE apps SET name = ?, description = ?, updated_at = ?,
-                   current_version_id = ?, current_release_id = ? WHERE app_id = ?""",
-                (
-                    source.name,
-                    source.description,
-                    now,
-                    sealed.version_id,
-                    release_id,
-                    source.app_id,
-                ),
+                "UPDATE apps SET name = ?, description = ?, updated_at = ? WHERE app_id = ?",
+                (source.name, source.description, now, source.app_id),
             )
         return self.current(source.app_id)
+
+    @staticmethod
+    def _check_expected(conn: Any, app_id: str, activation: Activation) -> None:
+        if isinstance(activation.expected_release_id, AnyRelease):
+            return
+        row = conn.execute(
+            "SELECT current_release_id FROM apps WHERE app_id = ?", (app_id,)
+        ).fetchone()
+        current = row["current_release_id"] if row else None
+        if current != activation.expected_release_id:
+            raise conflict(
+                f"{app_id} changed since this build started; build it again",
+                expected_release_id=activation.expected_release_id,
+                current_release_id=current,
+            )
+
+    @staticmethod
+    def _make_current(
+        conn: Any, app_id: str, version_id: str, activation: Activation, now: str
+    ) -> None:
+        row = conn.execute(
+            "SELECT current_release_id FROM apps WHERE app_id = ?", (app_id,)
+        ).fetchone()
+        release_id = new_id("rel")
+        conn.execute(
+            """INSERT INTO app_releases(release_id, app_id, version_id, kind, created_at,
+               previous_release_id, build_id, verification_ref)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                release_id,
+                app_id,
+                version_id,
+                activation.kind,
+                now,
+                row["current_release_id"] if row else None,
+                activation.build_id,
+                activation.verification_ref,
+            ),
+        )
+        conn.execute(
+            """UPDATE apps SET current_version_id = ?, current_release_id = ?, updated_at = ?
+               WHERE app_id = ?""",
+            (version_id, release_id, now, app_id),
+        )
 
     def _version_row(self, version_id: str) -> dict[str, Any] | None:
         rows = self._store.query("SELECT * FROM app_versions WHERE version_id = ?", (version_id,))
         return dict(rows[0]) if rows else None
 
-    def _ensure_release(self, version: dict[str, Any]) -> AppVersion:
-        current = self.current(version["app_id"])
-        if current.version_id == version["version_id"]:
-            return current
-        now = _now()
-        release_id = new_id("rel")
-        with self._store.transaction() as conn:
-            conn.execute(
-                """INSERT INTO app_releases(release_id, app_id, version_id, kind, created_at)
-                   VALUES (?,?,?,?,?)""",
-                (release_id, version["app_id"], version["version_id"], "reinstalled", now),
-            )
-            conn.execute(
-                """UPDATE apps SET updated_at = ?, current_version_id = ?, current_release_id = ?
-                   WHERE app_id = ?""",
-                (now, version["version_id"], release_id, version["app_id"]),
-            )
-        return self.current(version["app_id"])
-
     def current(self, app_id: str) -> AppVersion:
         rows = self._store.query(
-            """SELECT a.app_id, a.current_release_id, v.* FROM apps a
+            """SELECT a.app_id, a.current_release_id, a.origin, a.state, v.* FROM apps a
                JOIN app_versions v ON v.version_id = a.current_version_id WHERE a.app_id = ?""",
             (app_id,),
         )
@@ -341,6 +416,8 @@ class AppRegistry:
             app_id=row["app_id"],
             version_id=row["version_id"],
             release_id=row["current_release_id"],
+            origin=row["origin"],
+            state=row["state"],
             package_sha256=row["package_sha256"],
             dependency_manifest_sha256=row["dependency_manifest_sha256"],
             dependency_manifest=DependencyManifest.model_validate_json(
@@ -354,11 +431,21 @@ class AppRegistry:
     def list_apps(self) -> list[dict[str, Any]]:
         rows = self._store.query(
             """SELECT a.app_id, a.name, a.description, a.current_version_id, a.current_release_id,
-                      a.updated_at, v.package_sha256, v.runtime_profile_id
+                      a.origin, a.state, a.creation_id, a.created_at, a.updated_at,
+                      v.package_sha256, v.runtime_profile_id, v.source_json
                FROM apps a LEFT JOIN app_versions v ON v.version_id = a.current_version_id
                ORDER BY a.created_at"""
         )
-        return [dict(r) for r in rows]
+        apps = []
+        for row in rows:
+            entry = {k: row[k] for k in row.keys() if k != "source_json"}
+            source = (
+                AppSource.model_validate_json(row["source_json"]) if row["source_json"] else None
+            )
+            entry["has_ui"] = bool(source and source.ui and source.ui.entry)
+            entry["actions"] = len(source.actions) if source else 0
+            apps.append(entry)
+        return apps
 
     def versions_for_profile(self, profile_id: str) -> list[str]:
         rows = self._store.query(

@@ -3,15 +3,17 @@
 The assistant and builder plan against this list, never against a model's prior knowledge of a
 service (Resource Context and Integration Architecture, "Provider order"). A family is available
 only when a person can get a working solution that uses it, not when the platform part alone
-exists: records, artifacts, runtime model calls and the interaction kit are built (F05, F06), but
-the builder cannot produce a solution that uses them until the creation and delivery loop lands
-(F07 verifies such candidates, F08 delivers them). An unavailable family names the ticket and the
-reason so the assistant can explain a useful partial outcome honestly.
+exists: records, artifacts, runtime model calls and the interaction kit became available with the
+creation and delivery loop (F08). An unavailable family names the ticket and the reason so the
+assistant can explain a useful partial outcome honestly.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
+
+from alpha.execution.profiles import ProfileInventory
 
 
 @dataclass(frozen=True)
@@ -38,31 +40,43 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         family="records",
         description="User-owned records with validated fields, history, filtering, totals and "
         "trends, kept on this Mac.",
-        available=False,
-        unavailable_reason="solutions cannot keep saved records yet",
-        arrives_with="F08",
+        available=True,
+        operations=(
+            "records.create(collection, values)",
+            "records.update(collection, id, expected_revision, changes)",
+            "records.correct(collection, id, expected_revision, changes)",
+            "records.delete(collection, id, expected_revision)",
+            "records.get(collection, id)",
+            "records.query(collection, where, order_by, limit, cursor)",
+            "records.aggregate(collection, metrics, group_by, where)",
+            "records.batch(operations)",
+        ),
+        notes=("Each App has its own records; no App can read another App's records.",),
     ),
     CapabilityFamily(
         family="artifacts",
-        description="Files produced or transformed by a solution (reports, exports).",
-        available=False,
-        unavailable_reason="solutions cannot produce files yet",
-        arrives_with="F08",
+        description="Files produced by a solution (reports, exports), kept with their origin.",
+        available=True,
+        operations=(
+            "artifacts.create(display_name, content, media_type)",
+            "artifacts.read(artifact_id)",
+            "artifacts.get(artifact_id)",
+        ),
     ),
     CapabilityFamily(
         family="models",
         description="Bounded model calls at runtime for estimates, classification and "
         "extraction, labelled as estimates and correctable.",
-        available=False,
-        unavailable_reason="solutions cannot make their own model estimates yet",
-        arrives_with="F08",
+        available=True,
+        operations=("models.structured(instruction, input, fields)",),
+        notes=("At most 10 model calls per action run; results are labelled estimates.",),
     ),
     CapabilityFamily(
         family="custom_ui",
-        description="A generated interface for quick entry, lists, details and trends.",
-        available=False,
-        unavailable_reason="solutions cannot have their own screens yet",
-        arrives_with="F08",
+        description="A generated interface for quick entry, lists, review, details and trends, "
+        "built from Alpha's interaction kit.",
+        available=True,
+        operations=("ui.views (declared read views)", "ui.actions (declared UI actions)"),
     ),
     CapabilityFamily(
         family="files",
@@ -124,6 +138,29 @@ def catalog_entries() -> list[dict[str, object]]:
         }
         for c in CATALOG
     ]
+
+
+def profile_versions(inventory: ProfileInventory) -> dict[str, Any]:
+    """The runtime and UI build profiles new solutions are built against right now."""
+    found: dict[str, Any] = {}
+    runtime = inventory.default_app_profile()
+    if runtime is not None:
+        pins = {p.name: p.version for p in runtime.profile.packages}
+        found["runtime"] = {
+            "profile_id": runtime.profile_id,
+            "python": runtime.profile.target.python_version,
+            "sdk": pins.get("alpha-sdk"),
+        }
+    ui = inventory.default_ui_profile()
+    if ui is not None:
+        pins = {p.name: p.version for p in ui.profile.packages}
+        found["ui_build"] = {
+            "profile_id": ui.profile_id,
+            "kit": pins.get("@alpha/ui-kit"),
+            "bridge": pins.get("@alpha/ui-bridge"),
+            "react": pins.get("react"),
+        }
+    return found
 
 
 def available_families() -> set[str]:

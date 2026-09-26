@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import type { CoreClient } from "../core/client";
+import { isWorkflowsClient, type CoreClient } from "../core/client";
+import { CreationCard } from "../workflows/CreationCard";
 import { BriefCard } from "./BriefCard";
 import { QuestionsForm } from "./QuestionsForm";
 import { useConversation } from "./useConversation";
@@ -10,7 +11,7 @@ const EXAMPLES = [
   "Keep a list of job openings I find and what I did about each",
 ];
 
-export function AssistantPanel({ client }: { client: CoreClient }) {
+export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOpenApp?: (appId: string) => void }) {
   const { conversation, error, busy, start, reply, reset } = useConversation(client);
   const [text, setText] = useState("");
   const [correction, setCorrection] = useState("");
@@ -98,6 +99,18 @@ export function AssistantPanel({ client }: { client: CoreClient }) {
             />
           ) : null}
           {conversation.current_brief && conversation.state !== "thinking" ? <BriefCard brief={conversation.current_brief} /> : null}
+          {conversation.state === "briefed" &&
+          conversation.delivery === "app" &&
+          conversation.current_brief &&
+          isWorkflowsClient(client) ? (
+            <CreationCard
+              client={client}
+              conversationId={conversation.conversation_id}
+              briefRevision={conversation.current_brief.revision}
+              unavailable={conversation.current_brief.unavailable_capabilities}
+              onOpen={(appId) => onOpenApp?.(appId)}
+            />
+          ) : null}
           {conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user" ? (
             <form
               className="correction"

@@ -11,16 +11,20 @@ async function openRuntimeFixture(user: ReturnType<typeof userEvent.setup>) {
 
 describe("shell request/result path", () => {
   it("shows the connected runtime and an empty result state", async () => {
+    const user = userEvent.setup();
     render(<App client={new FakeCoreClient()} />);
     expect(await screen.findByRole("status")).toHaveTextContent("Runtime connected");
-    expect(screen.getByText(/Nothing has run yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Runtime fixture" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Activity" }));
+    expect(screen.getByText(/Nothing has run yet/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("What do you want done?")).not.toBeInTheDocument();
   });
 
   it("submits text, follows live status and shows the worker output", async () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
-    render(<App client={client} />);
+    render(<App client={client} devTools />);
     await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "hello alpha");
     await user.click(screen.getByRole("button", { name: "Run" }));
@@ -50,7 +54,7 @@ describe("shell request/result path", () => {
       client.progress(runId, 2);
     };
     const user = userEvent.setup();
-    render(<App client={client} />);
+    render(<App client={client} devTools />);
     await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "fast");
     await user.click(screen.getByRole("button", { name: "Run" }));
@@ -67,7 +71,7 @@ describe("shell request/result path", () => {
   it("displays a failed run with a plain-language reason", async () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
-    render(<App client={client} />);
+    render(<App client={client} devTools />);
     await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "x");
     await user.selectOptions(screen.getByLabelText("Worker behavior"), "fail");
@@ -84,7 +88,7 @@ describe("shell request/result path", () => {
   it("cancels a running run from the result card", async () => {
     const client = new FakeCoreClient();
     const user = userEvent.setup();
-    render(<App client={client} />);
+    render(<App client={client} devTools />);
     await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "hang");
     await user.click(screen.getByRole("button", { name: "Run" }));
@@ -103,7 +107,7 @@ describe("shell request/result path", () => {
     const client = new FakeCoreClient();
     client.failCreate = true;
     const user = userEvent.setup();
-    render(<App client={client} />);
+    render(<App client={client} devTools />);
     await openRuntimeFixture(user);
     await user.type(screen.getByLabelText("Text to send"), "x");
     await user.click(screen.getByRole("button", { name: "Run" }));

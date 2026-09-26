@@ -7,6 +7,7 @@ Modes, from the goal text `fake:<mode> [args]`:
 - package A [B ...]     copies test package A on attempt 1, B on attempt 2, ... (the last one
                         repeats); packages come from the host's ALPHA_FAKE_BUILDER_PACKAGES
 - ... --claim-failed    (with `package`) writes the package but reports that it failed
+- ... --wrong-app-id    (with `package`) ignores the App identity the platform assigned
 - fail                  reports a harness error, writes nothing
 - hang                  writes nothing and blocks until cancelled (spawns a descendant)
 - broken_package        like succeed, but the handler is missing
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +28,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
 from alpha_contracts.builds import (
     BuildDiagnostic,
     BuildResultStatus,
@@ -42,7 +45,7 @@ from alpha.builds.harness import (
 )
 
 PURE_APP_YAML = """contract_version: '0.2'
-app_id: fixture-word-stats
+app_id: {app_id}
 name: Word statistics fixture
 description: Deterministic control package produced by the fake harness.
 runtime_profile: {runtime_profile}
@@ -141,6 +144,7 @@ class FakeHarness:
         shutil.rmtree(package, ignore_errors=True)
         files = {
             "app.yaml": PURE_APP_YAML.format(
+                app_id=targets.get("app_id") or "fixture-word-stats",
                 runtime_profile=targets.get("runtime_profile"),
                 sdk_version=targets.get("sdk_version"),
             ),
@@ -171,13 +175,27 @@ class FakeHarness:
         number = session.inputs.request.attempt_number
         name = names[min(number, len(names)) - 1]
         source = Path(root) / name
+        # Like a builder following its workspace: no screen unless the template offered one
+        # (the platform leaves it out when the plan checks no screen).
+        with_ui = (package / "ui").is_dir()
         shutil.rmtree(package, ignore_errors=True)
         shutil.copytree(source, package)
+        if not with_ui:
+            shutil.rmtree(package / "ui", ignore_errors=True)
         template = package / "app.yaml.template"
         if template.exists():
             text = template.read_text(encoding="utf-8")
             for key, value in session.inputs.targets.items():
                 text = text.replace("{{" + key.upper() + "}}", str(value))
+            app_id = session.inputs.targets.get("app_id")
+            if app_id and "--wrong-app-id" in session.args:
+                app_id = f"{app_id}-other"
+            if app_id:  # a builder keeps the identity the platform assigned
+                text = re.sub(r"(?m)^app_id: .*$", f'app_id: "{app_id}"', text)
+            if not with_ui:
+                data = yaml.safe_load(text)
+                data.pop("ui", None)
+                text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
             (package / "app.yaml").write_text(text, encoding="utf-8")
             template.unlink()
         yield HarnessEvent("harness.package_copied", {"package": name, "attempt": number})

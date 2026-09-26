@@ -26,6 +26,7 @@ LIVE_COMMANDS = {
     "F04": "just qualify-assistant (opt-in live route; three request families)",
     "F06": "rendered checks: kit-fixture.html against a development Core, and `just kit-reference`",
     "F07": "just qualify-build repair | limit | generate  (opt-in live builder route)",
+    "F08": "G1 on frozen platform code: evals/g1.py create | use | reopen | share (live routes)",
 }
 
 # Ticket -> ordered list of (label, argv). Only tickets with real implemented checks appear.
@@ -106,6 +107,24 @@ RECIPES: dict[str, list[tuple[str, Sequence[str]]]] = {
                 "pytest",
                 "tests/integration/test_candidate_verification.py",
                 "tests/integration/test_builds.py",
+                "-q",
+                "-m",
+                "integration",
+            ],
+        ),
+        ("test-integration-regression", ["just", "test-integration"]),
+    ],
+    "F08": [
+        ("check", ["just", "check"]),
+        ("toolchain-locks", ["just", "verify-locks"]),
+        ("test-ui", ["just", "test-ui"]),
+        (
+            "test-creations",
+            [
+                "uv",
+                "run",
+                "pytest",
+                "tests/integration/test_creations.py",
                 "-q",
                 "-m",
                 "integration",

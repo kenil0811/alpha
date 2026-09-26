@@ -9,7 +9,7 @@
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -24,6 +24,9 @@ const READY_PREFIX: &str = "ALPHA_CORE_READY ";
 const FIXTURE_HTML: &[u8] = include_bytes!("../../src/qualification/generated-ui.html");
 const FIXTURE_CSP: &str = include_str!("../../src/qualification/generated-ui.csp");
 const ERROR_PREFIX: &str = "ALPHA_CORE_ERROR ";
+/// Core's data directory, fixed once Core launches. Generated App screens are served from the
+/// sealed Versions inside it.
+static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const QUIT_GRACE: Duration = Duration::from_secs(5);
 
@@ -76,6 +79,29 @@ fn runtime_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../.alpha-runtime")
 }
 
+/// Platform resources (App template, builder references, UI build tool, render check). In
+/// development this is the repository root; F22 replaces it with the bundled resources.
+fn platform_resources() -> PathBuf {
+    if let Ok(dir) = std::env::var("ALPHA_PLATFORM_RESOURCES") {
+        return PathBuf::from(dir);
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+/// The pinned Node 24 the UI build profile was made with (Homebrew keg in development).
+fn pinned_node() -> Option<PathBuf> {
+    let keg = PathBuf::from("/opt/homebrew/opt/node@24/bin/node");
+    keg.is_file().then_some(keg)
+}
+
+/// The headless browser Playwright 1.62.0 pins for the render check (F07 decision §4).
+fn validator_browser(home: &str) -> Option<PathBuf> {
+    let exe = PathBuf::from(home).join(
+        "Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    );
+    exe.is_file().then_some(exe)
+}
+
 fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     let runtime = runtime_dir();
     let manifest_path = runtime.join("core-runtime.json");
@@ -102,6 +128,7 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         }
     }
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("create data dir: {e}"))?;
+    let _ = DATA_DIR.set(data_dir.clone());
     let token = random_token()?;
     let log_dir = data_dir.join("logs");
     std::fs::create_dir_all(&log_dir).map_err(|e| format!("create log dir: {e}"))?;
@@ -130,6 +157,9 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .env("ALPHA_DATA_DIR", &data_dir)
         // Published App runtime profiles (`just bundle-core`); Core verifies, never installs.
         .env("ALPHA_PROFILES_DIR", runtime.join("profiles"))
+        // Build pipeline (F07/F08): templates, the UI build tool and render check, the pinned
+        // Node and headless browser. Development locations; F22 bundles them as resources.
+        .env("ALPHA_PLATFORM_RESOURCES", platform_resources())
         .env("ALPHA_SESSION_TOKEN", &token)
         .env("ALPHA_ALLOWED_ORIGINS", allowed_origins)
         .env("PYTHONDONTWRITEBYTECODE", "1")
@@ -138,6 +168,12 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(core_log));
+    if let Some(node) = pinned_node() {
+        command.env("ALPHA_NODE", node);
+    }
+    if let Some(browser) = validator_browser(&user_home) {
+        command.env("ALPHA_UI_BROWSER", browser);
+    }
     if cfg!(debug_assertions) {
         // Development diagnostics only: forward an explicit request-logging switch.
         if let Ok(value) = std::env::var("ALPHA_LOG_REQUESTS") {
@@ -263,29 +299,60 @@ fn quit(app: &AppHandle) {
 fn generated_ui_response(request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
     let path = request.uri().path();
     let host = request.uri().host().unwrap_or("");
-    // Only registered surfaces are served; the host part is the App identity (own origin per
-    // App). F06/F07 replace the fixture with sealed static assets looked up by that identity.
-    if (host == "fixture_a" || host == "fixture_b") && (path == "/" || path == "/index.html") {
-        return tauri::http::Response::builder()
-            .status(200)
-            .header("Content-Type", "text/html; charset=utf-8")
-            .header("Content-Security-Policy", FIXTURE_CSP.trim())
-            .header("Cache-Control", "no-store")
-            .header("X-Content-Type-Options", "nosniff")
-            .body(FIXTURE_HTML.to_vec())
-            .expect("response");
+    // F03 qualification fixture (development builds only).
+    if cfg!(debug_assertions)
+        && (host == "fixture_a" || host == "fixture_b")
+        && (path == "/" || path == "/index.html")
+    {
+        return html_response(FIXTURE_HTML.to_vec(), FIXTURE_CSP.trim());
     }
-    let body = format!(
-        "not found: uri={} host={:?} path={}",
-        request.uri(),
-        request.uri().host(),
-        path
-    );
+    // A generated App's screen: alpha-ui://<app_id>/<version_id>/index.html. The host part is
+    // the App identity (its own origin); the sealed Version must belong to that App.
+    match app_screen(host, path) {
+        Some((html, csp)) => html_response(html, &csp),
+        None => tauri::http::Response::builder()
+            .status(404)
+            .header("Content-Type", "text/plain")
+            .body(b"not found".to_vec())
+            .expect("response"),
+    }
+}
+
+fn html_response(body: Vec<u8>, csp: &str) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
-        .status(404)
-        .header("Content-Type", "text/plain")
-        .body(body.into_bytes())
+        .status(200)
+        .header("Content-Type", "text/html; charset=utf-8")
+        .header("Content-Security-Policy", csp)
+        .header("Cache-Control", "no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(body)
         .expect("response")
+}
+
+fn valid_id(value: &str, prefix: &str, max: usize) -> bool {
+    value.starts_with(prefix)
+        && value.len() <= max
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+/// The sealed screen of `version_id`, if that Version belongs to App `app_id` and has one.
+fn app_screen(app_id: &str, path: &str) -> Option<(Vec<u8>, String)> {
+    let mut parts = path.trim_start_matches('/').splitn(2, '/');
+    let version_id = parts.next()?;
+    if parts.next()? != "index.html" || !valid_id(version_id, "ver_", 40) || !valid_id(app_id, "", 64) {
+        return None;
+    }
+    let version = DATA_DIR.get()?.join("versions").join(version_id);
+    let index: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(version.join("package.index.json")).ok()?).ok()?;
+    if index["app_id"].as_str()? != app_id {
+        return None;
+    }
+    let html = std::fs::read(version.join("dist/ui/index.html")).ok()?;
+    let csp = std::fs::read_to_string(version.join("dist/ui/index.csp")).ok()?;
+    Some((html, csp.trim().to_string()))
 }
 
 pub fn run() {

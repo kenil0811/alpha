@@ -25,11 +25,11 @@ from alpha_contracts.runs import AppOwner, ExecutionSnapshot, Run, RunLimits, Ru
 from jsonschema import Draft202012Validator
 
 from alpha.capabilities.errors import OperationFailed, conflict, forbidden, invalid
-from alpha.data.apps import AppRegistry
 from alpha.execution.broker import CapabilityBroker, RunGrant
 from alpha.execution.coordinator import DispatchSpec, RunCoordinator, input_digest
 from alpha.execution.profiles import InstalledProfile, ProfileInventory
 from alpha.execution.supervisor import WorkerSupervisor
+from alpha.solutions.registry import AppRegistry
 
 _ORIGIN_TO_INVOCABLE = {
     RunOrigin.USER: Invocable.MANUAL,

@@ -49,6 +49,7 @@ from alpha_contracts.verification import (
 )
 
 from alpha.builds.attempt import BuilderOutcome, BuilderProcess
+from alpha.builds.awake import stay_awake
 from alpha.builds.preview import PreviewDeps, PreviewPlatform
 from alpha.builds.store import (
     BuildRecord,
@@ -63,11 +64,11 @@ from alpha.builds.workspace import (
     render_repair,
 )
 from alpha.capabilities.errors import OperationFailed
-from alpha.data.apps import AppRegistry
 from alpha.data.packages import SealedPackage, load_source, sealed_manifest, verify_sealed
 from alpha.execution.profiles import ProfileInventory
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
 from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.solutions.registry import ANY_RELEASE, Activation, AnyRelease, AppRegistry
 from alpha.storage.control_store import ConflictError, ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.builds")
@@ -169,7 +170,10 @@ class BuildService:
         route_id: str = "fake",
         max_cost_usd: float | None = None,
         seed_package: str | None = None,
+        app_id: str | None = None,
     ) -> BuildRecord:
+        """Queue a build. `app_id`, when given, is the identity the platform assigned (the
+        package must use it); otherwise the builder chooses one."""
         route = self._gateway.route(route_id)
         budget = self._gateway.budget(route, max_cost_usd)
         if seed_package is not None:
@@ -205,6 +209,7 @@ class BuildService:
             instructions=instructions,
             plan=plan,
             seed_package=seed_package,
+            app_id=app_id,
             route_id=route.route_id,
             harness=route.harness,
             budget=budget,
@@ -257,18 +262,32 @@ class BuildService:
         )
         return self.get(build_id)
 
-    def activate(self, build_id: str) -> dict[str, Any]:
+    def activate(
+        self,
+        build_id: str,
+        *,
+        expected_release_id: str | None | AnyRelease = ANY_RELEASE,
+        creation_id: str | None = None,
+    ) -> dict[str, Any]:
         """Install a ready candidate's exact sealed bytes as the App's current Version, after
-        rechecking the bytes and the profiles it was validated with (F08 builds the user-facing
-        flow on this)."""
+        rechecking the bytes, the profiles it was validated with and (when given) that the App's
+        current release is still the expected one."""
         record = self.get(build_id)
         if record.state is not BuildState.READY or not record.candidate:
             raise BuildNotReady(f"build {build_id} is {record.state.value}, not ready")
         candidate = record.candidate
         version_dir = self._root / candidate["version_ref"]
+        activation = Activation(
+            kind="activated",
+            origin="created" if creation_id else "build",
+            expected_release_id=expected_release_id,
+            build_id=build_id,
+            verification_ref=candidate["report_ref"],
+            creation_id=creation_id,
+        )
         try:
             version = self._pipeline.registry.activate_sealed(
-                version_dir, candidate["package_sha256"]
+                version_dir, candidate["package_sha256"], activation
             )
         except OperationFailed as exc:
             self._db.append(build_id, None, "build.activation_refused", exc.as_error())
@@ -283,6 +302,14 @@ class BuildService:
         }
         self._db.append(build_id, None, "build.activated", result)
         return result
+
+    def evidence_path(self, build_id: str, attempt: int, name: str) -> Path | None:
+        """A render-check screenshot kept with an attempt, if it exists."""
+        path = self._root / build_id / f"attempt-{attempt}" / "evidence" / "ui" / name
+        root = (self._root / build_id).resolve()
+        if path.is_file() and path.resolve().is_relative_to(root):
+            return path
+        return None
 
     def invoke(
         self, build_id: str, action_id: str, input_payload: dict[str, Any]
@@ -423,7 +450,8 @@ class BuildService:
                 self._current = item.build_id
                 self._stops[item.build_id] = threading.Event()
             try:
-                self._run_build(item)
+                with stay_awake():
+                    self._run_build(item)
             except Exception as exc:
                 # A platform fault in one build must not stall every build behind it.
                 log.exception("build %s failed inside Core", item.build_id)
@@ -458,16 +486,18 @@ class BuildService:
 
     # ----- one build: attempts, verification, bounded repair -----------------------------
 
-    def _targets(self) -> TargetProfiles | None:
+    def _targets(self, app_id: str | None) -> TargetProfiles | None:
         runtime = self._pipeline.inventory.default_app_profile()
         if runtime is None:
             return None
-        return TargetProfiles(runtime=runtime, ui=self._pipeline.inventory.default_ui_profile())
+        return TargetProfiles(
+            runtime=runtime, ui=self._pipeline.inventory.default_ui_profile(), app_id=app_id
+        )
 
     def _run_build(self, item: _QueuedBuild) -> None:
         build_id, route, budget = item.build_id, item.route, item.budget
         record = self.get(build_id)
-        targets = self._targets()
+        targets = self._targets(record.app_id)
         if targets is None:
             self._db.transition(
                 build_id,
@@ -814,6 +844,7 @@ class BuildService:
             package_dir=attempt_dir / "package",
             attempt_dir=attempt_dir,
             plan=record.plan,
+            expected_app_id=record.app_id,
             on_check=on_check,
             stop=stop,
         )

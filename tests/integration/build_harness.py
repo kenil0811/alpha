@@ -246,6 +246,51 @@ def entry_only(p: Path) -> None:
     _screen(p).write_text(text)
 
 
+def notes_slow(p: Path) -> None:
+    """Not a defect: adds `slow_note`, which marks its scratch, waits, then saves a note, so a
+    run can be cancelled mid-way (F08.C04)."""
+    _edit(
+        _yaml(p),
+        "  - id: count_notes\n",
+        "  - id: slow_note\n"
+        "    title: Add a note slowly\n"
+        "    description: Wait, then save one note.\n"
+        "    handler: notes_app.handlers:slow_note\n"
+        "    invocable_from: [manual]\n"
+        "    effect_class: local_write\n"
+        "    capability_requirements: [records]\n"
+        "    timeout_seconds: 120\n"
+        "    input_schema:\n"
+        "      type: object\n"
+        "      required: [title, seconds]\n"
+        "      properties: {title: {type: string, minLength: 1}, seconds: {type: number}}\n"
+        "    output_schema:\n"
+        "      type: object\n"
+        "      required: [id, revision, scratch, pid]\n"
+        "      properties: {id: {type: string}, revision: {type: integer},\n"
+        "        scratch: {type: string}, pid: {type: integer}, python: {type: string}}\n"
+        "  - id: count_notes\n",
+    )
+    _edit(
+        _handlers(p),
+        "def count_notes(",
+        "def slow_note(ctx: Context, title: str, seconds: float) -> dict[str, Any]:\n"
+        "    import os\n    import sys\n    import time\n\n"
+        "    scratch = os.getcwd()\n"
+        "    with open(os.path.join(scratch, 'mine.txt'), 'w') as handle:\n"
+        "        handle.write(title)\n"
+        "    time.sleep(seconds)\n"
+        "    record = ctx.records.create(\n"
+        "        'notes', {'title': title, 'noted_on': ctx.today().isoformat()}\n"
+        "    )\n"
+        "    return {\n"
+        "        'id': record.id, 'revision': record.revision, 'scratch': scratch,\n"
+        "        'pid': os.getpid(), 'python': os.path.realpath(sys.executable),\n"
+        "    }\n\n\n"
+        "def count_notes(",
+    )
+
+
 VARIANTS: dict[str, Callable[[Path], None]] = {
     f.__name__: f
     for f in (
@@ -264,6 +309,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         lookalike_titles,
         missing_prop,
         entry_only,
+        notes_slow,
     )
 }
 

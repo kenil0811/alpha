@@ -31,6 +31,8 @@ class CoreSettings:
     builder_home: str | None = None
     build_max_attempt_seconds: int | None = None
     assistant_route: str = "fake"
+    # Route the builder uses for creations (F08); the planner uses the assistant route.
+    builder_route: str = "fake"
     profiles_dir: Path | None = None
     app_model_route: str = "fake"
     timezone: str = "UTC"
@@ -68,6 +70,9 @@ class CoreSettings:
         assistant_route = env.get("ALPHA_ASSISTANT_ROUTE") or (
             "claude-code-cli" if "claude-code-cli" in routes else "fake"
         )
+        builder_route = env.get("ALPHA_BUILDER_ROUTE") or (
+            "claude-code-cli" if "claude-code-cli" in routes else "fake"
+        )
         app_model_route = env.get("ALPHA_APP_MODEL_ROUTE") or (
             "claude-code-cli" if "claude-code-cli" in routes else "fake"
         )
@@ -89,6 +94,7 @@ class CoreSettings:
             builder_path=env.get("ALPHA_BUILDER_PATH", "/usr/bin:/bin"),
             builder_home=env.get("ALPHA_BUILDER_HOME") or None,
             assistant_route=assistant_route,
+            builder_route=builder_route,
             app_model_route=app_model_route,
             timezone=timezone,
             profiles_dir=Path(profiles) if profiles else None,

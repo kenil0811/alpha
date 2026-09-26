@@ -203,6 +203,79 @@ def _unsupported() -> dict[str, Any]:
     }
 
 
+def _notes_app(with_screen: bool) -> dict[str, Any]:
+    """A neutral App brief matching the notes build fixture (control tests of creation)."""
+    return {
+        "delivery": "app",
+        "interpretation": {
+            "outcome": "A short notes list you keep on this Mac.",
+            "main_input": "Short notes you type.",
+            "useful_result": "Your latest notes and how many you have.",
+            "important_assumptions": ["Single user on this Mac"],
+        },
+        "reply": "I'll make a small notes list you can add to and look back through.",
+        "questions": [],
+        "assumptions": ["Single user on this Mac"],
+        "brief_draft": {
+            "goal": "Notes list, keep short notes and see the latest ones",
+            "success_summary": "Adding a note takes a second and the latest notes are always listed.",
+            "surfaces": ["custom_ui"] if with_screen else ["conversation"],
+            "primary_journey": [
+                {
+                    "action": "Type a short note",
+                    "expected_result": "It is saved with today's date and listed first",
+                }
+            ],
+            "data_needs": [
+                {
+                    "collection": "notes",
+                    "purpose": "The person's notes",
+                    "fields": [
+                        {"name": "title", "kind": "text", "description": "The note"},
+                        {"name": "noted_on", "kind": "date", "description": "When it was written"},
+                    ],
+                }
+            ],
+            "actions": [
+                {
+                    "id": "add_note",
+                    "title": "Add a note",
+                    "description": "Save one note dated today",
+                    "inputs": ["title"],
+                    "outputs": ["id", "revision"],
+                    "effect_class": "local_write",
+                    "required_capabilities": ["records"],
+                },
+                {
+                    "id": "count_notes",
+                    "title": "Count notes",
+                    "description": "How many notes are saved",
+                    "inputs": [],
+                    "outputs": ["count"],
+                    "effect_class": "none",
+                    "required_capabilities": ["records"],
+                },
+            ],
+            "constraints": [],
+            "acceptance_examples": [
+                {
+                    "description": "A note is saved",
+                    "action_id": "add_note",
+                    "input": {"title": "Buy milk"},
+                    "expected": {},
+                },
+                {
+                    "description": "A blank note is refused",
+                    "action_id": "add_note",
+                    "input": {"title": ""},
+                    "kind": "failure",
+                },
+            ],
+            "unavailable_capabilities": [],
+        },
+    }
+
+
 def _last_answers(prompt: str) -> dict[str, Any]:
     """The most recent USER ANSWERS object in the rendered conversation, if any."""
     answers: dict[str, Any] = {}
@@ -236,6 +309,8 @@ def fake_assistant(prompt: str) -> dict[str, Any]:
             "assumptions": [],
             "brief_draft": None,
         }
+    if "notes list" in latest:
+        return _notes_app(with_screen="no screen" not in latest)
     if "whatsapp" in text or "text my" in text:
         return _unsupported()
     if "notes" in text and ("brief" in text or "summary" in text):

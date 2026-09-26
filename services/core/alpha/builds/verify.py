@@ -41,7 +41,6 @@ from alpha.builds.plan import run_scenario
 from alpha.builds.preview import PreviewDeps, PreviewPlatform
 from alpha.builds.ui_check import UiRenderCheck
 from alpha.capabilities.errors import OperationFailed
-from alpha.data.apps import AppRegistry, interpret_handler_report
 from alpha.data.packages import (
     ResolvedDependencies,
     SealedPackage,
@@ -53,6 +52,7 @@ from alpha.data.packages import (
     seal,
 )
 from alpha.execution.app_runs import HandlerBinder
+from alpha.solutions.registry import AppRegistry, interpret_handler_report
 
 STAGES = ("package", "deps", "seal", "handlers", "behavior", "ui")
 
@@ -116,6 +116,7 @@ class _Run:
     package_dir: Path
     attempt_dir: Path
     plan: ValidationPlan
+    expected_app_id: str | None
     on_check: Callable[[CheckResult], None] | None
     stop: threading.Event | None
     checks: list[CheckResult] = field(default_factory=list)
@@ -203,6 +204,7 @@ class CandidateVerifier:
         package_dir: Path,
         attempt_dir: Path,
         plan: ValidationPlan,
+        expected_app_id: str | None = None,
         on_check: Callable[[CheckResult], None] | None = None,
         stop: threading.Event | None = None,
     ) -> VerificationOutcome | None:
@@ -216,6 +218,7 @@ class CandidateVerifier:
             package_dir,
             attempt_dir,
             plan,
+            expected_app_id,
             on_check,
             stop,
             environment={
@@ -245,6 +248,18 @@ class CandidateVerifier:
         run.add(
             _result("package.contract", "package", True, f"app.yaml declares {run.source.app_id}")
         )
+        if run.expected_app_id is not None:
+            if run.source.app_id != run.expected_app_id:
+                summary = (
+                    f"app.yaml declares app_id {run.source.app_id!r}; this App's identity is "
+                    f"{run.expected_app_id!r} and cannot change"
+                )
+                return run.add(_result("package.identity", "package", False, summary))
+            run.add(
+                _result(
+                    "package.identity", "package", True, "app_id is the identity Alpha assigned"
+                )
+            )
         try:
             run.files = collect_files(run.package_dir, run.source)
         except Exception as exc:
