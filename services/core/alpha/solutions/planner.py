@@ -45,6 +45,7 @@ Rules:
 - Missing data is unknown, not zero. An average over days (or weeks, or items) counts only the periods that have entries, and the result says how many periods had entries; a value the person enters as 0 is a real zero. When the brief has such a figure, add a scenario with a gap and assert both numbers exactly.
 - If an action fills a value from a model estimate, add one scenario where that invoke step has "model": "unavailable" (the platform makes the model fail). Then require an honest outcome: either "expect": "failed" followed by a records step showing nothing new was stored, or a stored record whose estimated field is null (null means unknown). Never accept a number there. Also show that a value the person types themselves is saved without the model.
 - Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. Without "custom_ui", set "ui" to null.
+- Cover the whole brief: every action in it runs successfully in some scenario; for an action that computes something (effect "none"), assert at least one exact value it returns; every collection the App keeps is read back by a records step.
 - Every step id is unique within its scenario, lowercase snake_case.
 - Also give app_name: two to four plain words naming the App for the person.
 
@@ -95,6 +96,53 @@ def consistency_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str
         problems.append("the brief asks for a screen but the plan has no ui checks")
     if not wants_ui(brief) and plan.ui is not None:
         problems.append("the plan checks a screen the brief does not ask for")
+    return problems + coverage_problems(plan, brief)
+
+
+def _fixed_value(value: Any) -> bool:
+    """True when an expected output pins at least one value (not only "any value")."""
+    if isinstance(value, dict):
+        if set(value) == {"$any"}:
+            return False
+        if set(value) <= {"$ref", "$today"}:
+            return True
+        return any(_fixed_value(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_fixed_value(v) for v in value)
+    return True
+
+
+def coverage_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str]:
+    """Every material outcome in the brief has a meaningful assertion (M1 review finding F05):
+    each action runs successfully, what a computing action returns is checked with real values,
+    each model-using action is also run with the model unavailable, and what is stored is read
+    back."""
+    problems: list[str] = []
+    steps = [s for sc in plan.scenarios for s in sc.steps]
+    invokes: dict[str, list[InvokeStep]] = {}
+    for step in steps:
+        if isinstance(step, InvokeStep):
+            invokes.setdefault(step.action, []).append(step)
+    for action in brief.actions:
+        mine = invokes.get(action.id, [])
+        if not any(s.expect == "succeeded" and s.model == "normal" for s in mine):
+            problems.append(f"the plan never runs {action.id} successfully")
+            continue
+        if (
+            action.effect_class == "none"
+            and "models" not in action.required_capabilities
+            and not any(s.output is not None and _fixed_value(s.output) for s in mine)
+        ):
+            problems.append(f"the plan never checks a value {action.id} computes")
+        if "models" in action.required_capabilities and not any(s.model != "normal" for s in mine):
+            problems.append(f"the plan never runs {action.id} with the model unavailable")
+    writes = any(a.effect_class == "local_write" for a in brief.actions)
+    read = {s.collection for s in steps if isinstance(s, RecordsStep)}
+    if plan.ui is not None and plan.ui.saved is not None:
+        read.add(plan.ui.saved.collection)
+    for need in brief.data_needs if writes else []:
+        if need.collection not in read:
+            problems.append(f"the plan never reads what is stored in {need.collection}")
     return problems
 
 
@@ -225,24 +273,38 @@ class AcceptancePlanner:
     def plan(self, brief: SolutionBrief, route: ModelRoute, scope_ref: str) -> AcceptancePlan:
         if route.route_id == "fake":
             return self._fake(brief)
-        try:
-            result = self._inference.call(
-                route,
-                system=SYSTEM,
-                prompt=plan_prompt(brief),
-                schema=PlanDraft.model_json_schema(),
-                scope_kind="acceptance_plan",
-                scope_ref=scope_ref,
+        prompt = plan_prompt(brief)
+        problems: list[str] = []
+        notes: list[str] = []
+        for attempt in (1, 2):  # one repair of an incomplete plan, then stop
+            try:
+                result = self._inference.call(
+                    route,
+                    system=SYSTEM,
+                    prompt=prompt,
+                    schema=PlanDraft.model_json_schema(),
+                    scope_kind="acceptance_plan",
+                    scope_ref=scope_ref,
+                )
+                draft = PlanDraft.model_validate(result.output)
+            except (InferenceError, ValidationError) as exc:
+                raise PlanningFailed(f"the checks could not be written: {str(exc)[:300]}") from None
+            plan, replaced = normalize_expectations(draft.validation_plan)
+            if replaced:
+                notes.append(f'{replaced} "*" expectation(s) read as any value')
+            problems = consistency_problems(plan, brief)
+            if not problems:
+                if attempt == 2:
+                    notes.append("the first plan was incomplete and was rewritten once")
+                return AcceptancePlan(draft.app_name, plan, "model", notes)
+            prompt = (
+                plan_prompt(brief)
+                + "\n\nYOUR PREVIOUS PLAN (fix it; keep what was right):\n"
+                + json.dumps(draft.model_dump(mode="json"), ensure_ascii=False)
+                + "\n\nIT HAD THESE PROBLEMS:\n- "
+                + "\n- ".join(problems)
             )
-            draft = PlanDraft.model_validate(result.output)
-        except (InferenceError, ValidationError) as exc:
-            raise PlanningFailed(f"the checks could not be written: {str(exc)[:300]}") from None
-        plan, replaced = normalize_expectations(draft.validation_plan)
-        problems = consistency_problems(plan, brief)
-        if problems:
-            raise PlanningFailed("the checks are inconsistent: " + "; ".join(problems[:5]))
-        notes = [f'{replaced} "*" expectation(s) read as any value'] if replaced else []
-        return AcceptancePlan(draft.app_name, plan, "model", notes)
+        raise PlanningFailed("the checks are incomplete: " + "; ".join(problems[:5]))
 
     def _fake(self, brief: SolutionBrief) -> AcceptancePlan:
         plan = plan_from_brief_examples(brief)

@@ -478,9 +478,14 @@ def cmd_use(g1: G1, args: argparse.Namespace) -> int:
         actions = {a["id"]: a for a in detail["actions"]}
         record["actions"] = []
         for call in journey.get("actions", []):
+            before = all_records(client, app_id, collections)
             outcome = run_action(client, app_id, actions[call["action"]], call["input"])
-            record["actions"].append({"call": call, "outcome": outcome})
-            print(f"  {call['action']}: {outcome.get('state')} {outcome.get('output')}")
+            after = all_records(client, app_id, collections)
+            verdict = call_verdict(call, outcome, before, after)
+            record["actions"].append({"call": call, "outcome": outcome, "verdict": verdict})
+            print(
+                f"  {call['action']}: {verdict['state']} ok={verdict['ok']} {verdict['problems']}"
+            )
         record["after"] = all_records(client, app_id, collections)
         record["runs"] = [
             {k: r.get(k) for k in ("run_id", "state", "origin", "terminal_reason", "created_at")}
@@ -489,13 +494,157 @@ def cmd_use(g1: G1, args: argparse.Namespace) -> int:
         ]
     record["finished_at"] = now()
     ok = (not journey.get("screen") or record["screen"].get("ok")) and all(
-        a["outcome"].get("state") == "succeeded" or a["call"].get("expect") == "failed"
-        for a in record["actions"]
+        a["verdict"]["ok"] for a in record["actions"]
     )
     record["ok"] = bool(ok)
     g1.save(args.label, "use.json", record)
     print(json.dumps({"ok": record["ok"], "after": record["after"]}, indent=2)[:4000])
     return 0 if ok else 1
+
+
+def call_verdict(
+    call: dict[str, Any],
+    outcome: dict[str, Any],
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> dict[str, Any]:
+    """Whether one journey call ended the way it was meant to. M1 review finding F05: the old
+    verdict passed any call marked as an expected refusal, even one that succeeded and wrote
+    data. An expected refusal must end failed (or be refused before running), say what the call
+    expects when `expect_message` is given, and change no stored data."""
+    state = "refused" if outcome.get("accepted") is False else outcome.get("state")
+    problems: list[str] = []
+    if call.get("expect") == "failed":
+        if state not in ("failed", "refused"):
+            problems.append(f"expected a refusal but it ended {state}")
+        wanted = call.get("expect_message")
+        said = json.dumps([outcome.get("errors"), outcome.get("detail")], default=str)
+        if wanted and wanted.lower() not in said.lower():
+            problems.append(f"the refusal did not say {wanted!r}")
+        if before != after:
+            problems.append("the refused call changed stored data")
+        return {"ok": not problems, "expected": "failed", "state": state, "problems": problems}
+    if state != "succeeded":
+        problems.append(f"expected success but it ended {state}")
+    return {"ok": not problems, "expected": "succeeded", "state": state, "problems": problems}
+
+
+# ----- record (after a session in the Alpha window) --------------------------------------------
+
+
+def native_record(data: Path, conversation_id: str) -> dict[str, Any]:
+    """Everything the stores hold about one request made and used in the Alpha window: the
+    conversation, its briefs and creations, builds and attempts, the App, its releases, runs and
+    records, and the model usage of every step. Read-only; run it with Alpha quit."""
+    conn = sqlite3.connect(f"file:{data / 'control.sqlite'}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+
+    def rows(query: str, *params: Any) -> list[dict[str, Any]]:
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+    def usage(ref: str) -> list[dict[str, Any]]:
+        return rows("SELECT * FROM model_usage WHERE scope_ref = ? ORDER BY recorded_at", ref)
+
+    try:
+        cid = conversation_id
+        record: dict[str, Any] = {
+            "conversation": rows("SELECT * FROM conversations WHERE conversation_id = ?", cid),
+            "turns": rows(
+                "SELECT * FROM conversation_turns WHERE conversation_id = ? ORDER BY sequence",
+                cid,
+            ),
+            "briefs": rows("SELECT * FROM briefs WHERE conversation_id = ? ORDER BY revision", cid),
+            "creations": rows(
+                "SELECT * FROM creations WHERE conversation_id = ? ORDER BY created_at", cid
+            ),
+            "builds": [],
+            "apps": [],
+            "model_usage": usage(cid),
+        }
+        for creation in record["creations"]:
+            record["model_usage"] += usage(creation["creation_id"])
+            if creation["build_id"]:
+                attempts = rows(
+                    "SELECT * FROM build_attempts WHERE build_id = ? ORDER BY number",
+                    creation["build_id"],
+                )
+                for attempt in attempts:
+                    record["model_usage"] += usage(attempt["attempt_id"])
+                record["builds"].append(
+                    {
+                        "build": rows(
+                            "SELECT * FROM builds WHERE build_id = ?", creation["build_id"]
+                        ),
+                        "attempts": attempts,
+                        "events": rows(
+                            "SELECT kind, attempt_id, occurred_at, payload_json FROM build_events"
+                            " WHERE build_id = ? ORDER BY sequence",
+                            creation["build_id"],
+                        ),
+                    }
+                )
+            if creation["app_id"]:
+                app_id = creation["app_id"]
+                runs = rows(
+                    "SELECT run_id, origin, state, input_json, output_json, terminal_reason,"
+                    " created_at, finished_at FROM runs WHERE json_extract(owner_json, '$.app_id')"
+                    " = ? ORDER BY created_at",
+                    app_id,
+                )
+                for run in runs:
+                    record["model_usage"] += usage(run["run_id"])
+                record["apps"].append(
+                    {
+                        "app": rows("SELECT * FROM apps WHERE app_id = ?", app_id),
+                        "versions": rows(
+                            "SELECT version_id, package_sha256, runtime_profile_id, created_at"
+                            " FROM app_versions WHERE app_id = ? ORDER BY created_at",
+                            app_id,
+                        ),
+                        "releases": rows(
+                            "SELECT * FROM app_releases WHERE app_id = ? ORDER BY created_at",
+                            app_id,
+                        ),
+                        "runs": runs,
+                        "records": app_records(data / "apps" / app_id / "records.sqlite"),
+                    }
+                )
+    finally:
+        conn.close()
+    record["cost_usd_estimate"] = round(
+        sum((u["cost_usd"] or 0.0 for u in record["model_usage"]), 0.0), 4
+    )
+    return record
+
+
+def app_records(store: Path) -> list[dict[str, Any]]:
+    if not store.is_file():
+        return []
+    conn = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        return [
+            {**dict(r), "values": json.loads(r["values_json"])}
+            for r in conn.execute("SELECT * FROM records ORDER BY collection, created_at")
+        ]
+    finally:
+        conn.close()
+
+
+def cmd_record(g1: G1, args: argparse.Namespace) -> int:
+    record = native_record(g1.data, args.conversation)
+    record |= {"label": args.label, "recorded_at": now(), "platform_commit": git_head()}
+    for build in record["builds"]:
+        copy_attempts(g1, args.label, {"attempts": build["attempts"]})
+    g1.save(args.label, "native.json", record)
+    summary = {
+        "label": args.label,
+        "creations": [(c["state"], c["app_id"]) for c in record["creations"]],
+        "records": {a["app"][0]["app_id"]: len(a["records"]) for a in record["apps"]},
+        "cost_usd_estimate": record["cost_usd_estimate"],
+    }
+    print(json.dumps(summary, indent=2))
+    return 0
 
 
 # ----- reopen ---------------------------------------------------------------------------------
@@ -531,7 +680,11 @@ def cmd_reopen(g1: G1, args: argparse.Namespace) -> int:
                 entry["screen"] = drive_screen(
                     g1, screen_job(g1, detail, [], f"{label}-reopen"), label
                 )
-            reuse = json.loads(used.read_text()).get("reopen_action") if used.is_file() else None
+            reuse = (
+                json.loads(used.read_text())["journey"].get("reopen_action")
+                if used.is_file()
+                else None
+            )
             if reuse:
                 actions = {a["id"]: a for a in detail["actions"]}
                 entry["action_after_reopen"] = run_action(
@@ -657,13 +810,22 @@ def main() -> int:
     use.add_argument("--label", required=True)
     use.add_argument("--journey", required=True)
     sub.add_parser("reopen")
+    record = sub.add_parser("record")
+    record.add_argument("--label", required=True)
+    record.add_argument("--conversation", required=True)
     share = sub.add_parser("share")
     share.add_argument("--a", required=True)
     share.add_argument("--b", required=True)
     share.add_argument("--slow", required=True)
     args = parser.parse_args()
     g1 = G1(args)
-    commands = {"create": cmd_create, "use": cmd_use, "reopen": cmd_reopen, "share": cmd_share}
+    commands = {
+        "create": cmd_create,
+        "use": cmd_use,
+        "reopen": cmd_reopen,
+        "share": cmd_share,
+        "record": cmd_record,
+    }
     return commands[args.command](g1, args)
 
 

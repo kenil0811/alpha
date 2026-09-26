@@ -171,6 +171,20 @@ describe("changing a request after its App was made (review finding F07)", () =>
     expect(client.creations.size).toBe(1);
   });
 
+  it("names the App it made, not the name planned for it", async () => {
+    const client = briefedClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await askAndCreate(user);
+    client.nextCreationState = (c) => {
+      const made = ready(c);
+      return { ...made, result: { ...made.result!, name: "Notes (made)" } };
+    };
+    const card = await screen.findByLabelText("Notes (made) is ready", {}, { timeout: 3000 });
+    expect(within(card).getByRole("button", { name: "Open Notes (made)" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("After it was made")).toHaveTextContent("Changing Notes (made) after it was made");
+  });
+
   it("still lets the person correct the request before anything is made", async () => {
     const client = briefedClient();
     const user = userEvent.setup();

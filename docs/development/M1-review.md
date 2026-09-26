@@ -148,6 +148,31 @@ draft after a failed save. Refusals are shown in the App's own words.
 The kit ships in the next UI profile, and existing sealed profiles are unchanged. Evidence:
 `docs/development/evidence/M1-R05.md`.
 
+### M1-R06: trustworthy acceptance (done, 26 September 2026)
+
+**The G1 verdict** judges each call against records read before and after it. An expected
+refusal must fail (or be refused), give the stated reason, and change nothing. The review's
+false positive now fails. `reopen` actually re-runs its action.
+
+**The platform verifier** applies the same rule to its own expected-failure steps. A handler
+that saves and then refuses was made ready before; now the build fails.
+
+**Plans must cover the brief:**
+- every action runs;
+- computed results are checked with fixed values;
+- model steps are also run with the model unavailable;
+- stored data is read back.
+
+An incomplete plan is rewritten once, or planning stops with the gaps named.
+
+**The real shell is driven end to end in a browser:** create, use, a refusal, reload and
+Activity. That run found a naming mismatch on the ready card, now fixed.
+
+**`g1.py record`** collects a session in the Alpha window from the stores, read-only, so native
+evidence stays separate from API evidence.
+
+Evidence: `docs/development/evidence/M1-R06.md`.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

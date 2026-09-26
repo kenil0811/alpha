@@ -191,7 +191,7 @@ export function AssistantPanel({
           {made ? (
             <div className="after-made" aria-label="After it was made">
               <p className="panel__hint">
-                Changing {creation?.app_name ?? "this workflow"} after it was made isn't possible yet; that arrives in a later
+                Changing {creation?.result?.name ?? creation?.app_name ?? "this workflow"} after it was made isn't possible yet; that arrives in a later
                 release. You can describe a separate workflow instead; this one and its data stay as they are.
               </p>
               <div className="row">

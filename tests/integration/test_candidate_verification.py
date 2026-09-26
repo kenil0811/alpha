@@ -266,6 +266,23 @@ def test_a_screen_that_reads_nothing_is_not_asked_to_show_a_failed_read(
     assert read["status"] == "skipped" and read["required"] is False
 
 
+def test_a_refusal_that_still_saves_fails_even_without_a_records_step(
+    once_core: CoreProcess,
+) -> None:
+    """M1-R06 (review finding F05): an expected refusal must end failed and change nothing. The
+    plan here does not read the notes back after the refusal, so only the step itself can tell."""
+    plan = json.loads(json.dumps(NOTES_PLAN))
+    blank = next(s for s in plan["scenarios"] if s["id"] == "blank_refused")
+    blank["steps"] = [s for s in blank["steps"] if s["kind"] == "invoke"]
+    created = submit(once_core, "fake:package refusal_writes", plan)
+    final = wait_build(once_core, created["build_id"])
+    found = checks(report(once_core, final))
+    assert final["state"] == "failed"
+    refused = found["behavior.blank_refused.blank"]
+    assert refused["status"] == "failed", refused
+    assert refused["summary"] == "add_note failed as expected but changed stored data in notes"
+
+
 @needs_browser
 def test_blocking_overflow_withholds_readiness(once_core: CoreProcess) -> None:
     final, rep = build(once_core, "fake:package overflow")

@@ -1,0 +1,22 @@
+{
+  "steps": {
+    "ready": "Notes (fixture) is ready\n\nIt passed all 10 of its checks. Open it to run it from Alpha.\n\nOpen Notes (fixture)",
+    "main_action": "Add a note",
+    "saved": "Done.",
+    "refusal": "Not done. notes.title is longer than 300 characters",
+    "refusal_kept_input": true,
+    "saved_data": "Saved\nNotes\nTitle\tNoted on\nCall the bank\t2026-09-26",
+    "count": "Done.\n\nCount\n1",
+    "listed_after_reload": "Open Notes (fixture)",
+    "saved_after_reload": "Saved\nNotes\nTitle\tNoted on\nCall the bank\t2026-09-26",
+    "activity": [
+      "DONE\nNotes (fixture) \u00b7 Count notes\n9/26/2026, 5:13:01 PM",
+      "FAILED\nNotes (fixture) \u00b7 Add note\n9/26/2026, 5:13:00 PM",
+      "DONE\nNotes (fixture) \u00b7 Add note\n9/26/2026, 5:12:59 PM"
+    ],
+    "activity_not_done": [
+      "Not done: notes.title is longer than 300 characters"
+    ]
+  },
+  "errors": []
+}

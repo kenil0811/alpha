@@ -79,7 +79,7 @@ export function CreationCard({
   }
 
   if (creation.state === "active" && creation.result) {
-    return <ReadyCard client={client} name={creation.app_name ?? creation.result.name ?? "Your App"} creation={creation} unavailable={unavailable} onOpen={onOpen} />;
+    return <ReadyCard client={client} name={creation.result.name ?? creation.app_name ?? "Your App"} creation={creation} unavailable={unavailable} onOpen={onOpen} />;
   }
 
   if (creation.state === "failed") {

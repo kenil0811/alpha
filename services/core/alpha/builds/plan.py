@@ -116,6 +116,10 @@ def run_invoke(
         )
     except UnresolvedReference as exc:
         return _check(check_id, CheckStatus.FAILED, f"the plan could not be applied: {exc}")
+    # An expected refusal must also leave stored data as it was (M1 review finding F05), even
+    # when the plan does not read the collections back afterwards.
+    kept = [c.name for c in preview.app.source.collections] if step.expect == "failed" else []
+    before = _snapshot(preview, kept)
     preview.models.fault = step.model
     try:
         run = preview.invoke_and_wait(step.action, payload)
@@ -146,12 +150,18 @@ def run_invoke(
     else:
         detail["failure"] = preview.failure_detail(run)
     if step.expect == "failed":
-        ok = run.state is RunState.FAILED
-        summary = (
-            f"{step.action} failed as expected"
-            if ok
-            else f"{step.action} should have failed but ended {run.state.value}"
-        )
+        after = _snapshot(preview, kept)
+        changed = [name for name in kept if before.get(name) != after.get(name)]
+        ok = run.state is RunState.FAILED and not changed
+        if run.state is not RunState.FAILED:
+            summary = f"{step.action} should have failed but ended {run.state.value}"
+        elif changed:
+            detail["changed"] = changed
+            summary = (
+                f"{step.action} failed as expected but changed stored data in {', '.join(changed)}"
+            )
+        else:
+            summary = f"{step.action} failed as expected"
         return _check(check_id, CheckStatus.PASSED if ok else CheckStatus.FAILED, summary, detail)
     if run.state is not RunState.SUCCEEDED:
         message = (detail["failure"].get("error") or {}).get("message") or run.terminal_reason

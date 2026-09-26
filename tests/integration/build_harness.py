@@ -419,6 +419,18 @@ def ui_clears_on_failure(p: Path) -> None:
     _edit(_screen(p), "Page, QuickEntry, TextField,", "Page, TextField,")
 
 
+def refusal_writes(p: Path) -> None:
+    """Refuses a blank note, but only after saving it: the refusal changes stored data."""
+    _edit(_yaml(p), "{title: {type: string, minLength: 1}}", "{title: {type: string}}")
+    _edit(_handlers(p), '{"title": title.strip(), ', '{"title": title.strip() or "(blank)", ')
+    _edit(
+        _handlers(p),
+        '    return {"id": record.id, "revision": record.revision}',
+        '    if not title.strip():\n        raise ValueError("Title is needed.")\n'
+        '    return {"id": record.id, "revision": record.revision}',
+    )
+
+
 def no_primary(p: Path) -> None:
     """Names no primary action: without its own screen, a person would get every step as a form."""
     _edit(_yaml(p), "primary_action: add_note\n", "")
@@ -447,6 +459,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         estimate_invented,
         estimate_unlabelled,
         no_primary,
+        refusal_writes,
         ui_entry_below,
         ui_clears_on_failure,
     )
