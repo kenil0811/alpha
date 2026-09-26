@@ -442,6 +442,16 @@ def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.post("/api/conversations/{conversation_id}/retry", response_model=ConversationRecord)
+    def retry_conversation(conversation_id: str) -> ConversationRecord:
+        """Run a failed assistant turn again from the same input."""
+        try:
+            return assistant.retry(conversation_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=404, detail="conversation_not_found") from exc
+        except AssistantBusy as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/api/conversations/{conversation_id}/briefs/{revision}")
     def get_brief_revision(conversation_id: str, revision: int) -> dict[str, Any]:
         record = assistant.get(conversation_id)

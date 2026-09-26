@@ -25,6 +25,9 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
   invocations: { appId: string; actionId: string; input: Record<string, unknown>; origin: string }[] = [];
   cancelled: string[] = [];
   imagesRequested: string[] = [];
+  /** Test control: the next N creation status requests fail (a lost connection). */
+  failNextPolls = 0;
+  polls = 0;
 
   async listApps(): Promise<AppSummary[]> {
     return this.apps;
@@ -69,6 +72,11 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
   }
 
   async creation(creationId: string): Promise<Creation> {
+    this.polls += 1;
+    if (this.failNextPolls > 0) {
+      this.failNextPolls -= 1;
+      throw new Error("Failed to fetch");
+    }
     let creation = this.creations.get(creationId);
     if (!creation) throw new Error("creation_not_found");
     if (this.nextCreationState && !CREATION_DONE.has(creation.state)) {
@@ -80,6 +88,10 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
 
   async conversationCreations(conversationId: string): Promise<Creation[]> {
     return [...this.creations.values()].filter((c) => c.conversation_id === conversationId);
+  }
+
+  async recentCreations(): Promise<Creation[]> {
+    return [...this.creations.values()].reverse();
   }
 
   async cancelCreation(creationId: string): Promise<Creation> {

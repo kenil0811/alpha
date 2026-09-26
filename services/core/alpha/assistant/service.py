@@ -26,6 +26,17 @@ from alpha.storage.control_store import ControlStore, NotFoundError, new_id, utc
 
 log = logging.getLogger("alpha.assistant")
 
+# What a person reads when a turn fails; the technical cause stays in the log.
+_PLAIN_FAILURE = {
+    "timeout": "the model service took too long to answer",
+    "cli_missing": "Alpha could not reach its model service",
+    "cli_not_logged_in": "Alpha's model service is not signed in",
+    "cli_error": "the model service returned an error",
+    "cli_bad_json": "the model service's answer could not be read",
+    "route_unavailable": "no model service is available for this request",
+}
+RESTARTED = "Alpha was closed or restarted while it was thinking about this"
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
     conversation_id TEXT PRIMARY KEY,
@@ -154,6 +165,33 @@ class AssistantService:
         self._spawn_turn(conversation_id, route, content)
         return self.get(conversation_id)
 
+    def retry(self, conversation_id: str) -> ConversationRecord:
+        """Run a failed turn again from the same user input (nothing new is appended)."""
+        record = self.get(conversation_id)
+        if record.state != "failed":
+            raise ConflictError(f"only a failed turn can be retried (this one is {record.state})")
+        latest = next((t for t in reversed(record.turns) if t.role == "user"), None)
+        if latest is None:
+            raise ConflictError("there is nothing to retry")
+        route = self._gateway.route(record.route_id)
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE conversations SET state = 'thinking', error = NULL, updated_at = ?"
+                " WHERE conversation_id = ? AND state = 'failed'",
+                (_dt(utc_now()), conversation_id),
+            )
+        self._spawn_turn(conversation_id, route, dict(latest.content))
+        return self.get(conversation_id)
+
+    def reconcile_on_startup(self) -> list[str]:
+        """A turn cannot continue across a restart: say so, so the person can retry it."""
+        rows = self._store.query(
+            "SELECT conversation_id FROM conversations WHERE state = 'thinking'"
+        )
+        for row in rows:
+            self._fail(row["conversation_id"], RESTARTED)
+        return [r["conversation_id"] for r in rows]
+
     def get(self, conversation_id: str) -> ConversationRecord:
         rows = self._store.query(
             "SELECT * FROM conversations WHERE conversation_id = ?", (conversation_id,)
@@ -204,13 +242,17 @@ class AssistantService:
                 fake=fake_assistant if route.route_id == "fake" else None,
             )
             output = AssistantTurnOutput.model_validate(result.output)
-        except (InferenceError, ValidationError) as exc:
+        except InferenceError as exc:
             log.warning("assistant turn failed for %s: %s", conversation_id, exc)
-            self._fail(conversation_id, f"{type(exc).__name__}: {str(exc)[:300]}")
+            self._fail(conversation_id, _PLAIN_FAILURE.get(exc.code, "the model service failed"))
             return
-        except Exception as exc:  # never leave a conversation stuck in thinking
+        except ValidationError as exc:
+            log.warning("assistant turn unusable for %s: %s", conversation_id, exc)
+            self._fail(conversation_id, "the model's answer was incomplete")
+            return
+        except Exception:  # never leave a conversation stuck in thinking
             log.exception("assistant turn crashed for %s", conversation_id)
-            self._fail(conversation_id, f"internal: {type(exc).__name__}")
+            self._fail(conversation_id, "something went wrong inside Alpha")
             return
         self._apply_turn(
             conversation_id, latest, output, result.model, result.usage.model_dump(mode="json")

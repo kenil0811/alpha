@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { WorkflowsPanel } from "./workflows/WorkflowsPanel";
@@ -17,6 +17,27 @@ function devTools(): boolean {
   return import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("dev");
 }
 
+const SELECTED_KEY = "alpha.selectedConversation";
+
+/** The conversation the Assistant shows, remembered in this window so reopening Alpha returns to
+ *  it. Storage can be unavailable; then Alpha simply starts on a new request. */
+function rememberedConversation(): string | null {
+  try {
+    return window.localStorage.getItem(SELECTED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function remember(id: string | null): void {
+  try {
+    if (id) window.localStorage.setItem(SELECTED_KEY, id);
+    else window.localStorage.removeItem(SELECTED_KEY);
+  } catch {
+    /* per-window convenience only */
+  }
+}
+
 type Runtime =
   | { kind: "connecting" }
   | { kind: "connected"; client: CoreClient; health: HealthInfo }
@@ -27,7 +48,12 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const [showFixture, setShowFixture] = useState(false);
   const [showRuntime, setShowRuntime] = useState(false);
   const [surface, setSurface] = useState<Surface>({ kind: "assistant" });
+  const [conversationId, setConversationId] = useState<string | null>(rememberedConversation);
   const dev = devOverride ?? devTools();
+  const selectConversation = useCallback((id: string | null) => {
+    setConversationId(id);
+    remember(id);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,10 +130,22 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
         {runtime.kind === "connected" ? (
           <>
             {surface.kind === "assistant" ? (
-              <AssistantPanel client={runtime.client} onOpenApp={(appId) => setSurface({ kind: "workspace", appId })} />
+              <AssistantPanel
+                client={runtime.client}
+                conversationId={conversationId}
+                onSelect={selectConversation}
+                onOpenApp={(appId) => setSurface({ kind: "workspace", appId })}
+              />
             ) : null}
             {surface.kind === "workflows" && isWorkflowsClient(runtime.client) ? (
-              <WorkflowsPanel client={runtime.client} onOpen={(appId) => setSurface({ kind: "workspace", appId })} />
+              <WorkflowsPanel
+                client={runtime.client}
+                onOpen={(appId) => setSurface({ kind: "workspace", appId })}
+                onViewRequest={(id) => {
+                  selectConversation(id);
+                  setSurface({ kind: "assistant" });
+                }}
+              />
             ) : null}
             {surface.kind === "workspace" && isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
               <Workspace client={runtime.client} appId={surface.appId} onBack={() => setSurface({ kind: "workflows" })} />

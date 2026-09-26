@@ -130,6 +130,21 @@ export class FakeCoreClient implements CoreClient {
     return c;
   }
 
+  /** Test control: how the retried turn ends (defaults to running the script again). */
+  retryScript: ((conversation: Conversation) => Conversation) | null = null;
+  retries = 0;
+
+  async retryConversation(id: string): Promise<Conversation> {
+    let c = await this.conversation(id);
+    if (c.state !== "failed") throw new Error("only a failed turn can be retried");
+    this.retries += 1;
+    c = { ...c, state: "thinking", error: null };
+    if (this.retryScript) c = this.retryScript(c);
+    else if (this.assistantScript) c = this.assistantScript(c, null);
+    this.conversations.set(id, c);
+    return c;
+  }
+
   async capabilities(): Promise<CapabilityEntry[]> {
     return [{ family: "compute", description: "calculations", available: true, unavailable_reason: null, arrives_with: null }];
   }

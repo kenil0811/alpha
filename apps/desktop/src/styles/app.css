@@ -21,11 +21,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .frame__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: 0; }
 .frame__subtitle { font-size: var(--text-xs); color: var(--color-text-muted); }
+/* One working surface at a time, using the whole window (M1 review finding F01). The active
+   surface owns vertical scrolling; nothing scrolls sideways. Multi-column layouts exist only for
+   the development fixtures below. */
 .frame__main {
-  flex: 1; display: grid; grid-template-columns: minmax(320px, 2fr) minmax(320px, 3fr);
-  gap: var(--space-6); padding: var(--space-6); overflow: hidden;
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6); padding: var(--space-6); overflow: hidden; min-height: 0;
 }
-@media (max-width: 900px) { .frame__main { grid-template-columns: 1fr; overflow: auto; } }
+.surface { min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; }
+.surface--reading { width: 100%; max-width: 880px; justify-self: center; }
+.surface__head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 
 .panel {
   background: var(--color-surface); border: 1px solid var(--color-border);
@@ -79,6 +84,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .run__events ol { margin: var(--space-2) 0 0; padding-left: var(--space-6); }
 .empty { color: var(--color-text-muted); font-size: var(--text-sm); }
 .notice { font-size: var(--text-sm); color: var(--color-danger); }
+.notice--quiet { color: var(--color-text-muted); }
+.failure { display: flex; flex-direction: column; gap: var(--space-2); }
+.recent { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-6); }
+.recent__title { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); font-weight: var(--weight-medium); }
+.recent ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.recent__item {
+  width: 100%; display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline;
+  background: none; border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3); cursor: pointer; text-align: left;
+}
+.recent__item:hover { background: var(--color-surface-muted); }
+.recent__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.recent__state { flex: none; font-size: var(--text-xs); color: var(--color-text-muted); }
+.recent__state--busy { color: var(--color-info); font-weight: var(--weight-semibold); }
+.making { display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* qualification fixture */
 .frame__main--three { grid-template-columns: minmax(300px, 1fr) minmax(300px, 1.4fr) minmax(320px, 1.6fr); }
@@ -157,7 +177,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .workspace__head { display: flex; gap: var(--space-4); align-items: flex-start; }
 .workspace__head h2 { margin: 0; }
 .workspace__meta { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0; }
-.app-screen { width: 100%; min-height: 640px; flex: 1; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #fff; }
+/* The App's own screen fills the window's working height and scrolls inside its frame. */
+.app-screen {
+  width: 100%; height: max(480px, calc(100vh - 250px)); flex: none;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #fff;
+}
 .actions { display: flex; flex-direction: column; gap: var(--space-4); }
 .action { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .action h3 { margin: 0; }

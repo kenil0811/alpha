@@ -111,6 +111,11 @@ def build(
         gateway,
         CreationRoutes(planner=settings.assistant_route, builder=settings.builder_route),
     )
+    stalled = assistant.reconcile_on_startup()
+    if stalled:
+        log.warning(
+            "marked %d conversation turn(s) interrupted by restart: %s", len(stalled), stalled
+        )
     interrupted = creations.reconcile_on_startup()
     if interrupted:
         log.warning("marked %d unfinished creation(s) interrupted", len(interrupted))

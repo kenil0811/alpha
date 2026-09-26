@@ -1,41 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CREATION_DONE, type Creation, type WorkflowsClient } from "../core/client";
+import { usePoll } from "../core/usePoll";
 
-/** The creation for a conversation's current brief revision, followed until it finishes. */
+/** The creation for a conversation's current brief revision, followed until it finishes. Core
+ *  owns the creation, so leaving this view and coming back (or restarting Alpha) finds it again. */
 export function useCreation(client: WorkflowsClient, conversationId: string, briefRevision: number | null, pollMs = 1000) {
   const [creation, setCreation] = useState<Creation | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const timer = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setCreation(null);
+    setLoaded(false);
     client
       .conversationCreations(conversationId)
       .then((all) => {
         if (cancelled) return;
         const mine = all.filter((c) => c.brief_revision === briefRevision);
         setCreation(mine.length ? mine[mine.length - 1] : null);
+        setLoaded(true);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [client, conversationId, briefRevision]);
 
-  useEffect(() => {
-    if (!creation || CREATION_DONE.has(creation.state)) return;
-    timer.current = window.setTimeout(() => {
-      client
-        .creation(creation.creation_id)
-        .then(setCreation)
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-    }, pollMs);
-    return () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    };
-  }, [client, creation, pollMs]);
+  const following = creation && !CREATION_DONE.has(creation.state) ? creation.creation_id : null;
+  const { reconnecting, refresh } = usePoll(following, () => client.creation(following!), setCreation, pollMs);
 
   const start = useCallback(async () => {
     setBusy(true);
@@ -58,5 +54,5 @@ export function useCreation(client: WorkflowsClient, conversationId: string, bri
     }
   }, [client, creation]);
 
-  return { creation, error, busy, start, cancel };
+  return { creation, loaded, error, busy, reconnecting, refresh, start, cancel };
 }

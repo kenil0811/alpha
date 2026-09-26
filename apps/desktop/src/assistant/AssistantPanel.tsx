@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { isWorkflowsClient, type CoreClient } from "../core/client";
+import { useEffect, useState, type FormEvent } from "react";
+import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { BriefCard } from "./BriefCard";
 import { QuestionsForm } from "./QuestionsForm";
@@ -11,8 +11,45 @@ const EXAMPLES = [
   "Keep a list of job openings I find and what I did about each",
 ];
 
-export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOpenApp?: (appId: string) => void }) {
-  const { conversation, error, busy, start, reply, reset } = useConversation(client);
+const STATE_WORDS: Record<Conversation["state"], string> = {
+  thinking: "Thinking",
+  waiting_for_user: "Waiting for your answers",
+  briefed: "Planned",
+  answered: "Answered",
+  failed: "Didn't work out",
+};
+
+const CREATION_WORDS: Record<string, string> = {
+  planning: "Being made",
+  building: "Being made",
+  checking: "Being made",
+  activating: "Being made",
+  active: "Ready",
+  failed: "Not made",
+  cancelled: "Stopped",
+};
+
+function requestText(conversation: Conversation): string {
+  const first = conversation.turns.find((t) => t.role === "user");
+  return String(first?.content.text ?? "");
+}
+
+export function AssistantPanel({
+  client,
+  conversationId = null,
+  onSelect,
+  onOpenApp,
+}: {
+  client: CoreClient;
+  conversationId?: string | null;
+  onSelect?: (id: string | null) => void;
+  onOpenApp?: (appId: string) => void;
+}) {
+  // Standalone use (tests, fixtures) keeps its own selection; the shell passes its own.
+  const [ownSelection, setOwnSelection] = useState<string | null>(null);
+  const selected = onSelect ? conversationId : ownSelection;
+  const select = onSelect ?? setOwnSelection;
+  const { conversation, loading, error, busy, reconnecting, start, reply, retry, reset } = useConversation(client, selected, select);
   const [text, setText] = useState("");
   const [correction, setCorrection] = useState("");
 
@@ -23,41 +60,62 @@ export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOp
     setText("");
   }
 
+  function startOver() {
+    if (conversation) setText(requestText(conversation));
+    reset();
+  }
+
   const thinking = conversation?.state === "thinking";
   const userTurns = conversation?.turns.filter((t) => t.role === "user") ?? [];
 
   return (
-    <section className="panel" aria-labelledby="assistant-heading">
-      <h2 id="assistant-heading">Assistant</h2>
+    <section className="panel surface surface--reading" aria-labelledby="assistant-heading">
+      <div className="surface__head">
+        <h2 id="assistant-heading">Assistant</h2>
+        {conversation ? (
+          <button type="button" className="button" onClick={reset}>
+            New request
+          </button>
+        ) : null}
+      </div>
       {!conversation ? (
-        <form onSubmit={submit}>
-          <div className="field">
-            <label htmlFor="goal">What do you want done?</label>
-            <textarea
-              id="goal"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Describe the outcome in your own words"
-              autoFocus
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") e.currentTarget.form?.requestSubmit();
-              }}
-            />
-          </div>
-          <div className="row" style={{ marginTop: "var(--space-3)" }}>
-            <button type="submit" className="button button--primary" disabled={busy || !text.trim()}>
-              Ask Alpha
-            </button>
-          </div>
-          <div className="examples">
-            <span className="panel__hint">For example:</span>
-            {EXAMPLES.map((example) => (
-              <button key={example} type="button" className="example" onClick={() => setText(example)}>
-                {example}
-              </button>
-            ))}
-          </div>
-        </form>
+        selected && loading ? (
+          <p className="panel__hint" role="status">
+            Opening your request…
+          </p>
+        ) : (
+          <>
+            <form onSubmit={submit}>
+              <div className="field">
+                <label htmlFor="goal">What do you want done?</label>
+                <textarea
+                  id="goal"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Describe the outcome in your own words"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") e.currentTarget.form?.requestSubmit();
+                  }}
+                />
+              </div>
+              <div className="row" style={{ marginTop: "var(--space-3)" }}>
+                <button type="submit" className="button button--primary" disabled={busy || !text.trim()}>
+                  Ask Alpha
+                </button>
+              </div>
+              <div className="examples">
+                <span className="panel__hint">For example:</span>
+                {EXAMPLES.map((example) => (
+                  <button key={example} type="button" className="example" onClick={() => setText(example)}>
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </form>
+            <RecentRequests client={client} onOpen={select} />
+          </>
+        )
       ) : (
         <div className="thread">
           {userTurns.length ? (
@@ -85,10 +143,23 @@ export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOp
               Thinking about your request…
             </div>
           ) : null}
-          {conversation.state === "failed" ? (
-            <p className="notice" role="alert">
-              Alpha could not work this out: {conversation.error ?? "unknown problem"}. Try again in a moment.
+          {reconnecting ? (
+            <p className="notice notice--quiet" role="status">
+              Lost contact with Alpha's runtime for a moment. Reconnecting…
             </p>
+          ) : null}
+          {conversation.state === "failed" ? (
+            <div className="failure" role="alert" aria-label="Alpha could not work this out">
+              <p className="notice">Alpha could not work this out: {conversation.error ?? "something went wrong"}.</p>
+              <div className="row">
+                <button type="button" className="button button--primary" disabled={busy} onClick={() => void retry()}>
+                  Try again
+                </button>
+                <button type="button" className="button" onClick={startOver}>
+                  Start over
+                </button>
+              </div>
+            </div>
           ) : null}
           {conversation.state === "waiting_for_user" && conversation.questions.length ? (
             <QuestionsForm
@@ -134,7 +205,7 @@ export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOp
                 <button type="submit" className="button" disabled={busy || !correction.trim()}>
                   Send
                 </button>
-                <button type="button" className="button" onClick={reset}>
+                <button type="button" className="button" onClick={startOver}>
                   Start over
                 </button>
               </div>
@@ -148,5 +219,59 @@ export function AssistantPanel({ client, onOpenApp }: { client: CoreClient; onOp
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** Earlier requests, newest first, with where each one got to. */
+function RecentRequests({ client, onOpen }: { client: CoreClient; onOpen: (id: string) => void }) {
+  const [items, setItems] = useState<Conversation[] | null>(null);
+  const [creations, setCreations] = useState<Map<string, Creation>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .listConversations()
+      .then((all) => {
+        if (!cancelled) setItems(all.slice(0, 8));
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    if (isWorkflowsClient(client)) {
+      client
+        .recentCreations()
+        .then((all) => {
+          if (cancelled) return;
+          const latest = new Map<string, Creation>();
+          for (const c of [...all].reverse()) latest.set(c.conversation_id, c);
+          setCreations(latest);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  if (!items?.length) return null;
+  return (
+    <nav aria-label="Recent requests" className="recent">
+      <h3 className="recent__title">Recent requests</h3>
+      <ul>
+        {items.map((c) => {
+          const creation = creations.get(c.conversation_id);
+          const where = creation ? CREATION_WORDS[creation.state] ?? creation.label : STATE_WORDS[c.state];
+          const inProgress = creation ? !CREATION_DONE.has(creation.state) : c.state === "thinking";
+          return (
+            <li key={c.conversation_id}>
+              <button type="button" className="recent__item" onClick={() => onOpen(c.conversation_id)}>
+                <span className="recent__text">{requestText(c) || "Untitled request"}</span>
+                <span className={inProgress ? "recent__state recent__state--busy" : "recent__state"}>{where}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

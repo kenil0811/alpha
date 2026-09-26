@@ -40,7 +40,15 @@ export function CreationCard({
   unavailable: string[];
   onOpen: (appId: string) => void;
 }) {
-  const { creation, error, busy, start, cancel } = useCreation(client, conversationId, briefRevision);
+  const { creation, loaded, error, busy, reconnecting, refresh, start, cancel } = useCreation(client, conversationId, briefRevision);
+
+  if (!loaded) {
+    return (
+      <p className="panel__hint" role="status">
+        Checking whether this is already being made…
+      </p>
+    );
+  }
 
   if (!creation || creation.state === "cancelled") {
     return (
@@ -115,12 +123,30 @@ export function CreationCard({
         {creation.detail ? ` · ${creation.detail}` : ""}
         {creation.progress.checks_run ? ` · ${creation.progress.checks_run} checks so far` : ""}
       </p>
-      <p className="panel__hint">This usually takes a few minutes. You can keep using Alpha meanwhile.</p>
+      {reconnecting ? (
+        <p className="notice notice--quiet" role="status">
+          Lost contact with Alpha's runtime for a moment. The work carries on; reconnecting…
+        </p>
+      ) : null}
+      <p className="panel__hint">
+        This usually takes several minutes. You can use other parts of Alpha meanwhile; this request stays under Recent
+        requests.
+      </p>
       <div className="row">
         <button type="button" className="button" onClick={() => void cancel()}>
           Stop
         </button>
+        {reconnecting ? (
+          <button type="button" className="button" onClick={refresh}>
+            Check now
+          </button>
+        ) : null}
       </div>
+      {error ? (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

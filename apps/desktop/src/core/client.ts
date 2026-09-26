@@ -98,6 +98,8 @@ export interface CoreClient {
   conversation(id: string): Promise<Conversation>;
   listConversations(): Promise<Conversation[]>;
   replyConversation(id: string, reply: ConversationReply): Promise<Conversation>;
+  /** Run a failed assistant turn again from the same input. */
+  retryConversation(id: string): Promise<Conversation>;
   capabilities(): Promise<CapabilityEntry[]>;
 }
 
@@ -233,6 +235,8 @@ export interface WorkflowsClient {
   creation(creationId: string): Promise<Creation>;
   conversationCreations(conversationId: string): Promise<Creation[]>;
   cancelCreation(creationId: string): Promise<Creation>;
+  /** The most recent creations, newest first (in progress and finished). */
+  recentCreations(): Promise<Creation[]>;
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
   cancelRun(runId: string): Promise<Run>;
@@ -462,6 +466,15 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   async listConversations(): Promise<Conversation[]> {
     const page = await this.request<{ conversations: Conversation[] }>("/api/conversations?limit=20");
     return page.conversations;
+  }
+
+  retryConversation(id: string): Promise<Conversation> {
+    return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}/retry`, { method: "POST" });
+  }
+
+  async recentCreations(): Promise<Creation[]> {
+    const page = await this.request<{ creations: Creation[] }>("/api/creations");
+    return page.creations;
   }
 
   replyConversation(id: string, reply: ConversationReply): Promise<Conversation> {

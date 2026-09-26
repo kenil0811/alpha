@@ -179,3 +179,39 @@ def test_reply_while_thinking_and_bad_requests_are_rejected(core: CoreProcess) -
         families["records"]["available"] is True
         and "records.create" in families["records"]["operations"][0]
     )
+
+
+def test_a_turn_cut_off_by_a_restart_is_reported_and_can_be_retried(data_dir: Path) -> None:
+    """M1-R01 (review finding F06, check F01.C04): a turn that was thinking when Core stopped is
+    marked failed in plain words on the next start, and Try again reruns it from the same input
+    without adding a turn."""
+    from tests.integration.conftest import start_core
+
+    first = start_core(data_dir)
+    try:
+        started = start(first, "slowly: Keep a notes list for me")
+        assert started["state"] == "thinking"
+    finally:
+        first.stop()
+
+    second = start_core(data_dir)
+    try:
+        stalled = get(second, started["conversation_id"])
+        assert stalled["state"] == "failed"
+        assert stalled["error"] == "Alpha was closed or restarted while it was thinking about this"
+        turns = len(stalled["turns"])
+        with second.client() as client:
+            retried = client.post(f"/api/conversations/{started['conversation_id']}/retry")
+            assert retried.status_code == 200, retried.text
+            assert retried.json()["state"] == "thinking"
+            again = client.post(f"/api/conversations/{started['conversation_id']}/retry")
+            assert again.status_code == 409, "only a failed turn can be retried"
+        done = settle(second, started["conversation_id"])
+        assert done["state"] == "briefed", done
+        assert done["delivery"] == "app"
+        assert len([t for t in done["turns"] if t["role"] == "user"]) == len(
+            [t for t in stalled["turns"] if t["role"] == "user"]
+        ), "retry adds no user turn"
+        assert len(done["turns"]) == turns + 1
+    finally:
+        second.stop()

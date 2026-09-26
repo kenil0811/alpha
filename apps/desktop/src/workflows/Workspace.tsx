@@ -28,7 +28,7 @@ export function Workspace({
   }, [client, appId]);
 
   return (
-    <section className="panel panel--wide workspace" aria-labelledby="workspace-heading">
+    <section className="panel surface workspace" aria-labelledby="workspace-heading">
       <div className="workspace__head">
         <button type="button" className="button" onClick={onBack}>
           ← My workflows
