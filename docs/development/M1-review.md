@@ -72,6 +72,23 @@ check keeps its original evidence file and hash.
 With the reopened checks, F01 and F03–F08 go back to in progress. F02 keeps its passed checks
 but can't be complete while F01 isn't.
 
+### M1-R01: shell layout, continuity and recovery (done, 26 September 2026)
+
+The shell now has:
+- one working column;
+- the conversation kept across navigation and reopening;
+- Recent requests, and **Being made** under My workflows;
+- polling that recovers from failures;
+- Try again and Start over after a failed turn;
+- a startup reconcile for turns cut off by a restart.
+
+The native session confirmed each of these, and also saw a generated screen render and save
+through the bridge inside the Alpha window for the first time. It found four more shell issues,
+all fixed: double scrolling, a wrong blocked-request message, fixture wording in Activity, and
+technical ids on screen. Evidence: `docs/development/evidence/M1-R01.md`.
+
+Original checks F01.C04, F04.C03, F08.C02 and F08.C03 stay pending until the final freeze.
+
 ---
 
 ## First M1 packet (26 September 2026), superseded and kept as history

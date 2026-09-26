@@ -28,7 +28,7 @@ export function Workspace({
   }, [client, appId]);
 
   return (
-    <section className="panel surface workspace" aria-labelledby="workspace-heading">
+    <section className={detail?.ui?.entry ? "panel surface workspace workspace--screen" : "panel surface workspace"} aria-labelledby="workspace-heading">
       <div className="workspace__head">
         <button type="button" className="button" onClick={onBack}>
           ← My workflows
@@ -61,8 +61,8 @@ export function Workspace({
         )
       ) : null}
       {detail ? (
-        <p className="workspace__meta">
-          Version {detail.version_id.slice(4, 12)} · runs on this Mac · {detail.runtime_profile_id}
+        <p className="workspace__meta" title={`Version ${detail.version_id} · runtime ${detail.runtime_profile_id}`}>
+          Runs on this Mac. What it saves stays with this workflow.
         </p>
       ) : null}
     </section>

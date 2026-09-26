@@ -10,6 +10,16 @@ import type { AppDetail, AppsClient } from "../core/client";
 import { hasTauri } from "../core/session";
 import { appBridgeHandlers, appSession } from "../apps/appBridge";
 
+/** What the shell adds around an App's own screen when a request fails. Ordinary failures (a
+ *  refused input, a failed save) are the screen's to show; the shell speaks only about what the
+ *  screen cannot explain: a blocked request or an App that cannot run at the moment. */
+export function screenProblem(detail: Record<string, unknown> | undefined): string | null {
+  const code = typeof detail?.code === "string" ? detail.code : null;
+  if (code === "forbidden") return "Alpha blocked a request from this screen that it is not allowed to make.";
+  if (code === "unsupported") return "This App can't run right now: its runtime on this Mac needs attention. Your saved data is safe.";
+  return null;
+}
+
 export function screenUrl(detail: AppDetail): string {
   return `alpha-ui://${detail.app_id}/${detail.version_id}/index.html`;
 }
@@ -29,7 +39,8 @@ export function GeneratedScreen({ client, detail }: { client: AppsClient; detail
         session: appSession(detail),
         handlers: appBridgeHandlers(client, detail.app_id),
         onEvent: (e) => {
-          if (e.kind === "error") setProblem("The screen asked for something it is not allowed to do.");
+          const problem = e.kind === "error" ? screenProblem(e.detail) : null;
+          if (problem) setProblem(problem);
         },
       });
       host.attachToWindow(target);

@@ -171,14 +171,13 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
 }
 
 function RuntimeStatus({ runtime }: { runtime: Runtime }) {
-  const label =
+  const label = runtime.kind === "connected" ? "Runtime connected" : runtime.kind === "connecting" ? "Connecting to runtime" : "Runtime unavailable";
+  const details =
     runtime.kind === "connected"
-      ? `Runtime connected · Core ${runtime.health.core_version} · Python ${runtime.health.python_version.split(" ")[0]}`
-      : runtime.kind === "connecting"
-        ? "Connecting to runtime"
-        : "Runtime unavailable";
+      ? `Core ${runtime.health.core_version} · Python ${runtime.health.python_version.split(" ")[0]}`
+      : undefined;
   return (
-    <span className={`status status--${runtime.kind}`} role="status">
+    <span className={`status status--${runtime.kind}`} role="status" title={details}>
       <span className="status__dot" aria-hidden="true" />
       {label}
     </span>
@@ -187,17 +186,25 @@ function RuntimeStatus({ runtime }: { runtime: Runtime }) {
 
 function Connected({ client, showRequest }: { client: CoreClient; showRequest: boolean }) {
   const { runs, error, submit, cancel } = useRuns(client);
+  const [appNames, setAppNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!isWorkflowsClient(client)) return;
+    client
+      .listApps()
+      .then((apps) => setAppNames(Object.fromEntries(apps.map((a) => [a.app_id, a.name]))))
+      .catch(() => undefined);
+  }, [client]);
   return (
     <>
       {showRequest ? <RequestPanel onSubmit={submit} /> : null}
-      <section className="panel" aria-labelledby="results-heading">
+      <section className="panel surface surface--reading" aria-labelledby="results-heading">
         <h2 id="results-heading">Activity</h2>
         {error ? (
           <p className="notice" role="alert">
             {error}
           </p>
         ) : null}
-        <RunList runs={runs} onCancel={cancel} />
+        <RunList runs={runs} onCancel={cancel} appNames={appNames} />
       </section>
     </>
   );

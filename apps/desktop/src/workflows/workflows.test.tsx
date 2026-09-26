@@ -201,7 +201,8 @@ describe("an App with its own screen", () => {
     render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByText("Actions and saved data")).toBeInTheDocument();
-    expect(screen.getByText(/Version 12345678 · runs on this Mac/)).toBeInTheDocument();
+    expect(screen.getByText("Runs on this Mac. What it saves stays with this workflow.")).toBeInTheDocument();
+    expect(screen.queryByText(/pyprof|ver_/)).not.toBeInTheDocument();
   });
 });
 
@@ -266,5 +267,16 @@ describe("shell navigation", () => {
     await user.click(screen.getByRole("button", { name: "← My workflows" }));
     expect(await screen.findByRole("heading", { name: "My workflows" })).toBeInTheDocument();
     await act(async () => undefined);
+  });
+});
+
+describe("what the shell says around an App's own screen", () => {
+  it("speaks only about blocked requests and an App that cannot run", async () => {
+    const { screenProblem } = await import("./GeneratedScreen");
+    expect(screenProblem({ code: "forbidden" })).toMatch(/blocked a request/);
+    expect(screenProblem({ code: "unsupported" })).toMatch(/can't run right now/);
+    // Found natively: a runtime problem was shown as "not allowed"; ordinary failures belong to the screen.
+    expect(screenProblem({ code: "invalid_request", message: "Food is needed" })).toBeNull();
+    expect(screenProblem({ internal: "TypeError" })).toBeNull();
   });
 });
