@@ -633,18 +633,28 @@ def app_records(store: Path) -> list[dict[str, Any]]:
 
 def cmd_record(g1: G1, args: argparse.Namespace) -> int:
     record = native_record(g1.data, args.conversation)
-    record |= {"label": args.label, "recorded_at": now(), "platform_commit": git_head()}
+    record |= {
+        "label": args.label,
+        "recorded_at": now(),
+        # The frozen build the session ran on, as given; this checkout's HEAD may differ.
+        "platform_commit": args.platform_commit,
+        "recorder_commit": git_head(),
+    }
     for build in record["builds"]:
         copy_attempts(g1, args.label, {"attempts": build["attempts"]})
     g1.save(args.label, "native.json", record)
-    summary = {
-        "label": args.label,
+    print(json.dumps(record_summary(record), indent=2))
+    return 0
+
+
+def record_summary(record: dict[str, Any]) -> dict[str, Any]:
+    """A failed creation keeps its assigned App id although no App was made."""
+    return {
+        "label": record["label"],
         "creations": [(c["state"], c["app_id"]) for c in record["creations"]],
-        "records": {a["app"][0]["app_id"]: len(a["records"]) for a in record["apps"]},
+        "records": {a["app"][0]["app_id"]: len(a["records"]) for a in record["apps"] if a["app"]},
         "cost_usd_estimate": record["cost_usd_estimate"],
     }
-    print(json.dumps(summary, indent=2))
-    return 0
 
 
 # ----- reopen ---------------------------------------------------------------------------------
@@ -813,6 +823,7 @@ def main() -> int:
     record = sub.add_parser("record")
     record.add_argument("--label", required=True)
     record.add_argument("--conversation", required=True)
+    record.add_argument("--platform-commit", required=True, help="the frozen build's commit")
     share = sub.add_parser("share")
     share.add_argument("--a", required=True)
     share.add_argument("--b", required=True)

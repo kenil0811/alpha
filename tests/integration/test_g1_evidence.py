@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from evals.g1 import call_verdict, native_record
+from evals.g1 import call_verdict, native_record, record_summary
 from tests.integration.app_harness import output, start_action, wait_run
 from tests.integration.conftest import CoreProcess
 from tests.integration.test_creations import create
@@ -92,3 +92,17 @@ def test_record_collects_a_session_from_the_stores_without_changing_them(
     assert [r["values"]["title"] for r in app["records"]] == ["Call the bank"]
     assert {u["scope_kind"] for u in record["model_usage"]} >= {"assistant_turn"}
     assert isinstance(record["cost_usd_estimate"], float)
+
+
+def test_record_keeps_a_failed_creation_that_made_no_app(build_core: CoreProcess) -> None:
+    """Found in M1-R07: a failed creation keeps its assigned App id, and the summary assumed an
+    App had been made."""
+    final = create(build_core, "Keep a notes list for me, no screen", hint="fail")
+    assert final["state"] == "failed" and final["app_id"], final
+    build_core.stop()
+    record = native_record(build_core.data_dir, final["conversation_id"])
+    record["label"] = "failed"
+    [app] = record["apps"]
+    assert app["app"] == [] and app["records"] == []
+    assert record_summary(record)["creations"] == [("failed", final["app_id"])]
+    assert record_summary(record)["records"] == {}
