@@ -1,0 +1,28 @@
+{
+  "why": "Written after looking at the generated screen (the checks' screenshots and the labels it shows), the way a person would use it: add two openings, open the newest, log that I applied, and move it to Applied.",
+  "screen": [
+    {"kind": "fill", "label": "Company", "text": "Zenith Foods"},
+    {"kind": "fill", "label": "Role", "text": "Supply Chain Planner"},
+    {"kind": "fill", "label": "Where I found it", "text": "LinkedIn"},
+    {"kind": "fill", "label": "Notes", "text": "Hybrid, two days in office. Apply by Friday."},
+    {"kind": "click", "label": "Add opening"},
+    {"kind": "wait_text", "text": "Zenith Foods"},
+    {"kind": "fill", "label": "Company", "text": "Harbor Health"},
+    {"kind": "fill", "label": "Role", "text": "Operations Analyst"},
+    {"kind": "fill", "label": "Where I found it", "text": "Referral from Priya"},
+    {"kind": "click", "label": "Add opening"},
+    {"kind": "wait_text", "text": "Harbor Health"},
+    {"kind": "shot", "text": "two-openings"},
+    {"kind": "click", "label": "Open"},
+    {"kind": "wait_text", "text": "Log a step"},
+    {"kind": "select", "label": "What I did", "text": "Applied"},
+    {"kind": "fill", "label": "Note", "text": "Sent CV and cover letter"},
+    {"kind": "click", "label": "Log step"},
+    {"kind": "wait_text", "text": "Sent CV and cover letter"},
+    {"kind": "select", "label": "Stage", "text": "Applied"},
+    {"kind": "click", "label": "Change stage"},
+    {"kind": "shot", "text": "applied"}
+  ],
+  "actions": [],
+  "reopen_action": null
+}

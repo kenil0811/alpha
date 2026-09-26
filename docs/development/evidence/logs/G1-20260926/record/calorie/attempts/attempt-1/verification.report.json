@@ -1,0 +1,1401 @@
+{
+  "contract_version": "0.2",
+  "build_id": "build_a2362a907a12457faee616c31f8a263d",
+  "attempt_id": "attempt_1e64a81d68974a07b2bcd42e4855d366",
+  "attempt_number": 1,
+  "lineage": [
+    "attempt_1e64a81d68974a07b2bcd42e4855d366"
+  ],
+  "builder_status": "candidate",
+  "package_sha256": "23f7f1d9da209fbf39c8f9621a80633af1226dff18cebb8bba74bb58bc33147c",
+  "version_id": "ver_23f7f1d9da209fbf39c8f962",
+  "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+  "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+  "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+  "environment": {
+    "os": "Darwin 25.6.0 arm64",
+    "core_python": "3.13.9",
+    "runtime_profile": "pyprof-391f9ca6e9db5bc54576",
+    "python": "3.13.9",
+    "sdk": "0.1.0",
+    "ui_build_profile": "uiprof-5a3bad2e0741affeb06b",
+    "ui_browser": "151.0.7922.34",
+    "ui_playwright": "1.62.0",
+    "ui_node": "v24.21.0",
+    "ui_blocked_requests": "0"
+  },
+  "checks": [
+    {
+      "id": "package.contract",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app.yaml declares daily-food-log-804d78",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.identity",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app_id is the identity Alpha assigned",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.layout",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "4 file(s) follow the layout",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "deps.profiles",
+      "stage": "deps",
+      "required": true,
+      "status": "passed",
+      "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "seal.ui_build",
+      "stage": "seal",
+      "required": true,
+      "status": "passed",
+      "summary": "UI compiled against uiprof-5a3bad2e0741affeb06b (262068 bytes)",
+      "detail": {
+        "modules": {
+          "app": [
+            "index.html",
+            "main.tsx"
+          ],
+          "packages": {
+            "@alpha/ui-bridge@0.2.0": 1,
+            "@alpha/ui-kit@0.1.0": 11,
+            "react-dom@19.3.0": 4,
+            "react@19.3.0": 4,
+            "scheduler@0.28.0": 2
+          },
+          "unpinned": [],
+          "virtual": 5
+        },
+        "csp": "default-src 'none'; script-src 'sha256-ehdALdm470N/pIfhOaM5TS5TlZzwDcJKSYGbma0Z6Q4='; style-src 'sha256-fwGNfBI/opI90ZSCtnDpIaiDCEm+wyoWNaCUlURA8EM='; connect-src 'none'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none'"
+      },
+      "evidence": []
+    },
+    {
+      "id": "seal.package",
+      "stage": "seal",
+      "required": true,
+      "status": "passed",
+      "summary": "sealed ver_23f7f1d9da209fbf39c8f962 (11 files) in 0.2s",
+      "detail": {
+        "package_sha256": "23f7f1d9da209fbf39c8f9621a80633af1226dff18cebb8bba74bb58bc33147c"
+      },
+      "evidence": []
+    },
+    {
+      "id": "handlers.imports",
+      "stage": "handlers",
+      "required": true,
+      "status": "passed",
+      "summary": "imports are the standard library, the SDK and the package's own modules",
+      "detail": {
+        "stdlib": [
+          "__future__",
+          "datetime",
+          "typing"
+        ],
+        "local": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "handlers.bind",
+      "stage": "handlers",
+      "required": true,
+      "status": "passed",
+      "summary": "5 handler(s) bound on pyprof-391f9ca6e9db5bc54576",
+      "detail": {
+        "actions": [
+          {
+            "id": "estimate_calories",
+            "handler": "app_code.handlers:estimate_calories",
+            "signature": "(ctx: 'Context', food: 'str', amount: 'str') -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "log_entry",
+            "handler": "app_code.handlers:log_entry",
+            "signature": "(ctx: 'Context', food: 'str', amount: 'str', when: 'str | None' = None, eaten_at: 'str | None' = None, calories: 'float | None' = None, meal: 'str | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "correct_entry",
+            "handler": "app_code.handlers:correct_entry",
+            "signature": "(ctx: 'Context', entry: 'str', food: 'str | None' = None, amount: 'str | None' = None, when: 'str | None' = None, eaten_at: 'str | None' = None, calories: 'float | None' = None, meal: 'str | None' = None, delete: 'bool | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "day_view",
+            "handler": "app_code.handlers:day_view",
+            "signature": "(ctx: 'Context', date: 'str | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "trends",
+            "handler": "app_code.handlers:trends",
+            "signature": "(ctx: 'Context', days: 'int | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_then_log_today.est",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "estimate_calories succeeded as expected",
+      "detail": {
+        "action": "estimate_calories",
+        "input": {
+          "food": "2 rotis and dal",
+          "amount": "1 bowl dal"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_fc1dc755dc5d4ee68d4b3e2e56287311",
+        "output": {
+          "amount": "1 bowl dal",
+          "estimate_label": "Estimate from your description — type your own number to replace it",
+          "estimated_calories": 350,
+          "food": "2 rotis and dal"
+        },
+        "expected_output": {
+          "estimated_calories": {
+            "$any": true
+          },
+          "estimate_label": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_then_log_today.log",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "2 rotis and dal",
+          "amount": "1 bowl dal",
+          "when": "2026-09-26",
+          "calories": 420,
+          "meal": "lunch"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_d3add8c849af4fee961502afaea252e2",
+        "output": {
+          "calories_are_estimate": false,
+          "date": "2026-09-26",
+          "day_total": 420,
+          "entry": {
+            "amount": "1 bowl dal",
+            "calories": 420,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "2 rotis and dal",
+            "id": "rec_65d2163e818945969b10d431447eb761",
+            "meal": "lunch",
+            "revision": 1,
+            "when": "2026-09-26"
+          },
+          "id": "rec_65d2163e818945969b10d431447eb761",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          },
+          "day_total": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_then_log_today.stored",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "1 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 1,
+        "values": [
+          {
+            "amount": "1 bowl dal",
+            "calories": 420,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "2 rotis and dal",
+            "meal": "lunch",
+            "when": "2026-09-26"
+          }
+        ],
+        "includes": [
+          {
+            "food": "2 rotis and dal",
+            "amount": "1 bowl dal",
+            "calories": 420,
+            "meal": "lunch",
+            "when": "2026-09-26",
+            "calories_are_estimate": false
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_then_log_today.day",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "day_view succeeded as expected",
+      "detail": {
+        "action": "day_view",
+        "input": {
+          "date": "2026-09-26"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_09f2c3c55ac44a6d86312d9e18f7aebb",
+        "output": {
+          "date": "2026-09-26",
+          "day_total": 420,
+          "entries": [
+            {
+              "amount": "1 bowl dal",
+              "calories": 420,
+              "calories_are_estimate": false,
+              "eaten_at": "12:15",
+              "food": "2 rotis and dal",
+              "id": "rec_65d2163e818945969b10d431447eb761",
+              "meal": "lunch",
+              "revision": 1,
+              "when": "2026-09-26"
+            }
+          ],
+          "entry_count": 1
+        },
+        "expected_output": {
+          "entries": {
+            "$any": true
+          },
+          "day_total": 420
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_saved_then_corrected.log_bar",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "granola bar",
+          "amount": "1 bar",
+          "when": "2026-09-26"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_65717dd7ba86424a8772fbda43f966e4",
+        "output": {
+          "calories_are_estimate": true,
+          "date": "2026-09-26",
+          "day_total": 130,
+          "entry": {
+            "amount": "1 bar",
+            "calories": 130,
+            "calories_are_estimate": true,
+            "eaten_at": "12:15",
+            "food": "granola bar",
+            "id": "rec_423fc3aa557c49e5aa7800f2da7b69ff",
+            "meal": null,
+            "revision": 1,
+            "when": "2026-09-26"
+          },
+          "id": "rec_423fc3aa557c49e5aa7800f2da7b69ff",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_saved_then_corrected.stored_estimate",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "1 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 1,
+        "values": [
+          {
+            "amount": "1 bar",
+            "calories": 130,
+            "calories_are_estimate": true,
+            "eaten_at": "12:15",
+            "food": "granola bar",
+            "when": "2026-09-26"
+          }
+        ],
+        "includes": [
+          {
+            "food": "granola bar",
+            "amount": "1 bar",
+            "calories_are_estimate": true
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_saved_then_corrected.fix",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "correct_entry succeeded as expected",
+      "detail": {
+        "action": "correct_entry",
+        "input": {
+          "entry": "rec_423fc3aa557c49e5aa7800f2da7b69ff",
+          "calories": 240,
+          "amount": "1 large bar"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_720711343f1d442d9f4d76c63f50f8d7",
+        "output": {
+          "date": "2026-09-26",
+          "day_total": 240,
+          "deleted": false,
+          "entry": {
+            "amount": "1 large bar",
+            "calories": 240,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "granola bar",
+            "id": "rec_423fc3aa557c49e5aa7800f2da7b69ff",
+            "meal": null,
+            "revision": 2,
+            "when": "2026-09-26"
+          },
+          "id": "rec_423fc3aa557c49e5aa7800f2da7b69ff",
+          "revision": 2
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          },
+          "day_total": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.estimate_saved_then_corrected.stored_fixed",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "1 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 1,
+        "values": [
+          {
+            "amount": "1 large bar",
+            "calories": 240,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "granola bar",
+            "when": "2026-09-26"
+          }
+        ],
+        "includes": [
+          {
+            "food": "granola bar",
+            "amount": "1 large bar",
+            "calories": 240,
+            "calories_are_estimate": false
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.log_yesterday",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "poha",
+          "amount": "1 plate",
+          "when": "2026-09-25",
+          "calories": 500,
+          "meal": "breakfast"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_d73481dbb7b942048c9cdd3b63347ce2",
+        "output": {
+          "calories_are_estimate": false,
+          "date": "2026-09-25",
+          "day_total": 500,
+          "entry": {
+            "amount": "1 plate",
+            "calories": 500,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "poha",
+            "id": "rec_c09ea6b423504ed4b5cf82d6ea1c2be5",
+            "meal": "breakfast",
+            "revision": 1,
+            "when": "2026-09-25"
+          },
+          "id": "rec_c09ea6b423504ed4b5cf82d6ea1c2be5",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.log_today",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "banana",
+          "amount": "1 medium",
+          "when": "2026-09-26",
+          "calories": 300,
+          "meal": "snack"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_5099899984dd4eacabd929bdceb0fe5a",
+        "output": {
+          "calories_are_estimate": false,
+          "date": "2026-09-26",
+          "day_total": 300,
+          "entry": {
+            "amount": "1 medium",
+            "calories": 300,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "banana",
+            "id": "rec_4d869a933f894286a2b63c6f762e525d",
+            "meal": "snack",
+            "revision": 1,
+            "when": "2026-09-26"
+          },
+          "id": "rec_4d869a933f894286a2b63c6f762e525d",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.stored_both",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "2 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 2,
+        "values": [
+          {
+            "amount": "1 plate",
+            "calories": 500,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "poha",
+            "meal": "breakfast",
+            "when": "2026-09-25"
+          },
+          {
+            "amount": "1 medium",
+            "calories": 300,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "banana",
+            "meal": "snack",
+            "when": "2026-09-26"
+          }
+        ],
+        "includes": [
+          {
+            "food": "poha",
+            "amount": "1 plate",
+            "calories": 500,
+            "when": "2026-09-25"
+          },
+          {
+            "food": "banana",
+            "amount": "1 medium",
+            "calories": 300,
+            "when": "2026-09-26"
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.past_day",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "day_view succeeded as expected",
+      "detail": {
+        "action": "day_view",
+        "input": {
+          "date": "2026-09-25"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_e6c00e34856b49408bd7c32c8365d43d",
+        "output": {
+          "date": "2026-09-25",
+          "day_total": 500,
+          "entries": [
+            {
+              "amount": "1 plate",
+              "calories": 500,
+              "calories_are_estimate": false,
+              "eaten_at": "12:15",
+              "food": "poha",
+              "id": "rec_c09ea6b423504ed4b5cf82d6ea1c2be5",
+              "meal": "breakfast",
+              "revision": 1,
+              "when": "2026-09-25"
+            }
+          ],
+          "entry_count": 1
+        },
+        "expected_output": {
+          "entries": {
+            "$any": true
+          },
+          "day_total": 500
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.trend_7",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "trends succeeded as expected",
+      "detail": {
+        "action": "trends",
+        "input": {
+          "days": 7
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_6c518dacd0b540f19d8242fe3d3dc059",
+        "output": {
+          "average_per_day": 114.3,
+          "daily_totals": [
+            {
+              "date": "2026-09-20",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-21",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-22",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-23",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-24",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-25",
+              "logged": true,
+              "total": 500
+            },
+            {
+              "date": "2026-09-26",
+              "logged": true,
+              "total": 300
+            }
+          ],
+          "days": 7,
+          "days_logged": 2,
+          "total_calories": 800
+        },
+        "expected_output": {
+          "daily_totals": {
+            "$any": true
+          },
+          "average_per_day": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.trend_30",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "trends succeeded as expected",
+      "detail": {
+        "action": "trends",
+        "input": {
+          "days": 30
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_8796892008ef4a058ea929541e161220",
+        "output": {
+          "average_per_day": 26.7,
+          "daily_totals": [
+            {
+              "date": "2026-08-28",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-08-29",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-08-30",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-08-31",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-01",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-02",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-03",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-04",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-05",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-06",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-07",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-08",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-09",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-10",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-11",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-12",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-13",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-14",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-15",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-16",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-17",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-18",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-19",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-20",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-21",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-22",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-23",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-24",
+              "logged": false,
+              "total": null
+            },
+            {
+              "date": "2026-09-25",
+              "logged": true,
+              "total": 500
+            },
+            {
+              "date": "2026-09-26",
+              "logged": true,
+              "total": 300
+            }
+          ],
+          "days": 30,
+          "days_logged": 2,
+          "total_calories": 800
+        },
+        "expected_output": {
+          "daily_totals": {
+            "$any": true
+          },
+          "average_per_day": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.remove",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "correct_entry succeeded as expected",
+      "detail": {
+        "action": "correct_entry",
+        "input": {
+          "entry": "rec_4d869a933f894286a2b63c6f762e525d",
+          "delete": true
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_97685dcb0ed64dc481762fc383085439",
+        "output": {
+          "date": "2026-09-26",
+          "day_total": 0,
+          "deleted": true,
+          "entry": null,
+          "id": "rec_4d869a933f894286a2b63c6f762e525d",
+          "revision": 1
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.past_day_trends_and_delete.stored_after_delete",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "1 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 1,
+        "values": [
+          {
+            "amount": "1 plate",
+            "calories": 500,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "poha",
+            "meal": "breakfast",
+            "when": "2026-09-25"
+          }
+        ],
+        "includes": [
+          {
+            "food": "poha",
+            "calories": 500
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.amount_blank_refused.bad_log",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry failed as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "pizza",
+          "amount": "",
+          "when": "2026-09-26"
+        },
+        "expect": "failed",
+        "state": "failed",
+        "run_id": "run_919d6ae758e8457baad603ec052124f5",
+        "failure": {
+          "state": "failed",
+          "reason": "handler_exception",
+          "error": {
+            "code": "handler_exception",
+            "message": "ValueError: Amount is needed.",
+            "traceback": "Traceback (most recent call last):\n  File \"/Users/kenil/Desktop/dev/alpha/alpha-g1/.alpha-runtime/profiles/pyprof-391f9ca6e9db5bc54576/venv/lib/python3.13/site-packages/alpha_app_worker/runner.py\", line 168, in run_invoke\n    result = function(context, **payload)\n  File \"/Users/kenil/Desktop/dev/alpha/g1-run/data/builds/build_a2362a907a12457faee616c31f8a263d/attempt-1/version/ver_23f7f1d9da209fbf39c8f962/src/app_code/handlers.py\", line 126, in log_entry\n    how_much = _tidy(amount, \"Amount\")\n  File \"/Users/kenil/Desktop/dev/alpha/g1-run/data/builds/build_a2362a907a12457faee616c31f8a263d/attempt-1/version/ver_23f7f1d9da209fbf39c8f962/src/app_code/handlers.py\", line 19, in _tidy\n    raise ValueError(f\"{what} is needed.\")\nValueError: Amount is needed.\n"
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.amount_blank_refused.nothing_stored",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "0 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 0,
+        "values": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.seed.seed_long",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "leftover chicken biryani with raita and a side of salted salad, reheated from last night's family dinner",
+          "amount": "1 large bowl",
+          "when": "2026-09-26",
+          "calories": 780,
+          "meal": "dinner"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_b8327fbda9bb42eebc4b7e0de64f22e2",
+        "output": {
+          "calories_are_estimate": false,
+          "date": "2026-09-26",
+          "day_total": 1090,
+          "entry": {
+            "amount": "1 large bowl",
+            "calories": 780,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "leftover chicken biryani with raita and a side of salted salad, reheated from last night's family dinner",
+            "id": "rec_f76b94ac8d034209adb9c93bfad52190",
+            "meal": "dinner",
+            "revision": 1,
+            "when": "2026-09-26"
+          },
+          "id": "rec_f76b94ac8d034209adb9c93bfad52190",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.seed.seed_short",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "log_entry succeeded as expected",
+      "detail": {
+        "action": "log_entry",
+        "input": {
+          "food": "masala chai",
+          "amount": "1 cup",
+          "when": "2026-09-26",
+          "calories": 90,
+          "meal": "snack"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_d2f39b1f0b124f0ca81ad05cb07715b9",
+        "output": {
+          "calories_are_estimate": false,
+          "date": "2026-09-26",
+          "day_total": 1180,
+          "entry": {
+            "amount": "1 cup",
+            "calories": 90,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "masala chai",
+            "id": "rec_f4cab55095e243de9a5cc39591f47ede",
+            "meal": "snack",
+            "revision": 1,
+            "when": "2026-09-26"
+          },
+          "id": "rec_f4cab55095e243de9a5cc39591f47ede",
+          "revision": 1
+        },
+        "expected_output": {
+          "id": {
+            "$any": true
+          },
+          "revision": {
+            "$any": true
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.empty.render",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "rendered \"Daily Food Log\"",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/empty-1280.png"
+      ]
+    },
+    {
+      "id": "ui.empty.no_error",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "no error shown when nothing is saved yet",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.empty.clean",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "empty state: no script errors",
+      "detail": {
+        "errors": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.empty.layout_768",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "no sideways scrolling at 768px",
+      "detail": {
+        "scroll_width": 768,
+        "client_width": 768
+      },
+      "evidence": [
+        "evidence/ui/empty-768.png"
+      ]
+    },
+    {
+      "id": "ui.primary.steps",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "performed 4 step(s)",
+      "detail": {
+        "steps": [
+          {
+            "kind": "fill",
+            "label": "Food",
+            "text": "Paneer tikka"
+          },
+          {
+            "kind": "fill",
+            "label": "Amount",
+            "text": "1 plate"
+          },
+          {
+            "kind": "fill",
+            "label": "Calories",
+            "text": "310"
+          },
+          {
+            "kind": "click",
+            "label": "Add entry"
+          }
+        ]
+      },
+      "evidence": [
+        "evidence/ui/primary-1280.png"
+      ]
+    },
+    {
+      "id": "ui.primary.action",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "the screen invoked 1 declared action(s)",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.outcome",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "every action the screen started succeeded",
+      "detail": {
+        "states": {
+          "run_fd9d74e69506441a9f3fc66a650ac6a4": "succeeded"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.saved",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "1 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 1,
+        "values": [
+          {
+            "amount": "1 plate",
+            "calories": 310,
+            "calories_are_estimate": false,
+            "eaten_at": "12:15",
+            "food": "Paneer tikka",
+            "when": "2026-09-26"
+          }
+        ],
+        "includes": [
+          {
+            "food": "Paneer tikka",
+            "amount": "1 plate",
+            "calories": 310,
+            "when": "2026-09-26"
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.shows.1",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"Paneer tikka\" after the interaction",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.shows.2",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"1 plate\" after the interaction",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.shows.3",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"310\" after the interaction",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.primary.clean",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "primary interaction: no script errors",
+      "detail": {
+        "errors": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.populated.seed",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "created sample data with 2 action run(s)",
+      "detail": {
+        "ok": true,
+        "summary": "2 sample run(s)"
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.populated.shows.1",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"leftover chicken biryani with raita\" with saved data",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/populated-1280.png"
+      ]
+    },
+    {
+      "id": "ui.populated.shows.2",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"1 large bowl\" with saved data",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/populated-1280.png"
+      ]
+    },
+    {
+      "id": "ui.populated.shows.3",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"masala chai\" with saved data",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/populated-1280.png"
+      ]
+    },
+    {
+      "id": "ui.populated.shows.4",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "shows \"90\" with saved data",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/populated-1280.png"
+      ]
+    },
+    {
+      "id": "ui.populated.clean",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "populated state: no script errors",
+      "detail": {
+        "errors": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.populated.layout_768",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "no sideways scrolling at 768px",
+      "detail": {
+        "scroll_width": 768,
+        "client_width": 768
+      },
+      "evidence": [
+        "evidence/ui/populated-768.png"
+      ]
+    },
+    {
+      "id": "ui.error.read",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "a failed read shows: What you ate on Sep 26 could not be loaded\n\nAlpha could not read the saved data right now.\n\nTry again",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/error-read.png"
+      ]
+    },
+    {
+      "id": "ui.error.read_clean",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "failed read: no script errors",
+      "detail": {
+        "errors": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.error.save",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "a failed save shows: ×\nProblem:\nNot saved. Alpha could not save this right now.",
+      "detail": {},
+      "evidence": [
+        "evidence/ui/error-save.png"
+      ]
+    },
+    {
+      "id": "ui.error.save_nothing_stored",
+      "stage": "ui",
+      "required": true,
+      "status": "passed",
+      "summary": "nothing was stored by the failed save",
+      "detail": {
+        "before": 3,
+        "after": 3
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.error.save_input_kept",
+      "stage": "ui",
+      "required": false,
+      "status": "passed",
+      "summary": "the typed input is kept after a failed save",
+      "detail": {
+        "value": "Paneer tikka"
+      },
+      "evidence": []
+    }
+  ],
+  "supplementary": [],
+  "qualification_requests": [],
+  "unresolved_limits": [
+    "App and builder processes are not yet OS-sandboxed (F20)"
+  ],
+  "passed": true
+}

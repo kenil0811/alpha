@@ -1,0 +1,159 @@
+contract_version: "0.2"
+app_id: "job-opening-tracker-6aa2be"
+name: "Job Opening Tracker"
+description: "Keep a list of job openings you found and log every step you take on each one."
+runtime_profile: "pyprof-391f9ca6e9db5bc54576"
+sdk_version: "0.1.0"
+capabilities: [records]
+collections:
+  - name: job_openings
+    description: One job opening you want to keep track of.
+    fields:
+      - {name: company, kind: text, required: true, max_length: 200}
+      - {name: role, kind: text, required: true, max_length: 200}
+      - {name: where_i_found_it, kind: text, max_length: 200}
+      - {name: link, kind: text, max_length: 2000}
+      - {name: stage, kind: choice, required: true, choices: [Found, Applied, Interviewing, Offer, Rejected, Withdrew]}
+      - {name: date_found, kind: date, required: true}
+      - {name: notes, kind: text, max_length: 4000}
+      - {name: last_activity, kind: datetime}
+    indexes: [[stage]]
+  - name: steps_taken
+    description: One thing you did about an opening, in order.
+    fields:
+      - {name: opening, kind: reference, collection: job_openings, required: true}
+      - {name: date, kind: date, required: true}
+      - {name: what_i_did, kind: choice, required: true, choices: [Found it, Applied, Emailed recruiter, Phone screen, Interviewed, Offer received, Rejected, Withdrew, Stage changed, Other note]}
+      - {name: note, kind: text, max_length: 2000}
+    indexes: [[opening]]
+actions:
+  - id: add_opening
+    title: Add an opening
+    description: Save a new opening with today's date and the stage Found.
+    handler: app_code.handlers:add_opening
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [company, role]
+      additionalProperties: false
+      properties:
+        company: {type: string}
+        role: {type: string}
+        where_i_found_it: {type: [string, "null"]}
+        link: {type: [string, "null"]}
+        notes: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision, stage]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        stage: {type: string}
+  - id: log_step
+    title: Log a step
+    description: Add a dated step to an opening's history and move its stage to match.
+    handler: app_code.handlers:log_step
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [opening, date, what_i_did]
+      additionalProperties: false
+      properties:
+        opening: {type: string, minLength: 1}
+        date: {type: string}
+        what_i_did: {type: string, minLength: 1}
+        note: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision, stage]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        stage: {type: string}
+  - id: set_stage
+    title: Change the stage
+    description: Set an opening's stage directly and record the change as a dated step.
+    handler: app_code.handlers:set_stage
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [opening, new_stage]
+      additionalProperties: false
+      properties:
+        opening: {type: string, minLength: 1}
+        new_stage: {type: string, minLength: 1}
+    output_schema:
+      type: object
+      required: [id, revision, stage]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        stage: {type: string}
+  - id: review_list
+    title: Review the list
+    description: Show openings for one stage or all stages, newest activity first, with a count per stage.
+    handler: app_code.handlers:review_list
+    invocable_from: [ui, assistant, manual]
+    effect_class: none
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: pure
+    input_schema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        stage_filter: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [openings, counts]
+      properties:
+        openings:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              company: {type: string}
+              role: {type: string}
+              stage: {type: string}
+        counts:
+          type: array
+          items:
+            type: object
+            properties:
+              stage: {type: string}
+              openings: {type: integer}
+ui:
+  entry: ui/src/main.tsx
+  build_profile: "uiprof-5a3bad2e0741affeb06b"
+  kit_version: "0.1.0"
+  bridge_version: "0.2.0"
+  views:
+    - id: job_openings.list
+      collection: job_openings
+      fields: [company, role, where_i_found_it, link, stage, date_found, notes, last_activity]
+      filterable: [stage, company]
+      sortable: [last_activity, date_found, created_at, company]
+      default_order: [{field: last_activity, direction: desc}]
+      max_limit: 100
+    - id: steps_taken.for_opening
+      collection: steps_taken
+      fields: [opening, date, what_i_did, note]
+      filterable: [opening]
+      sortable: [date, created_at]
+      default_order: [{field: date, direction: desc}, {field: created_at, direction: desc}]
+      max_limit: 100
+  actions: [add_opening, log_step, set_stage, review_list]

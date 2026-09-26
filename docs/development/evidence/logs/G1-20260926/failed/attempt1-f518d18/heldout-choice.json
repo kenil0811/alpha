@@ -1,0 +1,8 @@
+{
+  "chosen_at": "2026-09-26T10:10:11.430620+00:00",
+  "freeze_commit": "518d187526400a7490279636b939f610112ceee3",
+  "freeze_committed_at": "2026-09-26T10:07:02Z",
+  "label": "expenses",
+  "request": "When I paste a rough list of what I spent this week, sort each item into a category and give me the total per category. I don't need a separate screen for it, I'll just run it from Alpha.",
+  "why": "Not among the shell's examples, the fake-assistant fixtures, the F04/F07 qualification requests or any test; chosen by the coding agent after the freeze. It asks for a reusable action without a custom screen (the G1 no-dashboard case)."
+}

@@ -1,0 +1,12 @@
+{
+  "why": "After the reopen: a fresh Core runs the held-out App again (the eval tool read its reopen action from the wrong field).",
+  "actions": [
+    {
+      "action": "fit_plan",
+      "input": {
+        "list": "Write thank-you notes 40m\nReturn library books 25m\nFix the leaking tap 1h",
+        "hours_available": 1.5
+      }
+    }
+  ]
+}

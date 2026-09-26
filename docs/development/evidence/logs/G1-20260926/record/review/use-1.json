@@ -1,0 +1,380 @@
+{
+  "label": "review",
+  "app_id": "job-opening-tracker-6aa2be",
+  "journey": {
+    "why": "Written after looking at the generated screen (the checks' screenshots and the labels it shows), the way a person would use it: add two openings, open the newest, log that I applied, and move it to Applied.",
+    "screen": [
+      {
+        "kind": "fill",
+        "label": "Company",
+        "text": "Zenith Foods"
+      },
+      {
+        "kind": "fill",
+        "label": "Role",
+        "text": "Supply Chain Planner"
+      },
+      {
+        "kind": "fill",
+        "label": "Where I found it",
+        "text": "LinkedIn"
+      },
+      {
+        "kind": "fill",
+        "label": "Notes",
+        "text": "Hybrid, two days in office. Apply by Friday."
+      },
+      {
+        "kind": "click",
+        "label": "Add opening"
+      },
+      {
+        "kind": "wait_text",
+        "text": "Zenith Foods"
+      },
+      {
+        "kind": "fill",
+        "label": "Company",
+        "text": "Harbor Health"
+      },
+      {
+        "kind": "fill",
+        "label": "Role",
+        "text": "Operations Analyst"
+      },
+      {
+        "kind": "fill",
+        "label": "Where I found it",
+        "text": "Referral from Priya"
+      },
+      {
+        "kind": "click",
+        "label": "Add opening"
+      },
+      {
+        "kind": "wait_text",
+        "text": "Harbor Health"
+      },
+      {
+        "kind": "shot",
+        "text": "two-openings"
+      },
+      {
+        "kind": "click",
+        "label": "Open"
+      },
+      {
+        "kind": "wait_text",
+        "text": "Log a step"
+      },
+      {
+        "kind": "select",
+        "label": "What I did",
+        "text": "Applied"
+      },
+      {
+        "kind": "fill",
+        "label": "Note",
+        "text": "Sent CV and cover letter"
+      },
+      {
+        "kind": "click",
+        "label": "Log step"
+      },
+      {
+        "kind": "wait_text",
+        "text": "Sent CV and cover letter"
+      },
+      {
+        "kind": "select",
+        "label": "Stage",
+        "text": "Applied"
+      },
+      {
+        "kind": "click",
+        "label": "Change stage"
+      },
+      {
+        "kind": "shot",
+        "text": "applied"
+      }
+    ],
+    "actions": [],
+    "reopen_action": null
+  },
+  "started_at": "2026-09-26T11:34:00.490420+00:00",
+  "before": {
+    "job_openings": [],
+    "steps_taken": []
+  },
+  "screen": {
+    "kind": "result",
+    "app_id": "job-opening-tracker-6aa2be",
+    "steps": [
+      {
+        "index": 0,
+        "step": {
+          "kind": "fill",
+          "label": "Company",
+          "text": "Zenith Foods"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 218
+      },
+      {
+        "index": 1,
+        "step": {
+          "kind": "fill",
+          "label": "Role",
+          "text": "Supply Chain Planner"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 215
+      },
+      {
+        "index": 2,
+        "step": {
+          "kind": "fill",
+          "label": "Where I found it",
+          "text": "LinkedIn"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 214
+      },
+      {
+        "index": 3,
+        "step": {
+          "kind": "fill",
+          "label": "Notes",
+          "text": "Hybrid, two days in office. Apply by Friday."
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 214
+      },
+      {
+        "index": 4,
+        "step": {
+          "kind": "click",
+          "label": "Add opening"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 1083
+      },
+      {
+        "index": 5,
+        "step": {
+          "kind": "wait_text",
+          "text": "Zenith Foods"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 212
+      },
+      {
+        "index": 6,
+        "step": {
+          "kind": "fill",
+          "label": "Company",
+          "text": "Harbor Health"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 215
+      },
+      {
+        "index": 7,
+        "step": {
+          "kind": "fill",
+          "label": "Role",
+          "text": "Operations Analyst"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 217
+      },
+      {
+        "index": 8,
+        "step": {
+          "kind": "fill",
+          "label": "Where I found it",
+          "text": "Referral from Priya"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 214
+      },
+      {
+        "index": 9,
+        "step": {
+          "kind": "click",
+          "label": "Add opening"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 224
+      },
+      {
+        "index": 10,
+        "step": {
+          "kind": "wait_text",
+          "text": "Harbor Health"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 921
+      },
+      {
+        "index": 11,
+        "step": {
+          "kind": "shot",
+          "text": "two-openings"
+        },
+        "ok": true,
+        "screenshot": "/Users/kenil/Desktop/dev/alpha/g1-run/record/screens/review-use-two-openings.png",
+        "settled": true,
+        "ms": 370
+      },
+      {
+        "index": 12,
+        "step": {
+          "kind": "click",
+          "label": "Open"
+        },
+        "ok": true,
+        "settled": true,
+        "ms": 225
+      },
+      {
+        "index": 13,
+        "step": {
+          "kind": "wait_text",
+          "text": "Log a step"
+        },
+        "ok": false,
+        "error": "locator.waitFor: Timeout 120000ms exceeded.",
+        "ms": 120005
+      }
+    ],
+    "screenshots": [
+      "/Users/kenil/Desktop/dev/alpha/g1-run/record/screens/review-use-opened.png",
+      "/Users/kenil/Desktop/dev/alpha/g1-run/record/screens/review-use-final-1280.png",
+      "/Users/kenil/Desktop/dev/alpha/g1-run/record/screens/review-use-final-768.png"
+    ],
+    "environment": {
+      "browser": "151.0.7922.34",
+      "node": "v24.21.0"
+    },
+    "layout_1280": {
+      "scroll_width": 1280,
+      "client_width": 1280
+    },
+    "layout_768": {
+      "scroll_width": 768,
+      "client_width": 768
+    },
+    "text": "Job Opening Tracker\n\nAdd an opening, log each step you take on it, and see which openings are at which stage.\n\nAdd an opening\nCompany*\nRole*\nWhere I found it\nLink\nPasted as plain text.\nNotes\nAdd opening\n×\nProblem:\nNot saved. ValueError: Add a company before saving this opening.\nMy openings\n\nNewest activity first.\n\nAll stages\nFound (2)\nApplied (0)\nInterviewing (0)\nOffer (0)\nRejected (0)\nWithdrew (0)\nHarbor Health — Operations Analyst\nStage\nFound\nRole\nOperations Analyst\nWhere I found it\nReferral from Priya\nDate found\nSep 26\nOpen\nZenith Foods — Supply Chain Planner\nStage\nFound\nRole\nSupply Chain Planner\nWhere I found it\nLinkedIn\nDate found\nSep 26\nOpen",
+    "invokes": [
+      {
+        "action_id": "add_opening",
+        "input": {
+          "company": "Zenith Foods",
+          "role": "Supply Chain Planner",
+          "where_i_found_it": "LinkedIn",
+          "link": "",
+          "notes": "Hybrid, two days in office. Apply by Friday."
+        },
+        "ok": true,
+        "run_id": "run_1a54c031aa63446da2d617b80e2bd588"
+      },
+      {
+        "action_id": "add_opening",
+        "input": {
+          "company": "Harbor Health",
+          "role": "Operations Analyst",
+          "where_i_found_it": "Referral from Priya",
+          "link": "",
+          "notes": ""
+        },
+        "ok": true,
+        "run_id": "run_8208743d7ffb48b386671246b08ed672"
+      },
+      {
+        "action_id": "add_opening",
+        "input": {
+          "company": "",
+          "role": "",
+          "where_i_found_it": "",
+          "link": "",
+          "notes": ""
+        },
+        "ok": true,
+        "run_id": "run_532b8cc676c748e6be2fa3048f3835d7"
+      }
+    ],
+    "reads": 6,
+    "console_errors": [],
+    "blocked": [],
+    "ok": false
+  },
+  "actions": [],
+  "after": {
+    "job_openings": [
+      {
+        "id": "rec_d763c3c651d14081bbe6384926e63219",
+        "revision": 1,
+        "values": {
+          "company": "Zenith Foods",
+          "date_found": "2026-09-26",
+          "last_activity": "2026-09-26T11:34:03.111214Z",
+          "notes": "Hybrid, two days in office. Apply by Friday.",
+          "role": "Supply Chain Planner",
+          "stage": "Found",
+          "where_i_found_it": "LinkedIn"
+        }
+      },
+      {
+        "id": "rec_a0bbfbb2d40b4ef4805e89d29bf185fe",
+        "revision": 1,
+        "values": {
+          "company": "Harbor Health",
+          "date_found": "2026-09-26",
+          "last_activity": "2026-09-26T11:34:05.030656Z",
+          "role": "Operations Analyst",
+          "stage": "Found",
+          "where_i_found_it": "Referral from Priya"
+        }
+      }
+    ],
+    "steps_taken": []
+  },
+  "runs": [
+    {
+      "run_id": "run_532b8cc676c748e6be2fa3048f3835d7",
+      "state": "failed",
+      "origin": "ui",
+      "terminal_reason": "handler_exception",
+      "created_at": "2026-09-26T11:34:06.488083Z"
+    },
+    {
+      "run_id": "run_8208743d7ffb48b386671246b08ed672",
+      "state": "succeeded",
+      "origin": "ui",
+      "terminal_reason": null,
+      "created_at": "2026-09-26T11:34:04.971806Z"
+    },
+    {
+      "run_id": "run_1a54c031aa63446da2d617b80e2bd588",
+      "state": "succeeded",
+      "origin": "ui",
+      "terminal_reason": null,
+      "created_at": "2026-09-26T11:34:03.061407Z"
+    }
+  ],
+  "finished_at": "2026-09-26T11:36:07.840133+00:00",
+  "ok": false
+}

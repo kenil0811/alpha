@@ -1,0 +1,8 @@
+{
+  "why": "F08.C04 on two G1-generated Apps sharing one runtime profile: a calorie entry whose estimate is a live model call (several seconds) is cancelled mid-run in the calorie App while the job tracker saves an opening at the same time; then a refused entry in the calorie App; then the tracker keeps working.",
+  "a": {"action": "log_entry", "input": {"food": "lamb biryani with raita", "amount": "1 large plate", "meal": "dinner"}},
+  "b": {"action": "add_opening", "input": {"company": "Juniper Labs", "role": "Data Engineer", "where_i_found_it": "Company careers page"}},
+  "cancel_after_seconds": 1.5,
+  "a_failure": {"action": "log_entry", "input": {"food": "pizza", "amount": ""}},
+  "b_after": {"action": "review_list", "input": {}}
+}

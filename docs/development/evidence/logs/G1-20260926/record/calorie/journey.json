@@ -1,0 +1,27 @@
+{
+  "why": "Written after looking at the generated screen (the checks' screenshots), the way a person would use it: three meals today, one with a number typed by the person, then the 30-day trend.",
+  "screen": [
+    {"kind": "fill", "label": "Food", "text": "2 rotis and dal"},
+    {"kind": "fill", "label": "Amount", "text": "1 plate"},
+    {"kind": "click", "label": "Lunch"},
+    {"kind": "click", "label": "Add entry"},
+    {"kind": "wait_text", "text": "2 rotis and dal"},
+    {"kind": "shot", "text": "after-lunch"},
+    {"kind": "fill", "label": "Food", "text": "masala chai"},
+    {"kind": "fill", "label": "Amount", "text": "1 cup"},
+    {"kind": "fill", "label": "Calories", "text": "90"},
+    {"kind": "click", "label": "Snack"},
+    {"kind": "click", "label": "Add entry"},
+    {"kind": "wait_text", "text": "masala chai"},
+    {"kind": "fill", "label": "Food", "text": "paneer butter masala with jeera rice"},
+    {"kind": "fill", "label": "Amount", "text": "1 bowl"},
+    {"kind": "click", "label": "Dinner"},
+    {"kind": "click", "label": "Add entry"},
+    {"kind": "wait_text", "text": "paneer butter masala"},
+    {"kind": "shot", "text": "three-meals"},
+    {"kind": "click", "label": "Last 30 days"},
+    {"kind": "shot", "text": "trends-30"}
+  ],
+  "actions": [],
+  "reopen_action": null
+}

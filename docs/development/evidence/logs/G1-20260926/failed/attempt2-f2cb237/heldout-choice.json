@@ -1,0 +1,9 @@
+{
+  "chosen_at": "2026-09-26T10:17:09.042442+00:00",
+  "freeze_commit": "f2cb23795010c87e2ed7e533277ac763a47c8d71",
+  "freeze_committed_at": "2026-09-26T10:16:20Z",
+  "label": "recipe",
+  "request": "When I paste a recipe, scale it to however many people I say and convert cups and spoons to grams where that makes sense. I'd just run it from Alpha whenever I need it; it doesn't need its own screen.",
+  "why": "Chosen by the coding agent after the re-freeze. Not among the shell's examples, fake-assistant fixtures, test fixtures or any earlier qualification request (calories, WhatsApp weather, meeting-notes brief, expenses, notes, reading list, items, tally). A reusable transform without a custom screen: the G1 no-dashboard case.",
+  "superseded": "The first choice (expenses, 10:10:11Z) was dropped: it came before this freeze and overlaps the F02 builder qualification request."
+}

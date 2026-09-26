@@ -1,0 +1,120 @@
+{
+  "label": "dayplan",
+  "app_id": "fits-in-today-planner-e40b8e",
+  "journey": {
+    "why": "After the reopen: a fresh Core runs the held-out App again (the eval tool read its reopen action from the wrong field).",
+    "actions": [
+      {
+        "action": "fit_plan",
+        "input": {
+          "list": "Write thank-you notes 40m\nReturn library books 25m\nFix the leaking tap 1h",
+          "hours_available": 1.5
+        }
+      }
+    ]
+  },
+  "started_at": "2026-09-26T11:45:37.793743+00:00",
+  "before": {
+    "plans": []
+  },
+  "actions": [
+    {
+      "call": {
+        "action": "fit_plan",
+        "input": {
+          "list": "Write thank-you notes 40m\nReturn library books 25m\nFix the leaking tap 1h",
+          "hours_available": 1.5
+        }
+      },
+      "outcome": {
+        "accepted": true,
+        "origin": "user",
+        "run_id": "run_5f33e2c78e13484e964ac34c23fdb660",
+        "state": "succeeded",
+        "output": {
+          "available_minutes": 90,
+          "hours_available": 1.5,
+          "items": [
+            {
+              "duration_minutes": 40,
+              "estimated": false,
+              "name": "Write thank-you notes"
+            },
+            {
+              "duration_minutes": 25,
+              "estimated": false,
+              "name": "Return library books"
+            },
+            {
+              "duration_minutes": 60,
+              "estimated": false,
+              "name": "Fix the leaking tap"
+            }
+          ],
+          "minutes_spare": 25,
+          "plan": [
+            {
+              "duration_minutes": 40,
+              "estimated": false,
+              "name": "Write thank-you notes",
+              "running_minutes": 40
+            },
+            {
+              "duration_minutes": 25,
+              "estimated": false,
+              "name": "Return library books",
+              "running_minutes": 65
+            }
+          ],
+          "short_by_minutes": 60,
+          "total_minutes": 65,
+          "wont_fit": [
+            {
+              "duration_minutes": 60,
+              "estimated": false,
+              "name": "Fix the leaking tap"
+            }
+          ]
+        },
+        "terminal_reason": null,
+        "errors": [],
+        "seconds": 0.52
+      }
+    }
+  ],
+  "after": {
+    "plans": []
+  },
+  "runs": [
+    {
+      "run_id": "run_5f33e2c78e13484e964ac34c23fdb660",
+      "state": "succeeded",
+      "origin": "user",
+      "terminal_reason": null,
+      "created_at": "2026-09-26T11:45:38.075407Z"
+    },
+    {
+      "run_id": "run_92cfbba0368f405a95cc531124bbe1d3",
+      "state": "failed",
+      "origin": "user",
+      "terminal_reason": "handler_exception",
+      "created_at": "2026-09-26T11:44:31.629619Z"
+    },
+    {
+      "run_id": "run_5a08abb55f8d48e1a9ef8695836f8cdc",
+      "state": "succeeded",
+      "origin": "user",
+      "terminal_reason": null,
+      "created_at": "2026-09-26T11:44:31.109383Z"
+    },
+    {
+      "run_id": "run_4bfe9328e2a24c1f872bcae33bce72ae",
+      "state": "succeeded",
+      "origin": "user",
+      "terminal_reason": null,
+      "created_at": "2026-09-26T11:44:30.591527Z"
+    }
+  ],
+  "finished_at": "2026-09-26T11:45:38.781743+00:00",
+  "ok": true
+}

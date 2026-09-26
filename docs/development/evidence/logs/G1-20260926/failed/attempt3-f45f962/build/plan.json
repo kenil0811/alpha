@@ -1,0 +1,366 @@
+{
+  "contract_version": "0.2",
+  "scenarios": [
+    {
+      "id": "log_with_estimate",
+      "description": "Logging just a description and an amount saves one entry on today with an estimated calorie figure, marked as an estimate, and today's summary includes it.",
+      "steps": [
+        {
+          "kind": "invoke",
+          "id": "log_salad",
+          "action": "log_food",
+          "input": {
+            "what_i_ate": "chicken salad",
+            "amount": "200g"
+          },
+          "expect": "succeeded",
+          "output": {
+            "id": "*",
+            "revision": "*"
+          },
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "saved_salad",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "chicken salad"
+          },
+          "count": 1,
+          "includes": [
+            {
+              "what_i_ate": "chicken salad",
+              "amount": "200g",
+              "calories_are_an_estimate": true
+            }
+          ]
+        },
+        {
+          "kind": "invoke",
+          "id": "estimate_only",
+          "action": "estimate_calories",
+          "input": {
+            "what_i_ate": "chicken salad",
+            "amount": "200g"
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "no_extra_write",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "chicken salad"
+          },
+          "count": 1,
+          "includes": []
+        },
+        {
+          "kind": "invoke",
+          "id": "today",
+          "action": "day_summary",
+          "input": {
+            "date": {
+              "$today": 0
+            }
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        }
+      ]
+    },
+    {
+      "id": "log_my_own_number",
+      "description": "Logging an everyday portion with my own calorie figure stores 250 calories and marks it as entered by me, not an estimate.",
+      "steps": [
+        {
+          "kind": "invoke",
+          "id": "log_porridge",
+          "action": "log_food",
+          "input": {
+            "what_i_ate": "porridge",
+            "amount": "1 bowl",
+            "calories": 250,
+            "meal": "Breakfast"
+          },
+          "expect": "succeeded",
+          "output": {
+            "id": "*",
+            "revision": "*"
+          },
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "saved_porridge",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "porridge"
+          },
+          "count": 1,
+          "includes": [
+            {
+              "what_i_ate": "porridge",
+              "amount": "1 bowl",
+              "calories": 250,
+              "calories_are_an_estimate": false,
+              "meal": "Breakfast"
+            }
+          ]
+        },
+        {
+          "kind": "invoke",
+          "id": "today_after",
+          "action": "day_summary",
+          "input": {
+            "date": {
+              "$today": 0
+            }
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        }
+      ]
+    },
+    {
+      "id": "correct_and_browse",
+      "description": "An entry logged for yesterday can be corrected: the new amount and my own calorie figure are stored and the calorie figure is no longer an estimate; history and trends still read back.",
+      "steps": [
+        {
+          "kind": "invoke",
+          "id": "log_pizza",
+          "action": "log_food",
+          "input": {
+            "what_i_ate": "pepperoni pizza",
+            "amount": "2 slices",
+            "meal": "Dinner",
+            "when": {
+              "$today": -1
+            }
+          },
+          "expect": "succeeded",
+          "output": {
+            "id": "*",
+            "revision": "*"
+          },
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "saved_pizza",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "pepperoni pizza"
+          },
+          "count": 1,
+          "includes": [
+            {
+              "what_i_ate": "pepperoni pizza",
+              "amount": "2 slices",
+              "meal": "Dinner"
+            }
+          ]
+        },
+        {
+          "kind": "invoke",
+          "id": "fix_pizza",
+          "action": "correct_entry",
+          "input": {
+            "id": {
+              "$ref": "log_pizza.output.id"
+            },
+            "amount": "3 slices",
+            "calories": 720
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "saved_fix",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "pepperoni pizza"
+          },
+          "count": 1,
+          "includes": [
+            {
+              "what_i_ate": "pepperoni pizza",
+              "amount": "3 slices",
+              "calories": 720,
+              "calories_are_an_estimate": false,
+              "meal": "Dinner"
+            }
+          ]
+        },
+        {
+          "kind": "invoke",
+          "id": "yesterday",
+          "action": "day_summary",
+          "input": {
+            "date": {
+              "$today": -1
+            }
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        },
+        {
+          "kind": "invoke",
+          "id": "week_trends",
+          "action": "trends",
+          "input": {
+            "period": 7
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        },
+        {
+          "kind": "invoke",
+          "id": "month_trends",
+          "action": "trends",
+          "input": {
+            "period": 30
+          },
+          "expect": "succeeded",
+          "output": null,
+          "exact": false
+        }
+      ]
+    },
+    {
+      "id": "refuses_missing_amount",
+      "description": "A description with an empty amount is refused and nothing is stored, because calories cannot be worked out without an amount.",
+      "steps": [
+        {
+          "kind": "invoke",
+          "id": "log_pasta",
+          "action": "log_food",
+          "input": {
+            "what_i_ate": "pasta",
+            "amount": ""
+          },
+          "expect": "failed",
+          "output": null,
+          "exact": false
+        },
+        {
+          "kind": "records",
+          "id": "nothing_saved",
+          "collection": "food_entries",
+          "where": {
+            "field": "what_i_ate",
+            "op": "eq",
+            "value": "pasta"
+          },
+          "count": 0,
+          "includes": []
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "primary": [
+      {
+        "kind": "fill",
+        "label": "What I ate",
+        "text": "banana",
+        "key": null
+      },
+      {
+        "kind": "fill",
+        "label": "Amount",
+        "text": "1 medium",
+        "key": null
+      },
+      {
+        "kind": "click",
+        "label": "Log",
+        "text": null,
+        "key": null
+      }
+    ],
+    "saved": {
+      "kind": "records",
+      "id": "saved_banana",
+      "collection": "food_entries",
+      "where": {
+        "field": "what_i_ate",
+        "op": "eq",
+        "value": "banana"
+      },
+      "count": 1,
+      "includes": [
+        {
+          "what_i_ate": "banana",
+          "amount": "1 medium",
+          "calories_are_an_estimate": true
+        }
+      ]
+    },
+    "shows": [
+      "banana",
+      "1 medium"
+    ],
+    "seed": [
+      {
+        "kind": "invoke",
+        "id": "seed_porridge",
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "porridge with honey",
+          "amount": "1 bowl",
+          "calories": 250,
+          "meal": "Breakfast",
+          "when": {
+            "$today": 0
+          }
+        },
+        "expect": "succeeded",
+        "output": null,
+        "exact": false
+      },
+      {
+        "kind": "invoke",
+        "id": "seed_traybake",
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "leftover roasted vegetable and halloumi traybake with couscous, lemon dressing and toasted pumpkin seeds",
+          "amount": "1 large plate",
+          "calories": 640,
+          "meal": "Dinner",
+          "when": {
+            "$today": 0
+          }
+        },
+        "expect": "succeeded",
+        "output": null,
+        "exact": false
+      }
+    ],
+    "seed_shows": [
+      "porridge with honey",
+      "250",
+      "halloumi traybake",
+      "640"
+    ]
+  }
+}

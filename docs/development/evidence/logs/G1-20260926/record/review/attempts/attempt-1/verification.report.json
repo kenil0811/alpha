@@ -1,0 +1,105 @@
+{
+  "contract_version": "0.2",
+  "build_id": "build_0eea542aace24ca894a0c38d37ab594b",
+  "attempt_id": "attempt_93eac469e84c46bc8bc34d6ca491ebf1",
+  "attempt_number": 1,
+  "lineage": [
+    "attempt_93eac469e84c46bc8bc34d6ca491ebf1"
+  ],
+  "builder_status": "candidate",
+  "package_sha256": null,
+  "version_id": null,
+  "dependency_manifest_sha256": null,
+  "runtime_profile_id": null,
+  "ui_build_profile_id": null,
+  "environment": {
+    "os": "Darwin 25.6.0 arm64",
+    "core_python": "3.13.9",
+    "runtime_profile": "pyprof-391f9ca6e9db5bc54576",
+    "python": "3.13.9",
+    "sdk": "0.1.0",
+    "ui_build_profile": "uiprof-5a3bad2e0741affeb06b"
+  },
+  "checks": [
+    {
+      "id": "package.contract",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app.yaml declares job-opening-tracker-6aa2be",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.identity",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app_id is the identity Alpha assigned",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.layout",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "4 file(s) follow the layout",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "deps.profiles",
+      "stage": "deps",
+      "required": true,
+      "status": "passed",
+      "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "seal.ui_build",
+      "stage": "seal",
+      "required": true,
+      "status": "failed",
+      "summary": "the UI did not compile: type errors in the screen (TypeScript strict, kit types):\nmain.tsx(96,61): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(97,55): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(98,60): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputEl",
+      "detail": {
+        "log_tail": "ui build failed: type errors in the screen (TypeScript strict, kit types):\nmain.tsx(96,61): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(97,55): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(98,60): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(99,46): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(100,52): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLTextAreaElement, HTMLTextAreaElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLTextAreaElement, HTMLTextAreaElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(159,61): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLInputElement, HTMLInputElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n    Type 'ChangeEvent<HTMLInputElement, HTMLInputElement>' is not assignable to type 'SetStateAction<string>'.\nmain.tsx(164,17): error TS2322: Type 'Dispatch<SetStateAction<string>>' is not assignable to type 'ChangeEventHandler<HTMLSelectElement, HTMLSelectElement>'.\n  Types of parameters 'value' and 'event' are incompatible.\n"
+      },
+      "evidence": []
+    },
+    {
+      "id": "handlers.not_run",
+      "stage": "handlers",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: the seal stage did not pass",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.not_run",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: the seal stage did not pass",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "ui.not_run",
+      "stage": "ui",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: the seal stage did not pass",
+      "detail": {},
+      "evidence": []
+    }
+  ],
+  "supplementary": [],
+  "qualification_requests": [],
+  "unresolved_limits": [
+    "App and builder processes are not yet OS-sandboxed (F20)"
+  ],
+  "passed": false
+}

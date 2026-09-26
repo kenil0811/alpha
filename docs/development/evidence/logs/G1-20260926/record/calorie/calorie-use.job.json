@@ -1,0 +1,116 @@
+{
+  "core_url": "http://127.0.0.1:60834",
+  "token": "<redacted>",
+  "app_id": "daily-food-log-804d78",
+  "release_id": "rel_ac714719c4544dc18b268747850fb5bd",
+  "dist_dir": "/Users/kenil/Desktop/dev/alpha/g1-run/data/versions/ver_23f7f1d9da209fbf39c8f962/dist/ui",
+  "bridge_dir": "/Users/kenil/Desktop/dev/alpha/alpha-g1/.alpha-runtime/profiles/uiprof-5a3bad2e0741affeb06b/node_modules/@alpha/ui-bridge/dist",
+  "browser": "/Users/kenil/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+  "timezone": "Asia/Kolkata",
+  "grant": {
+    "actions": [
+      "estimate_calories",
+      "log_entry",
+      "correct_entry"
+    ],
+    "read_views": [
+      "food_entries.by_day",
+      "food_entries.daily"
+    ]
+  },
+  "steps": [
+    {
+      "kind": "fill",
+      "label": "Food",
+      "text": "2 rotis and dal"
+    },
+    {
+      "kind": "fill",
+      "label": "Amount",
+      "text": "1 plate"
+    },
+    {
+      "kind": "click",
+      "label": "Lunch"
+    },
+    {
+      "kind": "click",
+      "label": "Add entry"
+    },
+    {
+      "kind": "wait_text",
+      "text": "2 rotis and dal"
+    },
+    {
+      "kind": "shot",
+      "text": "after-lunch"
+    },
+    {
+      "kind": "fill",
+      "label": "Food",
+      "text": "masala chai"
+    },
+    {
+      "kind": "fill",
+      "label": "Amount",
+      "text": "1 cup"
+    },
+    {
+      "kind": "fill",
+      "label": "Calories",
+      "text": "90"
+    },
+    {
+      "kind": "click",
+      "label": "Snack"
+    },
+    {
+      "kind": "click",
+      "label": "Add entry"
+    },
+    {
+      "kind": "wait_text",
+      "text": "masala chai"
+    },
+    {
+      "kind": "fill",
+      "label": "Food",
+      "text": "paneer butter masala with jeera rice"
+    },
+    {
+      "kind": "fill",
+      "label": "Amount",
+      "text": "1 bowl"
+    },
+    {
+      "kind": "click",
+      "label": "Dinner"
+    },
+    {
+      "kind": "click",
+      "label": "Add entry"
+    },
+    {
+      "kind": "wait_text",
+      "text": "paneer butter masala"
+    },
+    {
+      "kind": "shot",
+      "text": "three-meals"
+    },
+    {
+      "kind": "click",
+      "label": "Last 30 days"
+    },
+    {
+      "kind": "shot",
+      "text": "trends-30"
+    }
+  ],
+  "widths": [
+    1280,
+    768
+  ],
+  "evidence_dir": "/Users/kenil/Desktop/dev/alpha/g1-run/record/screens",
+  "name": "calorie-use"
+}

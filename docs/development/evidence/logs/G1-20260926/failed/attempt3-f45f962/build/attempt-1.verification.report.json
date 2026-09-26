@@ -1,0 +1,443 @@
+{
+  "contract_version": "0.2",
+  "build_id": "build_96d62258e0e2426bbb00d0f12f2ca197",
+  "attempt_id": "attempt_30ffb6e9f3f2466b8ec4640235cdbf03",
+  "attempt_number": 1,
+  "lineage": [
+    "attempt_30ffb6e9f3f2466b8ec4640235cdbf03"
+  ],
+  "builder_status": "candidate",
+  "package_sha256": "28ac959cb08698ba0fe6dd4b5e13f302ee643c51189407439cb0a3ff8f22e3a9",
+  "version_id": "ver_28ac959cb08698ba0fe6dd4b",
+  "dependency_manifest_sha256": "176d3d465c532c77311ed8fb3942bb930b7f2e10e2c823d59bd56f2b7f9cf577",
+  "runtime_profile_id": "pyprof-391f9ca6e9db5bc54576",
+  "ui_build_profile_id": "uiprof-5a3bad2e0741affeb06b",
+  "environment": {
+    "os": "Darwin 25.6.0 arm64",
+    "core_python": "3.13.9",
+    "runtime_profile": "pyprof-391f9ca6e9db5bc54576",
+    "python": "3.13.9",
+    "sdk": "0.1.0",
+    "ui_build_profile": "uiprof-5a3bad2e0741affeb06b"
+  },
+  "checks": [
+    {
+      "id": "package.contract",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app.yaml declares calorie-food-log-1a17ec",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.identity",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "app_id is the identity Alpha assigned",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "package.layout",
+      "stage": "package",
+      "required": true,
+      "status": "passed",
+      "summary": "5 file(s) follow the layout",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "deps.profiles",
+      "stage": "deps",
+      "required": true,
+      "status": "passed",
+      "summary": "runtime pyprof-391f9ca6e9db5bc54576, SDK 0.1.0, UI uiprof-5a3bad2e0741affeb06b",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "seal.ui_build",
+      "stage": "seal",
+      "required": true,
+      "status": "passed",
+      "summary": "UI compiled against uiprof-5a3bad2e0741affeb06b (258543 bytes)",
+      "detail": {
+        "modules": {
+          "app": [
+            "index.html",
+            "main.tsx"
+          ],
+          "packages": {
+            "@alpha/ui-bridge@0.2.0": 1,
+            "@alpha/ui-kit@0.1.0": 11,
+            "react-dom@19.3.0": 4,
+            "react@19.3.0": 4,
+            "scheduler@0.28.0": 2
+          },
+          "unpinned": [],
+          "virtual": 5
+        },
+        "csp": "default-src 'none'; script-src 'sha256-V+G3ZYcekf11sM665QqLQgRMlyKah/XzhDmrPuc75dk='; style-src 'sha256-fwGNfBI/opI90ZSCtnDpIaiDCEm+wyoWNaCUlURA8EM='; connect-src 'none'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none'"
+      },
+      "evidence": []
+    },
+    {
+      "id": "seal.package",
+      "stage": "seal",
+      "required": true,
+      "status": "passed",
+      "summary": "sealed ver_28ac959cb08698ba0fe6dd4b (12 files) in 0.2s",
+      "detail": {
+        "package_sha256": "28ac959cb08698ba0fe6dd4b5e13f302ee643c51189407439cb0a3ff8f22e3a9"
+      },
+      "evidence": []
+    },
+    {
+      "id": "handlers.imports",
+      "stage": "handlers",
+      "required": true,
+      "status": "passed",
+      "summary": "imports are the standard library, the SDK and the package's own modules",
+      "detail": {
+        "stdlib": [
+          "__future__",
+          "datetime",
+          "re",
+          "typing"
+        ],
+        "local": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "handlers.bind",
+      "stage": "handlers",
+      "required": true,
+      "status": "passed",
+      "summary": "5 handler(s) bound on pyprof-391f9ca6e9db5bc54576",
+      "detail": {
+        "actions": [
+          {
+            "id": "log_food",
+            "handler": "app_code.handlers:log_food",
+            "signature": "(ctx: 'Context', what_i_ate: 'str', amount: 'str', calories: 'float | None' = None, meal: 'str | None' = None, when: 'str | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "estimate_calories",
+            "handler": "app_code.handlers:estimate_calories",
+            "signature": "(ctx: 'Context', what_i_ate: 'str', amount: 'str') -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "correct_entry",
+            "handler": "app_code.handlers:correct_entry",
+            "signature": "(ctx: 'Context', id: 'str', what_i_ate: 'str | None' = None, amount: 'str | None' = None, calories: 'float | None' = None, meal: 'str | None' = None, when: 'str | None' = None, delete: 'bool | None' = None, expected_revision: 'int | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "day_summary",
+            "handler": "app_code.handlers:day_summary",
+            "signature": "(ctx: 'Context', date: 'str') -> 'dict[str, Any]'",
+            "ok": true
+          },
+          {
+            "id": "trends",
+            "handler": "app_code.handlers:trends",
+            "signature": "(ctx: 'Context', period: 'int | None' = None) -> 'dict[str, Any]'",
+            "ok": true
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_with_estimate.log_salad",
+      "stage": "behavior",
+      "required": true,
+      "status": "failed",
+      "summary": "log_food returned {'amount': '200g', 'calories': 300, 'calories_are_an_estimate': True, 'eaten_on': '2026-09-26', 'explanation': 'Assumed a mixed chicken salad (cooked chicken, greens/veg, light dressing) at roughly 150 kcal per 100 g, so 200 g ≈ 300 kcal; a mayo-heavy deli version would be closer to 400 kcal.', 'id': 'rec_38b306d130f640cca586cc5ca90042e9', 'meal': 'Lunch', 'revision': 1, 'what_i_ate': 'chicken salad', 'when': '2026-09-26T11:52:48.207992+01:00'}, expected {'id': '*', 'revision': '*'}",
+      "detail": {
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "chicken salad",
+          "amount": "200g"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_da3ffdc5c77b4ca28a6e0bebf7285d07",
+        "output": {
+          "amount": "200g",
+          "calories": 300,
+          "calories_are_an_estimate": true,
+          "eaten_on": "2026-09-26",
+          "explanation": "Assumed a mixed chicken salad (cooked chicken, greens/veg, light dressing) at roughly 150 kcal per 100 g, so 200 g ≈ 300 kcal; a mayo-heavy deli version would be closer to 400 kcal.",
+          "id": "rec_38b306d130f640cca586cc5ca90042e9",
+          "meal": "Lunch",
+          "revision": 1,
+          "what_i_ate": "chicken salad",
+          "when": "2026-09-26T11:52:48.207992+01:00"
+        },
+        "expected_output": {
+          "id": "*",
+          "revision": "*"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_with_estimate.saved_salad",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_with_estimate.log_salad failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_with_estimate.estimate_only",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_with_estimate.log_salad failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_with_estimate.no_extra_write",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_with_estimate.log_salad failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_with_estimate.today",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_with_estimate.log_salad failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_my_own_number.log_porridge",
+      "stage": "behavior",
+      "required": true,
+      "status": "failed",
+      "summary": "log_food returned {'amount': '1 bowl', 'calories': 250, 'calories_are_an_estimate': False, 'eaten_on': '2026-09-26', 'explanation': None, 'id': 'rec_942482eb43864176968d05cca05e3c57', 'meal': 'Breakfast', 'revision': 1, 'what_i_ate': 'porridge', 'when': '2026-09-26T11:52:53.994137+01:00'}, expected {'id': '*', 'revision': '*'}",
+      "detail": {
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "porridge",
+          "amount": "1 bowl",
+          "calories": 250,
+          "meal": "Breakfast"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_4aa0a5c8a12440edbf29524c46e52e64",
+        "output": {
+          "amount": "1 bowl",
+          "calories": 250,
+          "calories_are_an_estimate": false,
+          "eaten_on": "2026-09-26",
+          "explanation": null,
+          "id": "rec_942482eb43864176968d05cca05e3c57",
+          "meal": "Breakfast",
+          "revision": 1,
+          "what_i_ate": "porridge",
+          "when": "2026-09-26T11:52:53.994137+01:00"
+        },
+        "expected_output": {
+          "id": "*",
+          "revision": "*"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_my_own_number.saved_porridge",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_my_own_number.log_porridge failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.log_my_own_number.today_after",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.log_my_own_number.log_porridge failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.log_pizza",
+      "stage": "behavior",
+      "required": true,
+      "status": "failed",
+      "summary": "log_food returned {'amount': '2 slices', 'calories': 600, 'calories_are_an_estimate': True, 'eaten_on': '2026-09-25', 'explanation': 'A typical slice of pepperoni pizza from a 14\" pie is about 300 calories, so two slices ≈ 600.', 'id': 'rec_45d48a24653846c5afbe87a117ad5b01', 'meal': 'Dinner', 'revision': 1, 'what_i_ate': 'pepperoni pizza', 'when': '2026-09-25T12:00:00+01:00'}, expected {'id': '*', 'revision': '*'}",
+      "detail": {
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "pepperoni pizza",
+          "amount": "2 slices",
+          "meal": "Dinner",
+          "when": "2026-09-25"
+        },
+        "expect": "succeeded",
+        "state": "succeeded",
+        "run_id": "run_4f971cbe813845f5894a93813703b366",
+        "output": {
+          "amount": "2 slices",
+          "calories": 600,
+          "calories_are_an_estimate": true,
+          "eaten_on": "2026-09-25",
+          "explanation": "A typical slice of pepperoni pizza from a 14\" pie is about 300 calories, so two slices ≈ 600.",
+          "id": "rec_45d48a24653846c5afbe87a117ad5b01",
+          "meal": "Dinner",
+          "revision": 1,
+          "what_i_ate": "pepperoni pizza",
+          "when": "2026-09-25T12:00:00+01:00"
+        },
+        "expected_output": {
+          "id": "*",
+          "revision": "*"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.saved_pizza",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.fix_pizza",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.saved_fix",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.yesterday",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.week_trends",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.correct_and_browse.month_trends",
+      "stage": "behavior",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: behavior.correct_and_browse.log_pizza failed",
+      "detail": {},
+      "evidence": []
+    },
+    {
+      "id": "behavior.refuses_missing_amount.log_pasta",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "log_food failed as expected",
+      "detail": {
+        "action": "log_food",
+        "input": {
+          "what_i_ate": "pasta",
+          "amount": ""
+        },
+        "expect": "failed",
+        "state": "failed",
+        "run_id": "run_8342019082ac4d2d8f84c11629795029",
+        "failure": {
+          "state": "failed",
+          "reason": "handler_exception",
+          "error": {
+            "code": "handler_exception",
+            "message": "ValueError: Amount is needed.",
+            "traceback": "Traceback (most recent call last):\n  File \"/Users/kenil/Desktop/dev/alpha/alpha-g1/.alpha-runtime/profiles/pyprof-391f9ca6e9db5bc54576/venv/lib/python3.13/site-packages/alpha_app_worker/runner.py\", line 168, in run_invoke\n    result = function(context, **payload)\n  File \"/Users/kenil/Desktop/dev/alpha/g1-run/data/builds/build_96d62258e0e2426bbb00d0f12f2ca197/attempt-1/version/ver_28ac959cb08698ba0fe6dd4b/src/app_code/handlers.py\", line 134, in log_food\n    portion = _text(amount, \"Amount\")\n  File \"/Users/kenil/Desktop/dev/alpha/g1-run/data/builds/build_96d62258e0e2426bbb00d0f12f2ca197/attempt-1/version/ver_28ac959cb08698ba0fe6dd4b/src/app_code/handlers.py\", line 24, in _text\n    raise ValueError(f\"{label} is needed.\")\nValueError: Amount is needed.\n"
+          }
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "behavior.refuses_missing_amount.nothing_saved",
+      "stage": "behavior",
+      "required": true,
+      "status": "passed",
+      "summary": "0 food_entries record(s) saved as expected",
+      "detail": {
+        "collection": "food_entries",
+        "count": 0,
+        "values": []
+      },
+      "evidence": []
+    },
+    {
+      "id": "ui.not_run",
+      "stage": "ui",
+      "required": true,
+      "status": "skipped",
+      "summary": "not run: the behaviour checks did not pass",
+      "detail": {},
+      "evidence": []
+    }
+  ],
+  "supplementary": [
+    {
+      "id": "candidate_tests",
+      "stage": "tests",
+      "required": false,
+      "status": "passed",
+      "summary": "7 candidate test(s); all passed (supplementary, not acceptance evidence)",
+      "detail": {
+        "present": true,
+        "ran": 7,
+        "ok": true,
+        "failures": [],
+        "skipped": 0,
+        "log_tail": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.000s\n\nOK\n"
+      },
+      "evidence": []
+    }
+  ],
+  "qualification_requests": [],
+  "unresolved_limits": [
+    "App and builder processes are not yet OS-sandboxed (F20)"
+  ],
+  "passed": false
+}

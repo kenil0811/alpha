@@ -1,0 +1,237 @@
+contract_version: '0.2'
+app_id: fits-in-today-planner-e40b8e
+name: Fits In Today Planner
+description: Turns a pasted to-do list with rough times into a plan that fits the hours
+  you have today, in the order you pasted, and says what won't fit.
+runtime_profile: pyprof-391f9ca6e9db5bc54576
+sdk_version: 0.1.0
+capabilities:
+- records
+collections:
+- name: plans
+  description: Stays empty on purpose, because each run plans afresh and keeps nothing.
+  fields:
+  - name: plan_text
+    kind: text
+    required: true
+    max_length: 4000
+actions:
+- id: read_list
+  title: Read my pasted to-do list
+  description: Reads your pasted list one item per line, keeps the pasted order as the
+    order of importance, and pulls out each rough time (90m, 1.5h, 1:30). A line with
+    no time is given 30 minutes, marked as an estimate you can correct.
+  handler: app_code.handlers:read_list
+  invocable_from:
+  - manual
+  - assistant
+  effect_class: none
+  capability_requirements: []
+  timeout_seconds: 30
+  retry_class: pure
+  input_schema:
+    type: object
+    required:
+    - list
+    - hours_available
+    additionalProperties: false
+    properties:
+      list:
+        type: string
+        minLength: 1
+        description: Your to-do list, one item per line, most important first, with a
+          rough time such as 90m, 1.5h or 1:30.
+      hours_available:
+        type:
+        - number
+        - 'null'
+        description: How many hours you have available today, for example 4.
+  output_schema:
+    type: object
+    required:
+    - items
+    properties:
+      items:
+        type: array
+        items:
+          type: object
+          required:
+          - name
+          - duration_minutes
+          - estimated
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      hours_available:
+        type: number
+      available_minutes:
+        type: integer
+      total_minutes:
+        type: integer
+- id: fit_plan
+  title: Fit my list into today's hours
+  description: Goes down your pasted list in order and adds each item whole while the
+    running total stays within the hours you have. An item too long for the time left
+    is set aside for "won't fit" and smaller items behind it can still use the gap.
+  handler: app_code.handlers:fit_plan
+  invocable_from:
+  - manual
+  - assistant
+  effect_class: none
+  capability_requirements: []
+  timeout_seconds: 30
+  retry_class: pure
+  input_schema:
+    type: object
+    required:
+    - list
+    - hours_available
+    additionalProperties: false
+    properties:
+      list:
+        type: string
+        minLength: 1
+        description: Your to-do list, one item per line, most important first, with a
+          rough time such as 90m, 1.5h or 1:30.
+      hours_available:
+        type:
+        - number
+        - 'null'
+        description: How many hours you have available today, for example 4.
+  output_schema:
+    type: object
+    required:
+    - plan
+    - wont_fit
+    - total_minutes
+    - short_by_minutes
+    properties:
+      plan:
+        type: array
+        items:
+          type: object
+          required:
+          - name
+          - duration_minutes
+          - running_minutes
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            running_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      wont_fit:
+        type: array
+        items:
+          type: object
+          required:
+          - name
+          - duration_minutes
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      items:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      total_minutes:
+        type: integer
+      short_by_minutes:
+        type: integer
+      available_minutes:
+        type: integer
+      minutes_spare:
+        type: integer
+      hours_available:
+        type: number
+- id: report_plan
+  title: Write up the plan to read
+  description: Writes the plan back in order with each item's time and the total used
+    against the hours you have, then a short "won't fit today" list with the time each
+    leftover needs and the total time you are short.
+  handler: app_code.handlers:report_plan
+  invocable_from:
+  - manual
+  - assistant
+  effect_class: none
+  capability_requirements: []
+  timeout_seconds: 30
+  retry_class: pure
+  input_schema:
+    type: object
+    required:
+    - plan
+    - hours_available
+    additionalProperties: false
+    properties:
+      plan:
+        type: array
+        description: The planned items in order, each with its name, time in minutes and
+          running total.
+        items:
+          type: object
+          required:
+          - name
+          - duration_minutes
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            running_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      wont_fit:
+        type:
+        - array
+        - 'null'
+        description: The items that won't fit today, each with the time it needs.
+        items:
+          type: object
+          required:
+          - name
+          - duration_minutes
+          properties:
+            name:
+              type: string
+            duration_minutes:
+              type: integer
+            estimated:
+              type: boolean
+      hours_available:
+        type:
+        - number
+        - 'null'
+        description: How many hours you have available today, for example 4.
+  output_schema:
+    type: object
+    required:
+    - plan_text
+    properties:
+      plan_text:
+        type: string
+      summary:
+        type: string
+      total_minutes:
+        type: integer
+      short_by_minutes:
+        type: integer

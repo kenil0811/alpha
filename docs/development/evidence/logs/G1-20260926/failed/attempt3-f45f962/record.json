@@ -1,0 +1,187 @@
+{
+  "why_stopped": "Every behaviour check failed because the plan expected {'id': '*', 'revision': '*'} and '*' was compared literally; the run was stopped (Core SIGTERM) at the start of its first repair so the builder would not be asked to game the check. Fixed at f7dada6.",
+  "conversation_turns": [
+    {
+      "sequence": 1,
+      "role": "user",
+      "kind": "request",
+      "content_json": "{\"text\": \"Track what I eat and how much, with calories, history and trends\"}",
+      "created_at": "2026-09-26T10:40:43.515403Z"
+    },
+    {
+      "sequence": 2,
+      "role": "assistant",
+      "kind": "assistant",
+      "content_json": "{\"reply\":\"I'll build a food log app: quick entry, a per-day history you can edit, and calorie totals with a weekly trend. Calories will be estimated from what you type and clearly marked as an estimate you can correct, since no food database is connected. Two quick things before I start:\",\"delivery\":\"app\",\"interpretation\":{\"outcome\":\"A small food log on your Mac where you record what you ate and how much, see calories, and watch daily and weekly trends.\",\"main_input\":\"Short typed entries as you eat, e.g. \\\"2 eggs on toast\\\" or \\\"200g chicken salad\\\".\",\"useful_result\":\"Today's running calorie total, a history you can scroll and correct, and a trend over recent weeks.\",\"important_assumptions\":[\"Calories are estimated from your description and shown as an editable estimate, not looked up in a food database.\",\"Entries are grouped by day and tagged breakfast, lunch, dinner or snack.\"]},\"questions\":[{\"id\":\"calorie_entry\",\"question\":\"Should Alpha estimate calories from your description, or do you prefer to type the number yourself?\",\"options\":[\"Estimate for me, I'll correct when it's off\",\"I'll type calories myself\",\"Estimate, but let me type it when I know it\"],\"why_it_matters\":\"It decides whether logging is one step or two, and how accurate totals are.\"},{\"id\":\"amount_style\",\"question\":\"How do you usually describe amounts?\",\"options\":[\"Weights and volumes (200g, 300ml)\",\"Everyday portions (1 bowl, 2 slices)\",\"Both, whatever is quicker\"],\"why_it_matters\":\"It sets what the amount field accepts so entry stays fast.\"}],\"model\":\"claude-opus-5[1m]\",\"usage\":{\"input_tokens\":4,\"output_tokens\":6562,\"cache_read_input_tokens\":8264,\"cache_creation_input_tokens\":5526,\"turns\":3,\"duration_ms\":71434,\"cost_usd\":0.223462,\"cost_basis\":\"subscription_unmetered\",\"models\":{\"claude-opus-5[1m]\":{\"inputTokens\":4,\"outputTokens\":6562,\"costUSD\":0.223462}}},\"brief_revision\":1}",
+      "created_at": "2026-09-26T10:41:55.363720Z"
+    },
+    {
+      "sequence": 3,
+      "role": "user",
+      "kind": "answer",
+      "content_json": "{\"use_defaults\": true}",
+      "created_at": "2026-09-26T10:41:56.057084Z"
+    },
+    {
+      "sequence": 4,
+      "role": "assistant",
+      "kind": "assistant",
+      "content_json": "{\"reply\":\"Done \\u2014 defaults applied, nothing left open. Alpha will estimate calories from what you type, mark them as estimates, and let you overwrite the number whenever you know it. The amount box accepts anything: 200g, 300ml, 1 bowl, 2 slices. You get a today screen with a running total, history you can scroll back through and edit, and 7- and 30-day trends with your daily average. One limit worth knowing: no food database is connected, so calorie figures are informed estimates rather than looked-up values. Goals, favourite meals and macros are left out for now and easy to add later.\",\"delivery\":\"app\",\"interpretation\":{\"outcome\":\"A food log on your Mac: quick entry, calories per item, day-by-day history and calorie trends.\",\"main_input\":\"Short typed descriptions of what you ate and how much, entered as you go.\",\"useful_result\":\"Today's entries with a running calorie total, any past day browsable and editable, and 7- and 30-day totals with your daily average.\",\"important_assumptions\":[\"Alpha estimates calories from your description and amount, clearly marked as an estimate; you can overwrite the number any time.\",\"The amount box takes whatever you type: 200g, 300ml, 1 bowl, 2 slices.\",\"Meal (breakfast, lunch, dinner, snack) is filled in from the time of day and can be changed.\",\"Everything stays on this Mac.\"]},\"questions\":[],\"model\":\"claude-opus-5[1m]\",\"usage\":{\"input_tokens\":2,\"output_tokens\":2903,\"cache_read_input_tokens\":4679,\"cache_creation_input_tokens\":4074,\"turns\":2,\"duration_ms\":29072,\"cost_usd\":0.1156645,\"cost_basis\":\"subscription_unmetered\",\"models\":{\"claude-opus-5[1m]\":{\"inputTokens\":2,\"outputTokens\":2903,\"costUSD\":0.1156645}}},\"brief_revision\":2}",
+      "created_at": "2026-09-26T10:42:25.375293Z"
+    }
+  ],
+  "creations": [
+    {
+      "creation_id": "create_1a17ec7ff12846b396323a712b648080",
+      "app_id": "calorie-food-log-1a17ec",
+      "app_name": "Calorie Food Log",
+      "state": "building",
+      "history_json": "[{\"stage\": \"planning\", \"label\": \"Writing the checks it must pass\", \"at\": \"2026-09-26T10:42:26.314680Z\"}, {\"stage\": \"building\", \"label\": \"Building it\", \"at\": \"2026-09-26T10:43:02.965512Z\"}, {\"stage\": \"building\", \"label\": \"Waiting for the builder\", \"at\": \"2026-09-26T10:43:02.965935Z\"}, {\"stage\": \"building\", \"label\": \"Building it\", \"at\": \"2026-09-26T10:43:03.470988Z\"}, {\"stage\": \"checking\", \"label\": \"Checking that it works\", \"at\": \"2026-09-26T10:52:47.818391Z\"}, {\"stage\": \"building\", \"label\": \"Building it\", \"at\": \"2026-09-26T10:52:57.897250Z\"}]",
+      "failure_json": null
+    }
+  ],
+  "builds": [
+    {
+      "build_id": "build_96d62258e0e2426bbb00d0f12f2ca197",
+      "state": "failed",
+      "terminal_reason": "runtime_quit",
+      "failure_category": "interrupted",
+      "created_at": "2026-09-26T10:43:02.961782Z",
+      "updated_at": "2026-09-26T10:55:16.608730Z"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": "attempt_30ffb6e9f3f2466b8ec4640235cdbf03",
+      "number": 1,
+      "status": "failed",
+      "failure_category": "validation_failed",
+      "started_at": "2026-09-26T10:43:02.969574Z",
+      "finished_at": "2026-09-26T10:52:57.883252Z",
+      "usage_json": "{\"input_tokens\":86,\"output_tokens\":42881,\"cache_read_input_tokens\":2238862,\"cache_creation_input_tokens\":71081,\"turns\":47,\"duration_ms\":584383,\"cost_usd\":2.902696,\"cost_basis\":\"subscription_unmetered\",\"models\":{\"claude-opus-5[1m]\":{\"inputTokens\":86,\"outputTokens\":42881,\"cacheReadInputTokens\":2238862,\"cacheCreationInputTokens\":71081,\"costUSD\":2.902696}}}"
+    },
+    {
+      "attempt_id": "attempt_5eea6645cdfc47caa12a97a3fadf415c",
+      "number": 2,
+      "status": "interrupted",
+      "failure_category": "interrupted",
+      "started_at": "2026-09-26T10:52:57.886687Z",
+      "finished_at": "2026-09-26T10:55:16.608569Z",
+      "usage_json": null
+    }
+  ],
+  "model_usage": [
+    {
+      "usage_id": "usage_0ad300fa2d91418abd69b8feb1b1352e",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_1857a80810a04013bab3a6651b7ac78c",
+      "input_tokens": 4,
+      "output_tokens": 6562,
+      "cache_read_input_tokens": 8264,
+      "cache_creation_input_tokens": 5526,
+      "turns": 3,
+      "duration_ms": 71434,
+      "cost_usd": 0.223462,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.223462, \"inputTokens\": 4, \"outputTokens\": 6562}}",
+      "recorded_at": "2026-09-26T10:41:55.363096Z"
+    },
+    {
+      "usage_id": "usage_4b5b3004a6064ef9adf138ad2ed2cd7e",
+      "route_id": "claude-code-cli",
+      "scope_kind": "assistant_turn",
+      "scope_ref": "conv_1857a80810a04013bab3a6651b7ac78c",
+      "input_tokens": 2,
+      "output_tokens": 2903,
+      "cache_read_input_tokens": 4679,
+      "cache_creation_input_tokens": 4074,
+      "turns": 2,
+      "duration_ms": 29072,
+      "cost_usd": 0.1156645,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.1156645, \"inputTokens\": 2, \"outputTokens\": 2903}}",
+      "recorded_at": "2026-09-26T10:42:25.374547Z"
+    },
+    {
+      "usage_id": "usage_f854c332ffbe4eb08ffa082fc8f59abc",
+      "route_id": "claude-code-cli",
+      "scope_kind": "acceptance_plan",
+      "scope_ref": "create_1a17ec7ff12846b396323a712b648080",
+      "input_tokens": 2,
+      "output_tokens": 3265,
+      "cache_read_input_tokens": 3799,
+      "cache_creation_input_tokens": 3430,
+      "turns": 2,
+      "duration_ms": 36408,
+      "cost_usd": 0.1178345,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.1178345, \"inputTokens\": 2, \"outputTokens\": 3265}}",
+      "recorded_at": "2026-09-26T10:43:02.960496Z"
+    },
+    {
+      "usage_id": "usage_5fd80ad93dc64954a11b9d05ca8952d1",
+      "route_id": "claude-code-cli",
+      "scope_kind": "build_attempt",
+      "scope_ref": "attempt_30ffb6e9f3f2466b8ec4640235cdbf03",
+      "input_tokens": 86,
+      "output_tokens": 42881,
+      "cache_read_input_tokens": 2238862,
+      "cache_creation_input_tokens": 71081,
+      "turns": 47,
+      "duration_ms": 584383,
+      "cost_usd": 2.902696,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"cacheCreationInputTokens\": 71081, \"cacheReadInputTokens\": 2238862, \"costUSD\": 2.902696, \"inputTokens\": 86, \"outputTokens\": 42881}}",
+      "recorded_at": "2026-09-26T10:52:47.683078Z"
+    },
+    {
+      "usage_id": "usage_eb3b71655b3e4ef8b159d3b1900d699f",
+      "route_id": "claude-code-cli",
+      "scope_kind": "app_run",
+      "scope_ref": "run_da3ffdc5c77b4ca28a6e0bebf7285d07",
+      "input_tokens": 2,
+      "output_tokens": 325,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 1152,
+      "turns": 2,
+      "duration_ms": 5330,
+      "cost_usd": 0.019655,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.019655, \"inputTokens\": 2, \"outputTokens\": 325}}",
+      "recorded_at": "2026-09-26T10:52:53.752160Z"
+    },
+    {
+      "usage_id": "usage_aa895ba3be13441d9d1bb9976bbd655d",
+      "route_id": "claude-code-cli",
+      "scope_kind": "app_run",
+      "scope_ref": "run_4f971cbe813845f5894a93813703b366",
+      "input_tokens": 2,
+      "output_tokens": 114,
+      "cache_read_input_tokens": 600,
+      "cache_creation_input_tokens": 557,
+      "turns": 2,
+      "duration_ms": 3407,
+      "cost_usd": 0.00873,
+      "cost_basis": "subscription_unmetered",
+      "models_json": "{\"claude-opus-5[1m]\": {\"costUSD\": 0.00873, \"inputTokens\": 2, \"outputTokens\": 114}}",
+      "recorded_at": "2026-09-26T10:52:57.703268Z"
+    },
+    {
+      "usage_id": "usage_d6a5547468db44ffae9336a9b0d13843",
+      "route_id": "claude-code-cli",
+      "scope_kind": "build_attempt",
+      "scope_ref": "attempt_5eea6645cdfc47caa12a97a3fadf415c",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "turns": 0,
+      "duration_ms": 0,
+      "cost_usd": null,
+      "cost_basis": "unavailable",
+      "models_json": "{}",
+      "recorded_at": "2026-09-26T10:55:16.585426Z"
+    }
+  ]
+}

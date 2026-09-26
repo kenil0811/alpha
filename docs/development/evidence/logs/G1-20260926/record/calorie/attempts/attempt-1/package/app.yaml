@@ -1,0 +1,178 @@
+contract_version: "0.2"
+app_id: "daily-food-log-804d78"
+name: "Daily Food Log"
+description: "Log what you eat with amounts and calories, see today's total, look back at past days and watch the daily trend."
+runtime_profile: "pyprof-391f9ca6e9db5bc54576"
+sdk_version: "0.1.0"
+capabilities: [records, models]
+collections:
+  - name: food_entries
+    description: One record per thing eaten, so days can be totalled and trends drawn.
+    fields:
+      - {name: when, kind: date, required: true}
+      - {name: eaten_at, kind: text, max_length: 5}
+      - {name: food, kind: text, required: true, max_length: 400}
+      - {name: amount, kind: text, required: true, max_length: 120}
+      - {name: calories, kind: number, required: true, minimum: 0, maximum: 20000}
+      - {name: calories_are_estimate, kind: boolean}
+      - {name: meal, kind: choice, choices: [breakfast, lunch, dinner, snack]}
+actions:
+  - id: estimate_calories
+    title: Estimate calories
+    description: Estimate the calories in a food and amount; the figure is an estimate you can overwrite.
+    handler: app_code.handlers:estimate_calories
+    invocable_from: [ui, assistant, manual]
+    effect_class: external_read
+    capability_requirements: [models]
+    timeout_seconds: 120
+    retry_class: pure
+    input_schema:
+      type: object
+      required: [food, amount]
+      additionalProperties: false
+      properties:
+        food: {type: string, minLength: 1, maxLength: 400}
+        amount: {type: string, minLength: 1, maxLength: 120}
+    output_schema:
+      type: object
+      required: [estimated_calories, estimate_label]
+      properties:
+        estimated_calories: {type: number}
+        estimate_label: {type: string}
+        food: {type: string}
+        amount: {type: string}
+  - id: log_entry
+    title: Add an entry
+    description: Save one thing eaten, using your calorie number when you typed one and an estimate otherwise.
+    handler: app_code.handlers:log_entry
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records, models]
+    timeout_seconds: 120
+    retry_class: requires_reconciliation
+    input_schema:
+      type: object
+      required: [food, amount]
+      additionalProperties: false
+      properties:
+        food: {type: string, maxLength: 400}
+        amount: {type: string, maxLength: 120}
+        when: {type: [string, "null"]}
+        eaten_at: {type: [string, "null"]}
+        calories: {type: [number, "null"], minimum: 0, maximum: 20000}
+        meal: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision, day_total]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        day_total: {type: number}
+        date: {type: string}
+        calories_are_estimate: {type: boolean}
+        entry: {type: object}
+  - id: correct_entry
+    title: Fix or remove an entry
+    description: Change the food, amount, day, time, meal or calorie number of an entry, or delete it.
+    handler: app_code.handlers:correct_entry
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [entry]
+      additionalProperties: false
+      properties:
+        entry: {type: string, minLength: 1}
+        food: {type: [string, "null"], maxLength: 400}
+        amount: {type: [string, "null"], maxLength: 120}
+        when: {type: [string, "null"]}
+        eaten_at: {type: [string, "null"]}
+        calories: {type: [number, "null"], minimum: 0, maximum: 20000}
+        meal: {type: [string, "null"]}
+        delete: {type: [boolean, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision, day_total]
+      properties:
+        id: {type: string}
+        revision: {type: integer}
+        day_total: {type: number}
+        date: {type: string}
+        deleted: {type: boolean}
+        entry: {type: [object, "null"]}
+  - id: day_view
+    title: Show a day
+    description: List everything eaten on one day in time order with that day's calorie total.
+    handler: app_code.handlers:day_view
+    invocable_from: [ui, assistant, manual]
+    effect_class: none
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: pure
+    input_schema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        date: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [date, entries, day_total]
+      properties:
+        date: {type: string}
+        entries: {type: array, items: {type: object}}
+        day_total: {type: number}
+        entry_count: {type: integer}
+  - id: trends
+    title: Show the trend
+    description: Daily calorie totals for the last days, with the average per day.
+    handler: app_code.handlers:trends
+    invocable_from: [ui, assistant, manual]
+    effect_class: none
+    capability_requirements: [records]
+    timeout_seconds: 30
+    retry_class: pure
+    input_schema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        days: {type: [integer, "null"], minimum: 1, maximum: 366}
+    output_schema:
+      type: object
+      required: [days, daily_totals, average_per_day]
+      properties:
+        days: {type: integer}
+        daily_totals:
+          type: array
+          items:
+            type: object
+            properties:
+              date: {type: string}
+              total: {type: [number, "null"]}
+              logged: {type: boolean}
+        average_per_day: {type: number}
+        total_calories: {type: number}
+        days_logged: {type: integer}
+ui:
+  entry: ui/src/main.tsx
+  build_profile: "uiprof-5a3bad2e0741affeb06b"
+  kit_version: "0.1.0"
+  bridge_version: "0.2.0"
+  views:
+    - id: food_entries.by_day
+      collection: food_entries
+      fields: [when, eaten_at, food, amount, calories, calories_are_estimate, meal]
+      filterable: [when, meal]
+      sortable: [when, eaten_at, created_at]
+      default_order: [{field: when, direction: desc}, {field: created_at, direction: asc}]
+      max_limit: 100
+    - id: food_entries.daily
+      kind: aggregate
+      collection: food_entries
+      group_by: [{field: when}]
+      metrics: [{name: total, fn: sum, field: calories}, {name: entries, fn: count}]
+  actions: [estimate_calories, log_entry, correct_entry]

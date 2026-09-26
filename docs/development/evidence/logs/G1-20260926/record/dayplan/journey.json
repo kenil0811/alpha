@@ -1,0 +1,9 @@
+{
+  "why": "Written after reading the generated actions' titles, descriptions and inputs as the actions view shows them: paste a real list with rough times and say how many hours I have; also try a blank list.",
+  "actions": [
+    {"action": "fit_plan", "input": {"list": "Finish quarterly report 2h\nCall the bank 20m\nReview Asha's pull request 45m\nGroceries 1h\nBook dentist appointment\nClean out email inbox 1.5h", "hours_available": 4}},
+    {"action": "read_list", "input": {"list": "Water the plants 10m\nPay electricity bill\nPrepare slides 1:30", "hours_available": 2}},
+    {"action": "fit_plan", "input": {"list": "   ", "hours_available": 3}, "expect": "failed"}
+  ],
+  "reopen_action": {"action": "fit_plan", "input": {"list": "Write thank-you notes 40m\nReturn library books 25m\nFix the leaking tap 1h", "hours_available": 1.5}}
+}

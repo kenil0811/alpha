@@ -221,8 +221,11 @@ def test_created_results_and_their_data_reopen_after_a_restart(
 
         with core.client() as client:
             stale = client.get(f"/api/creations/{unfinished['creation_id']}").json()
+        # Either the creation saw its build interrupted by the shutdown (runtime_quit) before
+        # Core exited, or the next start reconciled it (core_restarted). Both end the same way:
+        # failed, retry offered, never revived.
         assert stale["state"] == "failed"
-        assert stale["failure"]["reason"] == "core_restarted"
+        assert stale["failure"]["reason"] in {"core_restarted", "runtime_quit"}, stale["failure"]
         assert stale["failure"]["next_step"] == "retry"
         assert stale["app_id"] not in apps(core), "an unfinished creation never becomes active"
         record_evidence("f08-reopen", {"before": before, "after": after, "unfinished": stale})
