@@ -99,7 +99,7 @@ Keep the person's input after a failure, keep focus where they were, and let Ent
 | `Section` | `title`, `description`, `actions` | titled region (`h2`) |
 | `Stack`, `Cluster`, `Columns` | layout only | `Columns` stacks on narrow windows |
 | `Button` | `variant` primary/secondary/danger/ghost, `busy`, `busyLabel`, `small` | real `<button>`; busy = disabled + `aria-busy` |
-| `TextField`, `NumberField`, `DateField`, `SelectField`, `TextAreaField`, `CheckboxField` | `label`, `hint`, `error`, `required` | label, hint and error are wired with ids; errors are announced |
+| `TextField`, `NumberField`, `DateField`, `SelectField`, `TextAreaField`, `CheckboxField` | `label`, `hint`, `error`, `required`; `NumberField` takes `value` + `onValueChange={(text) => …}`, the others take the native `value` + `onChange={(e) => setX(e.target.value)}` (never a state setter directly) | label, hint and error are wired with ids; errors are announced |
 | `Field` | render function receiving `{ id, aria-describedby, aria-invalid }` | for custom controls |
 | `Form` | `onSubmit`, `label` | Enter in a single-line field or a submit `Button` submits; works in the sandbox |
 | `parseNumber(text)` | → `{ ok, value }` or `{ ok: false, message }` | keeps what the person typed |
