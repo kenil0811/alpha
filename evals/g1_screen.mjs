@@ -9,7 +9,8 @@
 //
 // Usage: node evals/g1_screen.mjs <job.json>   (writes JSON lines; the last is the result)
 //   job: {core_url, token, app_id, release_id, dist_dir, bridge_dir, browser, timezone, grant,
-//         steps: [{kind: fill|select|check|click|press|wait_text|shot, label?, text?, key?}],
+//         steps: [{kind: fill|select|check|click|press|wait_text|shot, label?, text?, key?,
+//                  exact? (click: the whole accessible name, not a part of it)}],
 //         widths?: [1280, 768], evidence_dir, name}
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, normalize } from "node:path";
@@ -178,9 +179,9 @@ async function control(frame, kind, name) {
   }
   return frame.getByRole(CONTROL_ROLES[kind][0], { name: label(name) }).first();
 }
-async function clickable(frame, name) {
+async function clickable(frame, name, exact = false) {
   for (const role of ["button", "link", "tab", "menuitem", "option"]) {
-    const found = frame.getByRole(role, { name: label(name) });
+    const found = frame.getByRole(role, exact ? { name, exact: true } : { name: label(name) });
     if ((await found.count()) > 0) return found.first();
   }
   return frame.getByRole("button", { name: label(name) }).first();
@@ -220,7 +221,7 @@ try {
       if (step.kind === "fill") await (await control(frame, "fill", step.label)).fill(step.text, { timeout: 8_000 });
       else if (step.kind === "select") await (await control(frame, "select", step.label)).selectOption({ label: step.text }, { timeout: 8_000 });
       else if (step.kind === "check") await (await control(frame, "check", step.label)).check({ timeout: 8_000 });
-      else if (step.kind === "click") await (await clickable(frame, step.label)).click({ timeout: 8_000 });
+      else if (step.kind === "click") await (await clickable(frame, step.label, step.exact === true)).click({ timeout: 8_000 });
       else if (step.kind === "press") await page.keyboard.press(step.key);
       else if (step.kind === "wait_text") await frame.getByText(label(step.text)).first().waitFor({ state: "visible", timeout: step.timeout_ms ?? 120_000 });
       else if (step.kind === "shot") entry.screenshot = await shot(page, step.text);
