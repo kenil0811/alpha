@@ -88,7 +88,8 @@ ctx.records.create(
 ```
 
 `fields` use the same field kinds as collections. Pass the result in `estimated` so the saved
-value is labelled an estimate the person can correct. At most 10 model calls per run.
+value is labelled an estimate the person can correct. At most 10 model calls per run. A call
+usually takes a few seconds; give an action that makes several calls `timeout_seconds: 120`.
 
 ## Artifacts
 

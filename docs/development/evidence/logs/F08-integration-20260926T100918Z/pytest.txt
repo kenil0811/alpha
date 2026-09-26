@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.9, pytest-9.1.1, pluggy-1.6.0 -- /Users/kenil/Desktop/dev/alpha/alpha-platform/.venv/bin/python
+rootdir: /Users/kenil/Desktop/dev/alpha/alpha-platform
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 6 items
+
+tests/integration/test_creations.py::test_a_brief_becomes_an_active_app_with_its_own_screen PASSED [ 16%]
+tests/integration/test_creations.py::test_an_app_without_its_own_screen_is_used_through_its_actions PASSED [ 33%]
+tests/integration/test_creations.py::test_created_results_and_their_data_reopen_after_a_restart PASSED [ 50%]
+tests/integration/test_creations.py::test_a_builder_that_changes_the_assigned_identity_is_refused PASSED [ 66%]
+tests/integration/test_creations.py::test_activation_is_compare_and_swap_on_the_current_release PASSED [ 83%]
+tests/integration/test_creations.py::test_two_created_results_share_a_profile_with_independent_data_and_scratch PASSED [100%]
+
+============================== 6 passed in 22.22s ==============================

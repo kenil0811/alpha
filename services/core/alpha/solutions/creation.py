@@ -147,6 +147,9 @@ def build_instructions(brief: SolutionBrief, *, with_ui: bool, app_name: str) ->
         ]
     lines += [
         "",
+        "PLAN.md is what Alpha will check. Where it names an action, input, collection, field "
+        "or label differently from the notes above, use PLAN.md's name.",
+        "",
         "Build a screen for this App (ui/src/main.tsx) using the labels PLAN.md names."
         if with_ui
         else "This App has no custom screen: leave ui out of app.yaml. People run its actions "

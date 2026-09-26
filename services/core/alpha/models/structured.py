@@ -19,6 +19,51 @@ from alpha_contracts.builds import BuildUsage, CostBasis
 
 from alpha.models.gateway import ModelGateway, ModelRoute
 
+# The JSON Schema keywords the CLI's strict validator knows. Anything else (Pydantic's
+# `discriminator`, a vendor extension) makes the CLI refuse the whole call before the model runs,
+# so it is dropped; `format` is dropped too, since unknown formats are also refused. The caller's
+# Pydantic model validates the result against the full schema afterwards.
+_SCHEMA_KEYWORDS = frozenset(
+    {
+        "$schema", "$id", "$ref", "$defs", "$comment", "$anchor", "definitions",
+        "type", "enum", "const", "title", "description", "default", "examples",
+        "properties", "required", "additionalProperties", "patternProperties", "propertyNames",
+        "minProperties", "maxProperties", "dependentRequired", "dependentSchemas",
+        "items", "prefixItems", "minItems", "maxItems", "uniqueItems", "contains",
+        "minContains", "maxContains", "unevaluatedItems", "unevaluatedProperties",
+        "minLength", "maxLength", "pattern",
+        "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+        "anyOf", "oneOf", "allOf", "not", "if", "then", "else",
+        "readOnly", "writeOnly", "deprecated",
+    }
+)  # fmt: skip
+_SCHEMA_MAPS = {"properties", "patternProperties", "$defs", "definitions", "dependentSchemas"}
+_SCHEMA_LISTS = {"anyOf", "oneOf", "allOf", "prefixItems"}
+_SCHEMA_ONE = {
+    "items", "not", "if", "then", "else", "contains", "propertyNames",
+    "additionalProperties", "unevaluatedProperties", "unevaluatedItems",
+}  # fmt: skip
+
+
+def cli_schema(schema: Any) -> Any:
+    """A copy of `schema` holding only standard JSON Schema keywords, walked structurally so a
+    property that happens to be named like a keyword is kept."""
+    if not isinstance(schema, dict):
+        return schema
+    clean: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key not in _SCHEMA_KEYWORDS:
+            continue
+        if key in _SCHEMA_MAPS and isinstance(value, dict):
+            clean[key] = {name: cli_schema(sub) for name, sub in value.items()}
+        elif key in _SCHEMA_LISTS and isinstance(value, list):
+            clean[key] = [cli_schema(sub) for sub in value]
+        elif key in _SCHEMA_ONE:
+            clean[key] = cli_schema(value)
+        else:
+            clean[key] = value
+    return clean
+
 
 class InferenceError(Exception):
     def __init__(self, code: str, message: str) -> None:
@@ -105,7 +150,7 @@ class StructuredInference:
             "--output-format",
             "json",
             "--json-schema",
-            json.dumps(schema),
+            json.dumps(cli_schema(schema)),
             "--system-prompt",
             system,
             "--tools",
