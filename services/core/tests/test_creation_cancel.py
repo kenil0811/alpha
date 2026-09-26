@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from alpha.capabilities.errors import OperationFailed
 from alpha.solutions.creation import CreationRoutes, CreationService
-from alpha.solutions.planner import AcceptancePlan
+from alpha.solutions.planner import AcceptancePlan, PlanningFailed
 from alpha.storage.control_store import ControlStore
 from alpha_contracts.briefs import SolutionBrief
 from alpha_contracts.builds import BuildState
@@ -214,3 +214,23 @@ def test_stop_after_completion_is_refused_plainly(tmp_path: Path) -> None:
     assert svc.get(creation_id).state == "active"
     with pytest.raises(OperationFailed, match="already active"):
         svc.cancel(creation_id)
+
+
+def test_a_planning_failure_is_told_plainly_with_the_gaps_kept(tmp_path: Path) -> None:
+    """Found in M1-R07: the person was shown "the checks are incomplete: the plan never reads
+    what is stored in …". They get a plain sentence; the gaps stay under the checks' details."""
+    svc = service(tmp_path, Builds())
+    gap = "the plan never runs trends successfully"
+
+    def refuse(*_a: object, **_k: object) -> AcceptancePlan:
+        raise PlanningFailed("the checks are incomplete", [gap])
+
+    svc._planner = SimpleNamespace(plan=refuse)  # type: ignore[assignment]
+    failed = svc.get(run_to_end(svc))
+    assert failed.state == "failed"
+    assert failed.failure == {
+        "reason": "plan_unavailable",
+        "message": "Alpha couldn't work out how to check this request, so nothing was made.",
+        "failed_checks": [gap],
+        "next_step": "retry",
+    }

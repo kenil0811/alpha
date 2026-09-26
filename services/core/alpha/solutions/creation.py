@@ -324,7 +324,9 @@ class CreationService:
                 None,
                 {
                     "reason": "plan_unavailable",
-                    "message": f"Alpha could not work out how to check this: {exc}",
+                    "message": "Alpha couldn't work out how to check this request, so nothing "
+                    "was made.",
+                    "failed_checks": exc.problems or [str(exc)],
                     "next_step": "retry",
                 },
             )

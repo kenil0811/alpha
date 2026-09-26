@@ -88,13 +88,29 @@ COMPLETE = plan(LOG, READ, OFFLINE, {**READ, "id": "read2", "count": 2}, TRENDS_
 def test_a_plan_missing_outcomes_is_told_exactly_what_is_missing() -> None:
     assert coverage_problems(plan(LOG), BRIEF) == [
         "the plan never runs log_entry with the model unavailable",
+        "the plan never reads back what log_entry stores",
         "the plan never runs trends successfully",
-        "the plan never reads what is stored in food_entries",
     ]
     assert "the plan never checks a value trends computes" in coverage_problems(
         plan(LOG, READ, OFFLINE, TRENDS_ANY), BRIEF
     ), "wildcards alone do not check a computed result"
     assert coverage_problems(COMPLETE, BRIEF) == []
+
+
+def test_stored_data_is_matched_by_action_not_by_how_the_brief_names_it() -> None:
+    """Found in M1-R07: the brief called the collection "Food entries", the plan read
+    "food_entries", and a complete plan was refused twice."""
+    labelled = BRIEF.model_copy(
+        update={
+            "data_needs": [
+                BRIEF.data_needs[0].model_copy(update={"collection": "Food entries"}),
+            ]
+        }
+    )
+    assert coverage_problems(COMPLETE, labelled) == []
+    # Reading before the write, or only after a failed write, does not count.
+    early = plan({**READ, "count": 0}, LOG, OFFLINE, TRENDS_EXACT)
+    assert coverage_problems(early, labelled) == ["the plan never reads back what log_entry stores"]
 
 
 class Inference:
@@ -123,6 +139,7 @@ def test_an_incomplete_plan_is_rewritten_once_with_the_problems() -> None:
 
 def test_a_plan_still_incomplete_after_one_rewrite_stops_honestly() -> None:
     inference = Inference([plan(LOG), plan(LOG, READ)])
-    with pytest.raises(PlanningFailed, match="incomplete"):
+    with pytest.raises(PlanningFailed, match="incomplete") as failed:
         AcceptancePlanner(inference).plan(BRIEF, ROUTE, "create_1")  # type: ignore[arg-type]
     assert len(inference.prompts) == 2
+    assert "the plan never runs trends successfully" in failed.value.problems

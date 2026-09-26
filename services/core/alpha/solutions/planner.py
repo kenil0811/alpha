@@ -45,7 +45,7 @@ Rules:
 - Missing data is unknown, not zero. An average over days (or weeks, or items) counts only the periods that have entries, and the result says how many periods had entries; a value the person enters as 0 is a real zero. When the brief has such a figure, add a scenario with a gap and assert both numbers exactly.
 - If an action fills a value from a model estimate, add one scenario where that invoke step has "model": "unavailable" (the platform makes the model fail). Then require an honest outcome: either "expect": "failed" followed by a records step showing nothing new was stored, or a stored record whose estimated field is null (null means unknown). Never accept a number there. Also show that a value the person types themselves is saved without the model.
 - Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. Without "custom_ui", set "ui" to null.
-- Cover the whole brief: every action in it runs successfully in some scenario; for an action that computes something (effect "none"), assert at least one exact value it returns; every collection the App keeps is read back by a records step.
+- Cover the whole brief: every action in it runs successfully in some scenario; for an action that computes something (effect "none"), assert at least one exact value it returns; after each action that saves, changes or deletes data, a records step in the same scenario reads back what is stored.
 - Every step id is unique within its scenario, lowercase snake_case.
 - Also give app_name: two to four plain words naming the App for the person.
 
@@ -70,7 +70,9 @@ class AcceptancePlan:
 
 
 class PlanningFailed(Exception):
-    pass
+    def __init__(self, message: str, problems: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.problems = problems or []
 
 
 def wants_ui(brief: SolutionBrief) -> bool:
@@ -115,8 +117,9 @@ def _fixed_value(value: Any) -> bool:
 def coverage_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str]:
     """Every material outcome in the brief has a meaningful assertion (M1 review finding F05):
     each action runs successfully, what a computing action returns is checked with real values,
-    each model-using action is also run with the model unavailable, and what is stored is read
-    back."""
+    each model-using action is also run with the model unavailable, and what each writing action
+    stores is read back. Judged by actions, not collection names: a brief names its data for
+    people ("Food entries"), a plan by storage name ("food_entries") (found in M1-R07)."""
     problems: list[str] = []
     steps = [s for sc in plan.scenarios for s in sc.steps]
     invokes: dict[str, list[InvokeStep]] = {}
@@ -136,14 +139,21 @@ def coverage_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str]:
             problems.append(f"the plan never checks a value {action.id} computes")
         if "models" in action.required_capabilities and not any(s.model != "normal" for s in mine):
             problems.append(f"the plan never runs {action.id} with the model unavailable")
-    writes = any(a.effect_class == "local_write" for a in brief.actions)
-    read = {s.collection for s in steps if isinstance(s, RecordsStep)}
-    if plan.ui is not None and plan.ui.saved is not None:
-        read.add(plan.ui.saved.collection)
-    for need in brief.data_needs if writes else []:
-        if need.collection not in read:
-            problems.append(f"the plan never reads what is stored in {need.collection}")
+        if action.effect_class == "local_write" and not _read_back(plan, action.id):
+            problems.append(f"the plan never reads back what {action.id} stores")
     return problems
+
+
+def _read_back(plan: ValidationPlan, action_id: str) -> bool:
+    """Some scenario runs the action successfully and then reads the stored records."""
+    for scenario in plan.scenarios:
+        wrote = False
+        for step in scenario.steps:
+            if isinstance(step, InvokeStep) and step.action == action_id:
+                wrote = wrote or step.expect == "succeeded"
+            elif wrote and isinstance(step, RecordsStep):
+                return True
+    return False
 
 
 def _star_to_any(value: Any) -> tuple[Any, int]:
@@ -304,7 +314,7 @@ class AcceptancePlanner:
                 + "\n\nIT HAD THESE PROBLEMS:\n- "
                 + "\n- ".join(problems)
             )
-        raise PlanningFailed("the checks are incomplete: " + "; ".join(problems[:5]))
+        raise PlanningFailed("the checks are incomplete", problems[:5])
 
     def _fake(self, brief: SolutionBrief) -> AcceptancePlan:
         plan = plan_from_brief_examples(brief)
