@@ -56,8 +56,11 @@ attempt when REPAIR.md exists. Read these files first:
 - reference/UI_KIT.md: the components your screen must be built from.
 
 Rules:
-- package/app.yaml must keep the exact platform values listed below. Choose app_id (lowercase
-  letters, digits, - or _), name and description yourself, in the person's words.
+- package/app.yaml must keep the exact platform values listed below (app_id included when it
+  is listed). Choose name and description yourself, in the person's words.
+- Each attempt is stopped after a fixed time (see below). Write the smallest code that makes
+  every PLAN.md check pass and serves the goal: the Python package first, then the screen.
+  Leave out features PLAN.md and the goal do not ask for.
 - Python in package/src/ imports only the standard library, alpha_sdk and the package's own
   modules. No file, network, subprocess or environment access: data only through ctx.
 - Every action a screen uses must list ui in invocable_from and appear under ui.actions; every
@@ -325,8 +328,10 @@ class ClaudeCliHarness:
             else "- no UI build profile is installed: build without a custom screen"
         )
         repair = (inputs.workspace / "REPAIR.md").is_file()
+        minutes = max(1, inputs.request.budget.max_attempt_seconds // 60)
         return (
-            f"{PACKAGE_CONTRACT}\nPlatform interpreter: {self._python}\n\n"
+            f"{PACKAGE_CONTRACT}\nPlatform interpreter: {self._python}\n"
+            f"Time for this attempt: {minutes} minutes.\n\n"
             f"Exact platform values for app.yaml:\n{exact}\n{ui_note}\n\n"
             f"GOAL (from the person, plain language):\n{inputs.goal}\n\n"
             f"ADDITIONAL INSTRUCTIONS:\n{inputs.instructions or '(none)'}\n\n"

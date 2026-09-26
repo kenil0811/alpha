@@ -554,7 +554,7 @@ class BuildService:
             )
             if step is None:
                 return  # terminal: cancelled, a harness failure, or ready
-            outcome, attempt_dir, usage = step
+            outcome, attempt_dir, usage, timed_out = step
             if usage is not None and usage.cost_usd is not None:
                 spent_usd += usage.cost_usd
             report = outcome.report
@@ -564,13 +564,18 @@ class BuildService:
                 self._db.fail(
                     build_id,
                     report.attempt_id,
-                    "repair_limit_reached",
-                    self._category_of(report),
+                    "attempt_deadline_exceeded" if timed_out else "repair_limit_reached",
+                    FailureCategory.HARNESS_TIMEOUT if timed_out else self._category_of(report),
                     {"attempts": len(lineage), "failed_checks": _failed_ids(report)},
                     validation=report.model_dump(mode="json"),
                 )
                 return
-            repair = render_repair(report, number, left - 1)
+            repair = render_repair(
+                report,
+                number,
+                left - 1,
+                timed_out_after=attempt_budget.max_attempt_seconds if timed_out else None,
+            )
             feedback = evidence_files(report, attempt_dir)
             previous_package = attempt_dir / "package"
             self._db.transition(
@@ -598,9 +603,9 @@ class BuildService:
         previous_package: Path | None,
         repair: str | None,
         feedback: list[Path],
-    ) -> tuple[VerificationOutcome, Path, BuildUsage | None] | None:
-        """Run one attempt. Returns the failed verification when a repair may follow, or None
-        once the build reached a terminal state."""
+    ) -> tuple[VerificationOutcome, Path, BuildUsage | None, bool] | None:
+        """Run one attempt. Returns the failed verification (and whether the attempt ran out of
+        time) when a repair may follow, or None once the build reached a terminal state."""
         attempt = self._start_attempt(
             record, number, route, budget, targets, previous_package, repair, feedback
         )
@@ -742,7 +747,7 @@ class BuildService:
         lineage: list[str],
         built: BuilderOutcome,
         budget: BuildBudget,
-    ) -> tuple[VerificationOutcome, Path, BuildUsage | None] | None:
+    ) -> tuple[VerificationOutcome, Path, BuildUsage | None, bool] | None:
         """Decide what the attempt means: terminal (cancelled, harness failure, ready) or a
         failed verification a repair may follow."""
         build_id, attempt_id = record.build_id, attempt.attempt_id
@@ -753,6 +758,27 @@ class BuildService:
         if built.status == "cancelled":
             finish("cancelled", FailureCategory.CANCELLED)
             return None  # cancel() already transitioned the build
+        if built.status == "timed_out":
+            # Out of time with work on disk (found in G1: a larger App used the whole attempt).
+            # Check what exists, so the next attempt continues it within the same repair and
+            # total limits instead of the build ending with budget unused. An unfinished
+            # package can never become ready: it is verified as a failed builder result.
+            self._db.append(
+                build_id,
+                attempt_id,
+                "build.attempt_timed_out",
+                {"max_attempt_seconds": budget.max_attempt_seconds},
+            )
+            timed = self._verify(
+                record, attempt_id, attempt.number, lineage, built, attempt.directory
+            )
+            if timed is None:
+                finish("cancelled", FailureCategory.CANCELLED)
+                return None
+            ref = str((attempt.directory / "verification.report.json").relative_to(self._root))
+            self._db.set_report_ref(attempt_id, ref)
+            finish("failed", FailureCategory.HARNESS_TIMEOUT)
+            return timed, attempt.directory, built.usage, True
         if built.status in _HARNESS_FAILURES:
             assert built.category is not None
             finish("failed", built.category)
@@ -796,7 +822,7 @@ class BuildService:
             self._ready(record, attempt_id, attempt.number, attempt.directory, outcome, report_ref)
             return None
         finish("failed", self._category_of(report))
-        return outcome, attempt.directory, built.usage
+        return outcome, attempt.directory, built.usage, False
 
     def _verify(
         self,

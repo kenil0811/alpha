@@ -216,15 +216,34 @@ def render_plan(plan: ValidationPlan) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_repair(report: VerificationReport, attempt_number: int, remaining: int) -> str:
+def render_repair(
+    report: VerificationReport,
+    attempt_number: int,
+    remaining: int,
+    *,
+    timed_out_after: int | None = None,
+) -> str:
     failed = [c for c in report.checks if c.status is CheckStatus.FAILED]
     skipped = [c for c in report.checks if c.status is CheckStatus.SKIPPED and c.required]
+    if timed_out_after is not None:
+        intro = [
+            f"Attempt {attempt_number} ran out of time: the platform stops every attempt after "
+            f"{max(1, round(timed_out_after / 60))} minutes, and it had not finished. package/",
+            "holds what it wrote. Finish it: keep what already works, write only what is missing",
+            "(check which files exist first), and keep the code small. The checks below ran on",
+            "the unfinished package.",
+        ]
+    else:
+        intro = [
+            f"The candidate from attempt {attempt_number} failed independent checks. Fix the",
+            "package in package/ so every check in PLAN.md passes. Do not work around a check;",
+            "make the App behave as required.",
+        ]
     lines = [
         f"# Repair request (attempt {attempt_number + 1})",
         "",
-        f"The candidate from attempt {attempt_number} failed independent checks. Fix the package",
-        "in package/ so every check in PLAN.md passes. Do not work around a check; make the App",
-        f"behave as required. Repairs left after this one: {remaining}.",
+        *intro,
+        f"Repairs left after this one: {remaining}.",
         "",
         "## Failed checks",
     ]

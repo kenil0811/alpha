@@ -319,12 +319,23 @@ def test_attempt_deadline_is_enforced_outside_the_harness(
     try:
         created = submit(core, "fake:hang")
         final = wait_for_build(
-            core, created["build_id"], {"ready", "failed", "cancelled"}, timeout=20
+            core, created["build_id"], {"ready", "failed", "cancelled"}, timeout=90
         )
         assert final["state"] == "failed"
         assert final["failure_category"] == "harness_timeout"
         assert final["terminal_reason"] == "attempt_deadline_exceeded"
         assert builder_pids(core) == []
+        # A timed-out attempt is checked as it stands and continued by the next attempt,
+        # within the same repair limit; none of them can become ready.
+        attempts = final["attempts"]
+        assert len(attempts) == 3
+        assert all(a["failure_category"] == "harness_timeout" for a in attempts)
+        assert all(a["report_ref"] for a in attempts)
+        repair = (data_dir / "builds" / attempts[1]["workspace_ref"] / "REPAIR.md").read_text()
+        assert "ran out of time" in repair
+        kinds = [e["kind"] for e in build_events(core, created["build_id"])]
+        assert kinds.count("build.attempt_timed_out") == 3
+        assert kinds.count("build.repairing") == 2
     finally:
         core.stop()
 
