@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from alpha_contracts.records import Filter
 from alpha_contracts.runs import Run, RunState
 from alpha_contracts.verification import (
     CheckResult,
@@ -23,6 +24,7 @@ from alpha_contracts.verification import (
     Scenario,
     ValidationPlan,
 )
+from pydantic import TypeAdapter
 
 from alpha.builds.preview import PreviewPlatform
 from alpha.capabilities.errors import OperationFailed
@@ -56,6 +58,19 @@ def resolve_values(value: Any, outputs: dict[str, Any], timezone: str) -> Any:
     if isinstance(value, list):
         return [resolve_values(v, outputs, timezone) for v in value]
     return value
+
+
+_FILTER: TypeAdapter[Filter] = TypeAdapter(Filter)
+
+
+def resolve_filter(where: Filter | None, outputs: dict[str, Any], timezone: str) -> Filter | None:
+    """A records step's filter with its placeholders resolved, like its expected values. Found in
+    M1-R07: a plan filtering on {"$today": 0} reached the store unresolved, every read of the
+    collection failed with "filter on date must be text", and no repair could pass."""
+    if where is None:
+        return None
+    dumped = _FILTER.dump_python(where, mode="json", by_alias=True)
+    return _FILTER.validate_python(resolve_values(dumped, outputs, timezone))
 
 
 def is_any(value: Any) -> bool:
@@ -185,7 +200,11 @@ def run_records(
     preview: PreviewPlatform, step: RecordsStep, outputs: dict[str, Any], check_id: str
 ) -> CheckResult:
     try:
-        records = preview.records_in(step.collection, step.where)
+        where = resolve_filter(step.where, outputs, preview.timezone)
+    except UnresolvedReference as exc:
+        return _check(check_id, CheckStatus.FAILED, f"the plan could not be applied: {exc}")
+    try:
+        records = preview.records_in(step.collection, where)
     except OperationFailed as exc:
         return _check(
             check_id,

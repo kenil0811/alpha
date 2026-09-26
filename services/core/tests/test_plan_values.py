@@ -110,3 +110,42 @@ def test_handler_exceptions_reach_people_in_plain_words() -> None:
     assert crash["exception"] == "KeyError"
     sdk = {"kind": "error", "code": "operation_failed", "message": "Food is needed."}
     assert plain_worker_error(sdk) == sdk
+
+
+def test_a_records_filter_resolves_its_placeholders_before_reading() -> None:
+    """Found in M1-R07: {"$today": 0} in a records step's filter reached the store unresolved,
+    so every read failed ("filter on date must be text") and three builds were refused."""
+    from types import SimpleNamespace
+
+    from alpha.builds.plan import run_records
+    from alpha_contracts.verification import RecordsStep
+
+    seen: list[object] = []
+    preview = SimpleNamespace(
+        timezone="UTC",
+        records_in=lambda _collection, where: seen.append(where) or [],
+    )
+    step = RecordsStep.model_validate(
+        {
+            "kind": "records",
+            "id": "today",
+            "collection": "food_entries",
+            "where": {
+                "all": [
+                    {"field": "date", "op": "eq", "value": {"$today": 0}},
+                    {"field": "entry", "op": "eq", "value": {"$ref": "add.output.id"}},
+                ]
+            },
+            "count": 0,
+        }
+    )
+    result = run_records(preview, step, {"add": {"id": "rec_1"}}, "c")  # type: ignore[arg-type]
+    assert result.status.value == "passed", result.summary
+    today = datetime.now(ZoneInfo("UTC")).date().isoformat()
+    [where] = seen
+    assert where.model_dump(mode="json", by_alias=True) == {  # type: ignore[attr-defined]
+        "all": [
+            {"field": "date", "op": "eq", "value": today},
+            {"field": "entry", "op": "eq", "value": "rec_1"},
+        ]
+    }

@@ -437,7 +437,8 @@ async function main() {
       await page.setViewportSize({ width: 1280, height: 900 });
     }
 
-    // 3. Populated state (data created through the App's own actions).
+    // 3. Populated state: only the sample data, created through the App's own actions (Core
+    //    empties the preview's collections first).
     if (plan && (plan.seed?.length || plan.seed_shows?.length)) {
       mark = errors.length;
       const seeded = await ask({ kind: "control", op: "seed" });

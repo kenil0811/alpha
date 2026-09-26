@@ -266,6 +266,42 @@ def test_a_screen_that_reads_nothing_is_not_asked_to_show_a_failed_read(
     assert read["status"] == "skipped" and read["required"] is False
 
 
+@needs_browser
+def test_the_populated_screen_shows_only_the_sample_data(once_core: CoreProcess) -> None:
+    """M1-R07: sample data was added on top of the entries the interaction checks had made, so
+    a total the plan expected for the sample alone (840) showed as 1,540 and no build passed."""
+    plan = json.loads(json.dumps(NOTES_PLAN))
+    plan["ui"]["seed_shows"] = ["Call the plumber", "1 saved"]
+    created = submit(once_core, "fake:package ui_counts", plan)
+    final = wait_build(once_core, created["build_id"])
+    found = checks(report(once_core, final))
+    assert found["ui.primary.repeat"]["status"] == "passed", "two entries exist before seeding"
+    assert found["ui.populated.shows.2"]["status"] == "passed", found["ui.populated.shows.2"]
+    assert final["state"] == "ready"
+
+
+def test_a_records_step_can_filter_on_today(once_core: CoreProcess) -> None:
+    """M1-R07: a filter on {"$today": 0} is resolved before the store is read. Unresolved, the
+    real store refused every read ("filter on date must be text") and no repair could pass."""
+    plan = json.loads(json.dumps(NOTES_PLAN))
+    add = next(s for s in plan["scenarios"] if s["id"] == "add_and_count")
+    add["steps"].insert(
+        2,
+        {
+            "kind": "records",
+            "id": "today",
+            "collection": "notes",
+            "where": {"field": "noted_on", "op": "eq", "value": {"$today": 0}},
+            "count": 1,
+        },
+    )
+    created = submit(once_core, "fake:package notes_ok", plan)
+    final = wait_build(once_core, created["build_id"])
+    today = checks(report(once_core, final))["behavior.add_and_count.today"]
+    assert today["status"] == "passed", today
+    assert final["state"] == "ready"
+
+
 def test_a_refusal_that_still_saves_fails_even_without_a_records_step(
     once_core: CoreProcess,
 ) -> None:

@@ -238,6 +238,10 @@ class _Session:
 
     def _control(self, op: str, message: dict[str, Any]) -> Any:
         if op == "seed":
+            # The populated state shows the sample data alone, as the plan describes it; entries
+            # from the interaction checks before it would change any total it expects. Found in
+            # M1-R07: a seeded day total of 840 showed as 1,540.
+            self.preview.clear_records()
             results = []
             for step in self.plan.seed if self.plan else []:
                 result = run_invoke(self.preview, step, self._outputs, f"ui.seed.{step.id}")

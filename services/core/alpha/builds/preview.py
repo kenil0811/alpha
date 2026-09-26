@@ -18,13 +18,13 @@ from typing import Any
 
 from alpha_contracts.apps import Invocable
 from alpha_contracts.broker import ModelEstimate, StructuredModelCall
-from alpha_contracts.records import Filter, Record, RecordQuery
+from alpha_contracts.records import DeleteRecord, Filter, Record, RecordMutation, RecordQuery
 from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import OperationFailed, unavailable
 from alpha.data.packages import SealedPackage
-from alpha.data.store import RecordService
+from alpha.data.store import RecordService, WriteContext
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService
 from alpha.execution.broker import CapabilityBroker
@@ -232,6 +232,18 @@ class PreviewPlatform:
             if cursor is None:
                 break
         return found
+
+    def clear_records(self) -> None:
+        """Empty every collection of the candidate's preview data (never a person's data)."""
+        deletes: list[RecordMutation] = [
+            DeleteRecord(collection=c.name, id=r.id, expected_revision=r.revision)
+            for c in self.app.source.collections
+            for r in self.records_in(c.name)
+        ]
+        if deletes:
+            self.records.store(self.app.app_id).apply(
+                deletes, WriteContext(run_id=None, allow_correction=False, resolve_estimate=None)
+            )
 
     def count(self, collection: str) -> int:
         try:

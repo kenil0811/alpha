@@ -373,6 +373,15 @@ def ui_entry_below(p: Path) -> None:
     )
 
 
+def ui_counts(p: Path) -> None:
+    """Not a defect: the screen also says how many notes are saved."""
+    _edit(
+        _screen(p),
+        '      <Section title="Latest">',
+        '      <Section title="Latest">\n        <p>{recent.records.length} saved</p>',
+    )
+
+
 def ui_clears_on_failure(p: Path) -> None:
     """A hand-made entry form that empties the field before the save is known to succeed."""
     _edit(
@@ -461,6 +470,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         no_primary,
         refusal_writes,
         ui_entry_below,
+        ui_counts,
         ui_clears_on_failure,
     )
 }
