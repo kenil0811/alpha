@@ -437,9 +437,9 @@ class CreationService:
             )
             next_step = "revise"
         elif reason in ("repair_limit_reached", "total_deadline_exceeded", "cost_limit_reached"):
+            tries = "once" if len(build.attempts) == 1 else f"{len(build.attempts)} times"
             message = (
-                f"It was built {len(build.attempts)} time(s) but did not pass its checks within "
-                "the limits."
+                f"It was built {tries} but didn't pass its checks, so nothing was switched on."
             )
             next_step = "revise"
         elif build.state is BuildState.CANCELLED:
