@@ -1,4 +1,80 @@
-# M1 review: the working G1 creation experience
+# M1 review
+
+**Status: M1 repair in progress. M1 is not accepted.** The founder's external review
+(`../m1_review/Alpha_M1_Review.md`, 26 September 2026, revision 2) keeps the foundation but does
+not accept M1 as a usable creation experience. It reports 13 findings, F01–F13; these are the
+reviewer's labels, not the ticket ids. It also hands over a bounded repair plan, M1-R00 to
+M1-R07.
+
+Scope is unchanged:
+- the original tickets F01–F08 only;
+- the Claude CLI subscription route and the existing stack stay;
+- F09–F24 stay deferred.
+
+The founder gave the go-ahead to start, including screen control for native checks (chat,
+26 September 2026).
+
+This file carries the repair log. The first M1 packet is kept below, unedited, as history. Its
+completion claims are withdrawn: see the check audit.
+
+## M1 repair log
+
+### M1-R00: baseline (26 September 2026)
+
+**Starting point**
+- Repository `main` at `d8c8f03`. Its platform code equals the G1 freeze `f7dada6`; only the
+  G1 eval driver (`4b2c77a`), one test and documentation differ.
+- Toolchain: uv 0.12.17, CPython 3.13.9, Node v24.21.0 (Homebrew keg), pnpm 10.34.5,
+  rustc 1.98.1, Tauri CLI 2.11.5, just 1.58.0, Claude Code 2.1.278.
+- Profiles in the G1 freeze: runtime `pyprof-391f9ca6e9db5bc54576`, UI
+  `uiprof-5a3bad2e0741affeb06b`.
+- The main checkout's `.alpha-runtime` is stale (built 2026-09-25). It holds
+  `pyprof-48e953297d79b3ac3547` and four older UI profiles. Repair work rebuilds it with
+  `just bundle-core`.
+
+**Launch paths in use**
+- The G1 demo: the frozen worktree `../alpha-g1` at `4b2c77a`, launched as
+  `ALPHA_DATA_DIR=../g1-run/data …/alpha-g1/…/Alpha.app/Contents/MacOS/alpha-desktop`. It was
+  open at the time of this baseline (pid 39072) and is left untouched.
+- Repair work: the main checkout, on its own data directories, run natively with `just dev` or
+  the debug bundle. A Vite/browser window is not accepted as native evidence.
+
+**Native delivery starts unverified.** Generated-screen delivery in the Alpha window
+(`alpha-ui://`) has never been observed, whatever earlier completion flags said.
+
+**Check audit.** Each check is judged against the findings and the repair mapping in the
+review's handoff. A reopened check returns to `pending` until fresh evidence exists. A kept
+check keeps its original evidence file and hash.
+
+| Check | Was | Now | Why |
+|---|---|---|---|
+| F01.C01 native | passed | kept | Bootstrap with bundled Python and reopen are unaffected by the findings. The R07 native session will exercise them again. |
+| F01.C02 native | passed | **reopened** | Finding F13: Stop can leave a record that says "cancelled" while activation proceeds, which contradicts honest durable cancellation state (R03). |
+| F01.C03 integration | passed | kept | IPC credentials and origins are unaffected. |
+| F01.C04 native | passed | **reopened** | Findings F02 and F06: interrupted and in-progress work is not restored in the shell after navigation or restart (R01). |
+| F01.C05 integration | passed | kept | Locks and exact versions; `just verify-locks` runs again at the final freeze. |
+| F02.C01–C04 | passed | kept | Builder route, failed-candidate rejection, cancel cleanup and secret handling are unaffected. The ticket status returns to in progress only because F01 did. |
+| F03.C01 native | passed | kept | UI authority separation stands. R03 renews sessions only through the trusted host. |
+| F03.C02 integration | passed | **reopened** | Finding F10: session lifetime and renewal change. Stale or revoked authority must still fail (R03). |
+| F03.C03 native | passed | kept | Sandbox probes are unaffected. |
+| F04.C01 live_model | passed | **reopened** | Finding F11: the assistant claimed "nothing leaves this Mac" on a remote route. Finding F12: artifacts were advertised as deliverable (R02, R04). |
+| F04.C02 integration | passed | **reopened** | Finding F07: a correction after activation silently creates a second App (R04). |
+| F04.C03 rendered_ui | passed | **reopened** | Findings F01 and F06: shell layout, and no Retry or Start over after a failed turn (R01). |
+| F05.C01 integration | passed | **reopened** | Mapped to R02: model-failure outcomes and provenance must be re-verified through the SDK. |
+| F05.C02, F05.C04 | passed | kept | Refusals, bounds and profile sharing are unaffected. F08.C04 covers sharing again. |
+| F05.C03 integration | passed | **reopened** | Finding F04: a generated App presented an invented number as a model estimate (R02). |
+| F06.C01–C04 | passed | **reopened** | Finding F09 and the Form and refusal issues: kit changes need a new UI profile, which must qualify again (R05). |
+| F07.C01 integration | passed | **reopened** | Finding F05: acceptance lacked model-failure and deterministic-outcome assertions (R02, R06). |
+| F07.C02 rendered_ui | passed | **reopened** | Finding F05: keeping typed input after a failed save was only advisory, and layout composition was not assessed (R05, R06). |
+| F07.C03, F07.C04 | passed | kept | Live repair and dependency integrity are unaffected. |
+| F08.C01–C04 | passed | **reopened** | Finding F05: G1 bypassed the real shell and the native window, and the G1 verdict had a false positive. All four need a fresh G1 (R07). |
+
+With the reopened checks, F01 and F03–F08 go back to in progress. F02 keeps its passed checks
+but can't be complete while F01 isn't.
+
+---
+
+## First M1 packet (26 September 2026), superseded and kept as history
 
 Date: 2026-09-26. Prepared by the coding agent for the founder's review. F01–F08 are
 implemented. Work stops here until you give direction.
