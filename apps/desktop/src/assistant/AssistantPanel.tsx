@@ -69,7 +69,7 @@ export function AssistantPanel({
   const [ownSelection, setOwnSelection] = useState<string | null>(null);
   const selected = onSelect ? conversationId : ownSelection;
   const select = onSelect ?? setOwnSelection;
-  const { conversation, loading, error, busy, reconnecting, start, reply, retry, reset } = useConversation(client, selected, select);
+  const { conversation, loading, error, busy, reconnecting, start, reply, retry, cancel, reset } = useConversation(client, selected, select);
   const [text, setText] = useState("");
   const [correction, setCorrection] = useState("");
   const typedBefore = useRef("");
@@ -183,11 +183,7 @@ export function AssistantPanel({
               </div>
             ) : null}
             {conversation.reply ? <div className="msg msg--ai">{conversation.reply}</div> : null}
-            {thinking ? (
-              <div className="msg msg--ai" role="status">
-                Thinking about your request…
-              </div>
-            ) : null}
+            {thinking ? <Thinking since={conversation.updated_at} busy={busy} onStop={() => void cancel()} /> : null}
             {reconnecting ? (
               <p className="notice notice--quiet" role="status">
                 Lost contact with Alpha's runtime for a moment. Reconnecting…
@@ -293,6 +289,32 @@ export function AssistantPanel({
         </form>
       ) : null}
     </aside>
+  );
+}
+
+/** The wait, made visible: how long it has been, a word when it is longer than usual, and Stop. */
+function Thinking({ since, busy, onStop }: { since: string; busy: boolean; onStop: () => void }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = new Date(since).getTime();
+    const tick = () => setSeconds(Math.max(0, Math.round((Date.now() - started) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [since]);
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  return (
+    <div className="msg msg--ai" role="status">
+      <div>
+        Thinking about your request… <span className="faint">{clock}</span>
+      </div>
+      {seconds >= 90 ? <div className="faint" style={{ marginTop: 4 }}>Longer than usual. A large request or a busy model service can take a few minutes; you can stop and try again.</div> : null}
+      <div className="row" style={{ marginTop: 8 }}>
+        <button type="button" className="btn btn--sm" disabled={busy} onClick={onStop}>
+          Stop
+        </button>
+      </div>
+    </div>
   );
 }
 

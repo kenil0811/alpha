@@ -33,20 +33,23 @@ class SettingField:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-def _model(id: str, title: str, description: str) -> SettingField:
-    return SettingField(id, "Models", title, description, "choice", "default", MODEL_OPTIONS)
+def _model(id: str, title: str, description: str, default: str = "default") -> SettingField:
+    return SettingField(id, "Models", title, description, "choice", default, MODEL_OPTIONS)
 
 
 FIELDS: tuple[SettingField, ...] = (
     _model(
         "models.assistant",
         "Model for the assistant",
-        "Understands your request and writes the plan you approve.",
+        "Understands your request and writes the plan you approve. Sonnet answers in about "
+        "half the time of Opus and is enough for this.",
+        "sonnet",
     ),
     _model(
         "models.planner",
         "Model for the checks",
         "Writes the checks a module must pass before it is switched on.",
+        "sonnet",
     ),
     _model(
         "models.builder_new",
@@ -61,7 +64,9 @@ FIELDS: tuple[SettingField, ...] = (
     _model(
         "models.app",
         "Model modules use while running",
-        "Estimates, scoring and summaries a module asks for while you use it.",
+        "Estimates, scoring and summaries a module asks for while you use it. Faster models "
+        "make checks and scoring feel quick.",
+        "sonnet",
     ),
     SettingField(
         "build.max_turns",

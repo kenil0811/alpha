@@ -16,7 +16,9 @@ def test_defaults_are_described_and_changes_persist(tmp_path: Path) -> None:
     described = prefs.describe()
     assert [d["id"] for d in described] == [f.id for f in FIELDS]
     assistant = next(d for d in described if d["id"] == "models.assistant")
-    assert assistant["value"] == "default" and assistant["group"] == "Models"
+    assert assistant["value"] == "sonnet" and assistant["group"] == "Models"
+    builder = next(d for d in described if d["id"] == "models.builder_new")
+    assert builder["value"] == "default", "building keeps the strongest model by default"
     assert [o["value"] for o in assistant["options"]] == ["default", "opus", "sonnet", "haiku"]
 
     prefs.update({"models.builder_new": "sonnet", "build.max_turns": "120"})
@@ -52,7 +54,8 @@ def test_the_gateway_applies_the_chosen_model_per_stage_and_the_limits(tmp_path:
         max_total_seconds=1,
         preferences=prefs,
     )
-    assert gateway.route("claude-code-cli", stage="assistant").model == "default"
+    assert gateway.route("claude-code-cli", stage="assistant").model == "sonnet"
+    assert gateway.route("claude-code-cli", stage="builder_new").model == "default"
     prefs.update({"models.assistant": "haiku", "models.builder_change": "sonnet"})
     assert gateway.route("claude-code-cli", stage="assistant").model == "haiku"
     assert gateway.route("claude-code-cli", stage="builder_change").model == "sonnet"

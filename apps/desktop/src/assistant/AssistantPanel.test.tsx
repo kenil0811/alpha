@@ -123,3 +123,20 @@ describe("the brief says where data goes", () => {
     expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
   });
 });
+
+describe("a turn that takes long", () => {
+  it("shows how long it has been thinking and lets the person stop it", async () => {
+    const client = new FakeCoreClient();
+    client.assistantScript = (c: Conversation, reply: ConversationReply | null): Conversation => (reply === null ? { ...c, state: "thinking" } : c);
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const waiting = await screen.findByText(/Thinking about your request/);
+    expect(waiting).toHaveTextContent(/0:0\d/);
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(client.cancelled).toEqual(["conv_1"]));
+    expect(await screen.findByRole("alert", { name: "Alpha could not work this out" })).toHaveTextContent("You stopped it");
+  });
+});

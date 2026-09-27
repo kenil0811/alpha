@@ -273,6 +273,8 @@ export interface CoreClient {
   replyConversation(id: string, reply: ConversationReply): Promise<Conversation>;
   /** Run a failed assistant turn again from the same input. */
   retryConversation(id: string): Promise<Conversation>;
+  /** Stop a turn that is still thinking. */
+  cancelConversation(id: string): Promise<Conversation>;
   capabilities(): Promise<CapabilityEntry[]>;
 }
 
@@ -754,6 +756,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   async listConversations(): Promise<Conversation[]> {
     const page = await this.request<{ conversations: Conversation[] }>("/api/conversations?limit=20");
     return page.conversations;
+  }
+
+  cancelConversation(id: string): Promise<Conversation> {
+    return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}/cancel`, { method: "POST" });
   }
 
   retryConversation(id: string): Promise<Conversation> {

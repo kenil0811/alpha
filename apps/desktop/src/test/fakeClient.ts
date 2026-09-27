@@ -141,6 +141,15 @@ export class FakeCoreClient implements CoreClient {
     return [...this.conversations.values()].filter((c) => c.change_of === appId).reverse();
   }
 
+  cancelled: string[] = [];
+  async cancelConversation(id: string): Promise<Conversation> {
+    const c = await this.conversation(id);
+    this.cancelled.push(id);
+    const stopped: Conversation = { ...c, state: "failed", error: "You stopped it" };
+    this.conversations.set(id, stopped);
+    return stopped;
+  }
+
   async listConversations(): Promise<Conversation[]> {
     return [...this.conversations.values()];
   }

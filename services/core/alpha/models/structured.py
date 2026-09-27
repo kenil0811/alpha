@@ -11,6 +11,7 @@ import json
 import os
 import pwd
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -95,6 +96,23 @@ class StructuredInference:
         self._path = tool_path
         self._home = home
         self._timeout = timeout_seconds
+        # Running CLI processes by scope_ref, so a person can stop a turn that is taking long.
+        self._running: dict[str, subprocess.Popen[str]] = {}
+        self._cancelled: set[str] = set()
+        self._lock = threading.Lock()
+
+    def cancel(self, scope_ref: str) -> bool:
+        """Stop the call running for `scope_ref`, if any. Returns whether one was running."""
+        with self._lock:
+            proc = self._running.get(scope_ref)
+            if proc is None:
+                return False
+            self._cancelled.add(scope_ref)
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        return True
 
     def call(
         self,
@@ -168,24 +186,36 @@ class StructuredInference:
             argv += ["--model", route.model]
         started = time.monotonic()
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 argv,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 env=env,
                 stdin=subprocess.DEVNULL,
-                timeout=self._timeout,
             )
         except FileNotFoundError as exc:
             raise InferenceError("cli_missing", f"claude CLI not found: {exc}") from exc
+        with self._lock:
+            self._cancelled.discard(scope_ref)
+            self._running[scope_ref] = proc
+        try:
+            stdout, stderr = proc.communicate(timeout=self._timeout)
         except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            proc.communicate()
             raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+        finally:
+            with self._lock:
+                self._running.pop(scope_ref, None)
+                stopped = scope_ref in self._cancelled
+                self._cancelled.discard(scope_ref)
+        if stopped:
+            raise InferenceError("cancelled", "the call was stopped")
         elapsed = int((time.monotonic() - started) * 1000)
-        line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("{")), None)
+        line = next((ln for ln in stdout.splitlines() if ln.startswith("{")), None)
         if line is None:
-            raise InferenceError(
-                "cli_no_output", (proc.stderr or proc.stdout)[-300:] or "no output"
-            )
+            raise InferenceError("cli_no_output", (stderr or stdout)[-300:] or "no output")
         try:
             result = json.loads(line)
         except json.JSONDecodeError as exc:

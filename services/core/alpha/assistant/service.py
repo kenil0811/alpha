@@ -185,6 +185,16 @@ class AssistantService:
         self._spawn_turn(conversation_id, route, content)
         return self.get(conversation_id)
 
+    def cancel(self, conversation_id: str) -> ConversationRecord:
+        """Stop a turn that is still thinking. The conversation ends up failed with a plain
+        reason, so the person can try again or start over."""
+        record = self.get(conversation_id)
+        if record.state != "thinking":
+            raise ConflictError(f"there is nothing to stop (the conversation is {record.state})")
+        self._fail(conversation_id, "You stopped it")
+        self._inference.cancel(conversation_id)
+        return self.get(conversation_id)
+
     def retry(self, conversation_id: str) -> ConversationRecord:
         """Run a failed turn again from the same user input (nothing new is appended)."""
         record = self.get(conversation_id)
@@ -278,6 +288,8 @@ class AssistantService:
             if grounded:
                 log.info("grounded data-location claims in %s: %s", conversation_id, grounded)
         except InferenceError as exc:
+            if exc.code == "cancelled":
+                return  # the person stopped it; cancel() already said so
             log.warning("assistant turn failed for %s: %s", conversation_id, exc)
             self._fail(conversation_id, _PLAIN_FAILURE.get(exc.code, "the model service failed"))
             return
@@ -457,7 +469,7 @@ class AssistantService:
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'failed', error = ?, updated_at = ?"
-                " WHERE conversation_id = ?",
+                " WHERE conversation_id = ? AND state = 'thinking'",
                 (error, _dt(utc_now()), conversation_id),
             )
 

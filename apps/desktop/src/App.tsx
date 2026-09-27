@@ -251,6 +251,9 @@ class NullClient implements CoreClient {
   retryConversation() {
     return this.fail();
   }
+  cancelConversation() {
+    return this.fail();
+  }
   capabilities() {
     return Promise.resolve([]);
   }

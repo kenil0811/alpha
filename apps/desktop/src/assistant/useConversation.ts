@@ -67,11 +67,15 @@ export function useConversation(client: CoreClient, selectedId: string | null, o
     () => (conversation ? act("try again", () => client.retryConversation(conversation.conversation_id)) : Promise.resolve()),
     [act, client, conversation],
   );
+  const cancel = useCallback(
+    () => (conversation ? act("stop", () => client.cancelConversation(conversation.conversation_id)) : Promise.resolve()),
+    [act, client, conversation],
+  );
   const reset = useCallback(() => {
     setConversation(null);
     setError(null);
     onSelect(null);
   }, [onSelect]);
 
-  return { conversation, loading, error, busy, reconnecting, start, reply, retry, reset };
+  return { conversation, loading, error, busy, reconnecting, start, reply, retry, cancel, reset };
 }
