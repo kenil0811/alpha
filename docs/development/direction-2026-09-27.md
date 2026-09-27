@@ -169,6 +169,14 @@ hand-built:
   keyword. Twice today. Automate: Core should publish a profile at startup when the SDK source
   digest differs from the newest profile.
 
+- Late evening, from Kenil's own use: a `progress` block; display requests are never refused
+  (closest block) but nothing is added unasked and a request that belongs to the shell
+  (animation, colours, fonts) or is already the case comes back as a plain "nothing to
+  change"; the triage reply promises no effect; a declined edit continues through the full path
+  on its own; the updated card shows the one-sentence summary of what changed; goal bars
+  animate in the shell. The assistant panel is closed on module pages by default and the rail
+  folds to icons; both remembered.
+
 ## Still to do
 
 - Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a
