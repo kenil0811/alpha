@@ -51,6 +51,14 @@ from alpha_contracts.verification import (
 from alpha.builds.attempt import BuilderOutcome, BuilderProcess
 from alpha.builds.awake import stay_awake
 from alpha.builds.preview import PreviewDeps, PreviewPlatform
+from alpha.builds.quick_edit import (
+    QUICK_MAX_BYTES,
+    QUICK_REPAIR_SYSTEM,
+    apply_edits,
+    quick_change_schema,
+    quick_repair_prompt,
+    read_package_files,
+)
 from alpha.builds.store import (
     BuildRecord,
     BuildStore,
@@ -123,6 +131,9 @@ class BuildPipeline:
     resources: PlatformResources
     fake_packages_dir: Path | None = None
     seed_packages_dir: Path | None = None
+    # One structured call that edits files: repairs a failed attempt without a new builder
+    # session. None in tests that only exercise the queue.
+    inference: Any | None = None
 
 
 class BuildService:
@@ -721,6 +732,12 @@ class BuildService:
         if attempt.seeded:
             # Qualification: the first candidate is a known package, verified like any claim.
             return BuilderOutcome("candidate", harness_exit={"seeded": record.seed_package})
+        if attempt.number > 1 and route.route_id != "fake" and self._pipeline.inference is not None:
+            # A repair is usually a few lines: one edit call (about a minute) instead of a new
+            # builder session (ten). The session takes over only when the edit call declines.
+            quick = self._quick_repair(record, attempt, route)
+            if quick is not None:
+                return quick
         key = f"{build_id}:{attempt_id}"
 
         def on_launch(handle: WorkerHandle) -> bool:
@@ -764,6 +781,85 @@ class BuildService:
         if built.usage is not None:
             self._gateway.record_usage(route.route_id, "build_attempt", attempt_id, built.usage)
         return built
+
+    def _quick_repair(
+        self, record: BuildRecord, attempt: _Attempt, route: ModelRoute
+    ) -> BuilderOutcome | None:
+        """Fix a failed attempt with one structured edit call on a copy of its package. Returns
+        None when the call declines or fails, so the builder session runs as before."""
+        build_id, attempt_id = record.build_id, attempt.attempt_id
+        package = attempt.directory / "package"
+        repair_md = attempt.directory / "REPAIR.md"
+        if not repair_md.is_file() or not (package / "app.yaml").is_file():
+            return None
+        files = read_package_files(package)
+        if sum(len(v) for v in files.values()) > QUICK_MAX_BYTES:
+            return None
+        references = ""
+        for label, path in (
+            ("APP CONTRACT", self._pipeline.resources.app_contract_reference),
+            ("SDK REFERENCE", self._pipeline.resources.sdk_reference),
+        ):
+            if path.is_file():
+                references += f"\n\n===== {label} =====\n{path.read_text(encoding='utf-8')}"
+        repair_route = self._gateway.route(route.route_id, stage="builder_change")
+        inference = self._pipeline.inference
+        if inference is None:
+            return None
+        try:
+            result = inference.call(
+                repair_route,
+                system=QUICK_REPAIR_SYSTEM,
+                prompt=quick_repair_prompt(
+                    repair_md.read_text(encoding="utf-8"), files, references
+                ),
+                schema=quick_change_schema(),
+                scope_kind="quick_repair",
+                scope_ref=attempt_id,
+            )
+        except Exception as exc:
+            self._db.append(
+                build_id, attempt_id, "build.quick_repair_declined", {"reason": str(exc)[:300]}
+            )
+            return None
+        output = result.output if isinstance(result.output, dict) else {}
+        edits = {
+            str(f.get("path")): str(f.get("content"))
+            for f in output.get("files") or []
+            if isinstance(f, dict) and f.get("path")
+        }
+        if output.get("needs_full_build") or not edits:
+            self._db.append(
+                build_id,
+                attempt_id,
+                "build.quick_repair_declined",
+                {"reason": str(output.get("reason") or "no files returned")[:300]},
+            )
+            return None
+        try:
+            source = load_source(package)
+        except Exception as exc:
+            self._db.append(
+                build_id, attempt_id, "build.quick_repair_declined", {"reason": str(exc)[:300]}
+            )
+            return None
+        problem = apply_edits(package, edits, source)
+        if problem:
+            self._db.append(
+                build_id, attempt_id, "build.quick_repair_declined", {"reason": problem}
+            )
+            return None
+        self._db.append(
+            build_id,
+            attempt_id,
+            "build.quick_repair",
+            {"changed_files": sorted(edits), "summary": str(output.get("summary") or "")[:300]},
+        )
+        return BuilderOutcome(
+            "candidate",
+            usage=result.usage,
+            harness_exit={"quick_repair": True, "changed_files": sorted(edits)},
+        )
 
     def _settle(
         self,

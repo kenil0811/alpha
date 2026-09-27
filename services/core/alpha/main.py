@@ -322,6 +322,7 @@ def build_pipeline(
         resources=PlatformResources(settings.platform_resources or settings.data_dir / "missing"),
         fake_packages_dir=settings.fake_builder_packages,
         seed_packages_dir=settings.dev_seed_packages_dir,
+        inference=inference,
     )
 
 

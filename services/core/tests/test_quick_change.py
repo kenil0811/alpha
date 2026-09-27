@@ -9,13 +9,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from alpha.assistant.prompts import fake_triage, triage_prompt
-from alpha.solutions.creation import (
-    CreationRoutes,
-    CreationService,
-    apply_edits,
-    keep_identity,
-    read_package_files,
-)
+from alpha.builds.quick_edit import apply_edits, keep_identity, read_package_files
+from alpha.solutions.creation import CreationRoutes, CreationService
 from alpha.storage.control_store import ControlStore
 
 APP_YAML = """contract_version: "0.2"
@@ -154,3 +149,11 @@ def test_a_quick_change_edits_the_module_and_switches_it_on(tmp_path: Path) -> N
     assert "app_id: notes-list-1a2b3c" in written and "runtime_profile: pyprof-old" in written
     assert activation.expected_release_id == "rel_1" and activation.kind == "quick_change"
     assert [h["stage"] for h in final.history][:3] == ["building", "checking", "activating"]
+
+
+def test_a_repair_prompt_leads_with_what_failed() -> None:
+    from alpha.builds.quick_edit import QUICK_REPAIR_SYSTEM, quick_repair_prompt
+
+    prompt = quick_repair_prompt("## Failed\n- behavior.x", {"app.yaml": "name: x\n"}, "")
+    assert prompt.startswith("REPAIR.md:\n## Failed") and "----- app.yaml -----" in prompt
+    assert "needs_full_build" in QUICK_REPAIR_SYSTEM
