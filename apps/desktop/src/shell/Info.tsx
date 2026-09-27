@@ -109,7 +109,7 @@ function SignedInSites({ client }: { client: CoreClient }) {
             <label htmlFor="new-site">
               <b>Sign in to a site</b>
             </label>
-            <div className="item__sub">Type the site's name, for example linkedin.com or indeed.com.</div>
+            <div className="item__sub">Type the site's name, for example linkedin.com or indeed.com. Sign in with the site's own email and password: sign-ins that go through Google or Apple do not complete in this window, because those services refuse a browser that another program opened.</div>
           </div>
           <input id="new-site" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="linkedin.com" style={{ width: 200 }} disabled={!available} />
           <button type="submit" className="btn btn--primary btn--sm" disabled={!available || !draft.trim()}>
