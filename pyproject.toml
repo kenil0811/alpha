@@ -50,7 +50,6 @@ files = [
     "services/core/alpha",
     "tools",
     "tests",
-    "evals",
 ]
 # Fixture App packages are generated-code stand-ins that run inside App runtime profiles, not
 # platform code; their own tests import modules only present in a sealed Version.

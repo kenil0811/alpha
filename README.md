@@ -1,9 +1,9 @@
 # Alpha
 
 Alpha is the platform through which nontechnical users create their own tools, automations,
-one-off tasks and artifacts. This repository is the clean-start R2 implementation. The immutable
-planning snapshot lives in [docs/alpha-r2](docs/alpha-r2) (start with its START_HERE.md); actual
-progress is recorded in [docs/development](docs/development).
+one-off tasks and artifacts. Where the product is going and what is done is recorded in
+[docs/development](docs/development); the original planning snapshot is kept for history in
+[docs/archive/alpha-r2](docs/archive/alpha-r2) and no longer describes the process.
 
 **Status: internal development build.** On 27 September 2026 the direction changed (see
 [docs/development/direction-2026-09-27.md](docs/development/direction-2026-09-27.md)): the
@@ -37,7 +37,6 @@ just test-integration   # real Core process, SQLite, worker processes, loopback 
 just bundle-core        # prepare the Core runtime and publish the App runtime and UI build profiles in .alpha-runtime/
 just dev                # run the desktop app (Vite shell + Tauri host + bundled Core)
 just kit-reference      # development reference sheet: every kit pattern in every state
-just verify-ticket F07  # ticket dispatcher; unknown/unimplemented tickets fail
 just qualify-app-models DIR  # opt-in live ctx.models smoke on the Claude Code CLI route
 just qualify-build repair    # opt-in live F07 qualification: repair | limit | generate
 ```

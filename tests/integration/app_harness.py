@@ -5,7 +5,6 @@ own interpreter and talk to Core over their pipes."""
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -147,13 +146,3 @@ def output(
 def shell_query(core: CoreProcess, app_id: str, body: dict[str, Any]) -> httpx.Response:
     with core.client() as client:
         return client.post(f"/api/apps/{app_id}/records/query", json=body)
-
-
-def record_evidence(name: str, data: Any) -> None:
-    """When ALPHA_EVIDENCE_DIR is set (evidence runs), write observed values for the report."""
-    target = os.environ.get("ALPHA_EVIDENCE_DIR")
-    if not target:
-        return
-    path = Path(target)
-    path.mkdir(parents=True, exist_ok=True)
-    (path / f"{name}.json").write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")

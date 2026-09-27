@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from tests.integration.app_harness import output, record_evidence, start_action, wait_run
+from tests.integration.app_harness import output, start_action, wait_run
 from tests.integration.build_harness import (
     NOTES_PLAN,
     checks,
@@ -165,10 +165,6 @@ def test_a_brief_becomes_an_active_app_with_its_own_screen(build_core: CoreProce
     saved = output(core, app_id, "add_note", {"title": "Renew passport"}, origin="ui")
     assert set(saved) >= {"id", "revision"}
     assert [n["values"]["title"] for n in notes(core, app_id)] == ["Renew passport"]
-    record_evidence(
-        "f08-creation",
-        {"creation": final, "app": row, "build_app_id": build["app_id"], "identity": identity},
-    )
 
 
 def test_an_app_without_its_own_screen_is_used_through_its_actions(
@@ -228,7 +224,6 @@ def test_created_results_and_their_data_reopen_after_a_restart(
         assert stale["failure"]["reason"] in {"core_restarted", "runtime_quit"}, stale["failure"]
         assert stale["failure"]["next_step"] == "retry"
         assert stale["app_id"] not in apps(core), "an unfinished creation never becomes active"
-        record_evidence("f08-reopen", {"before": before, "after": after, "unfinished": stale})
     finally:
         core.stop()
 
@@ -339,19 +334,6 @@ def test_two_created_results_share_a_profile_with_independent_data_and_scratch(
     assert probe_a["pid"] != probe_b["pid"]
     assert [n["values"]["title"] for n in notes(core, a)] == ["A note"]
     assert sorted(n["values"]["title"] for n in notes(core, b)) == ["Another B note", "B note"]
-    record_evidence(
-        "f08-shared-profile",
-        {
-            "apps": [a, b],
-            "runtime_profile_id": profile_a,
-            "cancelled_run": {k: cancelled[k] for k in ("run_id", "state", "terminal_reason")},
-            "concurrent_run": {k: quick[k] for k in ("run_id", "state")},
-            "probe_a": probe_a,
-            "probe_b": probe_b,
-            "notes_a": [n["values"]["title"] for n in notes(core, a)],
-            "notes_b": [n["values"]["title"] for n in notes(core, b)],
-        },
-    )
 
 
 def test_stop_accepted_at_the_ready_boundary_leaves_no_release(
@@ -480,6 +462,3 @@ def test_a_change_rebuilds_the_same_app_in_place_and_keeps_its_records(
     assert rows[app_id]["current_release_id"] == change["release_id"]
     assert [n["values"]["title"] for n in notes(core, app_id)] == ["Water the plants"]
     assert output(core, app_id, "count_notes", {}) == {"count": 1}
-    record_evidence(
-        "change-in-place", {"first": first, "change": change, "build_app": build["app_id"]}
-    )

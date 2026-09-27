@@ -1,3 +1,0 @@
-alpha.assistant WARNING assistant turn failed for conv_ee13384d4d384716a255c34bc9b2e1a3: model call exceeded 180s
-alpha.main INFO exit requested (runtime_quit): interrupted runs [], builds []
-alpha.main INFO shutdown: interrupted runs []

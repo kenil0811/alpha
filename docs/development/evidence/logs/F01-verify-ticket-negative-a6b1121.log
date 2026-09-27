@@ -1,8 +1,0 @@
-uv run python tools/verify_ticket.py F99
-verify-ticket: unknown ticket 'F99'
-error: recipe `verify-ticket` failed on line 52 with exit code 2
-exit=0
-uv run python tools/verify_ticket.py F02
-verify-ticket: F02 has no implemented verification recipe yet
-error: recipe `verify-ticket` failed on line 52 with exit code 3
-exit=0

@@ -1,4 +1,4 @@
-# Alpha development commands. Exercised recipes only; see docs/alpha-r2 Implementation Blueprint §9.
+# Alpha development commands. Exercised recipes only.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 export PYTHONDONTWRITEBYTECODE := "1"
@@ -55,29 +55,9 @@ test-integration:
 kit-reference:
     pnpm --filter @alpha/ui-kit reference
 
-# Verify committed locks and exact tool versions (F01.C05).
+# Verify committed locks and exact tool versions.
 verify-locks:
     uv run python tools/verify_locks.py
-
-# Opt-in live builder qualification on the founder's Claude subscription (F02.C01). Writes evidence logs.
-qualify-builder *args:
-    uv run python tools/qualify_builder.py {{args}}
-
-# Opt-in live assistant qualification on the founder's Claude subscription (F04.C01). Writes evidence logs.
-qualify-assistant *args:
-    uv run python tools/qualify_assistant.py {{args}}
-
-# F05 supplementary live smoke: one ctx.models call on the Claude Code CLI route. Writes evidence.
-qualify-app-models out_dir:
-    uv run python tools/qualify_app_models.py {{out_dir}}
-
-# F03 local containment feasibility probes on the pinned sandbox-runtime candidate (real macOS seatbelt).
-qualify-sandbox *args:
-    uv run python tests/qualification/sandbox/run_probes.py {{args}}
-
-# Ticket verification dispatcher; unknown/unimplemented tickets fail.
-verify-ticket ticket:
-    uv run python tools/verify_ticket.py {{ticket}}
 
 # Prepare the platform-managed Core runtime and publish the default App runtime profile
 # (both used by the desktop host; neither is the user's Python).
@@ -89,7 +69,3 @@ bundle-core:
 # Run the desktop app in development (Vite shell + Tauri host + bundled Core).
 dev: bundle-core
     pnpm --filter @alpha/desktop tauri dev
-
-# Opt-in live F07 qualification on the Claude Code CLI route: repair | limit | generate.
-qualify-build scenario:
-    uv run python evals/qualify_build.py --scenario {{scenario}}

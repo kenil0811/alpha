@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.integration.app_harness import act, output, record_evidence, start_app_core
+from tests.integration.app_harness import act, output, start_app_core
 from tests.integration.conftest import AppCore
 
 pytestmark = pytest.mark.integration
@@ -51,9 +51,6 @@ def test_artifact_bytes_digest_and_provenance(app_core: AppCore, data_dir: Path)
         "derived_from": [],
         "model_call_ids": [],
     }
-    record_evidence(
-        "F05.C03-artifact", {"run_id": run["run_id"], "report": report, "metadata": meta}
-    )
     # No filesystem path leaves Core.
     assert str(data_dir) not in json.dumps(meta)
 
@@ -140,10 +137,6 @@ def test_model_results_are_labelled_estimates_and_correctable(app_core: AppCore)
     }
     record = output(core, ITEMS, "get_item", {"id": estimate["id"]})["record"]
     assert record["values"]["quantity"] == 12 and record["revision"] == estimate["revision"] + 1
-    record_evidence(
-        "F05.C03-estimate",
-        {"estimate": estimate, "model_calls": calls, "usage": usage, "corrected_record": record},
-    )
 
     # An automated run cannot claim to be the person.
     item = output(core, ITEMS, "add_item", {"title": "cups", "category": "home", "quantity": 4})

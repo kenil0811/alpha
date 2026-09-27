@@ -21,7 +21,6 @@ from alpha.execution.profiles import tree_digest
 from tests.integration.app_harness import (
     build_profile,
     output,
-    record_evidence,
     render_fixtures,
     start_action,
     start_app_core,
@@ -115,17 +114,6 @@ def test_two_apps_share_one_installed_profile_with_separate_state(app_core: AppC
         "site-packages" in entry and real(venv) not in real(entry) for entry in a["sys_path"]
     )
 
-    record_evidence(
-        "F05.C04-shared-profile",
-        {
-            "profile_row": row,
-            "installs": app_core.installs,
-            "items_run": {k: run_a[k] for k in ("run_id", "started_at", "finished_at", "snapshot")},
-            "tally_run": {k: run_b[k] for k in ("run_id", "started_at", "finished_at", "snapshot")},
-            "items_probe": a,
-            "tally_probe": b,
-        },
-    )
     # Records stay per App even with the same collection name.
     output(core, ITEMS, "add_item", {"title": "from items", "category": "work"})
     output(core, TALLY, "add", {"name": "from tally"})
@@ -160,18 +148,6 @@ def test_restart_reuses_the_pinned_installation_without_installing(
         assert again["snapshot"]["runtime_profile_id"] == first["snapshot"]["runtime_profile_id"]
     finally:
         restarted.stop()
-    record_evidence(
-        "F05.C04-restart",
-        {
-            "before_row": before_row,
-            "after_row": row,
-            "tree_before": before_tree,
-            "tree_after": tree_digest(profile.path),
-            "listing": before_listing,
-            "first_prefix": first["output"]["prefix"],
-            "again_prefix": again["output"]["prefix"],
-        },
-    )
     assert tree_digest(profile.path) == before_tree
     assert sorted(p.name for p in profile.root.iterdir()) == before_listing
     assert profile.path.stat().st_mtime_ns == before_mtime
@@ -193,7 +169,6 @@ def test_a_changed_installation_is_quarantined_not_used(tmp_path: Path, data_dir
     core = start_app_core(data_dir, profile, fixtures)
     try:
         row = profile_row(core)
-        record_evidence("F05.C04-quarantine", row)
         assert row["state"] == "quarantined"
         assert "installed files differ" in row["reason"]
         with core.client() as client:

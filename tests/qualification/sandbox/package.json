@@ -1,9 +1,0 @@
-{
-  "name": "@alpha/sandbox-qualification",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Pinned sandbox-runtime candidate for F03/F20 local containment probes (not a product dependency).",
-  "devDependencies": {
-    "@anthropic-ai/sandbox-runtime": "0.0.77"
-  }
-}

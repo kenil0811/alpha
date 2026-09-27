@@ -12,7 +12,6 @@ import pytest
 from tests.integration.app_harness import (
     act,
     output,
-    record_evidence,
     shell_query,
     start_app_core,
     wait_run,
@@ -97,7 +96,6 @@ def test_records_validate_save_query_aggregate(app_core: AppCore) -> None:
     assert by_day == {"2026-09-24": 1, "2026-09-25": 2, "2026-09-26": 1}
     assert summary["overall"] == {"n": 4, "latest": "2026-09-23", "quantity": 23}
 
-    record_evidence("F05.C01-summary", {"paper": record, "work_page": work, "summary": summary})
     batch = output(
         core,
         ITEMS,
@@ -149,10 +147,6 @@ def test_records_persist_and_reopen_after_restart(app_core: AppCore, data_dir: P
             restarted, ITEMS, {"collection": "items", "order_by": [{"field": "title"}]}
         ).json()
         assert after == before
-        record_evidence(
-            "F05.C01-reopen",
-            {"records_before": len(before["records"]), "identical_after_restart": after == before},
-        )
         # A fresh worker in the new Core reads and writes the same store.
         record = output(restarted, ITEMS, "get_item", {"id": ids["pens"]})["record"]
         assert record["revision"] == 2 and record["values"]["title"] == "pens (blue)"
