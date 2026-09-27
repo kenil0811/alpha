@@ -193,9 +193,23 @@ hand-built:
 
 ## Still to do
 
-- Measure a real new-module build end to end on the new speed path (parallel plan, fast lane).
-- The Mac app: the Tauri host in `apps/desktop/src-tauri` already supervises Core and the tray;
-  make `just dev` run again against the current shell, then packaging (F22: bundled runtime).
+- Measured (23:16, "a simple reading list", records only): assistant briefed in 25 s with no
+  questions; build 4 min 32 s, all of it the builder session on the CLI route (plan ready after
+  45 s in parallel; structural checks under a second; switched on one second after the builder
+  finished; 20 behaviour checks passed a second later). Typed request to usable module: 5 min
+  13 s. What is left is the builder session itself: a faster model for new modules, fewer
+  turns, or a smaller first version.
+- The Mac app, started late on 27 September. The Tauri host (`apps/desktop/src-tauri`)
+  builds and runs: `pnpm tauri dev --config '{"build":{"beforeDevCommand":""}}'` with
+  `ALPHA_DATA_DIR=<diet-run>/data` reuses the running Vite server and the person's data;
+  `pnpm tauri build` produces `target/release/bundle/macos/Alpha.app` (ad-hoc signed; data in
+  `~/Library/Application Support/com.alpha.desktop`; runtime and resources still read from the
+  repository). Found: launched from the Finder, macOS asks whether Alpha may access the
+  Desktop folder (the repository lives there) and the host used to block on that prompt with
+  no window; Core now launches on its own thread and the host logs to `logs/host.log`. Still
+  to do: allow the prompt once (or bundle the runtime, F22), copy the person's data into the
+  app's data directory or point the release build at it, sign and notarise, and the floating
+  avatar window.
 
 - Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a
   module); the module's existing checks should run in the background after a quick change with
