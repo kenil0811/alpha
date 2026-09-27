@@ -25,6 +25,9 @@ from alpha_sdk._channel import Transport
 class Link:
     text: str
     url: str
+    # The text of the card the link sits in (name, title, company) when a browser read the
+    # page; empty for a plain fetch. Use it when a link's own text is empty or generic.
+    near: str = ""
 
 
 @dataclass(frozen=True)
@@ -77,7 +80,11 @@ class Web:
             text=str(data["text"]),
             truncated=bool(data.get("truncated", False)),
             links=tuple(
-                Link(text=str(item.get("text", "")), url=str(item["url"]))
+                Link(
+                    text=str(item.get("text", "")),
+                    url=str(item["url"]),
+                    near=str(item.get("near", "")),
+                )
                 for item in data.get("links", [])
                 if item.get("url")
             ),

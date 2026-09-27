@@ -117,7 +117,9 @@ ctx.artifacts.read_text(ref.id)
 
 ```python
 page = ctx.web.get("https://example.com/jobs")  # readable text; page.title, page.status, page.text
-page.links  # every link on the page as Link(text, url): absolute addresses, in page order
+page.links  # every link on the page as Link(text, url, near): absolute addresses, in page order;
+# near = the text of the card around the link when a browser read the page (name,
+# title, company), for links whose own text is empty, such as a photo
 data = ctx.web.get("https://api.example.com/v1/x", raw=True)  # a JSON API's body untouched
 hits = ctx.web.search("kettlebell beginner routine", count=5)  # [.title, .url, .snippet]
 ```

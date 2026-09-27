@@ -25,10 +25,12 @@ class HttpGetRequest(ContractModel):
 
 
 class PageLink(ContractModel):
-    """One link on a fetched page: its visible text and absolute address."""
+    """One link on a fetched page: its visible text, absolute address and, when the page was
+    read in a browser, the text of the card around it (a name, a title, a company)."""
 
     text: str
     url: str
+    near: str = ""
 
 
 class HttpPage(ContractModel):

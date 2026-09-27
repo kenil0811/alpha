@@ -99,13 +99,32 @@ async function read(job) {
     const data = await page.evaluate((limit) => {
       const links = [];
       const seen = new Set();
+      const tidy = (value, max) => String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
       for (const a of document.querySelectorAll("a[href]")) {
         const href = a.href;
         if (!/^https?:/i.test(href)) continue;
         const url = href.split("#")[0];
         if (seen.has(url) || links.length >= 400) continue;
         seen.add(url);
-        links.push({ text: (a.innerText || a.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), url });
+        // A link that wraps an image or an icon has no text of its own: fall back to what it
+        // labels, and always carry the text of the card it sits in (name, title, company).
+        const own = tidy(a.innerText || a.textContent, 200);
+        const img = a.querySelector("img");
+        const text = own || tidy(a.getAttribute("aria-label") || a.getAttribute("title") || (img && img.getAttribute("alt")), 200);
+        // The card: the smallest ancestor with a short text of its own (a row, an item), not
+        // the list it belongs to.
+        let near = "";
+        let node = a.parentElement;
+        for (let depth = 0; node && node !== document.body && depth < 6; depth += 1) {
+          const words = tidy(node.innerText, 400);
+          if (words.length > own.length + 3 && words.length <= 300) {
+            near = words.slice(0, 240);
+            if (words.length >= 25) break;
+          }
+          if (words.length > 300) break;
+          node = node.parentElement;
+        }
+        links.push({ text, url, near });
       }
       const text = document.body ? document.body.innerText : "";
       return { title: document.title, text: text.slice(0, limit), truncated: text.length > limit, links };

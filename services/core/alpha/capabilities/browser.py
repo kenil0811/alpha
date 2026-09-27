@@ -299,7 +299,11 @@ class BrowserService:
             title=result.get("title"),
             text=str(result.get("text") or ""),
             links=[
-                PageLink(text=str(item.get("text", ""))[:200], url=str(item["url"]))
+                PageLink(
+                    text=str(item.get("text", ""))[:200],
+                    url=str(item["url"]),
+                    near=str(item.get("near", ""))[:240],
+                )
                 for item in result.get("links") or []
                 if isinstance(item, dict) and item.get("url")
             ][:400],
