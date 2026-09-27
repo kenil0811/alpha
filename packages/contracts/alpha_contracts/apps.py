@@ -32,6 +32,7 @@ from alpha_contracts.screens import (
     FormBlock,
     ListBlock,
     MetricsBlock,
+    ProgressBlock,
     QuickEntryBlock,
     ScreenDeclaration,
     TableBlock,
@@ -341,6 +342,15 @@ class AppSource(ContractModel):
                                 f"{where}: view {view.id} has no metric {card.metric!r}"
                             )
                         goal_ok(card.goal_from, where)
+                elif isinstance(block, ProgressBlock):
+                    view = view_of(block.view, where)
+                    if view.kind is not ViewKind.AGGREGATE:
+                        raise ValueError(f"{where}: a progress bar needs an aggregate view")
+                    if block.metric not in {m.name for m in view.metrics}:
+                        raise ValueError(f"{where}: view {view.id} has no metric {block.metric!r}")
+                    if block.goal is None and block.goal_from is None:
+                        raise ValueError(f"{where}: a progress bar needs a goal or goal_from")
+                    goal_ok(block.goal_from, where)
                 elif isinstance(block, TrendBlock):
                     view = view_of(block.view, where)
                     if view.kind is not ViewKind.AGGREGATE:

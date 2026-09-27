@@ -349,105 +349,885 @@ export interface Tab {
    * @maxItems 12
    */
   blocks:
-    | [QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        | QuickEntryBlock
+        | TableBlock
+        | MetricsBlock
+        | TrendBlock
+        | BoardBlock
+        | ListBlock
+        | FormBlock
+        | TextBlock
+        | ProgressBlock
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ]
     | [
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
-        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
+      ]
+    | [
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        ),
+        (
+          | QuickEntryBlock
+          | TableBlock
+          | MetricsBlock
+          | TrendBlock
+          | BoardBlock
+          | ListBlock
+          | FormBlock
+          | TextBlock
+          | ProgressBlock
+        )
       ];
   id: string;
   title: string;
@@ -754,6 +1534,21 @@ export interface TextBlock {
   body: string;
   kind: "text";
   title?: string | null;
+}
+/**
+ * One wide bar: a metric against a goal (calories eaten today out of the day's limit,
+ * applications sent out of a weekly target), with what is left or over in words.
+ */
+export interface ProgressBlock {
+  goal?: number | null;
+  goal_from?: GoalFrom | null;
+  goal_label?: string | null;
+  hint?: string | null;
+  kind: "progress";
+  metric: string;
+  title: string;
+  unit?: string | null;
+  view: string;
 }
 /**
  * What an App's custom UI may read and do. It carries no native privileges; the shell derives

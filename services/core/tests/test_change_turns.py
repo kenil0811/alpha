@@ -47,3 +47,27 @@ def test_every_text_turn_on_a_change_is_triaged_and_starts_on_its_own(tmp_path: 
     assert record.quick_change is True and record.state == "briefed"
     assert started == [record.conversation_id, record.conversation_id]
     assert len(record.reply or "") < 200, "no essay for a small change"
+
+
+def test_a_declined_quick_change_continues_through_the_full_path(tmp_path: Path) -> None:
+    store = ControlStore(tmp_path / "control.sqlite")
+    gateway = ModelGateway(store, frozenset({"fake"}))
+    started: list[str] = []
+    service = AssistantService(
+        store,
+        gateway,
+        StructuredInference(gateway),
+        default_route="fake",
+        describe_app=lambda _app_id: "Name: Notes list",
+    )
+    service.on_quick_change = lambda cid: started.append(cid)
+    record = service.start("Remove the notes list box from the top", change_of="notes-list-1a2b3c")
+    record = settled(service, record.conversation_id)
+    assert record.quick_change is True and started == [record.conversation_id]
+
+    # The edit call declined: the same request is briefed the full way, no retyping, no click.
+    service.escalate(record.conversation_id)
+    record = settled(service, record.conversation_id)
+    assert record.state == "briefed" and record.quick_change is False
+    assert record.current_brief is not None, "the full path wrote a brief"
+    assert started == [record.conversation_id, record.conversation_id]

@@ -136,7 +136,10 @@ export interface TextBlock {
   title?: string | null;
   body: string;
 }
-export type ScreenBlock = QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock;
+export interface ProgressBlock extends MetricCardSpec {
+  kind: "progress";
+}
+export type ScreenBlock = QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock | ProgressBlock;
 export interface ScreenTab {
   id: string;
   title: string;

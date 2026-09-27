@@ -355,6 +355,17 @@ class CreationService:
         ).start()
         return self.get(creation_id)
 
+    def _hand_over(self, creation_id: str) -> None:
+        rows = self._store.query(
+            "SELECT conversation_id FROM creations WHERE creation_id = ?", (creation_id,)
+        )
+        if not rows:
+            return
+        try:
+            self._assistant.escalate(rows[0]["conversation_id"])
+        except Exception:
+            log.exception("could not continue %s through the full path", creation_id)
+
     def _run_quick(self, creation_id: str, app_id: str, request: str) -> None:
         try:
             self._quick_change(creation_id, app_id, request)
@@ -429,18 +440,20 @@ class CreationService:
                 return
             output = result.output if isinstance(result.output, dict) else {}
             if output.get("needs_full_build"):
+                # Not a dead end: the same request continues through the full path on its own.
+                reason = str(output.get("reason") or "it needs more than an edit").rstrip(".")
                 self._finish(
                     creation_id,
                     "failed",
                     None,
                     {
-                        "reason": "needs_full_build",
-                        "message": "This change is bigger than a quick edit: "
-                        f"{output.get('reason') or 'it adds new behaviour'}. Ask for it again "
-                        "and say 'full rebuild' to do it the long way.",
-                        "next_step": "revise",
+                        "reason": "handed_over",
+                        "message": f"This needs a fuller change ({reason}). Alpha is planning "
+                        "and building it now; that takes a few minutes and your data is kept.",
+                        "next_step": "wait",
                     },
                 )
+                self._hand_over(creation_id)
                 return
             edits = {
                 str(f.get("path")): str(f.get("content"))

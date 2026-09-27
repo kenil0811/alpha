@@ -174,6 +174,21 @@ class TextBlock(ContractModel):
     body: str = Field(min_length=1, max_length=4000)
 
 
+class ProgressBlock(ContractModel):
+    """One wide bar: a metric against a goal (calories eaten today out of the day's limit,
+    applications sent out of a weekly target), with what is left or over in words."""
+
+    kind: Literal["progress"]
+    title: Label
+    view: str = Field(min_length=1, max_length=64)
+    metric: str = Field(min_length=1, max_length=48)
+    unit: str | None = Field(default=None, max_length=16)
+    goal: float | None = None
+    goal_from: GoalFrom | None = None
+    goal_label: str | None = Field(default=None, max_length=60)
+    hint: str | None = Field(default=None, max_length=200)
+
+
 Block = Annotated[
     QuickEntryBlock
     | TableBlock
@@ -182,7 +197,8 @@ Block = Annotated[
     | BoardBlock
     | ListBlock
     | FormBlock
-    | TextBlock,
+    | TextBlock
+    | ProgressBlock,
     Field(discriminator="kind"),
 ]
 

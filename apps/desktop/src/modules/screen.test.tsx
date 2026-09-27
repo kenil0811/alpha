@@ -75,6 +75,7 @@ function screenDetail(): AppDetail {
               page_size: 50,
             },
             { kind: "metrics", cards: [{ title: "Today", view: "entries.by_day", metric: "total", unit: "units", goal: 500 }] },
+            { kind: "progress", title: "Units today", view: "entries.by_day", metric: "total", unit: "units", goal: 200 },
             { kind: "form", action: "correct_entry", title: "Fix an entry by hand", description: null, submit_label: "Save", prefill_view: null },
           ],
         },
@@ -202,5 +203,17 @@ describe("a second form on a tab", () => {
     expect(within(folded).getByRole("form", { name: "Fix an entry by hand" })).toBeInTheDocument();
     await user.click(within(folded).getByRole("button", { name: "Close" }));
     expect(within(folded).queryByRole("form")).not.toBeInTheDocument();
+  });
+});
+
+describe("a progress block", () => {
+  it("draws one wide bar of the metric against its goal, with what is left or over", async () => {
+    const client = clientWithRows();
+    render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
+    const bar = await screen.findByRole("group", { name: "Units today" });
+    expect(await within(bar).findByText(/150 units/)).toBeInTheDocument();
+    expect(within(bar).getByText(/of 200 units/)).toBeInTheDocument();
+    expect(within(bar).getByText("50 units left")).toBeInTheDocument();
+    expect(within(bar).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "150");
   });
 });

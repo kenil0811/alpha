@@ -99,6 +99,14 @@ export function CreationCard({
     return <ReadyCard client={client} name={creation.result.name ?? creation.app_name ?? "Your App"} creation={creation} unavailable={unavailable} onOpen={onOpen} />;
   }
 
+  if (creation.state === "failed" && creation.failure?.reason === "handed_over") {
+    return (
+      <p className="panel__hint" role="status">
+        {creation.failure.message}
+      </p>
+    );
+  }
+
   if (creation.state === "failed") {
     const failure = creation.failure;
     return (
@@ -122,7 +130,7 @@ export function CreationCard({
             : "You can try again; nothing was switched on."}
         </p>
         <div className="row">
-          <button type="button" className="button button--primary" disabled={busy} onClick={() => void start()}>
+          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start()}>
             Try again
           </button>
         </div>

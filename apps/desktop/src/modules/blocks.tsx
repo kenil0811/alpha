@@ -19,6 +19,8 @@ export function Block({ block, position = 0 }: { block: ScreenBlock; position?: 
       return <Table block={block} />;
     case "metrics":
       return <Metrics block={block} />;
+    case "progress":
+      return <Progress block={block} />;
     case "trend":
       return <Trend block={block} />;
     case "board":
@@ -585,6 +587,42 @@ function Metric({ card }: { card: Extract<"metrics">["cards"][number] }) {
         </>
       ) : card.hint ? (
         <div className="faint">{card.hint}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------- progress ----------
+
+/** One wide bar of a metric against its goal, with what is left or over in words. */
+function Progress({ block }: { block: Extract<"progress"> }) {
+  const { view } = useModule();
+  const spec = view(block.view);
+  const body = useMemo<ViewQueryBody>(() => ({}), []);
+  const { data, error } = useViewQuery<AggregateResultPage>(spec ? block.view : null, body);
+  const goal = useGoal(block.goal, block.goal_from);
+  const values = pickGroup(data, spec);
+  const raw = values ? values[block.metric] : null;
+  const value = typeof raw === "number" ? raw : values === null ? 0 : null;
+  const share = goal && value !== null ? Math.min(100, (value / goal) * 100) : 0;
+  return (
+    <div className="card progress" role="group" aria-label={block.title}>
+      <div className="progress__head">
+        <span className="metric__lab">{block.title}</span>
+        <span className="progress__nums num">
+          {error ? <span className="notice">Couldn't load</span> : value === null || goal == null ? "…" : <>{formatNumber(value, block.unit)} <small>of {formatNumber(goal, block.unit)}</small></>}
+        </span>
+      </div>
+      <div className="goalbar goalbar--big" role="progressbar" aria-valuemin={0} aria-valuemax={goal ?? undefined} aria-valuenow={value ?? undefined}>
+        <i className={goal != null && value !== null && value > goal ? "over" : undefined} style={{ width: `${share}%` }} />
+      </div>
+      {goal != null && value !== null ? (
+        <div className="faint">
+          {value <= goal ? `${formatNumber(goal - value, block.unit)} left` : `${formatNumber(value - goal, block.unit)} over`}
+          {block.goal_label ? ` · ${block.goal_label}` : ""}
+        </div>
+      ) : block.hint ? (
+        <div className="faint">{block.hint}</div>
       ) : null}
     </div>
   );

@@ -156,6 +156,12 @@ screen:
             - {title: Calories today, view: meals.by_day, metric: total, unit: kcal, goal: 2000}
             # or a goal the person sets, read from a record: goal_from: {view: goals.current, field: calorie_goal}
             - {title: Meals today, view: meals.by_day, metric: meals}
+        - kind: progress                # one wide bar against a goal, with what is left in words
+          title: Calories today
+          view: meals.by_day
+          metric: total
+          unit: kcal
+          goal_from: {view: goals.current, field: calorie_goal}
         - kind: trend
           title: Calories per day
           view: meals.by_day

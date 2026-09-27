@@ -145,6 +145,7 @@ class AssistantService:
         )
         # Set by main once the creation service exists: starts a quick change for a conversation.
         self.on_quick_change: Callable[[str], Any] | None = None
+        self._no_triage: set[str] = set()  # conversations continuing a declined quick change
 
     # ----- public ------------------------------------------------------------------------
 
@@ -208,6 +209,25 @@ class AssistantService:
             raise ConflictError(f"there is nothing to stop (the conversation is {record.state})")
         self._fail(conversation_id, "You stopped it")
         self._inference.cancel(conversation_id)
+        return self.get(conversation_id)
+
+    def escalate(self, conversation_id: str) -> ConversationRecord:
+        """A quick change that turned out to need more: run the person's latest request through
+        the full path (brief, plan, build) without asking them to repeat it."""
+        record = self.get(conversation_id)
+        latest = next((t for t in reversed(record.turns) if t.role == "user"), None)
+        if latest is None:
+            raise ConflictError("there is nothing to continue")
+        route = self._gateway.route(record.route_id, stage="assistant")
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE conversations SET state = 'thinking', error = NULL, quick_change = 0,"
+                " updated_at = ? WHERE conversation_id = ?",
+                (_dt(utc_now()), conversation_id),
+            )
+        with self._lock:
+            self._no_triage.add(conversation_id)
+        self._spawn_turn(conversation_id, route, dict(latest.content))
         return self.get(conversation_id)
 
     def retry(self, conversation_id: str) -> ConversationRecord:
@@ -282,7 +302,15 @@ class AssistantService:
             record = self.get(conversation_id)
             # Every plain-text turn on a change is triaged: small edits go the quick way even
             # when typed into an older thread of the same module.
-            if record.change_of and latest.get("text") and not latest.get("answers"):
+            with self._lock:
+                skip_triage = conversation_id in self._no_triage
+                self._no_triage.discard(conversation_id)
+            if (
+                record.change_of
+                and latest.get("text")
+                and not latest.get("answers")
+                and not skip_triage
+            ):
                 if self._triage_change(conversation_id, record, route, str(latest["text"])):
                     return
             history = [

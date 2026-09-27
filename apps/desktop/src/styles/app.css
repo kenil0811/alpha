@@ -407,3 +407,10 @@ a { color: var(--primary); }
 /* A setting that is a paragraph gets the whole row */
 .item--stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .item--stack textarea { width: 100%; font: inherit; font-size: 13px; line-height: 1.5; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
+
+/* A progress block: one wide bar against a goal */
+.progress { padding: 12px 16px 12px; }
+.progress__head { display: flex; align-items: baseline; gap: 10px; }
+.progress__nums { margin-left: auto; font-family: var(--font-ed); font-size: 20px; color: var(--navy); }
+.progress__nums small { font-size: 13px; color: var(--text-3); font-family: var(--font-ui); }
+.goalbar--big { height: 14px; margin: 8px 0 6px; }

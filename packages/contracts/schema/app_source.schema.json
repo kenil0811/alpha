@@ -1062,6 +1062,97 @@
       "title": "Not",
       "type": "object"
     },
+    "ProgressBlock": {
+      "additionalProperties": false,
+      "description": "One wide bar: a metric against a goal (calories eaten today out of the day's limit,\napplications sent out of a weekly target), with what is left or over in words.",
+      "properties": {
+        "goal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "goal_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalFrom"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "goal_label": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "const": "progress",
+          "type": "string"
+        },
+        "metric": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "view",
+        "metric"
+      ],
+      "title": "ProgressBlock",
+      "type": "object"
+    },
     "QuickEntryBlock": {
       "additionalProperties": false,
       "properties": {
@@ -1286,6 +1377,7 @@
                 "form": "#/$defs/FormBlock",
                 "list": "#/$defs/ListBlock",
                 "metrics": "#/$defs/MetricsBlock",
+                "progress": "#/$defs/ProgressBlock",
                 "quick_entry": "#/$defs/QuickEntryBlock",
                 "table": "#/$defs/TableBlock",
                 "text": "#/$defs/TextBlock",
@@ -1317,6 +1409,9 @@
               },
               {
                 "$ref": "#/$defs/TextBlock"
+              },
+              {
+                "$ref": "#/$defs/ProgressBlock"
               }
             ]
           },

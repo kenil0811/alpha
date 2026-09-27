@@ -272,3 +272,29 @@ def test_a_table_detail_is_validated_like_its_columns() -> None:
         broken["screen"]["tabs"][0]["blocks"][1]["detail"] = bad
         with pytest.raises(ValidationError, match=message):
             AppSource.model_validate(broken)
+
+
+def test_a_progress_block_is_a_metric_against_a_goal() -> None:
+    source = copy.deepcopy(SOURCE)
+    blocks = source["screen"]["tabs"][0]["blocks"]
+    blocks.append(
+        {
+            "kind": "progress",
+            "title": "Calories today",
+            "view": "entries.by_day",
+            "metric": "total",
+            "unit": "kcal",
+            "goal_from": {"view": "goals.current", "field": "daily"},
+        }
+    )
+    app = AppSource.model_validate(source)
+    assert app.screen is not None and app.screen.tabs[0].blocks[-1].kind == "progress"
+    for bad, message in (
+        ({"goal_from": None}, "needs a goal or goal_from"),
+        ({"metric": "nope"}, "has no metric 'nope'"),
+        ({"view": "entries.all", "goal": 5}, "needs an aggregate view"),
+    ):
+        broken = copy.deepcopy(source)
+        broken["screen"]["tabs"][0]["blocks"][-1].update(bad)
+        with pytest.raises(ValidationError, match=message):
+            AppSource.model_validate(broken)

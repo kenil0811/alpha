@@ -94,7 +94,7 @@ Rules:
   action that reads the web must then report that plainly and store nothing; do not add inputs
   whose only purpose is to stand in for a page's contents.
 - The screen is DECLARED in app.yaml under `screen:` (tabs of blocks: quick_entry, table,
-  metrics, trend, board, list, form, text) over read views declared under `views:`. Alpha
+  metrics, progress, trend, board, list, form, text) over read views declared under `views:`. Alpha
   draws it. Every action a block runs must list ui in invocable_from. Lay it out by the MODULE
   CONVENTIONS in the instructions below (data first; a quick_entry above it only when typing a
   line is the main way in; forms after; then metrics and trends). Use the labels PLAN.md names
