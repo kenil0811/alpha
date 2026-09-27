@@ -132,8 +132,20 @@ hand-built:
   than usual" note at 90 s and a Stop button (Core kills the CLI process). The same change turn
   retried on Sonnet: 11k tokens in 103 s, briefed correctly.
 
+- Quick changes (Kenil: "a simple change should not take 15 minutes"). A change request is
+  triaged first (Sonnet, ~6 s): small edits inside what the module already has skip the brief
+  and the plan; one structured call returns the changed files in full, identity lines are
+  kept, the package must validate and bind, then it is switched on with the release guarded.
+  Kenil's diet tracker request ("I don't want this log food box") through the new path: triage
+  9 s, edit 72 s (Opus, 8.8k output tokens for a 14 KB app.yaml), live after 85 s with the form
+  gone and data kept. The same request through the old path had timed out after 300 s at the
+  assistant and then failed at the planner. Bigger changes still take the full path.
+
 ## Still to do
 
+- Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a
+  module); the module's existing checks should run in the background after a quick change with
+  a one-click revert.
 - Model latency: one batch call takes 60 to 75 seconds on the CLI route; a faster route for
   modules' own calls (Settings already lets the person pick Haiku or Sonnet for them).
 - The first block of a module's first tab must be a quick entry or form (verify rule); for
