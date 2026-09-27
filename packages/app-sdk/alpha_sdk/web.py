@@ -3,6 +3,8 @@
     page = ctx.web.get("https://example.com/prices")
     page.text          # readable text (HTML reduced to text), page.title, page.status
     page.links         # [Link(text, url)] every link on the page, absolute, in page order
+    page.blocked       # True when the site answered with a sign-in page instead
+    ctx.web.get(url, rendered=True)   # let the page's scripts run first (a browser loads it)
     hits = ctx.web.search("best beginner kettlebell routine", count=5)
     hits[0].title, hits[0].url, hits[0].snippet
 
@@ -35,6 +37,11 @@ class Page:
     text: str
     truncated: bool
     links: tuple[Link, ...] = ()
+    # "fetch" or "browser"; signed_in when the person's session for the site was used.
+    via: str = "fetch"
+    signed_in: bool = False
+    # The site answered with a sign-in page instead of the content: say so, store nothing.
+    blocked: bool = False
 
     @property
     def ok(self) -> bool:
@@ -52,9 +59,14 @@ class Web:
     def __init__(self, transport: Transport) -> None:
         self._t = transport
 
-    def get(self, url: str, *, max_chars: int = 60_000, raw: bool = False) -> Page:
+    def get(
+        self, url: str, *, max_chars: int = 60_000, raw: bool = False, rendered: bool = False
+    ) -> Page:
+        """Read a page. Sites the person allowed this App to read through their signed-in
+        browser are read that way on their own; `rendered=True` loads a public page in a browser
+        so its scripts run first."""
         data: dict[str, Any] = self._t.call(
-            "http.get", {"url": url, "max_chars": max_chars, "raw": raw}
+            "http.get", {"url": url, "max_chars": max_chars, "raw": raw, "rendered": rendered}
         )
         return Page(
             url=str(data["url"]),
@@ -69,6 +81,9 @@ class Web:
                 for item in data.get("links", [])
                 if item.get("url")
             ),
+            via=str(data.get("via", "fetch")),
+            signed_in=bool(data.get("signed_in", False)),
+            blocked=bool(data.get("blocked", False)),
         )
 
     def search(self, query: str, *, count: int = 5) -> list[SearchHit]:

@@ -33,6 +33,7 @@ from alpha.builds.service import BuildPipeline, BuildService
 from alpha.builds.toolchain import PlatformResources, UiToolchain
 from alpha.builds.ui_check import UiRenderCheck
 from alpha.builds.verify import CandidateVerifier
+from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed
 from alpha.capabilities.web import WebService
 from alpha.config import ConfigError, CoreSettings
@@ -240,6 +241,17 @@ def build_app_platform(
     if any(artifact_report.values()):
         log.warning("artifact reconciliation: %s", artifact_report)
     models = AppModelService(store, gateway, inference, settings.app_model_route)
+    browser = BrowserService(
+        store,
+        node=settings.node_binary,
+        script=(
+            PlatformResources(settings.platform_resources).browser_worker
+            if settings.platform_resources
+            else None
+        ),
+        root=settings.data_dir / "browser",
+        preferences=gateway.preferences,
+    )
     broker = CapabilityBroker(
         store,
         records,
@@ -247,6 +259,7 @@ def build_app_platform(
         models,
         on_event=lambda run_id, kind, payload: _append(store, run_id, kind, payload),
         web=WebService(),
+        browser=browser,
     )
     revoked = broker.revoke_all_on_startup()
     if revoked:
@@ -274,6 +287,7 @@ def build_app_platform(
         runs=runs,
         binder=binder,
         fixture_apps_dir=settings.dev_fixture_apps_dir,
+        browser=browser,
     )
 
 

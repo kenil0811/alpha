@@ -89,7 +89,7 @@ def turn_prompt(
 TRIAGE_SYSTEM = """You look at one request to change an App that already exists and decide how Alpha should make it.
 
 - "quick": the change stays inside what the App already has: wording, labels, layout, which blocks a tab shows, defaults, a small rule inside an existing action, a column or a saved list. Alpha edits the App's files directly in about a minute.
-- "full": the change needs new tables or fields, a new action, a new capability (reading the web, a schedule, the model), a new source to read, or is too vague to act on without asking. Alpha then plans and rebuilds with checks, which takes longer.
+- "full": the change needs new tables or fields, a new action, a new capability (reading the web, a schedule, the model), a new source to read, or is too vague to act on without asking. Alpha then plans and rebuilds with checks, which takes longer. One exception is quick: letting the App read through the person's signed-in browser (they say "use my signed-in LinkedIn", "read it with my session"), which is a one-line change.
 
 When in doubt between the two, choose "quick" if the request names the thing to change and "full" if it describes new behaviour. Write `summary` as one sentence saying exactly what will change, in the person's words, and `reply` as one or two friendly sentences telling them what happens next (for quick: that Alpha is making the change now and their data is kept; for full: that this is bigger and Alpha will plan it and may ask a question). Output only the structured object."""
 

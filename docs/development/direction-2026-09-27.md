@@ -141,6 +141,21 @@ hand-built:
   gone and data kept. The same request through the old path had timed out after 300 s at the
   assistant and then failed at the planner. Bigger changes still take the full path.
 
+- Browser capability, level B (Kenil chose it over A alone). `workers/validator/src/
+  browser_session.mjs` drives the installed Chrome (or the pinned Playwright Chromium): a
+  visible window on a profile Alpha keeps under `data/browser/<site>` for the person to sign in
+  themselves, headless reads of pages with scripts run (text, links, a sign-in-wall flag), a
+  normal user agent so sites do not answer with a wall. `alpha/capabilities/browser.py` keeps
+  the sites, per-module grants, pacing per site (pages per hour and a gap, in Settings) and
+  every visit; the broker routes `http.get` through the browser for sites the module is allowed
+  to read through the person's session (the module declares `browser`) and for `rendered=True`.
+  Connections lists sites and starts a sign-in; a module's Settings has the switches; its
+  Activity lists the pages opened. Read-only: the worker never clicks, types or submits.
+- Agreed next: an in-app avatar assistant on every surface (Clicky-like), with a third verb
+  besides build and change: run an existing module's action or view from a message, at once;
+  same voice toggle; Kenil has character art. The floating desktop window waits for the Tauri
+  host.
+
 ## Still to do
 
 - Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a

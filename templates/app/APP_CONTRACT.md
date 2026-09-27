@@ -24,7 +24,7 @@ name: Meal log                # the person's words
 description: One sentence saying what it does for the person.
 runtime_profile: pyprof-…     # exact value given by the platform; never change it
 sdk_version: 0.1.0            # exact value given by the platform
-capabilities: [records]       # records, artifacts, models, http, schedules: only what the actions use
+capabilities: [records]       # records, artifacts, models, http, browser, schedules: only what the actions use
 collections: [...]
 actions: [...]
 views: [...]                  # declared read views

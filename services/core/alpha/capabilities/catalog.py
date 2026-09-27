@@ -110,11 +110,25 @@ CATALOG: tuple[CapabilityFamily, ...] = (
     ),
     CapabilityFamily(
         family="browser",
-        description="Working inside websites with a dedicated signed-in browser session, "
-        "including filling supported forms.",
-        available=False,
-        unavailable_reason="browser sessions are not connected yet",
-        arrives_with="F14",
+        description="Reading websites through a browser Alpha keeps: pages drawn by scripts, "
+        "and sites the person has signed into (LinkedIn, Indeed) when they allow a module "
+        "to use that session. Read-only: it never clicks, types or submits.",
+        available=True,
+        operations=(
+            "http.get(url) reads through the person's signed-in session for sites they "
+            "connected on Connections and allowed for this App; the App declares the browser "
+            "capability and otherwise calls ctx.web.get as usual",
+            "http.get(url, rendered=true) loads a public page in a browser so scripts run "
+            "before it is read",
+            "page.blocked is true when the site answered with a sign-in page instead",
+        ),
+        notes=(
+            "The person signs in themselves in a window Alpha opens; Alpha never sees or "
+            "stores the password. Access is per module and per site, switched on by the person.",
+            "Paced: a limited number of pages per hour per site, with a gap between pages, so "
+            "it reads like a person. Every page opened is listed in the module's Activity.",
+            "No filling forms or applying yet: that arrives with per-action approval.",
+        ),
     ),
     CapabilityFamily(
         family="messaging",

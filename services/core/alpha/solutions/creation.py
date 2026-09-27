@@ -216,7 +216,10 @@ QUICK_CHANGE_SYSTEM = (
     "actions and handlers. Python uses only the standard library and alpha_sdk.\n"
     "- If the change needs a new table or field, a new action, a new capability, a new source "
     "to read, or you cannot tell what is meant, do not guess: set needs_full_build to true and "
-    "say why in reason.\n"
+    "say why in reason. Exception: letting the App read sites through the person's signed-in "
+    "browser is a quick change: add browser to capabilities in app.yaml (ctx.web.get then uses "
+    "the session for sites the person allows) and, where the code reports a page that could "
+    "not be read, mention page.blocked as needing sign-in.\n"
     "- Write a one-sentence summary of what you changed for the person.\n"
     "Output only the structured object."
 )

@@ -18,6 +18,10 @@ class HttpGetRequest(ContractModel):
     max_chars: int = Field(default=60_000, ge=1000, le=400_000)
     # When true the raw body is returned instead of readable text (for JSON APIs and feeds).
     raw: bool = False
+    # When true the page is loaded in a browser so scripts run before it is read (pages that
+    # draw their content with scripts). Sites the person allowed this App to read through their
+    # signed-in browser always load that way.
+    rendered: bool = False
 
 
 class PageLink(ContractModel):
@@ -39,6 +43,11 @@ class HttpPage(ContractModel):
     links: list[PageLink] = Field(default_factory=list)
     truncated: bool = False
     fetched_at: str
+    # How it was read: a plain fetch, or a browser (with the person's session when signed_in).
+    via: str = "fetch"
+    signed_in: bool = False
+    # The site sent the browser to a sign-in page instead of the content asked for.
+    blocked: bool = False
 
 
 class HttpSearchRequest(ContractModel):

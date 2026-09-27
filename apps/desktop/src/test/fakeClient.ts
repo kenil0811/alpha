@@ -6,6 +6,9 @@ import type {
   CoreClient,
   HealthInfo,
   SettingField,
+  BrowserSite,
+  BrowserAccess,
+  BrowserVisit,
   StreamItem,
   SyntheticRunRequest,
 } from "../core/client";
@@ -126,6 +129,33 @@ export class FakeCoreClient implements CoreClient {
     { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
   ];
   settingsUpdates: Record<string, unknown>[] = [];
+
+  sites: BrowserSite[] = [];
+  browserAvailable = true;
+  access = new Map<string, string[]>();
+  visitsByApp = new Map<string, BrowserVisit[]>();
+  async browserSites(): Promise<{ available: boolean; sites: BrowserSite[] }> {
+    return { available: this.browserAvailable, sites: this.sites };
+  }
+  async connectBrowserSite(site: string): Promise<{ site: string; state: string }> {
+    const key = site.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+    this.sites = [...this.sites.filter((s) => s.site !== key), { site: key, state: "signing_in", connected_at: null, last_error: null, apps: [] }];
+    return { site: key, state: "signing_in" };
+  }
+  async removeBrowserSite(site: string): Promise<void> {
+    this.sites = this.sites.filter((s) => s.site !== site);
+  }
+  async browserAccess(appId: string): Promise<BrowserAccess[]> {
+    const allowed = new Set(this.access.get(appId) ?? []);
+    return this.sites.map((s) => ({ site: s.site, state: s.state, allowed: allowed.has(s.site) }));
+  }
+  async setBrowserAccess(appId: string, sites: string[]): Promise<BrowserAccess[]> {
+    this.access.set(appId, sites);
+    return this.browserAccess(appId);
+  }
+  async browserVisits(appId: string): Promise<BrowserVisit[]> {
+    return this.visitsByApp.get(appId) ?? [];
+  }
 
   async getSettings(): Promise<SettingField[]> {
     return this.settingsFields;

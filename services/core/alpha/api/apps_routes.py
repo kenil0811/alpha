@@ -25,6 +25,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.artifacts.service import ArtifactService
+from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.data.store import RecordService, WriteContext
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
@@ -51,6 +52,7 @@ class AppPlatform:
     binder: HandlerBinder
     fixture_apps_dir: Path | None = None
     scheduler: Scheduler | None = None
+    browser: BrowserService | None = None
 
     def close(self) -> None:
         if self.scheduler is not None:

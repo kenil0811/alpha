@@ -25,6 +25,7 @@ from alpha import __version__
 from alpha.api.apps_routes import AppPlatform
 from alpha.api.apps_routes import register as register_app_routes
 from alpha.api.auth import make_auth_middleware
+from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.creation_routes import register as register_creation_routes
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
@@ -263,6 +264,8 @@ def create_app(
         register_app_routes(app, platform)
     if creations is not None:
         register_creation_routes(app, creations)
+    if platform is not None and platform.browser is not None:
+        register_browser_routes(app, platform.browser)
 
     @app.get("/api/events/stream")
     async def stream_events(

@@ -6,7 +6,7 @@
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppDetail, ScheduleStatus } from "../core/client";
+import type { AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ActionsView } from "../workflows/ActionsView";
@@ -42,10 +42,90 @@ const ACCESS: Record<string, { title: string; sub: string }> = {
   models: { title: "Model estimates through your Claude subscription", sub: "What you type into an action that asks for an estimate is sent to Anthropic's Claude service. Results are labelled as estimates." },
   http: { title: "Public web pages and web search", sub: "Fetches on your behalf; nothing on this Mac or a private network, no sign-ins." },
   schedules: { title: "Runs on a timer while Alpha is open", sub: "Its schedules are listed under Automations with an on/off switch." },
+  browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this module's Settings. Read-only and paced; every page is listed above." },
   artifacts: { title: "Files it produces", sub: "Kept by Alpha; opening them from Alpha arrives in a later release." },
 };
 
 /** The module's declared schedules: on/off, last and next run, and Run now. */
+/** Which signed-in sites this module may read through: off until the person switches it on. */
+function BrowserAccessSwitches({ client, appId }: { client: ModuleClient; appId: string }) {
+  const [rows, setRows] = useState<BrowserAccess[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    client.browserAccess(appId).then(setRows).catch(() => setRows([]));
+  }, [client, appId]);
+  async function toggle(site: string, on: boolean) {
+    if (!rows) return;
+    const next = rows.filter((r) => (r.site === site ? on : r.allowed)).map((r) => r.site);
+    try {
+      setRows(await client.setBrowserAccess(appId, next));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+  if (!rows) return null;
+  return (
+    <div className="section">
+      <div className="section__head">
+        <h2>Your signed-in browser</h2>
+        <span className="faint">Sites you signed into on Connections. Reading only, paced, every page listed under Activity.</span>
+      </div>
+      <div className="card list" aria-label="Signed-in browser access">
+        {rows.length === 0 ? <p className="empty">No sites yet. Sign in to one on Connections first.</p> : null}
+        {rows.map((r) => (
+          <div className="item" key={r.site}>
+            <div className="item__body">
+              <b>{r.site}</b>
+              <div className="item__sub">{r.state === "connected" ? (r.allowed ? "This module may read through your session." : "Off: this module reads it as a visitor.") : "Not signed in."}</div>
+            </div>
+            <label className="switch">
+              <input type="checkbox" checked={r.allowed} disabled={r.state !== "connected"} onChange={(e) => void toggle(r.site, e.target.checked)} aria-label={`Allow ${r.site}`} />
+              <span />
+            </label>
+          </div>
+        ))}
+      </div>
+      {error ? (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Pages this module opened through the person's browser, newest first. */
+function BrowserVisits({ client, appId, version }: { client: ModuleClient; appId: string; version: number }) {
+  const [rows, setRows] = useState<BrowserVisit[]>([]);
+  useEffect(() => {
+    client.browserVisits(appId).then(setRows).catch(() => setRows([]));
+  }, [client, appId, version]);
+  if (!rows.length) return null;
+  return (
+    <div className="section">
+      <div className="section__head">
+        <h2>Pages opened in your browser</h2>
+        <span className="faint">Through your signed-in session or a rendered page, newest first</span>
+      </div>
+      <div className="card list" aria-label="Pages opened in your browser">
+        {rows.map((v) => (
+          <div className="item" key={v.visit_id}>
+            <div className="item__body">
+              <b>{v.url.replace(/^https?:\/\//, "").slice(0, 90)}</b>
+              <div className="item__sub">
+                {when(v.at)} · {v.signed_in ? "your session" : "as a visitor"}
+                {v.blocked ? " · the site asked to sign in" : ""}
+                {v.status ? ` · ${v.status}` : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Automations({ client, appId, version, onChanged }: { client: ModuleClient; appId: string; version: number; onChanged: () => void }) {
   const [items, setItems] = useState<ScheduleStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -264,6 +344,7 @@ export function ModulePage({
                 {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">Nothing has run yet.</p>}
               </div>
               <Automations client={client} appId={appId} version={version} onChanged={changed} />
+              {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
               <div className="section">
                 <div className="section__head">
                   <h2>What it can reach</h2>
@@ -299,7 +380,8 @@ export function ModulePage({
 
           {section === "settings" ? (
             <>
-              <div className="section" style={{ marginTop: 0 }}>
+              {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
+              <div className="section" style={{ marginTop: (detail.capabilities ?? []).includes("browser") ? undefined : 0 }}>
                 <div className="section__head">
                   <h2>How it works</h2>
                 </div>

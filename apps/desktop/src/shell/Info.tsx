@@ -1,6 +1,6 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
-import { useEffect, useState } from "react";
-import type { CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
@@ -31,9 +31,101 @@ const FAMILY_WORDS: Record<string, { title: string; sub: string }> = {
   artifacts: { title: "Files", sub: "Files your modules produce" },
   models: { title: "Claude (your subscription)", sub: "Builds modules and answers questions inside them" },
   web: { title: "The web", sub: "Fetching pages and searching" },
-  browser: { title: "A browser", sub: "Sites that need clicking and typing" },
+  browser: { title: "A browser Alpha keeps", sub: "Pages drawn by scripts, and sites you sign into below" },
   schedules: { title: "Schedules", sub: "Running on a timer while Alpha is open" },
 };
+
+/** Sites the person signs into in Alpha's own browser window; modules read through them only
+ *  when switched on per module. */
+function SignedInSites({ client }: { client: CoreClient }) {
+  const [available, setAvailable] = useState(true);
+  const [sites, setSites] = useState<BrowserSite[]>([]);
+  const [draft, setDraft] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const load = useCallback(() => {
+    client
+      .browserSites()
+      .then((page) => {
+        setAvailable(page.available);
+        setSites(page.sites);
+      })
+      .catch(() => undefined);
+  }, [client]);
+  useEffect(load, [load]);
+  useEffect(() => {
+    if (!sites.some((s) => s.state === "signing_in")) return;
+    const timer = window.setInterval(load, 2000);
+    return () => window.clearInterval(timer);
+  }, [sites, load]);
+  async function connect(e: FormEvent) {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    try {
+      await client.connectBrowserSite(draft.trim());
+      setNote("A browser window has opened. Sign in there as you normally would, then close it.");
+      setDraft("");
+      load();
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : String(err));
+    }
+  }
+  async function remove(site: string) {
+    await client.removeBrowserSite(site).catch(() => undefined);
+    load();
+  }
+  const STATE: Record<BrowserSite["state"], string> = { signing_in: "Waiting for you to sign in and close the window", connected: "Signed in", not_connected: "Not signed in" };
+  return (
+    <div className="section">
+      <div className="section__head">
+        <h2>Sites you are signed into</h2>
+        <span className="faint">Alpha opens the site in its own browser window; you sign in; Alpha never sees the password. A module reads through that session only when you switch it on in the module's Settings.</span>
+      </div>
+      <div className="card list" aria-label="Signed-in sites">
+        {sites.map((s) => (
+          <div className="item" key={s.site}>
+            <div className="item__ico" aria-hidden="true">
+              {s.state === "connected" ? "●" : "○"}
+            </div>
+            <div className="item__body">
+              <b>{s.site}</b>
+              <div className="item__sub">
+                {STATE[s.state]}
+                {s.last_error ? ` · ${s.last_error}` : ""}
+                {s.apps.length ? ` · used by ${s.apps.length} module${s.apps.length === 1 ? "" : "s"}` : ""}
+              </div>
+            </div>
+            {s.state !== "connected" && s.state !== "signing_in" ? (
+              <button type="button" className="btn btn--sm" onClick={() => void client.connectBrowserSite(s.site).then(load)}>
+                Sign in again
+              </button>
+            ) : null}
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => void remove(s.site)} aria-label={`Remove ${s.site}`}>
+              Remove
+            </button>
+          </div>
+        ))}
+        <form className="item" onSubmit={connect} aria-label="Sign in to a site">
+          <div className="item__body">
+            <label htmlFor="new-site">
+              <b>Sign in to a site</b>
+            </label>
+            <div className="item__sub">Type the site's name, for example linkedin.com or indeed.com.</div>
+          </div>
+          <input id="new-site" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="linkedin.com" style={{ width: 200 }} disabled={!available} />
+          <button type="submit" className="btn btn--primary btn--sm" disabled={!available || !draft.trim()}>
+            Sign in…
+          </button>
+        </form>
+      </div>
+      {!available ? <p className="panel__hint">The browser is not set up on this Mac (Node or the browser worker is missing).</p> : null}
+      {note ? (
+        <p className="panel__hint" role="status">
+          {note}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function Connections({ client }: { client: CoreClient }) {
   const [items, setItems] = useState<CapabilityEntry[] | null>(null);
@@ -56,6 +148,7 @@ export function Connections({ client }: { client: CoreClient }) {
           {error}
         </p>
       ) : null}
+      <SignedInSites client={client} />
       <div className="card list">
         {(items ?? []).map((c) => {
           const words = FAMILY_WORDS[c.family] ?? { title: c.family, sub: c.description };

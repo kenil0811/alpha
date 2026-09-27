@@ -115,6 +115,28 @@ FIELDS: tuple[SettingField, ...] = (
 FIELDS = (
     *FIELDS,
     SettingField(
+        "browser.pages_per_hour",
+        "Signed-in browser",
+        "Pages per hour, per site",
+        "How many pages a module may open through your signed-in browser in an hour. Low "
+        "numbers look like a person and keep accounts safe.",
+        "integer",
+        30,
+        minimum=5,
+        maximum=200,
+    ),
+    SettingField(
+        "browser.min_seconds_between_pages",
+        "Signed-in browser",
+        "Seconds between pages",
+        "The shortest gap between two pages opened on the same site.",
+        "integer",
+        15,
+        minimum=3,
+        maximum=120,
+        unit="s",
+    ),
+    SettingField(
         "look.density",
         "Look",
         "Density",

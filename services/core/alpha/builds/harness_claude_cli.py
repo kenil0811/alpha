@@ -84,6 +84,10 @@ Rules:
   a listing page (jobs, products, articles) use page.links (text + absolute url) filtered by
   address pattern, never regexes over page.text; fetch an item's own page for its details, and
   use ctx.models with a schema when items need reading. Never fabricate placeholder items.
+  Sites that need a sign-in (LinkedIn, Indeed) are read through the person's own browser
+  session when the App declares the browser capability and the person allows it: call
+  ctx.web.get as usual, check page.blocked, and never attempt to log in. Pages drawn by
+  scripts: ctx.web.get(url, rendered=True).
   While Alpha runs PLAN.md's checks the web is unreachable (every ctx.web call raises): an
   action that reads the web must then report that plainly and store nothing; do not add inputs
   whose only purpose is to stand in for a page's contents.

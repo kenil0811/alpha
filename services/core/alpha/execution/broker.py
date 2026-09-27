@@ -36,6 +36,7 @@ from alpha_contracts.web import HttpGetRequest, HttpSearchRequest
 from pydantic import BaseModel, ValidationError
 
 from alpha.artifacts.service import ArtifactService
+from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed, forbidden, invalid, unavailable
 from alpha.capabilities.web import WebService
 from alpha.data.store import RecordService, WriteContext
@@ -86,7 +87,9 @@ class CapabilityBroker:
         models: AppModelService,
         on_event: Callable[[str, str, dict[str, Any]], None] | None = None,
         web: WebService | None = None,
+        browser: BrowserService | None = None,
     ) -> None:
+        self._browser = browser
         self._store = store
         self._records = records
         self._artifacts = artifacts
@@ -265,6 +268,18 @@ class CapabilityBroker:
             )
         if operation == "http.get":
             get_request = _parse(HttpGetRequest, args)
+            # A site the person allowed this App to read through their session is read in the
+            # browser; so is any page the App asks to have rendered. Everything else is fetched.
+            site = None
+            if self._browser is not None and "browser" in grant.capabilities:
+                site = self._browser.allowed_site(grant.app_id, get_request.url)
+            if site is not None or (
+                get_request.rendered and self._browser is not None and self._browser.available
+            ):
+                assert self._browser is not None
+                return self._browser.read(grant.run_id, grant.app_id, get_request, site).model_dump(
+                    mode="json"
+                )
             if self._web is None:
                 raise unavailable("web access is not connected on this Mac")
             return self._web.get(grant.run_id, get_request).model_dump(mode="json")

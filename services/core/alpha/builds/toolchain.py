@@ -48,6 +48,10 @@ class PlatformResources:
     def ui_validator(self) -> Path:
         return self.root / "workers" / "validator" / "src" / "ui_check.mjs"
 
+    @property
+    def browser_worker(self) -> Path:
+        return self.root / "workers" / "validator" / "src" / "browser_session.mjs"
+
 
 @dataclass(frozen=True)
 class UiToolchain:

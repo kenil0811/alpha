@@ -177,6 +177,32 @@ export interface SettingField {
   value: unknown;
 }
 
+/** A site the person signed into in Alpha's own browser. */
+export interface BrowserSite {
+  site: string;
+  state: "signing_in" | "connected" | "not_connected";
+  connected_at: string | null;
+  last_error: string | null;
+  apps: string[];
+}
+export interface BrowserAccess {
+  site: string;
+  state: BrowserSite["state"];
+  allowed: boolean;
+}
+export interface BrowserVisit {
+  visit_id: string;
+  app_id: string;
+  run_id: string | null;
+  site: string;
+  url: string;
+  final_url: string | null;
+  status: number | null;
+  blocked: number;
+  signed_in: number;
+  at: string;
+}
+
 export interface HealthInfo {
   status: string;
   core_version: string;
@@ -268,6 +294,13 @@ export interface CoreClient {
   conversation(id: string): Promise<Conversation>;
   listConversations(): Promise<Conversation[]>;
   /** Settings the person may change (models per stage, build limits) with current values. */
+  /** The signed-in browser: sites connected, what a module may read through them, pages opened. */
+  browserSites(): Promise<{ available: boolean; sites: BrowserSite[] }>;
+  connectBrowserSite(site: string): Promise<{ site: string; state: string }>;
+  removeBrowserSite(site: string): Promise<void>;
+  browserAccess(appId: string): Promise<BrowserAccess[]>;
+  setBrowserAccess(appId: string, sites: string[]): Promise<BrowserAccess[]>;
+  browserVisits(appId: string): Promise<BrowserVisit[]>;
   getSettings(): Promise<SettingField[]>;
   updateSettings(values: Record<string, unknown>): Promise<SettingField[]>;
   /** A module's own thread: the request that made it and every change since, newest first. */
@@ -484,6 +517,10 @@ export interface OperationOutcome {
 
 /** Installed-App commands used by the shell's bridge host (F05/F06 routes). */
 export interface AppsClient {
+  /** The signed-in browser, per module: what it may read through and what it opened. */
+  browserAccess(appId: string): Promise<BrowserAccess[]>;
+  setBrowserAccess(appId: string, sites: string[]): Promise<BrowserAccess[]>;
+  browserVisits(appId: string): Promise<BrowserVisit[]>;
   appDetail(appId: string): Promise<AppDetail>;
   installFixtureApp(name: string): Promise<{ app_id: string }>;
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
@@ -743,6 +780,33 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   async appConversations(appId: string): Promise<Conversation[]> {
     const page = await this.request<{ conversations: Conversation[] }>(`/api/apps/${encodeURIComponent(appId)}/conversations`);
     return page.conversations;
+  }
+
+  browserSites(): Promise<{ available: boolean; sites: BrowserSite[] }> {
+    return this.request<{ available: boolean; sites: BrowserSite[] }>("/api/browser/sites");
+  }
+
+  connectBrowserSite(site: string): Promise<{ site: string; state: string }> {
+    return this.request<{ site: string; state: string }>("/api/browser/sites", { method: "POST", body: JSON.stringify({ site }) });
+  }
+
+  async removeBrowserSite(site: string): Promise<void> {
+    await this.request<{ removed: string }>(`/api/browser/sites/${encodeURIComponent(site)}`, { method: "DELETE" });
+  }
+
+  async browserAccess(appId: string): Promise<BrowserAccess[]> {
+    const page = await this.request<{ sites: BrowserAccess[] }>(`/api/apps/${encodeURIComponent(appId)}/browser-access`);
+    return page.sites;
+  }
+
+  async setBrowserAccess(appId: string, sites: string[]): Promise<BrowserAccess[]> {
+    const page = await this.request<{ sites: BrowserAccess[] }>(`/api/apps/${encodeURIComponent(appId)}/browser-access`, { method: "PUT", body: JSON.stringify({ sites }) });
+    return page.sites;
+  }
+
+  async browserVisits(appId: string): Promise<BrowserVisit[]> {
+    const page = await this.request<{ visits: BrowserVisit[] }>(`/api/apps/${encodeURIComponent(appId)}/browser-visits`);
+    return page.visits;
   }
 
   async getSettings(): Promise<SettingField[]> {

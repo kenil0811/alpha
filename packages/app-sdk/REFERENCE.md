@@ -129,6 +129,14 @@ details. `page.text` is for reading, not for finding addresses: it carries no hr
 navigation comes first in it. When items are hard to tell apart by address, pass the relevant
 part of `page.text` to `ctx.models` with a schema and let the model list them.
 
+Sites that need a sign-in, and pages drawn by scripts, go through the `browser` capability:
+declare `browser` next to `http`. The person connects a site (LinkedIn, Indeed) on Connections,
+signing in themselves, and switches it on for this App; from then on `ctx.web.get(url)` for
+that site reads through their session with no change to your code, `page.signed_in` is true,
+and each page is paced and listed in the App's Activity. For a public page that draws its
+content with scripts, pass `rendered=True`. When `page.blocked` is true the site answered with a
+sign-in page: say so in the result and store nothing. Never try to log in, click or submit.
+
 Declare `http` in the App's `capabilities` and in the action's `capability_requirements`.
 Only public http(s) addresses are fetched (nothing on this Mac or a private network), bodies are
 capped at 2 MB, and a run may make at most 60 web requests. Nothing is signed in: pages that need

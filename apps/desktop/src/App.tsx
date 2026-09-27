@@ -253,6 +253,24 @@ class NullClient implements CoreClient {
   getSettings() {
     return Promise.resolve([]);
   }
+  browserSites() {
+    return Promise.resolve({ available: false, sites: [] });
+  }
+  connectBrowserSite() {
+    return this.fail();
+  }
+  removeBrowserSite() {
+    return this.fail();
+  }
+  browserAccess() {
+    return Promise.resolve([]);
+  }
+  setBrowserAccess() {
+    return this.fail();
+  }
+  browserVisits() {
+    return Promise.resolve([]);
+  }
   updateSettings() {
     return this.fail();
   }
