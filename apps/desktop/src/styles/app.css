@@ -235,7 +235,10 @@ a { color: var(--primary); }
 .actions { display: flex; flex-direction: column; gap: 14px; }
 /* A form lays its fields out in columns so short inputs do not stretch across the window. */
 .action { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; background: var(--surface); align-items: start; }
-.action > h3, .action > .panel__hint, .action > .row, .action > .notice, .action > .result__title, .action > .output, .action > .field--wide, .action > .field--inline { grid-column: 1 / -1; }
+.action > h3, .action > .panel__hint, .action > .row, .action > .notice, .action > .result, .action > .result__title, .action > .output, .action > .field--wide, .action > .field--inline { grid-column: 1 / -1; }
+.result { min-width: 0; }
+.result .table-wrap { overflow-x: auto; }
+.result table.data { width: 100%; }
 .action > h3 { margin: 0; }
 .action > .panel__hint { margin-top: -6px; }
 .action--primary { border-color: var(--primary); }

@@ -74,7 +74,8 @@ Rules:
   reader for their actual structure (which links are items, where the details live); note what
   you learned in a comment so a later change can follow it.
 - Model calls are slow (seconds each): never call ctx.models once per item in a loop. Send one
-  structured call for a batch of items (up to ~20) with a schema that returns a list, and
+  structured call for a batch of items (up to ~20, input under 60 KB) asking for a `json` field
+  that holds a list with one entry per item (name the keys in the instruction; see SDK.md), and
   score, summarise or extract in that one call.
 - Python in package/src/ imports only the standard library, alpha_sdk and the package's own
   modules. No file, socket, subprocess or environment access: data through ctx.records, model

@@ -62,7 +62,10 @@ _ALLOWED_OUTPUT_KINDS = {
     FieldKind.DATE,
     FieldKind.DATETIME,
     FieldKind.CHOICE,
+    FieldKind.JSON,  # a list or object for batch work: one call scores or extracts many items
 }
+# A batch answer (one entry per item) needs more room than a record's JSON field.
+JSON_OUTPUT_MAX_BYTES = 65_536
 
 
 def fake_estimate(fields: list[FieldSpec], instruction: str) -> dict[str, Any]:
@@ -93,6 +96,8 @@ def fake_estimate(fields: list[FieldSpec], instruction: str) -> dict[str, Any]:
             out[spec.name] = datetime.now(tz=UTC).isoformat()
         elif spec.kind is FieldKind.CHOICE:
             out[spec.name] = (spec.choices or [""])[0]
+        elif spec.kind is FieldKind.JSON:
+            out[spec.name] = [{"ref": 1, "estimate": f"estimated {spec.name}"}]
     return out
 
 
@@ -105,7 +110,7 @@ class AppModelService:
         route_id: str,
         *,
         max_calls_per_run: int = 10,
-        max_input_bytes: int = 20_000,
+        max_input_bytes: int = 64_000,
     ) -> None:
         self._store = store
         self._gateway = gateway
@@ -135,6 +140,16 @@ class AppModelService:
         names = [f.name for f in request.fields]
         if len(set(names)) != len(names):
             raise invalid("output field names must be unique")
+        request = request.model_copy(
+            update={
+                "fields": [
+                    f.model_copy(update={"max_bytes": f.max_bytes or JSON_OUTPUT_MAX_BYTES})
+                    if f.kind is FieldKind.JSON
+                    else f
+                    for f in request.fields
+                ]
+            }
+        )
         try:
             input_json = json.dumps(request.input, allow_nan=False, sort_keys=True)
         except (TypeError, ValueError):

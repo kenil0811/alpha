@@ -91,6 +91,14 @@ ctx.records.create(
 `fields` use the same field kinds as collections. Pass the result in `estimated` so the saved
 value is labelled an estimate the person can correct.
 
+Batch work (scoring, summarising or extracting many items) is ONE call, not one per item: put
+the items in `input` (up to ~60 KB) and ask for a `json` field that holds a list with one entry
+per item, saying the exact keys in the instruction, for example
+`fields={"scores": {"kind": "json", "required": True}}` and "return under scores a list of
+objects with keys ref, match_level (Strong, Possible or Weak) and match_reason". The answer may
+be up to 64 KB; check each entry's keys before you trust it, and keep the item's `ref` so you can
+match answers back to items.
+
 When no estimate is available, `ctx.models.structured` raises `Unavailable` (or an
 `OperationError` with code `timed_out`). Never replace it with a guess or a default number:
 either save the value as unknown (`None`) and let the screen say "not estimated", or refuse with a

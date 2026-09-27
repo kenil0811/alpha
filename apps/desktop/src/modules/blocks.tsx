@@ -460,8 +460,9 @@ function Cell({
   const value = row.values[column.field];
   const numeric = kind === "number" || kind === "integer";
   const estimate = row.provenance?.[column.field]?.source === "model_estimate";
-  function begin() {
+  function begin(e?: { stopPropagation: () => void }) {
     if (!editable) return;
+    e?.stopPropagation(); // editing a cell must not also open or close the row's page
     setText(value === null || value === undefined ? "" : String(value));
     setEditing(true);
   }
@@ -475,7 +476,7 @@ function Cell({
   }
   if (editing) {
     return (
-      <td className={numeric ? "r" : undefined}>
+      <td className={numeric ? "r" : undefined} onClick={(e) => e.stopPropagation()}>
         {kind === "choice" ? (
           <select autoFocus value={text} onChange={(e) => setText(e.target.value)} onBlur={() => finish(true)} onKeyDown={key} aria-label={column.title ?? humanize(column.field)}>
             <option value="">—</option>
@@ -502,7 +503,7 @@ function Cell({
     );
   }
   return (
-    <td className={`${numeric ? "r num" : ""} ${editable ? "editable" : ""}`.trim()} onClick={begin} tabIndex={editable ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && begin()} title={editable ? "Click to edit" : undefined}>
+    <td className={`${numeric ? "r num" : ""} ${editable ? "editable" : ""}`.trim()} onClick={(e) => begin(e)} tabIndex={editable ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && begin(e)} title={editable ? "Click to edit" : undefined}>
       {cell(value, column.format ?? undefined, column.unit, kind)}
       {estimate ? <span className="est">estimate</span> : null}
     </td>

@@ -112,9 +112,25 @@ hand-built:
   next use, no restart. The rail's New button now leaves the module page so a request there
   makes a new module.
 
+- Proved the bar: the one-line request "I want a job tracker. I'm a senior backend engineer in
+  London, open to remote. Watch LinkedIn and We Work Remotely for me", answered with defaults,
+  produced "Backend Job Radar" in one build of two attempts (55 checks): four tables, sources
+  added by name (typing "LinkedIn" found two listing pages and 80 openings; "We Work Remotely"
+  three pages), a detail page per opening with the full description and match reason, first and
+  last seen, status board, quick filters for status, work mode and match level, metrics, a trend
+  and a daily 08:00 check. Its first check saved nothing because it asked the model for a list
+  and the structured-call service refused `json` outputs; the service now accepts a bounded
+  `json` field (64 KB, input up to 64 KB) and the fake route returns a list, so batch scoring
+  works: the next check saved 21 openings from two model calls of about a minute each.
+- Shell fixes from that session: an action's result spans the form (tables no longer collapse
+  to one letter per line), and editing a cell no longer also toggles the row's detail page.
+
 ## Still to do
 
-- Prove the bar with a fresh short request ("a job tracker") on the new prompts.
+- Model latency: one batch call takes 60 to 75 seconds on the CLI route; a faster route for
+  modules' own calls (Settings already lets the person pick Haiku or Sonnet for them).
+- The first block of a module's first tab must be a quick entry or form (verify rule); for
+  modules whose main interaction is automatic this puts a manual form at the top. Relax it.
 - A browser capability for sites that need a signed-in session.
 - Module-quality changes to ask the job hunt for: skip "Post a job" links, clean titles, process
   more openings per check or score in one model call, refuse a page with no job links.

@@ -165,6 +165,10 @@ def fields_to_json_schema(fields: Iterable[FieldSpec]) -> dict[str, Any]:
             node = {"type": "string", "format": "date-time"}
         elif spec.kind is FieldKind.CHOICE:
             node = {"type": "string", "enum": list(spec.choices or [])}
+        elif spec.kind is FieldKind.JSON:
+            # A list or object the instruction describes (one entry per item in a batch); the
+            # value is bounded by max_bytes and depth when it comes back.
+            node = {"type": ["array", "object"]}
         else:
             raise invalid(f"model outputs cannot contain {spec.kind.value} fields", field=spec.name)
         if spec.description:
