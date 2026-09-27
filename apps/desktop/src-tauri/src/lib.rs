@@ -9,7 +9,7 @@
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -27,7 +27,24 @@ const ERROR_PREFIX: &str = "ALPHA_CORE_ERROR ";
 /// Core's data directory, fixed once Core launches. Generated App screens are served from the
 /// sealed Versions inside it.
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
-const READY_TIMEOUT: Duration = Duration::from_secs(30);
+/// `<data dir>/logs/host.log`: what the host did and why Core did or did not start. A Mac app
+/// launched from the Finder has no terminal, so stderr alone would lose these lines.
+static HOST_LOG: OnceLock<PathBuf> = OnceLock::new();
+const READY_TIMEOUT: Duration = Duration::from_secs(60);
+
+fn note(message: &str) {
+    eprintln!("[host] {message}");
+    if let Some(path) = HOST_LOG.get() {
+        use std::io::Write;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(file, "{stamp} {message}");
+        }
+    }
+}
 const QUIT_GRACE: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Serialize)]
@@ -55,11 +72,45 @@ struct CoreProcess {
     token: String,
 }
 
+/// The Core launch outcome, shared between the launch thread and the shell's commands. Core
+/// starts off the main thread so the window appears at once; a first launch from the Finder
+/// may sit in a macOS folder-access prompt for as long as the person takes to answer it.
 #[derive(Default)]
-struct HostState {
+struct Launch {
     core: Mutex<Option<CoreProcess>>,
     launch_error: Mutex<Option<String>>,
+    settled: (Mutex<bool>, Condvar),
 }
+
+impl Launch {
+    fn settle(&self, outcome: Result<CoreProcess, String>) {
+        match outcome {
+            Ok(core) => *self.core.lock().unwrap() = Some(core),
+            Err(error) => *self.launch_error.lock().unwrap() = Some(error),
+        }
+        let (done, ready) = &self.settled;
+        *done.lock().unwrap() = true;
+        ready.notify_all();
+    }
+
+    /// Block until the launch settled, or `timeout` passed.
+    fn wait(&self, timeout: Duration) -> bool {
+        let (done, ready) = &self.settled;
+        let guard = done.lock().unwrap();
+        let (guard, _) = ready
+            .wait_timeout_while(guard, timeout, |settled| !*settled)
+            .unwrap();
+        *guard
+    }
+}
+
+#[derive(Default)]
+struct HostState {
+    launch: Arc<Launch>,
+}
+
+/// How long the shell waits for Core before it is told the runtime did not start.
+const SESSION_WAIT: Duration = Duration::from_secs(600);
 
 fn random_token() -> Result<String, String> {
     use std::io::Read;
@@ -132,6 +183,14 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     let token = random_token()?;
     let log_dir = data_dir.join("logs");
     std::fs::create_dir_all(&log_dir).map_err(|e| format!("create log dir: {e}"))?;
+    let _ = HOST_LOG.set(log_dir.join("host.log"));
+    note(&format!(
+        "launching core: python={} runtime={} resources={} data={}",
+        python.display(),
+        runtime.display(),
+        platform_resources().display(),
+        data_dir.display()
+    ));
     let core_log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -190,7 +249,10 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     let ready_line = loop {
         if started.elapsed() > READY_TIMEOUT {
             let _ = child.kill();
-            return Err("core did not report readiness in time".into());
+            return Err(format!(
+                "core did not report readiness within {}s",
+                READY_TIMEOUT.as_secs()
+            ));
         }
         let mut line = String::new();
         let n = reader.read_line(&mut line).map_err(|e| format!("read core stdout: {e}"))?;
@@ -239,38 +301,50 @@ fn stop_core(process: &mut CoreProcess) {
     loop {
         match process.child.try_wait() {
             Ok(Some(status)) => {
-                eprintln!("[host] core exited: {status}");
+                note(&format!("core exited: {status}"));
                 return;
             }
             Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(50)),
             _ => break,
         }
     }
-    eprintln!("[host] core did not stop within grace; killing");
+    note("core did not stop within grace; killing");
     let _ = process.child.kill();
     let _ = process.child.wait();
 }
 
 #[tauri::command]
-fn core_session(state: State<'_, HostState>) -> Result<CoreSession, String> {
-    let guard = state.core.lock().map_err(|_| "host state poisoned")?;
-    match guard.as_ref() {
-        Some(core) => Ok(CoreSession {
-            base_url: format!("http://127.0.0.1:{}", core.info.core_port),
-            token: core.token.clone(),
-        }),
-        None => Err(state
-            .launch_error
-            .lock()
-            .ok()
-            .and_then(|e| e.clone())
-            .unwrap_or_else(|| "core not running".into())),
-    }
+async fn core_session(state: State<'_, HostState>) -> Result<CoreSession, String> {
+    let launch = state.launch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if !launch.wait(SESSION_WAIT) {
+            return Err(
+                "Alpha's runtime is still starting. If macOS is asking whether Alpha may \
+                 access a folder, allow it and reopen Alpha."
+                    .to_string(),
+            );
+        }
+        let guard = launch.core.lock().map_err(|_| "host state poisoned")?;
+        match guard.as_ref() {
+            Some(core) => Ok(CoreSession {
+                base_url: format!("http://127.0.0.1:{}", core.info.core_port),
+                token: core.token.clone(),
+            }),
+            None => Err(launch
+                .launch_error
+                .lock()
+                .ok()
+                .and_then(|e| e.clone())
+                .unwrap_or_else(|| "core not running".into())),
+        }
+    })
+    .await
+    .map_err(|e| format!("host task failed: {e}"))?
 }
 
 #[tauri::command]
 fn runtime_info(state: State<'_, HostState>) -> Result<RuntimeInfo, String> {
-    let guard = state.core.lock().map_err(|_| "host state poisoned")?;
+    let guard = state.launch.core.lock().map_err(|_| "host state poisoned")?;
     guard
         .as_ref()
         .map(|c| c.info.clone())
@@ -287,7 +361,7 @@ fn show_main_window(app: &AppHandle) {
 
 fn quit(app: &AppHandle) {
     if let Some(state) = app.try_state::<HostState>() {
-        if let Ok(mut guard) = state.core.lock() {
+        if let Ok(mut guard) = state.launch.core.lock() {
             if let Some(mut core) = guard.take() {
                 stop_core(&mut core);
             }
@@ -362,19 +436,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![core_session, runtime_info])
         .setup(|app| {
             let handle = app.handle().clone();
-            match launch_core(&handle) {
-                Ok(core) => {
-                    eprintln!(
-                        "[host] core pid {} on port {} ({})",
-                        core.info.core_pid, core.info.core_port, core.info.python_executable
-                    );
-                    *app.state::<HostState>().core.lock().unwrap() = Some(core);
-                }
-                Err(error) => {
-                    eprintln!("[host] core launch failed: {error}");
-                    *app.state::<HostState>().launch_error.lock().unwrap() = Some(error);
-                }
-            }
+            let launch = app.state::<HostState>().launch.clone();
+            std::thread::Builder::new()
+                .name("core-launch".into())
+                .spawn(move || {
+                    let outcome = launch_core(&handle);
+                    match &outcome {
+                        Ok(core) => note(&format!(
+                            "core pid {} on port {} ({})",
+                            core.info.core_pid, core.info.core_port, core.info.python_executable
+                        )),
+                        Err(error) => note(&format!("core launch failed: {error}")),
+                    }
+                    launch.settle(outcome);
+                })
+                .expect("core launch thread");
 
             #[cfg(debug_assertions)]
             if std::env::var("ALPHA_OPEN_DEVTOOLS").as_deref() == Ok("1") {
@@ -420,7 +496,7 @@ pub fn run() {
             RunEvent::Exit => {
                 // Cmd+Q / app menu Quit / tray Quit all end here; stop Core once.
                 if let Some(state) = app.try_state::<HostState>() {
-                    if let Ok(mut guard) = state.core.lock() {
+                    if let Ok(mut guard) = state.launch.core.lock() {
                         if let Some(mut core) = guard.take() {
                             stop_core(&mut core);
                         }
