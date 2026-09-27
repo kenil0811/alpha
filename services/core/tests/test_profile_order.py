@@ -29,3 +29,20 @@ def test_repointing_a_package_changes_only_its_runtime_profile() -> None:
     assert repoint_runtime(text, "pyprof-new") == (
         "app_id: x\nruntime_profile: pyprof-new\nsdk_version: 0.1.0\n"
     )
+
+
+def test_the_sdk_source_digest_changes_when_the_sdk_changes(tmp_path: Path) -> None:
+    from alpha.execution.profiles import sdk_source_digest
+
+    sdk = tmp_path / "packages" / "app-sdk" / "alpha_sdk"
+    sdk.mkdir(parents=True)
+    (tmp_path / "packages" / "app-sdk" / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (sdk / "web.py").write_text("def get(url): ...\n")
+    (sdk / "__pycache__").mkdir()
+    (sdk / "__pycache__" / "web.cpython-313.pyc").write_bytes(b"\x00")
+    before = sdk_source_digest(tmp_path)
+    assert before == sdk_source_digest(tmp_path), "stable across calls"
+    (sdk / "__pycache__" / "web.cpython-313.pyc").write_bytes(b"\x01")
+    assert sdk_source_digest(tmp_path) == before, "bytecode caches do not count"
+    (sdk / "web.py").write_text("def get(url, rendered=False): ...\n")
+    assert sdk_source_digest(tmp_path) != before

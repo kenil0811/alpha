@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -41,7 +42,7 @@ from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.coordinator import RunCoordinator
-from alpha.execution.profiles import ProfileInventory
+from alpha.execution.profiles import ProfileInventory, sdk_source_digest
 from alpha.execution.scheduler import Scheduler
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
@@ -184,6 +185,46 @@ def _move_apps_to_current_runtime(registry: AppRegistry, inventory: ProfileInven
     return moved
 
 
+def _refresh_app_profile(settings: CoreSettings) -> None:
+    """On a host with the platform sources: publish a new App runtime profile when the SDK or
+    the App worker changed since the newest profile was built, so modules never run on an SDK
+    older than the one the builder was told about."""
+    root = settings.platform_resources
+    if root is None or settings.profiles_dir is None:
+        return
+    tool = root / "tools" / "build_app_profile.py"
+    marker = settings.profiles_dir / "latest-source.sha256"
+    if not tool.is_file():
+        return
+    current = sdk_source_digest(root)
+    recorded = marker.read_text(encoding="utf-8").strip() if marker.is_file() else ""
+    if recorded == current:
+        return
+    log.info("SDK sources changed since the newest runtime profile; publishing a new one")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tool), "--root", str(settings.profiles_dir)],
+            capture_output=True,
+            text=True,
+            timeout=900,
+            cwd=str(root),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warning("could not publish a runtime profile: %s", exc)
+        return
+    if result.returncode != 0:
+        log.warning(
+            "publishing a runtime profile failed: %s", (result.stderr or result.stdout)[-800:]
+        )
+    else:
+        log.info(
+            "runtime profile: %s",
+            (result.stdout or "").strip().splitlines()[-1:][0]
+            if result.stdout.strip()
+            else "published",
+        )
+
+
 def _describe_app(registry: AppRegistry, app_id: str) -> str | None:
     """A plain summary of an installed App for the assistant, or None when there is none."""
     try:
@@ -232,6 +273,7 @@ def build_app_platform(
     toolchain: UiToolchain | None = None,
 ) -> AppPlatform:
     """F05 services: profile inventory, App records/artifacts/models, broker and App runs."""
+    _refresh_app_profile(settings)
     inventory = ProfileInventory(store, settings.profiles_dir)
     profile_report = inventory.scan()
     log.info("runtime profiles: %s", profile_report)

@@ -50,8 +50,8 @@ def test_the_gateway_applies_the_chosen_model_per_stage_and_the_limits(tmp_path:
     gateway = ModelGateway(
         store,
         frozenset({"fake", "claude-code-cli"}),
-        max_attempt_seconds=1,
-        max_total_seconds=1,
+        max_attempt_seconds=3600,  # the host's caps; the person's limits stay under them
+        max_total_seconds=7200,
         preferences=prefs,
     )
     assert gateway.route("claude-code-cli", stage="assistant").model == "sonnet"
@@ -86,3 +86,13 @@ def test_look_rules_are_free_text_with_a_cap(tmp_path: Path) -> None:
         prefs.update({"look.rules": "x" * 3001})
     with pytest.raises(InvalidSetting, match="needs text"):
         prefs.update({"look.rules": 3})
+
+
+def test_the_persons_limits_never_exceed_the_hosts_caps(tmp_path: Path) -> None:
+    store = ControlStore(tmp_path / "control.sqlite")
+    prefs = Preferences(store)
+    gateway = ModelGateway(
+        store, frozenset({"fake"}), max_attempt_seconds=1, max_total_seconds=1, preferences=prefs
+    )
+    budget = gateway.budget(gateway.route("fake"))
+    assert (budget.max_attempt_seconds, budget.max_total_seconds) == (1, 1)

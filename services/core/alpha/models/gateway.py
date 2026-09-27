@@ -148,10 +148,15 @@ class ModelGateway:
             )
         prefs = self.preferences
         if prefs is not None:
+            # The person's limits, never above the host's caps (tests and operators set those).
             return BuildBudget(
                 max_turns=int(prefs.get("build.max_turns")),
-                max_attempt_seconds=int(prefs.get("build.max_attempt_minutes")) * 60,
-                max_total_seconds=int(prefs.get("build.max_total_minutes")) * 60,
+                max_attempt_seconds=min(
+                    int(prefs.get("build.max_attempt_minutes")) * 60, self._max_attempt_seconds
+                ),
+                max_total_seconds=max(
+                    1, min(int(prefs.get("build.max_total_minutes")) * 60, self._max_total_seconds)
+                ),
                 max_repair_attempts=int(prefs.get("build.max_repair_attempts")),
                 max_cost_usd=max_cost_usd,
                 cost_basis=route.cost_basis,

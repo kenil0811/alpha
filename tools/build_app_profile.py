@@ -160,6 +160,7 @@ def build(root: Path, interpreter: Path) -> dict[str, object]:
             problems = verify_published(target)
             if not problems:
                 remove_tree(staging)
+                _write_source_marker(root)
                 return {
                     "profile_id": profile.profile_id,
                     "manifest_sha256": profile.manifest_sha256,
@@ -233,6 +234,7 @@ def build(root: Path, interpreter: Path) -> dict[str, object]:
         problems = verify_published(target)
         if problems:
             raise SystemExit(f"published profile failed verification: {problems}")
+        _write_source_marker(root)
         return {
             "profile_id": profile.profile_id,
             "manifest_sha256": profile.manifest_sha256,
@@ -242,6 +244,16 @@ def build(root: Path, interpreter: Path) -> dict[str, object]:
     finally:
         if staging.exists():
             remove_tree(staging)
+
+
+def _write_source_marker(root: Path) -> None:
+    """What SDK source the newest profile was built from; Core rebuilds when it differs."""
+    from alpha.execution.profiles import sdk_source_digest
+
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "latest-source.sha256").write_text(
+        sdk_source_digest(REPO_ROOT) + "\n", encoding="utf-8"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -412,3 +412,29 @@ def _built_at(target: Path) -> tuple[str, str]:
 
 def _now() -> str:
     return utc_now().isoformat().replace("+00:00", "Z")
+
+
+SDK_SOURCE_DIRS = (
+    ("packages", "app-sdk", "alpha_sdk"),
+    ("packages", "app-sdk", "pyproject.toml"),
+    ("workers", "app", "alpha_app_worker"),
+    ("workers", "app", "pyproject.toml"),
+)
+
+
+def sdk_source_digest(repo_root: Path) -> str:
+    """A digest of the SDK and App worker sources. The App runtime profile carries a built copy
+    of both, so when this changes the newest profile is stale and modules would run on an SDK
+    that lacks what the builder was told about (found three times on 27 September)."""
+    digest = hashlib.sha256()
+    for parts in SDK_SOURCE_DIRS:
+        path = repo_root.joinpath(*parts)
+        files = sorted(p for p in path.rglob("*") if p.is_file()) if path.is_dir() else [path]
+        for file in files:
+            if not file.is_file() or "__pycache__" in file.parts or file.suffix == ".pyc":
+                continue
+            digest.update(str(file.relative_to(repo_root)).encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(file.read_bytes())
+            digest.update(b"\0")
+    return digest.hexdigest()
