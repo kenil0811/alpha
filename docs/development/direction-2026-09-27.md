@@ -156,6 +156,19 @@ hand-built:
   same voice toggle; Kenil has character art. The floating desktop window waits for the Tauri
   host.
 
+- Speed plan (Kenil: "go"). Done: (1) repairs as one edit call (`BuildService._quick_repair`,
+  helpers in `alpha/builds/quick_edit.py`) before any new builder session; (2) on live routes the
+  builder starts at once with the brief's examples as a preliminary plan while the planner writes
+  the full checks (`CreationService._create_in_parallel`, `BuildService.submit(plan_later=)`,
+  PLAN.md rewritten into the running attempt, verification waits); (3) behaviour scenarios run
+  four at a time, each in its own preview (`CandidateVerifier._behaviour`); (4) the builder is
+  told not to write or run its own tests and to finish when the module is complete. Still to
+  do: (5) a fast lane for simple modules, and measuring a real build on the new path.
+- Runtime profile drift: an SDK change (page links, then `rendered`, then link cards) needs
+  `tools/build_app_profile.py` and a Core restart, or modules fail with a TypeError on the new
+  keyword. Twice today. Automate: Core should publish a profile at startup when the SDK source
+  digest differs from the newest profile.
+
 ## Still to do
 
 - Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a

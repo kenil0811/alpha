@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,10 @@ from alpha.execution.app_runs import HandlerBinder
 from alpha.solutions.registry import AppRegistry, interpret_handler_report
 
 STAGES = ("package", "deps", "seal", "handlers", "behavior", "ui")
+
+
+# Behaviour scenarios run this many at a time; each has its own preview and worker.
+SCENARIO_WORKERS = 4
 
 
 @dataclass
@@ -481,16 +486,35 @@ class CandidateVerifier:
         preview.install(run.sealed, run.handler_report)
 
     def _behaviour(self, run: _Run) -> None:
-        """Independent scenarios, each in a fresh preview, judged by reading storage."""
+        """Independent scenarios, each in a fresh preview, judged by reading storage. They share
+        nothing, so they run a few at a time; results are recorded from this thread only."""
         run.reached = "behavior"
-        for scenario in run.plan.scenarios:
-            results = run_scenario(
-                lambda name: self._preview(run, name),
-                lambda preview: self._install(run, preview),
-                scenario,
-            )
-            for result in results:
-                run.add(result)
+        scenarios = list(run.plan.scenarios)
+        workers = max(1, min(SCENARIO_WORKERS, len(scenarios)))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="scenario") as pool:
+            futures = [
+                pool.submit(
+                    run_scenario,
+                    lambda name: self._preview(run, name),
+                    lambda preview: self._install(run, preview),
+                    scenario,
+                )
+                for scenario in scenarios
+            ]
+            for scenario, future in zip(scenarios, futures, strict=True):
+                try:
+                    results = future.result()
+                except Exception as exc:  # a crashed scenario is a failed check, not a lost one
+                    results = [
+                        _result(
+                            f"behavior.{scenario.id}",
+                            "behavior",
+                            False,
+                            f"the scenario could not run: {exc}",
+                        )
+                    ]
+                for result in results:
+                    run.add(result)
         # Actions that use model estimates must stay honest when the model fails (F04).
         scenarios_ok = _stage_ok(run, "behavior")
         assert run.source is not None

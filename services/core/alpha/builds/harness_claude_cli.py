@@ -99,6 +99,9 @@ Rules:
   CONVENTIONS in the instructions below (data first; a quick_entry above it only when typing a
   line is the main way in; forms after; then metrics and trends). Use the labels PLAN.md names
   for placeholders, column titles and tab names. Do not write ui/src/main.tsx.
+- Do not write or run your own unit tests, probes or sample scripts: Alpha verifies the package
+  against PLAN.md with real runs. A compile check (python -m py_compile) is enough; spend the
+  time on the module, and finish as soon as it is complete.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
