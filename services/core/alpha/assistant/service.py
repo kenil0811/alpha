@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
@@ -49,7 +50,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     error TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    latest_sequence INTEGER NOT NULL DEFAULT 0
+    latest_sequence INTEGER NOT NULL DEFAULT 0,
+    change_of TEXT
 );
 CREATE TABLE IF NOT EXISTS conversation_turns (
     turn_id TEXT PRIMARY KEY,
@@ -102,6 +104,8 @@ class ConversationRecord(BaseModel):
     delivery: Delivery | None
     error: str | None
     brief_history: list[int]
+    # The App this conversation changes (rebuilt in place, data kept); None for a new one.
+    change_of: str | None = None
 
 
 class AssistantService:
@@ -113,26 +117,37 @@ class AssistantService:
         *,
         default_route: str,
         app_model_route: str | None = None,
+        describe_app: Callable[[str], str | None] | None = None,
     ) -> None:
         self._store = store
         self._gateway = gateway
         self._inference = inference
         self._default_route = default_route
         self._app_model_route = app_model_route
+        # A plain summary of an installed App by id (None when there is no such App), so a
+        # conversation can change one; wired from the registry.
+        self._describe_app = describe_app or (lambda _app_id: None)
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("conversations", {"change_of": "TEXT"})
 
     # ----- public ------------------------------------------------------------------------
 
-    def start(self, text: str, route_id: str | None = None) -> ConversationRecord:
-        route = self._gateway.route(route_id or self._default_route)
+    def start(
+        self, text: str, route_id: str | None = None, *, change_of: str | None = None
+    ) -> ConversationRecord:
+        """Begin a conversation: about something new, or (`change_of`) about changing an App
+        that already exists, which the brief then describes in full."""
+        route = self._gateway.route(route_id or self._default_route, stage="assistant")
+        if change_of is not None and self._describe_app(change_of) is None:
+            raise UnknownApp(f"there is no module {change_of!r} to change")
         conversation_id = new_id("conv")
         now = _dt(utc_now())
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO conversations(conversation_id, state, route_id, created_at,
-                   updated_at, latest_sequence) VALUES (?,?,?,?,?,0)""",
-                (conversation_id, "thinking", route.route_id, now, now),
+                   updated_at, latest_sequence, change_of) VALUES (?,?,?,?,?,0,?)""",
+                (conversation_id, "thinking", route.route_id, now, now, change_of),
             )
             self._append_turn_locked(conn, conversation_id, "user", "request", {"text": text})
         self._spawn_turn(conversation_id, route, {"text": text})
@@ -151,7 +166,7 @@ class AssistantService:
             raise ConflictError("the assistant is still thinking")
         if not text and not answers and not use_defaults:
             raise ValueError("a reply needs text, answers or use_defaults")
-        route = self._gateway.route(record.route_id)
+        route = self._gateway.route(record.route_id, stage="assistant")
         content: dict[str, Any] = {}
         if text:
             content["text"] = text
@@ -178,7 +193,7 @@ class AssistantService:
         latest = next((t for t in reversed(record.turns) if t.role == "user"), None)
         if latest is None:
             raise ConflictError("there is nothing to retry")
-        route = self._gateway.route(record.route_id)
+        route = self._gateway.route(record.route_id, stage="assistant")
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'thinking', error = NULL, updated_at = ?"
@@ -245,7 +260,8 @@ class AssistantService:
                 for t in record.turns[:-1]  # the latest user turn is passed separately
             ]
             current = record.current_brief.model_dump(mode="json") if record.current_brief else None
-            prompt = turn_prompt(history, current, latest)
+            existing = self._describe_app(record.change_of) if record.change_of else None
+            prompt = turn_prompt(history, current, latest, existing=existing)
             result = self._inference.call(
                 route,
                 system=system_prompt(self._notice(route)),
@@ -511,6 +527,7 @@ class AssistantService:
                 questions = [OpenQuestion.model_validate(q) for q in content.get("questions", [])]
         return ConversationRecord(
             conversation_id=row["conversation_id"],
+            change_of=row["change_of"],
             state=row["state"],
             route_id=row["route_id"],
             created_at=row["created_at"],
@@ -534,4 +551,8 @@ class AssistantService:
 
 
 class ConflictError(Exception):
+    pass
+
+
+class UnknownApp(Exception):
     pass

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import subprocess
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,17 @@ class AppRunService:
     def timezone(self) -> str:
         return self._timezone
 
+    def in_flight(self, app_id: str, action_id: str) -> Run | None:
+        """The run of this App's action that is still going, if any (oldest first)."""
+        mine = [
+            run
+            for run in self._coordinator.runs_in_flight()
+            if isinstance(run.owner, AppOwner)
+            and run.owner.app_id == app_id
+            and run.owner.action_id == action_id
+        ]
+        return min(mine, key=lambda r: r.created_at) if mine else None
+
     def invoke(
         self,
         app_id: str,
@@ -95,6 +107,16 @@ class AppRunService:
         problems = schema_problems(action.input_schema, payload)
         if problems:
             raise invalid(f"the input for {action_id} is not valid", problems=problems)
+        running = self.in_flight(app_id, action_id)
+        if running is not None:
+            # One at a time per action: a second run would race the first over the same
+            # records (seen when a person pressed Check twice) and can only confuse the result.
+            since = _age_in_words(running.created_at)
+            raise conflict(
+                f"{action.title} is already running (started {since}). Wait for it to finish, "
+                "or stop it from Activity.",
+                run_id=running.run_id,
+            )
         profile = self._inventory.ready(version.runtime_profile_id)
         if (
             version.dependency_manifest.runtime_profile_manifest_sha256
@@ -247,3 +269,18 @@ class HandlerBinder:
 
 def _suffix() -> str:
     return uuid.uuid4().hex[:8]
+
+
+def _age_in_words(created_at: Any) -> str:
+    try:
+        started = (
+            created_at
+            if isinstance(created_at, datetime)
+            else datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        )
+        seconds = max(0, int((datetime.now(UTC) - started).total_seconds()))
+    except (TypeError, ValueError):
+        return "a moment ago"
+    if seconds < 90:
+        return f"{seconds} seconds ago"
+    return f"{seconds // 60} minutes ago"

@@ -5,6 +5,7 @@ import type {
   ConversationReply,
   CoreClient,
   HealthInfo,
+  SettingField,
   StreamItem,
   SyntheticRunRequest,
 } from "../core/client";
@@ -91,10 +92,11 @@ export class FakeCoreClient implements CoreClient {
     await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
   }
 
-  async startConversation(text: string): Promise<Conversation> {
+  async startConversation(text: string, changeOf?: string | null): Promise<Conversation> {
     const now = new Date().toISOString();
     let conversation: Conversation = {
       conversation_id: `conv_${this.conversations.size + 1}`,
+      change_of: changeOf ?? null,
       state: "thinking",
       route_id: "fake",
       created_at: now,
@@ -116,6 +118,27 @@ export class FakeCoreClient implements CoreClient {
     const c = this.conversations.get(id);
     if (!c) throw new Error("conversation_not_found");
     return c;
+  }
+
+  settingsFields: SettingField[] = [
+    { id: "models.assistant", group: "Models", title: "Model for the assistant", description: "Understands your request.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "models.builder_new", group: "Models", title: "Model for building a new module", description: "Writes the module.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
+  ];
+  settingsUpdates: Record<string, unknown>[] = [];
+
+  async getSettings(): Promise<SettingField[]> {
+    return this.settingsFields;
+  }
+
+  async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {
+    this.settingsUpdates.push(values);
+    this.settingsFields = this.settingsFields.map((f) => (f.id in values ? { ...f, value: values[f.id] } : f));
+    return this.settingsFields;
+  }
+
+  async appConversations(appId: string): Promise<Conversation[]> {
+    return [...this.conversations.values()].filter((c) => c.change_of === appId).reverse();
   }
 
   async listConversations(): Promise<Conversation[]> {

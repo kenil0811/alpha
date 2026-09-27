@@ -207,3 +207,23 @@ def test_a_changed_installation_is_quarantined_not_used(tmp_path: Path, data_dir
                 path.chmod(path.stat().st_mode | stat.S_IWUSR)
         profile.path.chmod(profile.path.stat().st_mode | stat.S_IWUSR)
         shutil.rmtree(profile.path, ignore_errors=True)
+
+
+def test_an_action_already_running_is_not_started_again(app_core: AppCore) -> None:
+    """One run of an App's action at a time: a second press while the first is going is refused
+    with a plain reason (two checks racing over the same records failed in the job hunt)."""
+    core = app_core.core
+    first = start_action(core, TALLY, "probe_isolation", {"hold_seconds": 3})
+    assert first.status_code == 202, first.text
+    second = start_action(core, TALLY, "probe_isolation", {"hold_seconds": 0})
+    assert second.status_code == 409, second.text
+    detail = second.json()["detail"]
+    assert "already running" in detail["message"], detail
+    assert detail["details"]["run_id"] == first.json()["run_id"]
+    other = start_action(core, ITEMS, "probe_isolation", {"hold_seconds": 0})
+    assert other.status_code == 202, "a different App's action is not held up"
+    assert wait_run(core, first.json()["run_id"])["state"] == "succeeded"
+    again = start_action(core, TALLY, "probe_isolation", {"hold_seconds": 0})
+    assert again.status_code == 202, "once it finished, the action runs again"
+    wait_run(core, again.json()["run_id"])
+    wait_run(core, other.json()["run_id"])

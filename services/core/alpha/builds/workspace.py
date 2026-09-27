@@ -15,7 +15,9 @@ the workspace can change what is checked.
 from __future__ import annotations
 
 import json
+import re
 import shutil
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,17 @@ from alpha.builds.toolchain import PlatformResources
 from alpha.execution.profiles import InstalledProfile
 
 _IGNORE = shutil.ignore_patterns("__pycache__", ".DS_Store", "*.pyc")
+# What sealing and dependency resolution add to a Version: never part of the builder's package.
+_IGNORE_SEALED = shutil.ignore_patterns(
+    "__pycache__",
+    ".DS_Store",
+    "*.pyc",
+    "dependencies",
+    "dist",
+    "node_modules",
+    "package.index.json",
+    "dependency.manifest.json",
+)
 
 
 @dataclass(frozen=True)
@@ -78,7 +91,21 @@ def materialize(
     attempt_dir.mkdir(parents=True, exist_ok=False)
     package = attempt_dir / "package"
     if previous_package is not None and previous_package.is_dir():
-        shutil.copytree(previous_package, package, ignore=_IGNORE, symlinks=False)
+        sealed = (previous_package / "package.index.json").is_file()
+        shutil.copytree(
+            previous_package, package, ignore=_IGNORE_SEALED if sealed else _IGNORE, symlinks=False
+        )
+        if sealed:
+            # A Version is read-only on disk; the builder's copy must not be. It also names the
+            # profiles it was built with: point it at the current ones before the builder edits.
+            for path in [package, *package.rglob("*")]:
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
+            app_yaml = package / "app.yaml"
+            text = app_yaml.read_text(encoding="utf-8")
+            for key, value in targets.identities().items():
+                if key in ("runtime_profile", "sdk_version"):
+                    text = re.sub(rf"(?m)^{key}:.*$", f"{key}: {value}", text)
+            app_yaml.write_text(text, encoding="utf-8")
         template = package / "app.yaml.template"
         if template.is_file():  # a seed package names profiles by marker, like the template
             text = template.read_text(encoding="utf-8")
@@ -114,19 +141,19 @@ def materialize(
 def _copy_template(
     resources: PlatformResources, targets: TargetProfiles, package: Path, *, with_ui: bool
 ) -> None:
-    """The App template, with the platform's exact values filled in. The screen is included
-    only when the plan checks one and a UI build profile is installed."""
+    """The App template, with the platform's exact values filled in. The template declares a
+    screen Alpha draws itself, so no custom `ui/` starter is copied: a builder that needs a
+    custom screen writes ui/src/main.tsx itself and declares `ui.entry`."""
     template = resources.app_template
     package.mkdir(parents=True)
     with_ui = with_ui and targets.ui is not None
-    for area in ("src", "ui"):
-        if (template / area).is_dir() and (area != "ui" or with_ui):
+    for area in ("src",):
+        if (template / area).is_dir():
             shutil.copytree(template / area, package / area, ignore=_IGNORE)
     text = (template / "app.yaml.template").read_text(encoding="utf-8")
     for key, value in targets.identities().items():
         text = text.replace("{{" + key.upper() + "}}", value)
     if not with_ui:
-        # No screen checked (or no UI build profile): the template becomes an App without one.
         data = yaml.safe_load(text)
         data.pop("ui", None)
         text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
@@ -141,8 +168,9 @@ def render_plan(plan: ValidationPlan) -> str:
     lines = [
         "# Independent checks for this App",
         "",
-        "The platform runs these checks against the sealed package through real action runs and a",
-        "real browser. They were written before the build; changing this file changes nothing.",
+        "The platform runs these checks against the sealed package through real action runs and",
+        "reads of what was stored. They were written before the build; changing this file",
+        "changes nothing.",
         '`{"$ref": "<step>.output.<key>"}` is a value an earlier step returned,',
         "`{\"$today\": n}` is today's date (plus n days) in the person's timezone, and",
         '`{"$any": true}` means the key must be present with a value of your choosing.',
@@ -178,9 +206,11 @@ def render_plan(plan: ValidationPlan) -> str:
         ui = plan.ui
         lines += [
             "",
-            "## The screen (ui/src/main.tsx)",
+            "## The screen (declared under `screen:` in app.yaml)",
             "",
-            "Primary interaction, performed in a real browser:",
+            "The screen's main interaction, in the person's words. Offer it as the FIRST block of",
+            "the first tab (a quick_entry whose action does the whole job, or a form), using",
+            "exactly these labels for the placeholder, fields and button:",
         ]
         for ui_step in ui.primary:
             if ui_step.kind == "fill":
@@ -209,10 +239,10 @@ def render_plan(plan: ValidationPlan) -> str:
             lines.append(f'- with that data the screen shows "{text}"')
         lines += [
             "",
-            "Also checked on every screen: it renders a page title (h1) with no script errors;",
-            "an empty store shows no error; no sideways scrolling at 768px; when reading fails,",
-            "an error (role=alert) is shown, not an empty screen; when saving fails, an error is",
-            "shown, nothing is stored and the typed input is kept.",
+            "Alpha draws a declared screen itself, so these describe what the declaration must",
+            "offer: the table that shows saved entries, and metrics or a trend for the totals",
+            "named above. (A compiled ui/src/main.tsx, when the platform allows one, is driven",
+            "in a real browser through exactly these steps.)",
         ]
     return "\n".join(lines) + "\n"
 

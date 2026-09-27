@@ -18,3 +18,4 @@ apps/desktop/public/qualification/
 # process artefacts Core leaves in a data directory; evidence copies keep only real data
 runtime.lock
 *.sqlite-shm
+apps/desktop/.env*.local

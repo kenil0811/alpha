@@ -50,6 +50,9 @@ class CoreSettings:
     # Qualification only: packages a build may start from instead of a first builder attempt,
     # so a real repair of a known defect can be reproduced. The desktop host never sets it.
     dev_seed_packages_dir: Path | None = None
+    # Whether builders may write a compiled custom screen (ui/src/main.tsx). Off by default: a
+    # module's screen is declared under `screen` and drawn by the shell.
+    custom_ui: bool = False
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> CoreSettings:
@@ -118,6 +121,7 @@ class CoreSettings:
             ui_browser=path("ALPHA_UI_BROWSER"),
             fake_builder_packages=path("ALPHA_FAKE_BUILDER_PACKAGES"),
             dev_seed_packages_dir=path("ALPHA_DEV_SEED_PACKAGES_DIR"),
+            custom_ui=env.get("ALPHA_CUSTOM_UI") == "1",
         )
 
     @property

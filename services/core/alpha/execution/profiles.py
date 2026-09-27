@@ -175,7 +175,9 @@ class ProfileInventory:
         report: list[dict[str, Any]] = []
         seen: set[str] = set()
         if self._root is not None and self._root.is_dir():
-            for target in sorted(self._root.iterdir()):
+            # Oldest build first, so "newest registered" (the default for new Apps) is the
+            # profile built most recently, not the one that happens to sort last by id.
+            for target in sorted(self._root.iterdir(), key=_built_at):
                 if target.name.startswith(".") or not target.is_dir():
                     continue
                 profile, installation, problems = verify_profile_dir(target)
@@ -397,6 +399,15 @@ class ProfileInventory:
                 }
             )
         return out
+
+
+def _built_at(target: Path) -> tuple[str, str]:
+    """When a published profile was built (its installation.json), then its name."""
+    try:
+        data = json.loads((target / "installation.json").read_text(encoding="utf-8"))
+        return (str(data.get("created_at") or ""), target.name)
+    except (OSError, ValueError):
+        return ("", target.name)
 
 
 def _now() -> str:

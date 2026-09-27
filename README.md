@@ -5,12 +5,12 @@ one-off tasks and artifacts. This repository is the clean-start R2 implementatio
 planning snapshot lives in [docs/alpha-r2](docs/alpha-r2) (start with its START_HERE.md); actual
 progress is recorded in [docs/development](docs/development).
 
-**Status: internal development build.** F01–F07 are complete: the desktop, Core and worker
-bootstrap; the real builder route; UI isolation; conversation to SolutionBrief; the
-records/artifacts/model SDK on a shared App runtime profile; the interaction kit and pinned UI
-build profile; and candidate verification with bounded repair. F08 remains before the M1 review.
-See
-[docs/development/task_state.json](docs/development/task_state.json).
+**Status: internal development build.** On 27 September 2026 the direction changed (see
+[docs/development/direction-2026-09-27.md](docs/development/direction-2026-09-27.md)): the
+ticket-and-evidence process is retired, and progress means real requests going through the
+assistant and coming out as usable modules. The shell was rebuilt around a rail of modules, a
+module surface with tabs, and an assistant panel; the App contract gained a declarative
+`screen` that the shell draws itself, so most generated modules need no compiled UI.
 
 ## Toolchain (exact pins)
 
@@ -44,9 +44,12 @@ just qualify-build repair    # opt-in live F07 qualification: repair | limit | g
 
 ## Layout
 
-- `apps/desktop` — trusted React shell (`src`) and Tauri 2 native host (`src-tauri`).
+- `apps/desktop` — trusted React shell (`src`: `shell/` rail, home, activity; `modules/` the
+  declarative screen renderer; `assistant/` the panel) and Tauri 2 native host (`src-tauri`).
 - `services/core` — Python Core: loopback transport, control store, run coordinator, worker supervisor.
-- `packages/contracts` — Python contract source (0.2), exported JSON Schema and generated TypeScript.
+- `packages/contracts` — Python contract source (0.2), exported JSON Schema and generated TypeScript;
+  `screens.py` is the declarative screen (tabs of quick entry, table, metrics, trend, board, list,
+  form and text blocks over declared `views`).
 - `packages/app-sdk` — `alpha_sdk`, the only interface generated App/Task code uses
   (`ctx.records`, `ctx.artifacts`, `ctx.models`); standard library only.
 - `workers/app` — the App worker that runs a sealed Version's handlers inside the runtime profile.

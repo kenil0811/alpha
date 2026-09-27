@@ -393,6 +393,18 @@ class RunCoordinator:
 
     # ----- lifecycle --------------------------------------------------------------------
 
+    def runs_in_flight(self) -> list[Run]:
+        """Runs that have not reached a terminal state (queued, running or waiting)."""
+        return self._store.list_runs_in_states(
+            {
+                RunState.QUEUED,
+                RunState.RUNNING,
+                RunState.WAITING_INPUT,
+                RunState.WAITING_APPROVAL,
+                RunState.WAITING_CONNECTION,
+            }
+        )
+
     def reconcile_on_startup(self) -> list[dict[str, Any]]:
         """Called before serving requests. Any run left queued/running by a previous Core
         instance is marked interrupted; an orphaned worker process group is terminated. Arbitrary

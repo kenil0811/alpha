@@ -108,6 +108,46 @@ class WriteContext:
     resolve_estimate: EstimateResolver | None
 
 
+def schema_change_problems(before: CollectionSchema, after: CollectionSchema) -> list[str]:
+    """Why records saved under `before` might not fit `after` (empty when the change is
+    additive). Removing or retyping a field, making one required, narrowing its choices,
+    tightening a bound or adding a unique constraint can all invalidate saved records."""
+    problems: list[str] = []
+    old = {f.name: f for f in before.fields}
+    new = {f.name: f for f in after.fields}
+    for name, field in old.items():
+        if name not in new:
+            problems.append(f"field {name} was removed")
+            continue
+        changed = new[name]
+        if changed.kind is not field.kind:
+            problems.append(f"field {name} changed from {field.kind.value} to {changed.kind.value}")
+        if changed.required and not field.required:
+            problems.append(f"field {name} became required")
+        if field.choices is not None and (
+            changed.choices is None or not set(field.choices) <= set(changed.choices)
+        ):
+            problems.append(f"field {name} lost choices records may use")
+        if changed.collection != field.collection:
+            problems.append(f"field {name} now points at a different table")
+        for bound in ("max_length", "max_bytes", "maximum", "minimum"):
+            new_value: float | None = getattr(changed, bound)
+            old_value: float | None = getattr(field, bound)
+            if new_value is None:
+                continue  # dropping a bound only widens what fits
+            if old_value is None or (
+                new_value > old_value if bound == "minimum" else new_value < old_value
+            ):
+                problems.append(f"field {name} tightened its {bound}")
+    for name, field in new.items():
+        if name not in old and field.required:
+            problems.append(f"new field {name} is required (new fields must be optional)")
+    if [sorted(u) for u in after.unique] != [sorted(u) for u in before.unique]:
+        if any(sorted(u) not in [sorted(v) for v in before.unique] for u in after.unique):
+            problems.append("a new uniqueness rule could already be broken by saved records")
+    return problems
+
+
 class AppRecordStore:
     def __init__(self, path: Path, app_id: str, policy: q.QueryPolicy = q.DEFAULT_POLICY) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,15 +192,18 @@ class AppRecordStore:
     # ----- schema -------------------------------------------------------------------------
 
     def register_collections(self, schemas: list[CollectionSchema]) -> list[dict[str, str]]:
-        """Register declared collections. Identical schemas are a no-op; a changed schema is
-        rejected here (additive migration arrives with F10)."""
+        """Register declared collections. Identical schemas are a no-op. A changed schema is
+        accepted only when every record already saved stays valid under it (additive: new
+        optional fields, wider choices, new indexes); anything that would orphan or invalidate
+        saved records is refused, so a changed App never loses the person's data."""
         report: list[dict[str, str]] = []
         with self._tx() as conn:
             for schema in schemas:
                 body = schema.model_dump(mode="json")
                 digest = _digest(body)
                 row = conn.execute(
-                    "SELECT schema_sha256 FROM collections WHERE name = ?", (schema.name,)
+                    "SELECT schema_json, schema_sha256 FROM collections WHERE name = ?",
+                    (schema.name,),
                 ).fetchone()
                 if row is None:
                     conn.execute(
@@ -170,11 +213,20 @@ class AppRecordStore:
                     )
                     report.append({"collection": schema.name, "status": "registered"})
                 elif row["schema_sha256"] != digest:
-                    raise conflict(
-                        f"collection {schema.name} already exists with a different schema; "
-                        "schema changes need a migration, which this release does not run",
-                        collection=schema.name,
+                    before = CollectionSchema.model_validate_json(row["schema_json"])
+                    problems = schema_change_problems(before, schema)
+                    if problems:
+                        raise conflict(
+                            f"collection {schema.name} already exists and the new shape would "
+                            "not fit the records already saved: " + "; ".join(problems),
+                            collection=schema.name,
+                            problems=problems,
+                        )
+                    conn.execute(
+                        "UPDATE collections SET schema_json = ?, schema_sha256 = ? WHERE name = ?",
+                        (json.dumps(body, sort_keys=True), digest, schema.name),
                     )
+                    report.append({"collection": schema.name, "status": "migrated"})
                 else:
                     report.append({"collection": schema.name, "status": "unchanged"})
                 for fields in schema.indexes:

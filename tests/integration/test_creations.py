@@ -433,3 +433,53 @@ def test_an_app_without_a_screen_must_name_its_main_action(
         assert detail(core, made["app_id"])["primary_action"] == "add_note"
     finally:
         core.stop()
+
+
+# ----- changing a module after it was made ---------------------------------------------------
+
+
+def test_a_change_rebuilds_the_same_app_in_place_and_keeps_its_records(
+    build_core: CoreProcess,
+) -> None:
+    core = build_core
+    first = create(core, "Keep a notes list for me, no screen")
+    assert first["state"] == "active", first
+    app_id = first["app_id"]
+    output(core, app_id, "add_note", {"title": "Water the plants"})
+
+    with core.client() as client:
+        missing = client.post(
+            "/api/conversations", json={"text": "Add a mood", "change_of": "nope-000000"}
+        )
+        assert missing.status_code == 404, missing.text
+        started = client.post(
+            "/api/conversations",
+            json={"text": "Keep a notes list for me, no screen", "change_of": app_id},
+        ).json()
+        cid = started["conversation_id"]
+        assert started["change_of"] == app_id
+        deadline = time.monotonic() + 20
+        conversation = started
+        while conversation["state"] == "thinking" and time.monotonic() < deadline:
+            time.sleep(0.1)
+            conversation = client.get(f"/api/conversations/{cid}").json()
+    assert conversation["state"] == "briefed", conversation
+
+    change = wait_creation(core, start_creation(core, cid, "package notes_slow")["creation_id"])
+    assert change["state"] == "active", change
+    assert change["change_of"] == app_id and change["app_id"] == app_id
+    assert change["release_id"] != first["release_id"]
+    assert change["version_id"] != first["version_id"]
+    build = build_of(core, change["build_id"])
+    assert build["app_id"] == app_id
+    assert build["base_package"].endswith(first["version_id"]), build["base_package"]
+
+    # One App, now on its new release, with the person's records untouched.
+    rows = apps(core)
+    assert set(rows) == {app_id}
+    assert rows[app_id]["current_release_id"] == change["release_id"]
+    assert [n["values"]["title"] for n in notes(core, app_id)] == ["Water the plants"]
+    assert output(core, app_id, "count_notes", {}) == {"count": 1}
+    record_evidence(
+        "change-in-place", {"first": first, "change": change, "build_app": build["app_id"]}
+    )

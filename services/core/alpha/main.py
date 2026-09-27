@@ -20,6 +20,7 @@ from types import FrameType
 from typing import Any
 
 import uvicorn
+from alpha_contracts.apps import ScheduleSpec
 from fastapi import FastAPI
 
 from alpha import __version__
@@ -32,17 +33,22 @@ from alpha.builds.service import BuildPipeline, BuildService
 from alpha.builds.toolchain import PlatformResources, UiToolchain
 from alpha.builds.ui_check import UiRenderCheck
 from alpha.builds.verify import CandidateVerifier
+from alpha.capabilities.errors import OperationFailed
+from alpha.capabilities.web import WebService
 from alpha.config import ConfigError, CoreSettings
 from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.profiles import ProfileInventory
+from alpha.execution.scheduler import Scheduler
 from alpha.execution.supervisor import WorkerSupervisor
 from alpha.models.gateway import ModelGateway
+from alpha.models.preferences import Preferences
 from alpha.models.runtime import AppModelService
 from alpha.models.structured import StructuredInference
 from alpha.solutions.creation import CreationRoutes, CreationService
+from alpha.solutions.describe import module_summary
 from alpha.solutions.planner import AcceptancePlanner
 from alpha.solutions.registry import AppRegistry
 from alpha.storage.control_store import ControlStore
@@ -76,6 +82,7 @@ def build(
         settings.enabled_model_routes,
         max_attempt_seconds=settings.build_max_attempt_seconds,
         max_total_seconds=settings.build_max_total_seconds,
+        preferences=Preferences(store),
     )
     inference = StructuredInference(
         gateway,
@@ -96,6 +103,7 @@ def build(
         builder_path=settings.builder_path,
         builder_home=settings.builder_home,
         instance_id=coordinator.instance_id,
+        custom_ui=settings.custom_ui,
     )
     build_report = builds.reconcile_on_startup()
     if build_report:
@@ -108,6 +116,7 @@ def build(
         inference,
         default_route=settings.assistant_route,
         app_model_route=settings.app_model_route,
+        describe_app=lambda app_id: _describe_app(platform.registry, app_id),
     )
     creations = CreationService(
         store,
@@ -117,6 +126,7 @@ def build(
         gateway,
         CreationRoutes(planner=settings.assistant_route, builder=settings.builder_route),
         poll_seconds=settings.creation_poll_seconds,
+        registry=platform.registry,
     )
     stalled = assistant.reconcile_on_startup()
     if stalled:
@@ -126,8 +136,67 @@ def build(
     interrupted = creations.reconcile_on_startup()
     if interrupted:
         log.warning("marked %d unfinished creation(s) interrupted", len(interrupted))
+    moved = _move_apps_to_current_runtime(platform.registry, platform.inventory)
+    if moved:
+        log.info("moved %d App(s) to the current runtime profile: %s", len(moved), moved)
+    platform.scheduler = Scheduler(
+        store,
+        active_apps=lambda: _scheduled_apps(platform.registry),
+        invoke=lambda app_id, action_id, payload, origin: (
+            platform.runs.invoke(app_id, action_id, payload, origin=origin).run_id
+        ),
+        timezone=settings.timezone,
+    )
+    platform.scheduler.start()
     app = create_app(settings, store, coordinator, builds, gateway, assistant, platform, creations)
     return app, store, coordinator, builds
+
+
+def _move_apps_to_current_runtime(registry: AppRegistry, inventory: ProfileInventory) -> list[str]:
+    """Every active App runs on the newest runtime profile (the one carrying the current SDK),
+    so a platform improvement reaches modules already made. An App whose handlers do not bind
+    on it keeps its version and says so in the log."""
+    profile = inventory.default_app_profile()
+    if profile is None:
+        return []
+    moved: list[str] = []
+    for entry in registry.list_apps():
+        if entry.get("state") != "active" or not entry.get("current_version_id"):
+            continue
+        app_id = entry["app_id"]
+        try:
+            if registry.current(app_id).runtime_profile_id == profile.profile_id:
+                continue
+            registry.move_to_profile(app_id, profile)
+            moved.append(app_id)
+        except Exception:
+            log.exception(
+                "%s could not move to %s; it keeps its version", app_id, profile.profile_id
+            )
+    return moved
+
+
+def _describe_app(registry: AppRegistry, app_id: str) -> str | None:
+    """A plain summary of an installed App for the assistant, or None when there is none."""
+    try:
+        return module_summary(registry.current(app_id).source)
+    except OperationFailed:
+        return None
+
+
+def _scheduled_apps(registry: AppRegistry) -> list[tuple[str, list[ScheduleSpec]]]:
+    """Every active App with at least one declared schedule."""
+    found: list[tuple[str, list[ScheduleSpec]]] = []
+    for entry in registry.list_apps():
+        if entry.get("state") != "active" or not entry.get("current_version_id"):
+            continue
+        try:
+            source = registry.current(entry["app_id"]).source
+        except OperationFailed:
+            continue
+        if source.schedules:
+            found.append((entry["app_id"], list(source.schedules)))
+    return found
 
 
 def _append(store: ControlStore, run_id: str, kind: str, payload: dict[str, Any]) -> None:
@@ -170,6 +239,7 @@ def build_app_platform(
         artifacts,
         models,
         on_event=lambda run_id, kind, payload: _append(store, run_id, kind, payload),
+        web=WebService(),
     )
     revoked = broker.revoke_all_on_startup()
     if revoked:

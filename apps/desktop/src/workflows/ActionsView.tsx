@@ -75,21 +75,35 @@ export function ActionsView({
   );
 }
 
-function ActionForm({
+export function ActionForm({
   client,
   appId,
   action,
   onChanged,
   primary = false,
+  initial = {},
+  title,
+  description,
+  submitLabel,
 }: {
   client: WorkflowsClient;
   appId: string;
   action: ActionSummary;
   onChanged: () => void;
   primary?: boolean;
+  /** Starting values, for settings-like actions that show what is currently set. */
+  initial?: FormValues;
+  title?: string;
+  description?: string | null;
+  submitLabel?: string;
 }) {
   const fields = formFields(action.input_schema);
-  const [values, setValues] = useState<FormValues>({});
+  // What the action assumes for fields left alone starts filled in, so the person sees it.
+  const [values, setValues] = useState<FormValues>(() => {
+    const seeded: FormValues = {};
+    for (const field of fields) if (field.defaultValue !== null && field.kind !== "json") seeded[field.name] = field.defaultValue;
+    return { ...seeded, ...initial };
+  });
   const [state, setState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [output, setOutput] = useState<Record<string, unknown> | null>(null);
@@ -127,15 +141,15 @@ function ActionForm({
   const headingId = `action-${action.id}`;
   return (
     <form className={primary ? "action action--primary" : "action"} onSubmit={submit} aria-labelledby={headingId}>
-      <h3 id={headingId}>{action.title}</h3>
-      <p className="panel__hint">{action.description}</p>
+      <h3 id={headingId}>{title ?? action.title}</h3>
+      {description === null ? null : <p className="panel__hint">{description ?? action.description}</p>}
       {fields.map((field) => {
         const id = `${action.id}-${field.name}`;
         const hintId = field.hint ? `${id}-hint` : undefined;
         const value = values[field.name];
         const set = (v: string | boolean) => setValues((current) => ({ ...current, [field.name]: v }));
         return (
-          <div key={field.name} className={field.kind === "boolean" ? "field field--inline" : "field"}>
+          <div key={field.name} className={field.kind === "boolean" ? "field field--inline" : field.kind === "longtext" || field.kind === "lines" || field.kind === "json" ? "field field--wide" : "field"}>
             <label htmlFor={id}>
               {field.label}
               {field.required ? "" : " (optional)"}
@@ -152,7 +166,7 @@ function ActionForm({
                 ))}
               </select>
             ) : field.kind === "longtext" || field.kind === "lines" ? (
-              <textarea id={id} value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-describedby={hintId} rows={6} />
+              <textarea id={id} value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-describedby={hintId} rows={4} />
             ) : (
               <input
                 id={id}
@@ -171,11 +185,11 @@ function ActionForm({
         );
       })}
       <div className="row">
-        <button type="submit" className="button button--primary" disabled={state === "running"} aria-busy={state === "running"}>
-          {state === "running" ? "Running…" : "Run"}
+        <button type="submit" className="btn btn--primary" disabled={state === "running"} aria-busy={state === "running"}>
+          {state === "running" ? "Running…" : submitLabel ?? "Run"}
         </button>
         {state === "running" && runId ? (
-          <button type="button" className="button" onClick={() => void client.cancelRun(runId).catch(() => undefined)}>
+          <button type="button" className="btn" onClick={() => void client.cancelRun(runId).catch(() => undefined)}>
             Stop
           </button>
         ) : null}
@@ -187,7 +201,7 @@ function ActionForm({
       ) : null}
       {state === "done" ? (
         <div role="status" className="result">
-          <p className="result__title">Done.</p>
+          <p className="result__title">Done{output && typeof output.message === "string" ? `. ${output.message}` : "."}</p>
           {output && Object.keys(output).length ? <OutputView value={output} /> : null}
         </div>
       ) : null}
@@ -268,7 +282,9 @@ export function ResultValue({ value, name = "" }: { value: unknown; name?: strin
 }
 
 function OutputView({ value }: { value: Record<string, unknown> }) {
-  const visible = Object.keys(value).filter((k) => !QUIET_KEY.test(k));
+  // The message is already in the title; a result that says nothing else stays a sentence.
+  const rest = Object.fromEntries(Object.entries(value).filter(([k]) => k !== "message" || typeof value[k] !== "string"));
+  const visible = Object.keys(rest).filter((k) => !QUIET_KEY.test(k));
   if (!visible.length) return null;
-  return <ResultValue value={value} />;
+  return <ResultValue value={rest} />;
 }

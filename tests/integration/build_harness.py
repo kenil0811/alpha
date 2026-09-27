@@ -586,6 +586,7 @@ def start_build_core(
         "ALPHA_FAKE_BUILDER_PACKAGES": str(packages),
         "ALPHA_TIMEZONE": TIMEZONE,
         "ALPHA_APP_MODEL_ROUTE": "fake",
+        "ALPHA_CUSTOM_UI": "1",
     }
     if browser is not None:
         env["ALPHA_UI_BROWSER"] = str(browser)

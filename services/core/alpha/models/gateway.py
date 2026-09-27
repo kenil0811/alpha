@@ -9,11 +9,12 @@ the CLI reports is a provider-equivalent estimate, not a charge) or unavailable.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from alpha_contracts.builds import BuildBudget, BuildUsage, CostBasis
 
+from alpha.models.preferences import Preferences
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
 
@@ -31,9 +32,11 @@ class ModelRoute:
 # Initial qualification defaults from Prototype_Scope_and_Acceptance section 7: 12 minutes per
 # attempt, 30 minutes total including repair, at most two automatic repair attempts.
 DEFAULT_BUDGET = {
-    "max_turns": 60,
-    "max_attempt_seconds": 720,
-    "max_total_seconds": 1800,
+    # A complete first version (detail pages, freshness, filters, a resolved source) needs
+    # more turns than a minimal one; the time caps move a little with it.
+    "max_turns": 90,
+    "max_attempt_seconds": 900,
+    "max_total_seconds": 2400,
     "max_repair_attempts": 2,
 }
 
@@ -74,9 +77,12 @@ class ModelGateway:
         *,
         max_attempt_seconds: int | None = None,
         max_total_seconds: int | None = None,
+        preferences: Preferences | None = None,
     ) -> None:
         self._store = store
         self._enabled = enabled_routes
+        # What the person chose in Settings (model per stage, build limits); None in tests.
+        self.preferences = preferences
         self._max_attempt_seconds = max_attempt_seconds or int(
             DEFAULT_BUDGET["max_attempt_seconds"]
         )
@@ -119,7 +125,9 @@ class ModelGateway:
             for r in ROUTES.values()
         ]
 
-    def route(self, route_id: str) -> ModelRoute:
+    def route(self, route_id: str, stage: str | None = None) -> ModelRoute:
+        """The route, with the model the person chose for `stage` in Settings (assistant,
+        planner, builder_new, builder_change or app) when the route can take one."""
         route = ROUTES.get(route_id)
         if route is None:
             raise RouteUnavailable(f"unknown model route {route_id!r}")
@@ -127,12 +135,26 @@ class ModelGateway:
             raise RouteUnavailable(
                 f"model route {route_id!r} is not enabled on this host (ALPHA_ENABLED_MODEL_ROUTES)"
             )
+        if stage and self.preferences is not None and route.live:
+            chosen = self.preferences.get(f"models.{stage}")
+            if chosen and chosen != "default":
+                return replace(route, model=str(chosen))
         return route
 
     def budget(self, route: ModelRoute, max_cost_usd: float | None = None) -> BuildBudget:
         if route.cost_basis is CostBasis.PROVIDER_REPORTED and max_cost_usd is None:
             raise RouteUnavailable(
                 f"route {route.route_id!r} is metered; an explicit max_cost_usd is required"
+            )
+        prefs = self.preferences
+        if prefs is not None:
+            return BuildBudget(
+                max_turns=int(prefs.get("build.max_turns")),
+                max_attempt_seconds=int(prefs.get("build.max_attempt_minutes")) * 60,
+                max_total_seconds=int(prefs.get("build.max_total_minutes")) * 60,
+                max_repair_attempts=int(prefs.get("build.max_repair_attempts")),
+                max_cost_usd=max_cost_usd,
+                cost_basis=route.cost_basis,
             )
         return BuildBudget(
             max_turns=int(DEFAULT_BUDGET["max_turns"]),

@@ -6,6 +6,7 @@ import {
   type AppSummary,
   type Creation,
   type OperationOutcome,
+  type RecordPageResult,
   type RecordRow,
   type WorkflowsClient,
 } from "../core/client";
@@ -43,8 +44,13 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
     throw new Error("not in this fake");
   }
 
-  async queryView(): Promise<unknown> {
-    return { records: [] };
+  /** Test control: what each declared view returns. */
+  views = new Map<string, unknown>();
+  viewQueries: { viewId: string; body: Record<string, unknown> }[] = [];
+
+  async queryView(_appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown> {
+    this.viewQueries.push({ viewId, body });
+    return this.views.get(viewId) ?? { records: [], next_cursor: null };
   }
 
   async startCreation(conversationId: string): Promise<Creation> {
@@ -56,6 +62,7 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
       brief_revision: 1,
       app_id: null,
       app_name: null,
+      change_of: this.conversations.get(conversationId)?.change_of ?? null,
       state: "planning",
       stage: "planning",
       label: "Deciding how to check it",
@@ -125,6 +132,34 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
 
   async queryRecords(appId: string, collection: string): Promise<RecordRow[]> {
     return this.records.get(`${appId}/${collection}`) ?? [];
+  }
+
+  mutations: Record<string, unknown>[] = [];
+
+  async queryRecordsPage(appId: string, body: Record<string, unknown>): Promise<RecordPageResult> {
+    return { records: this.records.get(`${appId}/${String(body.collection)}`) ?? [], next_cursor: null };
+  }
+
+  async mutateRecord(appId: string, mutation: Record<string, unknown>): Promise<RecordRow | null> {
+    this.mutations.push(mutation);
+    const key = `${appId}/${String(mutation.collection)}`;
+    const rows = [...(this.records.get(key) ?? [])];
+    if (mutation.op === "create") {
+      const row: RecordRow = { id: `rec_${rows.length + 1}`, revision: 1, values: mutation.values as Record<string, unknown>, created_at: "", updated_at: "" };
+      this.records.set(key, [row, ...rows]);
+      return row;
+    }
+    const index = rows.findIndex((r) => r.id === mutation.id);
+    if (index === -1) throw new Error("not_found");
+    if (mutation.op === "delete") {
+      rows.splice(index, 1);
+      this.records.set(key, rows);
+      return null;
+    }
+    const row = { ...rows[index], revision: rows[index].revision + 1, values: { ...rows[index].values, ...(mutation.changes as Record<string, unknown>) } };
+    rows[index] = row;
+    this.records.set(key, rows);
+    return row;
   }
 
   async imageUrl(path: string): Promise<string> {

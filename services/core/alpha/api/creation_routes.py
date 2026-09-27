@@ -46,6 +46,11 @@ def register(app: FastAPI, creations: CreationService) -> None:
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail="conversation_not_found") from exc
 
+    @app.get("/api/apps/{app_id}/conversations")
+    def app_conversations(app_id: str) -> dict[str, Any]:
+        """The module's own thread: its creation and every change since, newest first."""
+        return {"conversations": creations.conversations_for_app(app_id)}
+
     @app.get("/api/conversations/{conversation_id}/creations")
     def conversation_creations(conversation_id: str) -> dict[str, Any]:
         return {"creations": creations.list_for_conversation(conversation_id)}

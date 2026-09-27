@@ -196,12 +196,16 @@ function ReadyCard({
     };
   }, [client, result.preview_images]);
 
+  const verb = creation.change_of ? "is updated" : "is ready";
   return (
-    <div className="creation creation--ready" aria-label={`${name} is ready`}>
-      <h3 className="creation__title">{name} is ready</h3>
+    <div className="creation creation--ready" aria-label={`${name} ${verb}`}>
+      <h3 className="creation__title">
+        {name} {verb}
+      </h3>
       <p>
         It passed all {result.checks_passed} of its checks
         {result.attempts > 1 ? ` (it took ${result.attempts} tries)` : ""}.{" "}
+        {creation.change_of ? "Its data is kept. " : ""}
         {result.has_ui ? "Open it to use its screen." : "Open it to run it from Alpha."}
       </p>
       {unavailable.length ? (

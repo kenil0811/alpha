@@ -37,15 +37,17 @@ SYSTEM = """You write the acceptance checks for a small App before it is built. 
 
 Rules:
 - Use the brief's action ids and collection and field names exactly (lowercase snake_case). If the brief lacks one you need, choose a clear snake_case name and use it consistently.
-- Write 2 to 4 behaviour scenarios that cover the primary journey, plus one refused case (an empty or invalid input with "expect": "failed", followed by a records step showing nothing was stored).
+- Write 3 to 6 behaviour scenarios that cover the primary journey, plus one refused case (an empty or invalid input with "expect": "failed", followed by a records step showing nothing was stored).
 - After every action that should save something, add a records step that reads storage: "includes" lists field values the scenario supplied (subset match), and "count" when you are certain of it. Never check storage by trusting an action's output.
 - Action inputs are flat JSON objects whose keys are the action's inputs. Outputs are matched as subsets; only assert values the App cannot choose freely. To require a key whose value the App chooses, write {"$any": true} as its value (never "*"). An action that creates a record should return at least {"id": {"$any": true}, "revision": {"$any": true}}; to act on it later use {"$ref": "<step id>.output.id"}.
 - Dates: use {"$today": 0} for today (and -1 for yesterday) wherever the App records a date for the person. Never assert an exact value that comes from a model estimate; assert only that the record exists with the values the person typed.
 - Assert exact values for everything computed from values the scenario itself supplied: totals, counts, averages, remaining time, what fits and what does not. Use {"$any": true} only for values the App chooses freely (ids, revisions, timestamps) or that come from a model estimate.
 - Missing data is unknown, not zero. An average over days (or weeks, or items) counts only the periods that have entries, and the result says how many periods had entries; a value the person enters as 0 is a real zero. When the brief has such a figure, add a scenario with a gap and assert both numbers exactly.
 - If an action fills a value from a model estimate, add one scenario where that invoke step has "model": "unavailable" (the platform makes the model fail). Then require an honest outcome: either "expect": "failed" followed by a records step showing nothing new was stored, or a stored record whose estimated field is null (null means unknown). Never accept a number there. Also show that a value the person types themselves is saved without the model.
+- Actions that read the web (pages, boards, feeds, search) cannot be checked against live sites, and the builder must not be pushed into adding inputs that exist only to fake a page's contents. Check them without the network: invoke the action with nothing configured (or nothing active) and expect a plain, honest result with nothing stored; check the shape of a saved item through an action that adds one by hand. Never expect specific items from a live page.
 - Only when the brief's surfaces include "custom_ui", add "ui": the screen's primary interaction addressed by short visible labels ("fill" a field by its label, then "press" Enter or "click" a button by its name), what it must save ("saved", a records step), text it must then show ("shows"), and 1 or 2 "seed" invoke steps creating sample data (one with a long text value) plus "seed_shows". Choose plain labels a person would expect, such as "Food" or "Title"; the builder will use exactly these. The screen is checked in this order, each from its own starting point: empty; then the primary interaction on an App with nothing saved, so "saved" and "shows" describe only what that one interaction produces (a count of 1 for one entry, and totals of that entry alone); then the seed data alone for "seed_shows" (the interaction's entry is gone by then). Without "custom_ui", set "ui" to null.
 - Cover the whole brief: every action in it runs successfully in some scenario; for an action that computes something (effect "none"), assert at least one exact value it returns; after each action that saves, changes or deletes data, a records step in the same scenario reads back what is stored.
+- A records step's "where" is a filter: {"field": …, "op": …, "value": …} with op one of eq, ne, lt, lte, gt, gte, in, contains, starts_with, is_null (value true or false; "in" takes a list); combine filters with {"all": [...]}, {"any": [...]} or {"not": {...}} (the key is "not").
 - Every step id is unique within its scenario, lowercase snake_case.
 - Also give app_name: two to four plain words naming the App for the person.
 
@@ -94,6 +96,12 @@ def consistency_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str
             a.effect_class == "local_write" for a in brief.actions
         ):
             problems.append(f"scenario {scenario.id} never reads storage")
+        for step in scenario.steps:
+            if isinstance(step, RecordsStep) and step.where is not None:
+                problems += [
+                    f"{scenario.id}.{step.id}: {problem}"
+                    for problem in filter_problems(step.where.model_dump(by_alias=True))
+                ]
     if wants_ui(brief) and plan.ui is None:
         problems.append("the brief asks for a screen but the plan has no ui checks")
     if not wants_ui(brief) and plan.ui is not None:
@@ -106,6 +114,26 @@ def consistency_problems(plan: ValidationPlan, brief: SolutionBrief) -> list[str
             f"what that interaction stores, not {saved.count}; sample data belongs to seed_shows"
         )
     return problems + coverage_problems(plan, brief)
+
+
+def filter_problems(node: Any) -> list[str]:
+    """Filter values the record store would refuse at check time (found in the job hunt's
+    change build: three attempts failed on a plan the builder could never satisfy)."""
+    problems: list[str] = []
+    if isinstance(node, dict):
+        op = node.get("op")
+        if op == "is_null" and not isinstance(node.get("value"), bool | None):
+            problems.append(f"is_null on {node.get('field')} takes true or false")
+        if op == "in" and not isinstance(node.get("value"), list):
+            problems.append(f"in on {node.get('field')} takes a list of values")
+        if op in ("contains", "starts_with") and not isinstance(node.get("value"), str):
+            problems.append(f"{op} on {node.get('field')} takes text")
+        for value in node.values():
+            problems += filter_problems(value)
+    elif isinstance(node, list):
+        for value in node:
+            problems += filter_problems(value)
+    return problems
 
 
 def _fixed_value(value: Any) -> bool:
@@ -293,7 +321,7 @@ class AcceptancePlanner:
         prompt = plan_prompt(brief)
         problems: list[str] = []
         notes: list[str] = []
-        for attempt in (1, 2):  # one repair of an incomplete plan, then stop
+        for attempt in (1, 2):  # one repair of an incomplete or malformed plan, then stop
             try:
                 result = self._inference.call(
                     route,
@@ -303,9 +331,30 @@ class AcceptancePlanner:
                     scope_kind="acceptance_plan",
                     scope_ref=scope_ref,
                 )
-                draft = PlanDraft.model_validate(result.output)
-            except (InferenceError, ValidationError) as exc:
+            except InferenceError as exc:
                 raise PlanningFailed(f"the checks could not be written: {str(exc)[:300]}") from None
+            try:
+                draft = PlanDraft.model_validate(result.output)
+            except ValidationError as exc:
+                # A plan in the wrong shape (found live: a filter written as {"not_": …}). Feed
+                # the exact problems back once instead of failing the whole creation.
+                shape_problems = [
+                    f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+                    for err in exc.errors()[:8]
+                ]
+                if attempt == 2:
+                    raise PlanningFailed(
+                        "the checks could not be written", shape_problems[:5]
+                    ) from None
+                notes.append("the first plan was malformed and was rewritten once")
+                prompt = (
+                    plan_prompt(brief)
+                    + "\n\nYOUR PREVIOUS PLAN (fix its shape; keep what was right):\n"
+                    + json.dumps(result.output, ensure_ascii=False)[:20000]
+                    + "\n\nIT DID NOT MATCH THE REQUIRED SHAPE:\n- "
+                    + "\n- ".join(shape_problems)
+                )
+                continue
             plan, replaced = normalize_expectations(draft.validation_plan)
             if replaced:
                 notes.append(f'{replaced} "*" expectation(s) read as any value')

@@ -137,7 +137,9 @@ class BuildService:
         builder_path: str,
         builder_home: str | None,
         instance_id: str,
+        custom_ui: bool = False,
     ) -> None:
+        self._custom_ui = custom_ui
         self._db = BuildStore(store)
         self._supervisor = supervisor
         self._gateway = gateway
@@ -171,10 +173,17 @@ class BuildService:
         max_cost_usd: float | None = None,
         seed_package: str | None = None,
         app_id: str | None = None,
+        base_package: Path | None = None,
     ) -> BuildRecord:
         """Queue a build. `app_id`, when given, is the identity the platform assigned (the
-        package must use it); otherwise the builder chooses one."""
-        route = self._gateway.route(route_id)
+        package must use it); otherwise the builder chooses one. `base_package` is the installed
+        Version a change starts from: the first attempt's workspace begins as a writable copy
+        of it, so the builder edits the App instead of writing it again."""
+        route = self._gateway.route(
+            route_id, stage="builder_change" if base_package is not None else "builder_new"
+        )
+        if base_package is not None and not (base_package / "app.yaml").is_file():
+            raise SeedUnavailable(f"no installed package at {base_package}")
         budget = self._gateway.budget(route, max_cost_usd)
         if seed_package is not None:
             seeds = self._pipeline.seed_packages_dir
@@ -210,6 +219,7 @@ class BuildService:
             plan=plan,
             seed_package=seed_package,
             app_id=app_id,
+            base_package=str(base_package) if base_package else None,
             route_id=route.route_id,
             harness=route.harness,
             budget=budget,
@@ -490,9 +500,10 @@ class BuildService:
         runtime = self._pipeline.inventory.default_app_profile()
         if runtime is None:
             return None
-        return TargetProfiles(
-            runtime=runtime, ui=self._pipeline.inventory.default_ui_profile(), app_id=app_id
-        )
+        # A compiled custom screen is offered only when the host allows it; otherwise the
+        # module's screen is declared and drawn by the shell.
+        ui = self._pipeline.inventory.default_ui_profile() if self._custom_ui else None
+        return TargetProfiles(runtime=runtime, ui=ui, app_id=app_id)
 
     def _run_build(self, item: _QueuedBuild) -> None:
         build_id, route, budget = item.build_id, item.route, item.budget
@@ -560,6 +571,18 @@ class BuildService:
             report = outcome.report
             last = report
             left = max_attempts - number
+            defects = [c.id for c in report.checks if c.detail.get("plan_defect")]
+            if defects:
+                # The plan itself cannot be satisfied; a repair would only waste the budget.
+                self._db.fail(
+                    build_id,
+                    report.attempt_id,
+                    "plan_defect",
+                    FailureCategory.VALIDATION_FAILED,
+                    {"attempts": len(lineage), "failed_checks": defects},
+                    validation=report.model_dump(mode="json"),
+                )
+                return
             if left == 0:
                 self._db.fail(
                     build_id,
@@ -632,6 +655,8 @@ class BuildService:
         if seeded:
             assert self._pipeline.seed_packages_dir is not None and record.seed_package
             previous_package = self._pipeline.seed_packages_dir / record.seed_package
+        elif number == 1 and record.base_package:
+            previous_package = Path(record.base_package)
         materialize(
             attempt_dir,
             resources=self._pipeline.resources,
@@ -922,7 +947,8 @@ class BuildService:
             "runtime_profile_id": sealed.dependency_manifest.runtime_profile_id,
             "ui_build_profile_id": report.ui_build_profile_id,
             "actions": [a.id for a in sealed.source.actions],
-            "has_ui": sealed.source.ui is not None and sealed.source.ui.entry is not None,
+            "has_ui": sealed.source.has_screen(),
+            "has_screen": sealed.source.screen is not None,
             "version_ref": str(sealed.path.relative_to(self._root)),
             "report_ref": report_ref,
             "handlers_ref": str((attempt_dir / "handlers.report.json").relative_to(self._root)),

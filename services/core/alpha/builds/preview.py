@@ -214,7 +214,7 @@ class PreviewPlatform:
         return detail
 
     def query_view(self, view_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        view = resolve_view(self.app.source.ui, view_id)
+        view = resolve_view(self.app.source, view_id)
         request = ViewQueryRequest.model_validate(body)
         result = run_view(self.records.store(self.app.app_id), view, request, self.timezone)
         return result.model_dump(mode="json", by_alias=True)

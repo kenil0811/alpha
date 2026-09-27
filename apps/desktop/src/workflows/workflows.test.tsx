@@ -3,10 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Creation } from "../core/client";
 import { FakeWorkflowsClient, sampleDetail, sampleSummary } from "../test/fakeWorkflows";
+import { ModulePage } from "../modules/ModulePage";
 import { ActionsView } from "./ActionsView";
 import { CreationCard } from "./CreationCard";
-import { WorkflowsPanel } from "./WorkflowsPanel";
-import { Workspace } from "./Workspace";
 import { formFields, humanize, toInput } from "./schemaForm";
 
 function ready(creation: Creation, overrides: Partial<NonNullable<Creation["result"]>> = {}): Creation {
@@ -47,7 +46,6 @@ describe("creating a result", () => {
     expect(card).toHaveTextContent("Not connected yet, so not part of it: email.");
     const preview = await within(card).findByRole("figure");
     expect(preview).toHaveTextContent("Preview");
-    expect(preview).toHaveTextContent("using sample data. Your own list starts empty.");
     expect(within(preview).getByRole("img", { name: "Preview: With several entries" })).toBeInTheDocument();
     expect(client.imagesRequested).toEqual(["/api/builds/b1/evidence/1/populated-1280.png"]);
 
@@ -96,28 +94,24 @@ describe("creating a result", () => {
   });
 });
 
-describe("my workflows", () => {
-  it("explains the empty state and keeps development fixtures apart", async () => {
+describe("home and the rail", () => {
+  it("lists modules in the rail and on Home, and opens one", async () => {
+    const { App } = await import("../App");
     const client = new FakeWorkflowsClient();
-    client.apps = [sampleSummary({ app_id: "fixture.notes", name: "Fixture notes", origin: "fixture" })];
-    render(<WorkflowsPanel client={client} onOpen={() => undefined} />);
-    expect(await screen.findByText("Nothing here yet.")).toBeInTheDocument();
-    expect(screen.getByText("Development fixtures (1)")).toBeInTheDocument();
-  });
-
-  it("lists created results with how they are used and opens one", async () => {
-    const client = new FakeWorkflowsClient();
-    client.apps = [
-      sampleSummary(),
-      sampleSummary({ app_id: "calorie-tracker-9f", name: "Calorie tracker", has_ui: true, actions: 3 }),
-    ];
-    const opened: string[] = [];
+    client.apps = [sampleSummary(), sampleSummary({ app_id: "tracker-9f", name: "Tracker", has_ui: true, actions: 3 })];
+    client.details.set("tracker-9f", sampleDetail({ app_id: "tracker-9f", name: "Tracker" }));
     const user = userEvent.setup();
-    render(<WorkflowsPanel client={client} onOpen={(id) => opened.push(id)} />);
-    expect(await screen.findByText("2 actions, run from Alpha")).toBeInTheDocument();
+    render(<App client={client} />);
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
+    const rail = screen.getByRole("navigation", { name: "Alpha" });
+    expect(await within(rail).findByRole("button", { name: "Tracker" })).toBeInTheDocument();
     expect(screen.getByText("Has its own screen")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open Calorie tracker" }));
-    expect(opened).toEqual(["calorie-tracker-9f"]);
+    await user.click(screen.getByRole("button", { name: "Open Tracker" }));
+    expect(await screen.findByRole("heading", { name: "Tracker" })).toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Tracker" })).toHaveAttribute("aria-current", "page");
+    await user.click(within(rail).getByRole("button", { name: "Home" }));
+    expect(await screen.findByRole("heading", { name: "Your modules" })).toBeInTheDocument();
+    await act(async () => undefined);
   });
 });
 
@@ -127,7 +121,7 @@ describe("an App without its own screen", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail());
     client.actionOutput = { id: "rec_1", revision: 1, saved_title: "Buy milk" };
     const user = userEvent.setup();
-    render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
+    render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
 
     expect(await screen.findByRole("heading", { name: "Notes list" })).toBeInTheDocument();
     expect(await screen.findByText("No notes saved yet.")).toBeInTheDocument();
@@ -194,15 +188,16 @@ describe("an App without its own screen", () => {
   });
 });
 
-describe("an App with its own screen", () => {
+describe("an App with its own compiled screen", () => {
   it("explains outside the native window that only the actions are available", async () => {
     const client = new FakeWorkflowsClient();
     client.details.set("notes-list-1a2b3c", sampleDetail({ ui: { entry: "ui/src/main.tsx", views: [], actions: ["add_note"] } }));
-    render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
+    render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByText("Actions and saved data")).toBeInTheDocument();
-    expect(screen.getByText("Its records stay on this Mac.")).toBeInTheDocument();
-    expect(screen.queryByText(/pyprof|ver_/)).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
+    expect(screen.getByText(/Its records stay on this Mac\./)).toBeInTheDocument();
+    expect(screen.queryByText(/pyprof/)).not.toBeInTheDocument();
   });
 });
 
@@ -249,32 +244,11 @@ describe("form fields from an input schema", () => {
   });
 });
 
-describe("shell navigation", () => {
-  it("moves between the Assistant, My workflows and a workflow's workspace", async () => {
-    const { App } = await import("../App");
-    const client = new FakeWorkflowsClient();
-    client.apps = [sampleSummary()];
-    client.details.set("notes-list-1a2b3c", sampleDetail());
-    const user = userEvent.setup();
-    render(<App client={client} />);
-    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assistant" })).toHaveAttribute("aria-current", "page");
-    await user.click(screen.getByRole("button", { name: "My workflows" }));
-    await user.click(await screen.findByRole("button", { name: "Open Notes list" }));
-    expect(await screen.findByRole("heading", { name: "Notes list" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "My workflows" })).toHaveAttribute("aria-current", "page");
-    await user.click(screen.getByRole("button", { name: "← My workflows" }));
-    expect(await screen.findByRole("heading", { name: "My workflows" })).toBeInTheDocument();
-    await act(async () => undefined);
-  });
-});
-
 describe("what the shell says around an App's own screen", () => {
   it("speaks only about blocked requests and an App that cannot run", async () => {
     const { screenProblem } = await import("./GeneratedScreen");
     expect(screenProblem({ code: "forbidden" })).toMatch(/blocked a request/);
     expect(screenProblem({ code: "unsupported" })).toMatch(/can't run right now/);
-    // Found natively: a runtime problem was shown as "not allowed"; ordinary failures belong to the screen.
     expect(screenProblem({ code: "invalid_request", message: "Food is needed" })).toBeNull();
     expect(screenProblem({ internal: "TypeError" })).toBeNull();
   });
@@ -285,8 +259,10 @@ describe("where the data goes", () => {
     const client = new FakeWorkflowsClient();
     const notice = "Its records stay on this Mac. To make an estimate, it sends what the estimate is about (such as a description you typed) to Anthropic's Claude service over the internet.";
     client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
-    render(<Workspace client={client} appId="notes-list-1a2b3c" onBack={() => undefined} />);
-    expect(await screen.findByText(notice)).toBeInTheDocument();
+    render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
+    await screen.findByRole("heading", { name: "Notes list" });
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
+    expect(await screen.findByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
   });
 });
 

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { ActionSummary } from "../core/client";
 import dayplan from "../test/fixtures/dayplan-app.json";
 import { FakeWorkflowsClient, sampleDetail } from "../test/fakeWorkflows";
-import { Workspace } from "./Workspace";
+import { ModulePage } from "../modules/ModulePage";
 
 const actions = dayplan.actions as unknown as ActionSummary[];
 const LIST = "Finish quarterly report 2h\nCall the bank 20m\nReview Asha's pull request 45m\nGroceries 1h\nBook dentist appointment\nClean out email inbox 1.5h";
@@ -25,7 +25,7 @@ describe("a generated App without its own screen", () => {
   it("leads with its main action, takes a pasted list and shows the plan in plain form", async () => {
     const fake = client("fit_plan");
     const user = userEvent.setup();
-    render(<Workspace client={fake} appId={dayplan.app_id} onBack={() => undefined} />);
+    render(<ModulePage client={fake} appId={dayplan.app_id} onAsk={() => undefined} />);
 
     const main = await screen.findByRole("form", { name: "Fit my list into today's hours" });
     const list = within(main).getByLabelText("List");
@@ -57,7 +57,7 @@ describe("a generated App without its own screen", () => {
   });
 
   it("never asks a person to type structured data, even without a declared main action", async () => {
-    render(<Workspace client={client(null)} appId={dayplan.app_id} onBack={() => undefined} />);
+    render(<ModulePage client={client(null)} appId={dayplan.app_id} onAsk={() => undefined} />);
     await screen.findByRole("form", { name: "Fit my list into today's hours" });
     expect(screen.getByRole("form", { name: "Read my pasted to-do list" })).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Write up the plan to read" })).not.toBeInTheDocument();

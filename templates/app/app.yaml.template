@@ -5,7 +5,7 @@ description: "{{ONE_SENTENCE_PURPOSE}}"
 runtime_profile: "{{RUNTIME_PROFILE}}"
 sdk_version: "{{SDK_VERSION}}"
 capabilities: [records]
-primary_action: add_item   # the action a person runs to get the result (required without a screen)
+primary_action: add_item   # the action a person runs from the assistant or by hand
 collections:
   - name: items
     fields:
@@ -27,18 +27,27 @@ actions:
     output_schema:
       type: object
       required: [id, revision]
-      properties: {id: {type: string}, revision: {type: integer}}
-ui:
-  entry: ui/src/main.tsx
-  build_profile: "{{UI_BUILD_PROFILE}}"
-  kit_version: "{{KIT_VERSION}}"
-  bridge_version: "{{BRIDGE_VERSION}}"
-  views:
-    - id: items.recent
-      collection: items
-      fields: [title, noted_on]
-      filterable: [title, noted_on]
-      sortable: [title, noted_on, created_at]
-      default_order: [{field: created_at, direction: desc}]
-      max_limit: 100
-  actions: [add_item]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}}
+# Declared read views: what the screen (and any custom ui) may read. Core enforces them.
+views:
+  - id: items.recent
+    collection: items
+    filterable: [title, noted_on]
+    sortable: [title, noted_on, created_at]
+    default_order: [{field: created_at, direction: desc}]
+    max_limit: 100
+# The screen Alpha draws for this App: tabs made of blocks (see APP_CONTRACT.md). No compile step.
+screen:
+  tabs:
+    - id: items
+      title: Items
+      blocks:
+        - kind: quick_entry
+          action: add_item
+          input: title
+          placeholder: "Add an item"
+        - kind: table
+          view: items.recent
+          columns:
+            - {field: noted_on, format: date, title: Day}
+            - {field: title}

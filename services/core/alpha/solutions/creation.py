@@ -34,6 +34,7 @@ from alpha.builds.store import BuildRecord
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
 from alpha.solutions.planner import AcceptancePlanner, PlanningFailed, app_slug, wants_ui
+from alpha.solutions.registry import AppRegistry
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.creations")
@@ -55,7 +56,8 @@ CREATE TABLE IF NOT EXISTS creations (
     failure_json TEXT,
     history_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    change_of TEXT
 );
 """
 
@@ -79,6 +81,8 @@ class CreationRecord(BaseModel):
     brief_revision: int
     app_id: str | None
     app_name: str | None
+    # Set when this creation changes an App that already exists (rebuilt in place, data kept).
+    change_of: str | None = None
     state: str
     stage: str
     label: str
@@ -109,13 +113,26 @@ def _now() -> str:
     return utc_now().isoformat().replace("+00:00", "Z")
 
 
-def build_instructions(brief: SolutionBrief, *, with_ui: bool, app_name: str) -> str:
+CHANGE_NOTE = (
+    "THIS IS A CHANGE to an App the person already uses. package/ is a writable copy of its "
+    "current version, not the template. Keep everything that already works: every collection "
+    "and field (same names and kinds; any field you add must be optional), every action id, the "
+    "declared screen and schedules. Change only what the goal and PLAN.md ask for, and make "
+    "sure records saved by the current version still load and display."
+)
+
+
+def build_instructions(
+    brief: SolutionBrief, *, with_ui: bool, app_name: str, change: bool = False
+) -> str:
     """What the builder is told about the person's goal, in the brief's own words."""
     lines = [
         f"App name for the person: {app_name}",
         "",
         f"What success looks like: {brief.success_summary}",
     ]
+    if change:
+        lines = [CHANGE_NOTE, ""] + lines
     if brief.primary_journey:
         lines += ["", "How the person will use it:"]
         lines += [f"- {s.action} -> {s.expected_result}" for s in brief.primary_journey]
@@ -134,6 +151,15 @@ def build_instructions(brief: SolutionBrief, *, with_ui: bool, app_name: str) ->
             lines.append(
                 f"- action {action.id}: {action.description} (inputs: {inputs}; outputs: {outputs})"
             )
+    if brief.recurrence is not None:
+        lines += [
+            "",
+            f"It runs on its own ({brief.recurrence.type}): {brief.recurrence.description}",
+            "Declare this in app.yaml under schedules: (every_minutes or daily_at) calling an "
+            "action whose invocable_from includes trigger, and list the schedules capability. "
+            "Alpha runs it while it is open and shows the last and next run with an on/off "
+            "switch; do not build your own timer or run history.",
+        ]
     if brief.constraints:
         lines += ["", "Constraints:"] + [f"- {c}" for c in brief.constraints]
     if brief.assumptions:
@@ -150,13 +176,17 @@ def build_instructions(brief: SolutionBrief, *, with_ui: bool, app_name: str) ->
         "PLAN.md is what Alpha will check. Where it names an action, input, collection, field "
         "or label differently from the notes above, use PLAN.md's name.",
         "",
-        "Build a screen for this App (ui/src/main.tsx) using the labels PLAN.md names."
+        "Declare the App's screen in app.yaml (screen: tabs of blocks) using the labels PLAN.md "
+        "names: the quick entry's placeholder, column titles and tab names are what the person "
+        "sees. Put the main interaction first (a quick_entry or form), then the working table "
+        "with editable columns, then metrics and a trend where numbers change over time. Write "
+        "a custom ui/src/main.tsx only if no block can express the main interaction."
         if with_ui
-        else "This App has no custom screen: leave ui out of app.yaml. Alpha shows one form for "
-        "primary_action, the action the person runs to get the result; set it, give it a clear "
-        "title and description, mark pasted or long text inputs multiline: true, and return "
-        "readable data (lists of entries become tables). Keep helper steps internal: do not list "
-        "an action as manual if it needs another step's output.",
+        else "This App needs no screen of its own: leave screen and ui out of app.yaml. Alpha "
+        "shows one form for primary_action, the action the person runs to get the result; set "
+        "it, give it a clear title and description, mark pasted or long text inputs multiline: "
+        "true, and return readable data (lists of entries become tables). Keep helper steps "
+        "internal: do not list an action as manual if it needs another step's output.",
     ]
     return "\n".join(lines)
 
@@ -172,6 +202,7 @@ class CreationService:
         routes: CreationRoutes,
         *,
         poll_seconds: float = 0.5,
+        registry: AppRegistry | None = None,
     ) -> None:
         self._store = store
         self._assistant = assistant
@@ -180,9 +211,11 @@ class CreationService:
         self._gateway = gateway
         self._routes = routes
         self._poll = poll_seconds
+        self._registry = registry  # where a changed App's current version comes from
         self._lock = threading.Lock()
         self._cancelled: set[str] = set()
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("creations", {"change_of": "TEXT"})
 
     # ----- public ------------------------------------------------------------------------
 
@@ -200,12 +233,21 @@ class CreationService:
         for existing in self.list_for_conversation(conversation_id):
             if existing.state not in TERMINAL and existing.brief_revision == brief.revision:
                 return existing  # already being created from this brief revision
+        change_of: str | None = getattr(conversation, "change_of", None)
+        if change_of is not None:
+            if self._registry is None:
+                raise CreationRefused("changing a module is not available on this host")
+            try:
+                self._registry.current(change_of)
+            except OperationFailed as exc:
+                raise CreationRefused(f"the module to change is not installed: {exc}") from exc
         creation_id = new_id("create")
         now = _now()
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO creations(creation_id, conversation_id, brief_id, brief_revision,
-                   state, history_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)""",
+                   state, history_json, created_at, updated_at, change_of)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 (
                     creation_id,
                     conversation_id,
@@ -215,12 +257,13 @@ class CreationService:
                     "[]",
                     now,
                     now,
+                    change_of,
                 ),
             )
         self._note(creation_id, "planning", "Writing the checks it must pass")
         threading.Thread(
             target=self._run,
-            args=(creation_id, brief, builder_hint),
+            args=(creation_id, brief, builder_hint, change_of),
             name=f"creation-{creation_id}",
             daemon=True,
         ).start()
@@ -238,6 +281,25 @@ class CreationService:
             (conversation_id,),
         )
         return [self._record(r) for r in rows]
+
+    def conversations_for_app(self, app_id: str, limit: int = 50) -> list[Any]:
+        """A module's own thread: the request that made it and every change asked since,
+        newest first (the assistant panel shows this when opened from the module)."""
+        rows = self._store.query(
+            """SELECT conversation_id, MAX(created_at) AS at FROM (
+                   SELECT conversation_id, created_at FROM creations WHERE app_id = ?
+                   UNION ALL
+                   SELECT conversation_id, created_at FROM conversations WHERE change_of = ?
+               ) GROUP BY conversation_id ORDER BY at DESC LIMIT ?""",
+            (app_id, app_id, limit),
+        )
+        found = []
+        for row in rows:
+            try:
+                found.append(self._assistant.get(row["conversation_id"]))
+            except Exception:  # a conversation missing from the store is not the module's fault
+                continue
+        return found
 
     def list_recent(self, limit: int = 50) -> list[CreationRecord]:
         rows = self._store.query(
@@ -295,9 +357,15 @@ class CreationService:
 
     # ----- the creation itself ----------------------------------------------------------
 
-    def _run(self, creation_id: str, brief: SolutionBrief, builder_hint: str | None) -> None:
+    def _run(
+        self,
+        creation_id: str,
+        brief: SolutionBrief,
+        builder_hint: str | None,
+        change_of: str | None = None,
+    ) -> None:
         try:
-            self._create(creation_id, brief, builder_hint)
+            self._create(creation_id, brief, builder_hint, change_of)
         except Exception as exc:  # never leave a creation stuck
             log.exception("creation %s failed inside Core", creation_id)
             self._finish(
@@ -312,10 +380,22 @@ class CreationService:
                 },
             )
 
-    def _create(self, creation_id: str, brief: SolutionBrief, builder_hint: str | None) -> None:
+    def _create(
+        self,
+        creation_id: str,
+        brief: SolutionBrief,
+        builder_hint: str | None,
+        change_of: str | None = None,
+    ) -> None:
+        # A change keeps the App's identity and name, starts the build from its current
+        # version and only switches on if that version is still current when it finishes.
+        current = None
+        if change_of is not None:
+            assert self._registry is not None
+            current = self._registry.current(change_of)
         try:
             planned = self._planner.plan(
-                brief, self._gateway.route(self._routes.planner), creation_id
+                brief, self._gateway.route(self._routes.planner, stage="planner"), creation_id
             )
         except PlanningFailed as exc:
             self._finish(
@@ -333,14 +413,18 @@ class CreationService:
             return
         if self._stopped(creation_id):
             return
-        app_id = app_slug(planned.app_name, creation_id.removeprefix("create_")[:6])
+        if current is not None:
+            app_id, app_name = current.app_id, current.source.name
+        else:
+            app_id = app_slug(planned.app_name, creation_id.removeprefix("create_")[:6])
+            app_name = planned.app_name
         with self._store.transaction() as conn:
             conn.execute(
                 """UPDATE creations SET app_id = ?, app_name = ?, plan_json = ?, plan_source = ?,
                    updated_at = ? WHERE creation_id = ?""",
                 (
                     app_id,
-                    planned.app_name,
+                    app_name,
                     planned.plan.model_dump_json(),
                     planned.source,
                     _now(),
@@ -354,10 +438,11 @@ class CreationService:
             goal=goal,
             plan=planned.plan,
             instructions=build_instructions(
-                brief, with_ui=wants_ui(brief), app_name=planned.app_name
+                brief, with_ui=wants_ui(brief), app_name=app_name, change=current is not None
             ),
             route_id=self._routes.builder,
             app_id=app_id,
+            base_package=current.location if current is not None else None,
         )
         with self._store.transaction() as conn:
             moved = conn.execute(
@@ -387,7 +472,9 @@ class CreationService:
             return  # stopped before switching on: nothing is switched on
         try:
             activated = self._builds.activate(
-                final.build_id, expected_release_id=None, creation_id=creation_id
+                final.build_id,
+                expected_release_id=current.release_id if current is not None else None,
+                creation_id=creation_id,
             )
         except (OperationFailed, BuildNotReady) as exc:
             message = exc.message if isinstance(exc, OperationFailed) else str(exc)
@@ -436,6 +523,12 @@ class CreationService:
                 "Try describing it without that part."
             )
             next_step = "revise"
+        elif reason == "plan_defect":
+            message = (
+                "Alpha's own checks for this request were faulty, so what was built could not "
+                "be judged fairly. Nothing was changed; try again."
+            )
+            next_step = "retry"
         elif reason in ("repair_limit_reached", "total_deadline_exceeded", "cost_limit_reached"):
             tries = "once" if len(build.attempts) == 1 else f"{len(build.attempts)} times"
             message = (
@@ -588,6 +681,7 @@ class CreationService:
             brief_revision=int(row["brief_revision"]),
             app_id=row["app_id"],
             app_name=row["app_name"],
+            change_of=row["change_of"],
             state=row["state"],
             stage=latest["stage"],
             label=latest["label"],

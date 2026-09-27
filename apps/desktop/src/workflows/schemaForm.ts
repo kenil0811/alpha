@@ -14,6 +14,8 @@ export interface FormField {
   kind: FieldKind;
   required: boolean;
   choices: string[];
+  /** The value the action assumes when the person leaves the field alone (schema default). */
+  defaultValue: string | boolean | null;
 }
 
 function primaryType(schema: JsonSchema): string | undefined {
@@ -48,6 +50,7 @@ export function formFields(schema: JsonSchema): FormField[] {
       kind,
       required: required.has(name),
       choices: (property.enum ?? []).map(String),
+      defaultValue: property.default === undefined || property.default === null ? null : typeof property.default === "boolean" ? property.default : String(property.default),
     };
   });
 }

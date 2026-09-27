@@ -90,6 +90,8 @@ class BuildRecord(BaseModel):
     validation: dict[str, Any] | None = None
     seed_package: str | None = None
     app_id: str | None = None
+    # The installed Version this build starts from when it changes an existing App.
+    base_package: str | None = None
     latest_sequence: int
 
 
@@ -160,6 +162,7 @@ _MIGRATIONS = (
     ("builds", "plan_json", "TEXT"),
     ("builds", "seed_package", "TEXT"),
     ("builds", "app_id", "TEXT"),
+    ("builds", "base_package", "TEXT"),
     ("build_attempts", "report_ref", "TEXT"),
 )
 
@@ -244,13 +247,14 @@ class BuildStore:
         budget: BuildBudget,
         created_at: datetime,
         queued_payload: dict[str, Any],
+        base_package: str | None = None,
     ) -> None:
         with self._db.transaction() as conn:
             conn.execute(
                 """INSERT INTO builds(build_id, brief_ref, goal, instructions, acceptance_json,
-                   plan_json, seed_package, app_id, route_id, harness, budget_json, state,
-                   created_at, updated_at, latest_sequence)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+                   plan_json, seed_package, app_id, base_package, route_id, harness, budget_json,
+                   state, created_at, updated_at, latest_sequence)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
                 (
                     build_id,
                     brief_ref,
@@ -260,6 +264,7 @@ class BuildStore:
                     plan.model_dump_json(),
                     seed_package,
                     app_id,
+                    base_package,
                     route_id,
                     harness,
                     budget.model_dump_json(),
@@ -509,5 +514,6 @@ class BuildStore:
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
             seed_package=row["seed_package"],
             app_id=row["app_id"],
+            base_package=row["base_package"],
             latest_sequence=int(row["latest_sequence"]),
         )

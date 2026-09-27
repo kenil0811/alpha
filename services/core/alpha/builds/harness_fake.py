@@ -18,6 +18,7 @@ Modes, from the goal text `fake:<mode> [args]`:
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -176,9 +177,11 @@ class FakeHarness:
         number = session.inputs.request.attempt_number
         name = names[min(number, len(names)) - 1]
         source = Path(root) / name
-        # Like a builder following its workspace: no screen unless the template offered one
-        # (the platform leaves it out when the plan checks no screen).
-        with_ui = (package / "ui").is_dir()
+        # Like a builder following its workspace: a compiled screen only when the plan checks
+        # one and a UI build profile is installed (the template itself declares no `ui`).
+        plan_file = session.workspace / "plan.json"
+        plan = json.loads(plan_file.read_text(encoding="utf-8")) if plan_file.is_file() else {}
+        with_ui = plan.get("ui") is not None and "ui_build_profile" in session.inputs.targets
         shutil.rmtree(package, ignore_errors=True)
         shutil.copytree(source, package)
         if not with_ui:

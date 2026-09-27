@@ -59,7 +59,7 @@ describe("assistant surface", () => {
     render(<App client={client} />);
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     const understood = await screen.findByLabelText("How Alpha understood it");
     expect(understood).toHaveTextContent("A personal food diary");
@@ -86,7 +86,7 @@ describe("assistant surface", () => {
     render(<App client={client} />);
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("form", { name: "A few questions" });
     await user.click(screen.getByRole("button", { name: "Use these defaults for now" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 2"));
@@ -103,7 +103,7 @@ describe("assistant surface", () => {
     render(<App client={client} />);
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("What do you want done?"), "anything");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("could not work this out");
   });
 });
@@ -118,7 +118,7 @@ describe("the brief says where data goes", () => {
     render(<App client={client} />);
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     const brief = await screen.findByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
   });

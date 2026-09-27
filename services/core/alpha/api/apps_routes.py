@@ -12,7 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from alpha_contracts.artifacts import Artifact, ArtifactOwner
-from alpha_contracts.records import AggregateQuery, AggregateResult, RecordPage, RecordQuery
+from alpha_contracts.records import (
+    AggregateQuery,
+    AggregateResult,
+    RecordMutation,
+    RecordPage,
+    RecordQuery,
+)
 from alpha_contracts.runs import Run, RunOrigin
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response
@@ -20,11 +26,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
-from alpha.data.store import RecordService
+from alpha.data.store import RecordService, WriteContext
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
 from alpha.execution.profiles import ProfileInventory
+from alpha.execution.scheduler import Scheduler
 from alpha.models.disclosure import app_data_notice
 from alpha.models.runtime import AppModelService
 from alpha.solutions.registry import AppRegistry
@@ -43,9 +50,24 @@ class AppPlatform:
     runs: AppRunService
     binder: HandlerBinder
     fixture_apps_dir: Path | None = None
+    scheduler: Scheduler | None = None
 
     def close(self) -> None:
+        if self.scheduler is not None:
+            self.scheduler.stop()
         self.records.close()
+
+
+class RecordMutationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mutation: RecordMutation
+
+
+class ScheduleToggle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
 
 
 class ActionRunRequest(BaseModel):
@@ -114,7 +136,52 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             # Where this App's data goes, from the configured route (F11).
             "data_notice": _app_notice(platform, source.capabilities),
             "ui": source.ui.model_dump(mode="json", by_alias=True) if source.ui else None,
+            "views": [v.model_dump(mode="json", by_alias=True) for v in source.views],
+            "screen": source.screen.model_dump(mode="json", by_alias=True)
+            if source.screen
+            else None,
+            "has_screen": source.has_screen(),
         }
+
+    @app.get("/api/apps/{app_id}/schedules")
+    def list_schedules(app_id: str) -> dict[str, Any]:
+        try:
+            version = platform.registry.current(app_id)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        if platform.scheduler is None:
+            return {"schedules": [], "available": False}
+        return {
+            "schedules": platform.scheduler.status(app_id, version.source.schedules),
+            "available": True,
+        }
+
+    @app.post("/api/apps/{app_id}/schedules/{schedule_id}")
+    def set_schedule(app_id: str, schedule_id: str, body: ScheduleToggle) -> dict[str, Any]:
+        try:
+            version = platform.registry.current(app_id)
+            if platform.scheduler is None:
+                raise OperationFailed("unavailable", "schedules are not running on this Mac")
+            platform.scheduler.set_enabled(
+                app_id, version.source.schedules, schedule_id, body.enabled
+            )
+            return {"schedules": platform.scheduler.status(app_id, version.source.schedules)}
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+
+    @app.post("/api/apps/{app_id}/schedules/{schedule_id}/run")
+    def run_schedule(app_id: str, schedule_id: str) -> dict[str, Any]:
+        try:
+            version = platform.registry.current(app_id)
+            if platform.scheduler is None:
+                raise OperationFailed("unavailable", "schedules are not running on this Mac")
+            run_id = platform.scheduler.run_now(app_id, version.source.schedules, schedule_id)
+            return {
+                "run_id": run_id,
+                "schedules": platform.scheduler.status(app_id, version.source.schedules),
+            }
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
 
     @app.post("/api/apps/{app_id}/actions/{action_id}/runs", response_model=Run, status_code=202)
     def run_action(app_id: str, action_id: str, body: ActionRunRequest) -> Run:
@@ -122,6 +189,20 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             return platform.runs.invoke(app_id, action_id, body.input, origin=body.origin)
         except OperationFailed as exc:
             raise _fail(exc) from exc
+
+    @app.post("/api/apps/{app_id}/records/mutate")
+    def mutate_record(app_id: str, body: RecordMutationRequest) -> dict[str, Any]:
+        """A person's own change to a module's data from the Data section: a new row, a
+        correction (kept as the person's decision) or a removal. Not an App action: no handler
+        runs, and the change is recorded as the person's."""
+        try:
+            platform.registry.current(app_id)
+            store = platform.records.store(app_id)
+            ctx = WriteContext(run_id=None, allow_correction=True, resolve_estimate=None)
+            (result,) = store.apply([body.mutation], ctx)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return {"record": None if result is None else result.model_dump(mode="json")}
 
     @app.post("/api/apps/{app_id}/records/query", response_model=RecordPage)
     def query_records(app_id: str, body: RecordQuery) -> RecordPage:
@@ -136,7 +217,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
         """The shell's bridge handler for records.query: Core enforces the declared view."""
         try:
             version = platform.registry.current(app_id)
-            view = resolve_view(version.source.ui, view_id)
+            view = resolve_view(version.source, view_id)
             result = run_view(platform.records.store(app_id), view, body, platform.runs.timezone)
         except OperationFailed as exc:
             raise _fail(exc) from exc

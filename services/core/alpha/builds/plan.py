@@ -202,14 +202,23 @@ def run_records(
     try:
         where = resolve_filter(step.where, outputs, preview.timezone)
     except UnresolvedReference as exc:
-        return _check(check_id, CheckStatus.FAILED, f"the plan could not be applied: {exc}")
+        return _check(
+            check_id,
+            CheckStatus.FAILED,
+            f"the plan could not be applied: {exc}",
+            {"plan_defect": True},
+        )
     try:
         records = preview.records_in(step.collection, where)
     except OperationFailed as exc:
+        # A filter the store cannot compile is the plan's fault, not the builder's: no repair
+        # can fix it, so the build stops instead of spending every attempt on it.
+        defect = exc.code == "invalid_input" and "no collection" not in exc.message
         return _check(
             check_id,
             CheckStatus.FAILED,
             f"collection {step.collection} could not be read: {exc.message}",
+            {"plan_defect": True} if defect else None,
         )
     values = [r.values for r in records]
     detail: dict[str, Any] = {

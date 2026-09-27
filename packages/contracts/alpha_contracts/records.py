@@ -180,6 +180,10 @@ class AnyOf(ContractModel):
 
 
 class Not(ContractModel):
+    # Accepts both {"not": ...} (the wire form) and {"not_": ...}, which model-written plans
+    # sometimes produce from the field name.
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
     not_: Filter = Field(alias="not")
 
 

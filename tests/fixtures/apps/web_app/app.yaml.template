@@ -1,0 +1,86 @@
+contract_version: "0.2"
+app_id: web-fixture
+name: Web reader (fixture)
+description: A neutral fixture that reads a public page or searches the web and keeps what it found.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records, http]
+collections:
+  - name: findings
+    description: One row per page read or search made.
+    fields:
+      - {name: kind, kind: choice, required: true, choices: [page, search]}
+      - {name: query, kind: text, required: true, max_length: 2000}
+      - {name: title, kind: text, max_length: 300}
+      - {name: summary, kind: text, max_length: 2000}
+      - {name: url, kind: text, max_length: 2000}
+      - {name: fetched_on, kind: date, required: true}
+actions:
+  - id: read_page
+    title: Read a page
+    description: Fetch a public web page and keep its title and the first lines of text.
+    handler: web_fixture.handlers:read_page
+    invocable_from: [ui, assistant, manual]
+    effect_class: external_read
+    capability_requirements: [records, http]
+    timeout_seconds: 60
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url: {type: string, minLength: 8, maxLength: 2000, title: Web address}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}, title: {type: [string, "null"]}}
+  - id: search_web
+    title: Search the web
+    description: Search and keep the top results.
+    handler: web_fixture.handlers:search_web
+    invocable_from: [ui, assistant, manual]
+    effect_class: external_read
+    capability_requirements: [records, http]
+    timeout_seconds: 60
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [query]
+      additionalProperties: false
+      properties:
+        query: {type: string, minLength: 1, maxLength: 400, title: Search for}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}}
+views:
+  - id: findings.recent
+    collection: findings
+    filterable: [kind, query, title]
+    sortable: [fetched_on, created_at]
+    default_order: [{field: created_at, direction: desc}]
+    max_limit: 100
+screen:
+  icon: "🌐"
+  tabs:
+    - id: read
+      title: Read
+      blocks:
+        - kind: quick_entry
+          action: read_page
+          input: url
+          placeholder: "Paste a web address to read, e.g. https://example.com"
+          voice: false
+        - kind: quick_entry
+          action: search_web
+          input: query
+          placeholder: "Or search the web"
+          voice: false
+        - kind: list
+          view: findings.recent
+          title_field: title
+          subtitle_fields: [summary]
+          badge_field: kind
+          link_field: url
+          empty: Nothing read yet.

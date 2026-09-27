@@ -20,9 +20,11 @@ Your job each turn:
 5. Produce brief_draft for task and app deliveries (null for answer). Write everything a nontechnical person could read. Data needs use plain field names and kinds. Actions describe behaviour, inputs and outputs in words; effect_class is "none" for pure computation, "local_write" when records are saved. Acceptance examples are concrete: an input and the exact expected result, including at least one failure or boundary case.
 6. Reply text is what the user reads: warm, specific, short. If you ask questions, the reply introduces them; if the brief is complete, the reply says what Alpha will make and how they will use it, and states any limits.
 7. Corrections from the user supersede earlier assumptions. Keep everything already agreed unless the user changes it.
-8. How results are used today: a reusable App with its own screen opens in My workflows; an App without its own screen is also opened from My workflows, where Alpha shows a simple form for its main action and the result below it. Nothing runs inside this conversation, so never promise results "in the conversation" or "in chat". Changing an App that already exists is not possible yet; offer a separate new workflow instead. Files a solution makes cannot be opened or saved from Alpha yet.
-9. Keep the first version small: it does the main journey well and nothing the user did not ask for. Extras you think of (saved favourites, goals, reminders, extra views) go in assumptions as things that can be added later, not into the journey or actions. When the user asks you to use your defaults, choose the smallest version that serves the goal.
-10. Be concise. Short sentences. At most 5 journey steps, 3 data needs with the fields that matter, 5 actions, 3 acceptance examples, 6 assumptions. The reply is at most 120 words.
+8. How results are used today: a reusable App with its own screen opens in My workflows; an App without its own screen is also opened from My workflows, where Alpha shows a simple form for its main action and the result below it. Nothing runs inside this conversation, so never promise results "in the conversation" or "in chat". Files a solution makes cannot be opened or saved from Alpha yet.
+11. Changing an App that already exists: when the turn prompt carries an EXISTING APP section, this conversation changes that App and Alpha rebuilds it in place, keeping its records. The brief then describes the WHOLE App as it should be after the change: keep every existing table, field and action (same names, same kinds, same meaning) and add or adjust only what the person asked for. Never remove or rename a field or table, never change a field's kind, and make every new field optional, so nothing already saved is lost. Delivery is "app". Say in the reply that the App will be updated and its data kept. Without an EXISTING APP section, a request to change an App is answered by suggesting they open that App and ask there.
+9. Aim at what a capable product person would build for this kind of request, not the smallest thing that technically answers it. The first version is complete: the main journey, a detail view of each thing it tracks (every field, long text readable, the actions that apply), when each entry was added and when a source was last read, quick filters over statuses and categories, and the obvious summaries. Put these in the journey, data needs and actions, not in assumptions. Leave out only what the person did not ask for AND a product person would not expect. Ask nothing about these; choose sensible defaults and list them as assumptions.
+9b. When the person names a source loosely ("LinkedIn", "Indeed", "the BBC", "my bank's CSV"), the App itself works out how to read it: known page addresses for that site, or a web search for the right listing page, then a check that the page really yields items, then it tells the person what it found and reads from there on its own. Never require the person to paste a technical address; accept one if they offer it. Say in the brief that adding a source is by name.
+10. Be concise. Short sentences. At most 8 journey steps, 6 data needs with the fields that matter, 9 actions, 4 acceptance examples, 8 assumptions. The reply is at most 150 words.
 
 Output only the structured object."""
 
@@ -39,9 +41,20 @@ def system_prompt(data_notice: str | None = None) -> str:
 
 
 def turn_prompt(
-    history: list[dict[str, Any]], current_brief: dict[str, Any] | None, latest: dict[str, Any]
+    history: list[dict[str, Any]],
+    current_brief: dict[str, Any] | None,
+    latest: dict[str, Any],
+    existing: str | None = None,
 ) -> str:
-    parts = ["CONVERSATION SO FAR (oldest first):"]
+    parts = []
+    if existing:
+        parts += [
+            "EXISTING APP (this conversation changes it; describe the whole App as it should be "
+            "after the change, keeping everything below that the person did not ask to change):",
+            existing,
+            "",
+        ]
+    parts.append("CONVERSATION SO FAR (oldest first):")
     for entry in history:
         role = entry["role"]
         content = entry["content"]

@@ -146,9 +146,11 @@ def _compile(
     op = node.op
     expr = field.expr
     if op is FilterOp.IS_NULL:
-        if not isinstance(node.value, bool):
+        # A missing value means "is null": {"op": "is_null"} reads as true.
+        wanted = True if node.value is None else node.value
+        if not isinstance(wanted, bool):
             raise invalid("is_null takes true or false", field=field.name)
-        return f"({expr} IS {'' if node.value else 'NOT '}NULL)", []
+        return f"({expr} IS {'' if wanted else 'NOT '}NULL)", []
     if op in (FilterOp.EQ, FilterOp.NE):
         value = _value(field, node.value)
         return (f"({expr} = ?)" if op is FilterOp.EQ else f"({expr} IS NOT ?)"), [value]

@@ -24,10 +24,12 @@ name: Meal log                # the person's words
 description: One sentence saying what it does for the person.
 runtime_profile: pyprof-…     # exact value given by the platform; never change it
 sdk_version: 0.1.0            # exact value given by the platform
-capabilities: [records]       # records, artifacts, models: only what the actions use
+capabilities: [records]       # records, artifacts, models, http, schedules: only what the actions use
 collections: [...]
 actions: [...]
-ui: {...}                     # optional
+views: [...]                  # declared read views
+screen: {...}                 # the screen Alpha draws (normal)
+ui: {...}                     # a custom compiled screen (rare)
 ```
 
 Unknown fields are rejected. The package cannot name grants, secrets, credentials, local paths
@@ -89,7 +91,145 @@ input schema, and every declared property must be accepted. The input is checked
 succeed. An action that reads or writes records must list `records` in
 `capability_requirements`.
 
-### ui (the screen)
+### views (what screens may read)
+
+```yaml
+views:
+  - id: meals.recent                 # letters, digits, _ and one optional dot
+    collection: meals
+    fields: [title, calories, eaten_on]          # optional projection
+    filterable: [eaten_on, kind, title]          # the screen may filter only on these
+    sortable: [eaten_on, created_at]             # and sort only on these
+    default_order: [{field: created_at, direction: desc}]
+    max_limit: 100
+  - id: meals.by_day
+    kind: aggregate
+    collection: meals
+    group_by: [{field: eaten_on, bucket: day}]   # a day bucket is returned as eaten_on_day
+    metrics: [{name: total, fn: sum, field: calories}, {name: meals, fn: count}]
+```
+
+A view reads one collection. It may fix a base filter (`where`) and the returned `fields`; a
+screen can only narrow it with filters on `filterable` fields and sort on `sortable` fields.
+Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `metrics` (count,
+sum, avg, min, max). Put a text field the person will search in `filterable`.
+
+### screen (drawn by Alpha; the normal way to give an App a screen)
+
+Alpha draws a declared screen with its own components, so every module gets the same tables,
+quick entry, metrics, trend chart, board, list and forms, and nothing is compiled. Declare tabs
+of blocks. Every block reads through a view above and writes through an action whose
+`invocable_from` includes `ui`.
+
+```yaml
+screen:
+  icon: "🍽"                          # one character, optional
+  assistant_hint: Meals are logged by typing one line.   # optional, for the assistant
+  tabs:
+    - id: log
+      title: Food log
+      blocks:
+        - kind: quick_entry           # one line in, one action call; keep it first
+          action: log_meal
+          input: text                 # the action input that receives the typed line
+          placeholder: "What did you eat? e.g. 2 eggs and toast"
+        - kind: table
+          view: meals.recent
+          columns:
+            - {field: eaten_on, format: date, title: Day}
+            - {field: title, editable: true}
+            - {field: calories, format: number, unit: kcal, editable: true}
+            - {field: kind, format: pill}
+          lists:                      # saved filters offered in a dropdown; {"$today": -6} = six days ago
+            - {id: week, title: Last 7 days, where: {field: eaten_on, op: gte, value: {"$today": -6}}}
+          edit: {action: correct_meal, id_param: meal}      # a cell edit calls correct_meal(meal=<id>, <field>=<value>)
+          delete: {action: correct_meal, id_param: meal, input: {delete: true}}
+          row_actions: [{action: duplicate_meal, id_param: meal, title: Again}]
+          # The record's own page, opened by clicking a row: every field of the view (or `fields`),
+          # long text as paragraphs, when it was added and last changed, and the actions for one
+          # record. Every table that tracks things should have one.
+          detail: {title_field: food, long_fields: [notes], actions: [{action: correct_meal, id_param: meal, input: {delete: true}, title: Remove}]}
+          totals: [calories]          # summed over the rows shown
+          empty: Nothing logged yet.
+        - kind: metrics
+          cards:
+            - {title: Calories today, view: meals.by_day, metric: total, unit: kcal, goal: 2000}
+            # or a goal the person sets, read from a record: goal_from: {view: goals.current, field: calorie_goal}
+            - {title: Meals today, view: meals.by_day, metric: meals}
+        - kind: trend
+          title: Calories per day
+          view: meals.by_day
+          x: eaten_on_day             # the day group key
+          y: total                    # the metric
+          unit: kcal
+          goal: 2000
+          days: 14
+    - id: review
+      title: Review
+      blocks:
+        - kind: board                 # columns from a choice field; moving a card calls an action
+          view: meals.recent
+          group_field: kind
+          columns: [breakfast, lunch, dinner, snack]
+          title_field: title
+          subtitle_fields: [eaten_on, calories]
+          move: {action: correct_meal, id_param: meal}
+          field_param: kind
+        - kind: list                  # simple rows with a title, subtitles, a badge, a link
+          view: meals.recent
+          title_field: title
+          subtitle_fields: [eaten_on]
+          badge_field: kind
+          item_actions: [{action: correct_meal, id_param: meal, input: {delete: true}, title: Remove}]
+    - id: goals
+      title: Goals
+      blocks:
+        - kind: form                  # one action as a form; prefill_view fills it from a record
+          action: set_goal
+          title: Daily goal
+          prefill_view: goals.current
+          submit_label: Save goal
+        - kind: text
+          title: How this works
+          body: Plain words for the person.
+```
+
+Prefer a `quick_entry` for the main logging job: its action takes the typed line and does the
+whole job itself (parse what it can, estimate the rest through `ctx.models`, save, and return a
+`message` in plain words). Do not split "estimate" and "log" into two forms the person has to
+copy numbers between. Use `goal_from` (a records view holding the person's goal) so metric
+cards and trends compare against what they set, not a fixed number.
+
+Rules the platform checks: every `view` exists; every column, subtitle, title, group and badge
+field is in the view's collection (or its `fields`); `edit`/`delete`/`move` name an `id_param`;
+a `board`'s `group_field` is a choice field and its `columns` are its choices; a `metrics` card
+or `trend` uses an aggregate view and names one of its metrics; `trend.x` is a group key of that
+view (`<field>_day` for a day bucket). Actions the screen runs must list `ui` in
+`invocable_from`. A metric card over a day-bucketed view shows today's group.
+
+What the shell does with the declaration: the quick entry sends the typed line and shows the
+action's `message` output (return a `message` in the person's words); editable cells send
+`{id_param: id, <field>: value}` and refresh the views; totals and pagination are automatic;
+model estimates are labelled from record provenance.
+
+### schedules (run an action while Alpha is open)
+
+```yaml
+capabilities: [records, http, schedules]
+schedules:
+  - id: check_boards
+    title: Check the job boards
+    action: check_boards          # must list trigger in invocable_from
+    input: {}
+    every_minutes: 120            # or daily_at: "21:00" (the person's local time)
+    enabled: true
+```
+
+Alpha runs the action on time while it is open, shows the last and next run on the module page
+with an on/off switch and a "Run now" button, and never catches up missed runs after it was
+closed. A scheduled action gets no person to ask: make it self-contained and return a `message`.
+
+### ui (a custom screen, only when no block fits)
 
 ```yaml
 ui:
@@ -131,8 +271,8 @@ own saved or failed outcome, so do not add a second status line for the same eve
 yes/no value by what it means in both states (a "Finished" column shows "Yes" or "Not yet", never
 an unrelated word). Mark values that came from a model estimate as estimates.
 
-An App without a screen leaves `ui` out. Alpha then shows one form for its `primary_action`, the
-action a person runs to get the result, and shows what it returns. So:
+An App with neither `screen` nor `ui` shows one form for its `primary_action`, the action a
+person runs to get the result, and shows what it returns. So:
 - set `primary_action` (required without a screen) and give it a clear title and description;
 - keep helper steps internal: an action that needs another step's output is not listed as
   `manual`, and the primary action calls your helper functions directly;

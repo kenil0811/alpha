@@ -30,7 +30,7 @@ try {
 
   // Ask and create.
   await page.getByLabel("What do you want done?").fill(job.request);
-  await page.getByRole("button", { name: "Ask Alpha" }).click();
+  await page.getByRole("button", { name: "Send" }).click();
   await page.getByRole("button", { name: "Create it" }).click({ timeout: 20_000 });
   const ready = page.getByLabel(/ is ready$/);
   await ready.waitFor({ timeout: 240_000 });
@@ -69,7 +69,7 @@ try {
   // Reload: the App, its data and its runs are all still there.
   await page.reload();
   await page.getByText("Runtime connected").waitFor({ timeout: 20_000 });
-  await page.getByRole("button", { name: "My workflows", exact: true }).click();
+  await page.getByRole("navigation", { name: "Alpha" }).getByRole("button", { name: "Home", exact: true }).click();
   const open = page.getByRole("button", { name: /^Open / }).first();
   await open.waitFor({ timeout: 10_000 });
   result.steps.listed_after_reload = await open.getAttribute("aria-label");
@@ -77,7 +77,7 @@ try {
   const savedAgain = page.getByRole("region", { name: "Saved" });
   await savedAgain.getByRole("table").waitFor({ timeout: 10_000 });
   result.steps.saved_after_reload = await savedAgain.innerText();
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await page.getByRole("navigation", { name: "Alpha" }).getByRole("button", { name: "Activity", exact: true }).click();
   const runs = page.getByRole("list", { name: "Runs" });
   await runs.waitFor({ timeout: 10_000 });
   result.steps.activity = await runs.locator(".run__head").allInnerTexts();

@@ -149,8 +149,16 @@ class _Run:
 
     @property
     def has_ui(self) -> bool:
+        """A compiled custom screen that the headless render check drives."""
         if self.source is not None:
             return self.source.ui is not None and self.source.ui.entry is not None
+        return (self.package_dir / "ui").is_dir()
+
+    @property
+    def has_screen(self) -> bool:
+        """Anything the shell can draw: a declarative screen or a custom ui entry."""
+        if self.source is not None:
+            return self.source.has_screen()
         return (self.package_dir / "ui").is_dir()
 
     def finish(self, supplementary: list[CheckResult] | None = None) -> VerificationOutcome:
@@ -270,7 +278,28 @@ class CandidateVerifier:
                     "package.identity", "package", True, "app_id is the identity Alpha assigned"
                 )
             )
-        if run.source.ui is None or run.source.ui.entry is None:
+        if run.source.screen is not None:
+            tabs = ", ".join(t.title for t in run.source.screen.tabs)
+            first = run.source.screen.tabs[0].blocks[0]
+            if run.plan.ui is not None and first.kind not in ("quick_entry", "form"):
+                return run.add(
+                    _result(
+                        "package.screen",
+                        "package",
+                        False,
+                        "the main interaction must come first: the first block of the first "
+                        f"tab is a {first.kind}, not a quick_entry or form",
+                    )
+                )
+            run.add(
+                _result(
+                    "package.screen",
+                    "package",
+                    True,
+                    f"Alpha draws its screen: {tabs}",
+                )
+            )
+        elif run.source.ui is None or run.source.ui.entry is None:
             # Without its own screen, Alpha runs the App from one form (M1 review finding F03).
             if run.source.primary_action is None:
                 return run.add(

@@ -34,6 +34,8 @@ OPERATIONS: frozenset[str] = frozenset(
         "artifacts.read",
         "artifacts.get",
         "models.structured",
+        "http.get",
+        "http.search",
     }
 )
 

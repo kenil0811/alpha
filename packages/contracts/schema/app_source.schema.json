@@ -1,5 +1,62 @@
 {
   "$defs": {
+    "ActionBinding": {
+      "additionalProperties": false,
+      "description": "Run `action` with the record id as `id_param`, plus `input` and what the block adds.",
+      "properties": {
+        "action": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "confirm": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id_param": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ActionBinding",
+      "type": "object"
+    },
     "ActionDefinition": {
       "additionalProperties": false,
       "properties": {
@@ -133,6 +190,109 @@
       "title": "AnyOf",
       "type": "object"
     },
+    "BoardBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "badge_field": {
+          "anyOf": [
+            {
+              "maxLength": 48,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "card_actions": {
+          "items": {
+            "$ref": "#/$defs/ActionBinding"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "type": "array"
+        },
+        "field_param": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "group_field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "board",
+          "type": "string"
+        },
+        "move": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitle_fields": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title_field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "view",
+        "group_field",
+        "columns",
+        "title_field"
+      ],
+      "title": "BoardBlock",
+      "type": "object"
+    },
     "Bucket": {
       "enum": [
         "day",
@@ -212,6 +372,131 @@
         "fields"
       ],
       "title": "CollectionSchema",
+      "type": "object"
+    },
+    "Column": {
+      "additionalProperties": false,
+      "properties": {
+        "editable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ColumnFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "anyOf": [
+            {
+              "enum": [
+                "narrow",
+                "normal",
+                "wide"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "title": "Column",
+      "type": "object"
+    },
+    "ColumnFormat": {
+      "enum": [
+        "text",
+        "number",
+        "date",
+        "datetime",
+        "pill",
+        "link",
+        "check"
+      ],
+      "title": "ColumnFormat",
+      "type": "string"
+    },
+    "DetailSpec": {
+      "additionalProperties": false,
+      "description": "The record's own page, opened from a table row: every field of the view (or the ones\nlisted), long text as readable paragraphs, and the actions that apply to one record.",
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/ActionBinding"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 48,
+          "type": "array"
+        },
+        "long_fields": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "type": "array"
+        },
+        "title_field": {
+          "anyOf": [
+            {
+              "maxLength": 48,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DetailSpec",
       "type": "object"
     },
     "EffectClass": {
@@ -360,6 +645,98 @@
       "title": "FilterOp",
       "type": "string"
     },
+    "FormBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 400,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "const": "form",
+          "type": "string"
+        },
+        "prefill_view": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "submit_label": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "action"
+      ],
+      "title": "FormBlock",
+      "type": "object"
+    },
+    "GoalFrom": {
+      "additionalProperties": false,
+      "description": "A goal read from the first record of a records view (for goals the person sets).",
+      "properties": {
+        "field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "field"
+      ],
+      "title": "GoalFrom",
+      "type": "object"
+    },
     "GroupKey": {
       "additionalProperties": false,
       "properties": {
@@ -408,6 +785,95 @@
       "title": "Invocable",
       "type": "string"
     },
+    "ListBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "badge_field": {
+          "anyOf": [
+            {
+              "maxLength": 48,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "empty": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "item_actions": {
+          "items": {
+            "$ref": "#/$defs/ActionBinding"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "kind": {
+          "const": "list",
+          "type": "string"
+        },
+        "link_field": {
+          "anyOf": [
+            {
+              "maxLength": 48,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitle_fields": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title_field": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "view",
+        "title_field"
+      ],
+      "title": "ListBlock",
+      "type": "object"
+    },
     "Metric": {
       "additionalProperties": false,
       "properties": {
@@ -438,6 +904,91 @@
       "title": "Metric",
       "type": "object"
     },
+    "MetricCard": {
+      "additionalProperties": false,
+      "properties": {
+        "goal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "goal_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalFrom"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "goal_label": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metric": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "view",
+        "metric"
+      ],
+      "title": "MetricCard",
+      "type": "object"
+    },
     "MetricFn": {
       "enum": [
         "count",
@@ -448,6 +999,42 @@
       ],
       "title": "MetricFn",
       "type": "string"
+    },
+    "MetricsBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "cards": {
+          "items": {
+            "$ref": "#/$defs/MetricCard"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array"
+        },
+        "kind": {
+          "const": "metrics",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "cards"
+      ],
+      "title": "MetricsBlock",
+      "type": "object"
     },
     "Not": {
       "additionalProperties": false,
@@ -475,6 +1062,46 @@
       "title": "Not",
       "type": "object"
     },
+    "QuickEntryBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "extra": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "input": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "quick_entry",
+          "type": "string"
+        },
+        "placeholder": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "voice": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "action",
+        "input",
+        "placeholder"
+      ],
+      "title": "QuickEntryBlock",
+      "type": "object"
+    },
     "RetryClass": {
       "enum": [
         "pure",
@@ -483,6 +1110,147 @@
       ],
       "title": "RetryClass",
       "type": "string"
+    },
+    "SavedList": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Clause"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "$ref": "#/$defs/Not"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "SavedList",
+      "type": "object"
+    },
+    "ScheduleSpec": {
+      "additionalProperties": false,
+      "description": "A local schedule: while Alpha is running, run `action` with `input` every N minutes or\nonce a day at a local time. Missed occurrences are never caught up.",
+      "properties": {
+        "action": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "type": "string"
+        },
+        "daily_at": {
+          "anyOf": [
+            {
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "every_minutes": {
+          "anyOf": [
+            {
+              "maximum": 10080,
+              "minimum": 5,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "action"
+      ],
+      "title": "ScheduleSpec",
+      "type": "object"
+    },
+    "ScreenDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_hint": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "maxLength": 8,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/Tab"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "tabs"
+      ],
+      "title": "ScreenDeclaration",
+      "type": "object"
     },
     "SortKey": {
       "additionalProperties": false,
@@ -505,6 +1273,298 @@
         "field"
       ],
       "title": "SortKey",
+      "type": "object"
+    },
+    "Tab": {
+      "additionalProperties": false,
+      "properties": {
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "board": "#/$defs/BoardBlock",
+                "form": "#/$defs/FormBlock",
+                "list": "#/$defs/ListBlock",
+                "metrics": "#/$defs/MetricsBlock",
+                "quick_entry": "#/$defs/QuickEntryBlock",
+                "table": "#/$defs/TableBlock",
+                "text": "#/$defs/TextBlock",
+                "trend": "#/$defs/TrendBlock"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/QuickEntryBlock"
+              },
+              {
+                "$ref": "#/$defs/TableBlock"
+              },
+              {
+                "$ref": "#/$defs/MetricsBlock"
+              },
+              {
+                "$ref": "#/$defs/TrendBlock"
+              },
+              {
+                "$ref": "#/$defs/BoardBlock"
+              },
+              {
+                "$ref": "#/$defs/ListBlock"
+              },
+              {
+                "$ref": "#/$defs/FormBlock"
+              },
+              {
+                "$ref": "#/$defs/TextBlock"
+              }
+            ]
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "blocks"
+      ],
+      "title": "Tab",
+      "type": "object"
+    },
+    "TableBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Column"
+          },
+          "maxItems": 24,
+          "minItems": 1,
+          "type": "array"
+        },
+        "delete": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetailSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "edit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "empty": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "const": "table",
+          "type": "string"
+        },
+        "lists": {
+          "items": {
+            "$ref": "#/$defs/SavedList"
+          },
+          "maxItems": 12,
+          "type": "array"
+        },
+        "page_size": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 5,
+          "type": "integer"
+        },
+        "row_actions": {
+          "items": {
+            "$ref": "#/$defs/ActionBinding"
+          },
+          "maxItems": 6,
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "totals": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "view",
+        "columns"
+      ],
+      "title": "TableBlock",
+      "type": "object"
+    },
+    "TextBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "text",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "body"
+      ],
+      "title": "TextBlock",
+      "type": "object"
+    },
+    "TrendBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "default": 14,
+          "maximum": 365,
+          "minimum": 7,
+          "type": "integer"
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "goal_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalFrom"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "const": "trend",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "view": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "x": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "y": {
+          "maxLength": 48,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "view",
+        "x",
+        "y"
+      ],
+      "title": "TrendBlock",
       "type": "object"
     },
     "UiDeclaration": {
@@ -763,6 +1823,24 @@
       "minLength": 1,
       "type": "string"
     },
+    "schedules": {
+      "items": {
+        "$ref": "#/$defs/ScheduleSpec"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "screen": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScreenDeclaration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "sdk_version": {
       "maxLength": 32,
       "minLength": 1,
@@ -786,6 +1864,13 @@
         }
       ],
       "default": null
+    },
+    "views": {
+      "items": {
+        "$ref": "#/$defs/ViewSpec"
+      },
+      "maxItems": 32,
+      "type": "array"
     }
   },
   "required": [

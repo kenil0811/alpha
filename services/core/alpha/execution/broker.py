@@ -32,10 +32,12 @@ from alpha_contracts.records import (
     UpdateRecord,
 )
 from alpha_contracts.runs import RunOrigin
+from alpha_contracts.web import HttpGetRequest, HttpSearchRequest
 from pydantic import BaseModel, ValidationError
 
 from alpha.artifacts.service import ArtifactService
-from alpha.capabilities.errors import OperationFailed, forbidden, invalid
+from alpha.capabilities.errors import OperationFailed, forbidden, invalid, unavailable
+from alpha.capabilities.web import WebService
 from alpha.data.store import RecordService, WriteContext
 from alpha.models.runtime import AppModelService
 from alpha.storage.control_store import ControlStore, utc_now
@@ -83,11 +85,13 @@ class CapabilityBroker:
         artifacts: ArtifactService,
         models: AppModelService,
         on_event: Callable[[str, str, dict[str, Any]], None] | None = None,
+        web: WebService | None = None,
     ) -> None:
         self._store = store
         self._records = records
         self._artifacts = artifacts
         self._models = models
+        self._web = web
         self._on_event = on_event
         self._grants: dict[str, RunGrant] = {}
         self._lock = threading.Lock()
@@ -121,6 +125,8 @@ class CapabilityBroker:
             )
         with self._lock:
             self._grants.pop(run_id, None)
+        if self._web is not None:
+            self._web.forget(run_id)
 
     def handle(self, channel_run_id: str, message: dict[str, Any]) -> dict[str, Any]:
         """Handle one call that arrived on `channel_run_id`'s pipe; always returns a reply."""
@@ -257,6 +263,16 @@ class CapabilityBroker:
             return self._models.call(grant.run_id, f"app:{grant.app_id}", request_m).model_dump(
                 mode="json"
             )
+        if operation == "http.get":
+            get_request = _parse(HttpGetRequest, args)
+            if self._web is None:
+                raise unavailable("web access is not connected on this Mac")
+            return self._web.get(grant.run_id, get_request).model_dump(mode="json")
+        if operation == "http.search":
+            search_request = _parse(HttpSearchRequest, args)
+            if self._web is None:
+                raise unavailable("web access is not connected on this Mac")
+            return self._web.search(grant.run_id, search_request).model_dump(mode="json")
         raise invalid(f"unknown operation {operation!r}")  # pragma: no cover
 
 

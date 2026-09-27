@@ -122,7 +122,7 @@ class AppModelService:
     def route(self) -> ModelRoute | None:
         """The configured route, or None when it is not enabled on this Mac."""
         try:
-            return self._gateway.route(self._route_id)
+            return self._gateway.route(self._route_id, stage="app")
         except RouteUnavailable:
             return None
 
@@ -147,7 +147,7 @@ class AppModelService:
         if used >= self._max_calls:
             raise limit(f"a run can make at most {self._max_calls} model calls", used=used)
         try:
-            route = self._gateway.route(self._route_id)
+            route = self._gateway.route(self._route_id, stage="app")
         except RouteUnavailable as exc:
             raise unavailable(str(exc)) from None
         schema = fields_to_json_schema(request.fields)

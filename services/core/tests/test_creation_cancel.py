@@ -105,7 +105,7 @@ def service(tmp_path: Path, builds: Builds) -> CreationService:
     planner = SimpleNamespace(
         plan=lambda *_a, **_k: AcceptancePlan("Notes list", PLAN, "model", [])
     )
-    gateway = SimpleNamespace(route=lambda route_id: SimpleNamespace(route_id=route_id))
+    gateway = SimpleNamespace(route=lambda route_id, **_: SimpleNamespace(route_id=route_id))
     return CreationService(
         ControlStore(tmp_path / "control.sqlite"),
         assistant,  # type: ignore[arg-type]

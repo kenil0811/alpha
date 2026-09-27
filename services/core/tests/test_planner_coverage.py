@@ -172,3 +172,16 @@ def test_a_plan_still_incomplete_after_one_rewrite_stops_honestly() -> None:
         AcceptancePlanner(inference).plan(BRIEF, ROUTE, "create_1")  # type: ignore[arg-type]
     assert len(inference.prompts) == 2
     assert "the plan never runs trends successfully" in failed.value.problems
+
+
+def test_filter_values_the_store_would_refuse_are_caught_at_plan_time() -> None:
+    from alpha.solutions.planner import filter_problems
+
+    assert filter_problems({"field": "score", "op": "is_null", "value": None}) == []
+    assert filter_problems({"all": [{"field": "score", "op": "is_null", "value": True}]}) == []
+    assert filter_problems({"not": {"field": "score", "op": "is_null", "value": "yes"}}) == [
+        "is_null on score takes true or false"
+    ]
+    assert filter_problems({"field": "status", "op": "in", "value": "New"}) == [
+        "in on status takes a list of values"
+    ]

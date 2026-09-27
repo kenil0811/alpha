@@ -1,0 +1,209 @@
+contract_version: "0.2"
+app_id: daylog-fixture
+name: Daily log (fixture)
+description: A neutral daily log with amounts, a goal and a trend, drawn by Alpha's own screen.
+runtime_profile: "{{RUNTIME_PROFILE}}"
+sdk_version: "0.1.0"
+capabilities: [records, models, schedules]
+collections:
+  - name: entries
+    description: One logged thing per row.
+    fields:
+      - {name: when, kind: date, required: true}
+      - {name: at, kind: text, max_length: 5}
+      - {name: title, kind: text, required: true, max_length: 200}
+      - {name: amount, kind: number, minimum: 0, maximum: 100000}
+      - {name: category, kind: choice, required: true, choices: [morning, midday, evening, other]}
+    indexes: [[when], [category]]
+  - name: goals
+    description: The one daily goal.
+    fields:
+      - {name: daily_units, kind: number, required: true, minimum: 0}
+      - {name: note, kind: text, max_length: 300}
+actions:
+  - id: quick_add
+    title: Log something
+    description: Type one line; the amount is read from it or estimated.
+    handler: daylog_fixture.handlers:quick_add
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records, models]
+    timeout_seconds: 120
+    retry_class: requires_reconciliation
+    input_schema:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 300}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, day_total: {type: number}, message: {type: string}}
+  - id: add_entry
+    title: Add an entry
+    description: Add one entry with its fields filled in by hand.
+    handler: daylog_fixture.handlers:add_entry
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    input_schema:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1}
+        amount: {type: [number, "null"]}
+        when: {type: [string, "null"]}
+        category: {type: [string, "null"], enum: [morning, midday, evening, other, null]}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}}
+  - id: correct_entry
+    title: Fix or remove an entry
+    description: Change any field of an entry, or remove it.
+    handler: daylog_fixture.handlers:correct_entry
+    invocable_from: [ui, assistant, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [entry]
+      additionalProperties: false
+      properties:
+        entry: {type: string, minLength: 1}
+        title: {type: [string, "null"]}
+        amount: {type: [number, "null"]}
+        when: {type: [string, "null"]}
+        at: {type: [string, "null"]}
+        category: {type: [string, "null"]}
+        delete: {type: [boolean, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, deleted: {type: boolean}, message: {type: string}}
+  - id: set_goal
+    title: Set the daily goal
+    description: How many units a day you are aiming for.
+    handler: daylog_fixture.handlers:set_goal
+    invocable_from: [ui, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: [daily_units]
+      additionalProperties: false
+      properties:
+        daily_units: {type: number, minimum: 0, title: "Units a day"}
+        note: {type: [string, "null"], title: "Why"}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}}
+  - id: check_in
+    title: Log a check-in
+    description: Adds a small automatic check-in entry, used by the schedule.
+    handler: daylog_fixture.handlers:check_in
+    invocable_from: [trigger, manual]
+    effect_class: local_write
+    capability_requirements: [records]
+    retry_class: idempotent
+    input_schema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        note: {type: [string, "null"]}
+    output_schema:
+      type: object
+      required: [id, revision]
+      properties: {id: {type: string}, revision: {type: integer}, message: {type: string}}
+schedules:
+  - id: check_in_hourly
+    title: Hourly check-in
+    action: check_in
+    input: {note: "Scheduled check-in"}
+    every_minutes: 5
+views:
+  - id: entries.all
+    collection: entries
+    filterable: [when, category, title]
+    sortable: [when, at, amount, created_at]
+    default_order: [{field: when, direction: desc}, {field: at, direction: desc}]
+    max_limit: 200
+  - id: entries.by_day
+    kind: aggregate
+    collection: entries
+    group_by: [{field: when, bucket: day}]
+    metrics: [{name: total, fn: sum, field: amount}, {name: count, fn: count}]
+  - id: goals.current
+    collection: goals
+    max_limit: 1
+screen:
+  icon: "▤"
+  assistant_hint: Entries are logged by typing one line; amounts without a number are estimated.
+  tabs:
+    - id: log
+      title: Log
+      blocks:
+        - kind: quick_entry
+          action: quick_add
+          input: text
+          placeholder: "What happened? e.g. long walk 120 units"
+        - kind: table
+          view: entries.all
+          columns:
+            - {field: when, format: date}
+            - {field: at, title: Time}
+            - {field: title, editable: true}
+            - {field: amount, format: number, editable: true, unit: units}
+            - {field: category, format: pill, editable: true}
+          lists:
+            - {id: recent, title: Last 7 days, where: {field: when, op: gte, value: {"$today": -6}}}
+            - {id: morning, title: Mornings, where: {field: category, op: eq, value: morning}}
+          edit: {action: correct_entry, id_param: entry}
+          delete: {action: correct_entry, id_param: entry, input: {delete: true}}
+          detail: {title_field: title, long_fields: [note], actions: [{action: correct_entry, id_param: entry, input: {delete: true}, title: Remove}]}
+          totals: [amount]
+          empty: Nothing logged yet. Type a line above to start.
+        - kind: metrics
+          cards:
+            - {title: Today, view: entries.by_day, metric: total, unit: units, goal_from: {view: goals.current, field: daily_units}, goal_label: your daily goal}
+            - {title: Entries today, view: entries.by_day, metric: count}
+        - kind: trend
+          title: Units per day
+          view: entries.by_day
+          x: when_day
+          y: total
+          unit: units
+          goal_from: {view: goals.current, field: daily_units}
+          days: 14
+    - id: board
+      title: By time of day
+      blocks:
+        - kind: board
+          view: entries.all
+          group_field: category
+          columns: [morning, midday, evening, other]
+          title_field: title
+          subtitle_fields: [when, amount]
+          move: {action: correct_entry, id_param: entry}
+          field_param: category
+    - id: goal
+      title: Goal
+      blocks:
+        - kind: form
+          action: set_goal
+          title: Daily goal
+          description: Alpha compares each day against this.
+          submit_label: Save goal
+          prefill_view: goals.current
+        - kind: text
+          title: How this works
+          body: |
+            Type one line to log something. If the line has a number of units, that is the amount; otherwise Alpha estimates it and labels it as an estimate you can overwrite by clicking the cell.
+
+            Everything stays on this Mac.

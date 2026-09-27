@@ -28,6 +28,7 @@ failures; the run then fails and the person sees why.
 | `ctx.records` | the App's own collections (below) |
 | `ctx.artifacts` | immutable output files |
 | `ctx.models` | bounded structured model calls; results are labelled estimates |
+| `ctx.web` | public web pages and search (the `http` capability; below) |
 | `ctx.today()` | today's `date` in the person's timezone |
 | `ctx.now()`, `ctx.local_now()` | current `datetime` in UTC / the person's timezone |
 | `ctx.timezone` | the person's IANA timezone name |
@@ -103,6 +104,29 @@ usually takes a few seconds; give an action that makes several calls `timeout_se
 ref = ctx.artifacts.create("Weekly summary.csv", csv_text, media_type="text/csv")
 ctx.artifacts.read_text(ref.id)
 ```
+
+## Web (`http` capability)
+
+```python
+page = ctx.web.get("https://example.com/jobs")  # readable text; page.title, page.status, page.text
+page.links  # every link on the page as Link(text, url): absolute addresses, in page order
+data = ctx.web.get("https://api.example.com/v1/x", raw=True)  # a JSON API's body untouched
+hits = ctx.web.search("kettlebell beginner routine", count=5)  # [.title, .url, .snippet]
+```
+
+A listing page (jobs, products, articles) is best read through `page.links`: keep the links
+whose address matches the items (for example those containing `/remote-jobs/` or `/listings/`),
+use each link's text as the item's title, and fetch an item's own page only when you need its
+details. `page.text` is for reading, not for finding addresses: it carries no hrefs, and site
+navigation comes first in it. When items are hard to tell apart by address, pass the relevant
+part of `page.text` to `ctx.models` with a schema and let the model list them.
+
+Declare `http` in the App's `capabilities` and in the action's `capability_requirements`.
+Only public http(s) addresses are fetched (nothing on this Mac or a private network), bodies are
+capped at 2 MB, and a run may make at most 60 web requests. Nothing is signed in: pages that need
+an account are out of reach. When a fetch fails the call raises `Unavailable`; report that
+plainly and store nothing invented. Text you extract from a page is a source, not a fact the
+person typed: keep the address it came from alongside what you save.
 
 ## Failures
 

@@ -45,40 +45,63 @@ from alpha.builds.harness import (
 PACKAGE_CONTRACT = """You are building an Alpha App: a small tool a nontechnical person will use
 to get real work done. Work ONLY inside the current directory.
 
-Edit the App package in package/. It starts from the platform template, or from your previous
-attempt when REPAIR.md exists. Read these files first:
-- PLAN.md: the independent checks the platform runs against your package, through real action
-  runs and a real browser. They alone decide success; editing PLAN.md changes nothing.
+Edit the App package in package/. It starts from the platform template, from your previous
+attempt when REPAIR.md exists, or from the App's current version when the instructions below
+say this is a CHANGE to an existing App. Read these files first:
+- PLAN.md: the independent checks the platform runs against your package by calling its actions
+  for real and reading what was stored. They alone decide success; editing PLAN.md changes nothing.
 - REPAIR.md (only on a repair): the checks your previous attempt failed, with the evidence.
-  feedback/ holds screenshots of failed screen checks.
-- reference/APP_CONTRACT.md: every app.yaml field and rule.
+- reference/APP_CONTRACT.md: every app.yaml field and rule, including `views` and `screen`.
 - reference/SDK.md: the only API your Python may use (ctx.records, ctx.artifacts, ctx.models).
-- reference/UI_KIT.md: the components your screen must be built from.
 
 Rules:
 - package/app.yaml must keep the exact platform values listed below (app_id included when it
   is listed). Choose name and description yourself, in the person's words.
-- Each attempt is stopped after a fixed time (see below). Write the smallest code that makes
-  every PLAN.md check pass and serves the goal: the Python package first, then the screen.
-  Leave out features PLAN.md and the goal do not ask for.
+- Each attempt is stopped after a fixed time (see below). Build what a capable product person
+  would expect for this request, complete and usable on the first try: the Python package
+  first, then the screen. PLAN.md's checks are the floor, not the ceiling. Every App that
+  tracks things gives each table a `detail` (the record's own page: every field, long text
+  readable, the actions that apply), shows when entries were added (`created_at`, titled
+  "Added") and when each source was last read, offers saved lists over its statuses and
+  categories, and summarises what matters. Skip only what the goal does not ask for AND a
+  product person would not expect. If time runs short, finish and polish what exists rather
+  than starting more.
+- Sources named loosely ("LinkedIn", "Indeed") are the App's job to resolve, not the person's:
+  keep a small table of known sites and their listing-page address patterns, fall back to
+  ctx.web.search to find the listing page, verify it yields item links before saving it, store
+  the resolved address next to the name, and tell the person what was found. While you build
+  you may use WebFetch and WebSearch to look at the real sites the goal names and write the
+  reader for their actual structure (which links are items, where the details live); note what
+  you learned in a comment so a later change can follow it.
+- Model calls are slow (seconds each): never call ctx.models once per item in a loop. Send one
+  structured call for a batch of items (up to ~20) with a schema that returns a list, and
+  score, summarise or extract in that one call.
 - Python in package/src/ imports only the standard library, alpha_sdk and the package's own
-  modules. No file, network, subprocess or environment access: data only through ctx.
-- Every action a screen uses must list ui in invocable_from and appear under ui.actions; every
-  list the screen reads must be a view under ui.views.
-- The screen (package/ui/src/main.tsx) imports only react, react-dom/client, @alpha/ui-kit,
-  @alpha/ui-kit/styles.css and its own files. Use kit components; use Form, never <form>.
-  Label fields and buttons exactly as PLAN.md names them.
+  modules. No file, socket, subprocess or environment access: data through ctx.records, model
+  estimates through ctx.models, and public web pages or search through ctx.web (declare the
+  http capability). Keep the address a fact came from next to what you save. To find items on
+  a listing page (jobs, products, articles) use page.links (text + absolute url) filtered by
+  address pattern, never regexes over page.text; fetch an item's own page for its details, and
+  use ctx.models with a schema when items need reading. Never fabricate placeholder items.
+  While Alpha runs PLAN.md's checks the web is unreachable (every ctx.web call raises): an
+  action that reads the web must then report that plainly and store nothing; do not add inputs
+  whose only purpose is to stand in for a page's contents.
+- The screen is DECLARED in app.yaml under `screen:` (tabs of blocks: quick_entry, table,
+  metrics, trend, board, list, form, text) over read views declared under `views:`. Alpha
+  draws it. Every action a block runs must list ui in invocable_from. Put the main interaction
+  first (a quick_entry whose action does the whole job, or a form), then the working table with
+  editable columns, then metrics and trends. Use the labels PLAN.md names for placeholders,
+  column titles and tab names. Do not write ui/src/main.tsx.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
   If ctx.models.structured raises, never substitute a guess or a default number: save the value
   as unknown (None) and say so, or refuse with a plain message asking the person to type it.
-  PLAN.md checks this by making the model fail on purpose.
-- Missing data is unknown, not zero: averages count only periods that have entries and say how
-  many had entries. A value the person enters as 0 is a real zero.
-- Check your Python compiles with the platform interpreter given below
-  (<python> -m py_compile <file>). Optional supplementary tests go in package/tests/ (unittest).
-- Do not create git repositories. Finish with one sentence naming the actions and the screen.
+- Actions the person runs from the screen should return a `message` in plain words saying what
+  happened; the shell shows it.
+- Work that should happen on its own (checking a site every few hours, a nightly summary) is a
+  `schedules:` entry in app.yaml running an action that lists trigger in invocable_from, with
+  the schedules capability declared. Alpha runs it while it is open.
 """
 
 
@@ -172,14 +195,17 @@ class ClaudeCliHarness:
             "--strict-mcp-config",
             "--no-session-persistence",
             "--tools",
-            "Read,Write,Edit,Glob,Grep,Bash",
+            "Read,Write,Edit,Glob,Grep,Bash,WebFetch,WebSearch",
             "--allowedTools",
             # Reading goes through Read/Glob/Grep, which --restricted confines to the workspace.
             # Only the candidate's own compile and unit-test commands may run, on the App
             # profile's interpreter. (Unit tests still run builder-written code unsandboxed
-            # until F20 qualifies the OS sandbox.)
+            # until F20 qualifies the OS sandbox.) The public web is readable so the builder
+            # can look at the sites the goal names and write a reader for their real structure.
             f"Bash({self._python} -m py_compile:*)",
             f"Bash({self._python} -m unittest:*)",
+            "WebFetch",
+            "WebSearch",
             "--max-turns",
             str(budget.max_turns),
             "--model",
@@ -328,10 +354,13 @@ class ClaudeCliHarness:
     def _prompt(self, inputs: HarnessInputs) -> str:
         exact = "\n".join(f"- {key}: {value}" for key, value in sorted(inputs.targets.items()))
         ui_note = (
-            "- ui.entry: ui/src/main.tsx (with ui.build_profile, ui.kit_version and "
-            "ui.bridge_version as above)"
+            "Custom compiled screens are allowed on this build: if, and only if, no declared "
+            "block can express the main interaction, you may instead write ui/src/main.tsx "
+            "(see reference/UI_KIT.md) and declare ui.entry with ui.build_profile, "
+            "ui.kit_version and ui.bridge_version as above. A declared screen is still preferred."
             if "ui_build_profile" in inputs.targets
-            else "- no UI build profile is installed: build without a custom screen"
+            else "Custom compiled screens are not available on this build: declare the screen "
+            "under screen: and leave ui out of app.yaml."
         )
         repair = (inputs.workspace / "REPAIR.md").is_file()
         minutes = max(1, inputs.request.budget.max_attempt_seconds // 60)

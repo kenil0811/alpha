@@ -1,7 +1,7 @@
 /**
- * M1 review findings F02 and F06 (repair task M1-R01): a request and its creation stay reachable
- * across navigation and reopening, a temporary status failure recovers by itself, and a failed
- * assistant turn always offers a next step with the request kept.
+ * M1 review findings F02 and F06: a request and its creation stay reachable across navigation
+ * and reopening, a temporary status failure recovers by itself, and a failed assistant turn
+ * always offers a next step with the request kept.
  */
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { App } from "../App";
 import type { Conversation, Creation } from "../core/client";
 import { sampleBrief } from "../test/fakeClient";
-import { FakeWorkflowsClient } from "../test/fakeWorkflows";
+import { sampleDetail, sampleSummary, FakeWorkflowsClient } from "../test/fakeWorkflows";
 
 function briefedClient(): FakeWorkflowsClient {
   const client = new FakeWorkflowsClient();
@@ -38,7 +38,7 @@ function ready(c: Creation): Creation {
 async function askAndCreate(user: ReturnType<typeof userEvent.setup>, text = "Keep a notes list for me") {
   expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
   await user.type(screen.getByLabelText("What do you want done?"), text);
-  await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+  await user.click(screen.getByRole("button", { name: "Send" }));
   await user.click(await screen.findByRole("button", { name: "Create it" }));
   return screen.findByLabelText("Creating it");
 }
@@ -55,22 +55,16 @@ describe("a request and its creation stay reachable", () => {
     await askAndCreate(user);
     const creationId = [...client.creations.keys()][0];
 
-    await user.click(screen.getByRole("button", { name: "My workflows" }));
-    const making = await screen.findByRole("region", { name: "Being made" });
-    expect(within(making).getByText("Deciding how to check it")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Activity" }));
-    await user.click(screen.getByRole("button", { name: "Assistant" }));
+    const rail = screen.getByRole("navigation", { name: "Alpha" });
+    await user.click(within(rail).getByRole("button", { name: "Activity" }));
+    await user.click(within(rail).getByRole("button", { name: "Connections" }));
+    await user.click(within(rail).getByRole("button", { name: "Settings" }));
+    await user.click(within(rail).getByRole("button", { name: "Home" }));
 
     expect(await screen.findByText("Keep a notes list for me")).toBeInTheDocument();
     const progress = await screen.findByLabelText("Creating it");
     expect(within(progress).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect([...client.creations.keys()]).toEqual([creationId]);
-
-    // From My workflows, "View progress" leads back to the same request.
-    await user.click(screen.getByRole("button", { name: "My workflows" }));
-    await user.click(await screen.findByRole("button", { name: "View progress" }));
-    expect(await screen.findByLabelText("Creating it")).toBeInTheDocument();
-    expect(screen.getByText("Keep a notes list for me")).toBeInTheDocument();
   });
 
   it("is restored when the window opens again", async () => {
@@ -123,7 +117,7 @@ describe("temporary failures do not strand the person", () => {
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     const failure = await screen.findByRole("alert", { name: "Alpha could not work this out" });
     expect(failure).toHaveTextContent("the model service took too long to answer");
@@ -144,7 +138,7 @@ describe("temporary failures do not strand the person", () => {
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Sort my receipts");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     const failure = await screen.findByRole("alert", { name: "Alpha could not work this out" });
     await user.click(within(failure).getByRole("button", { name: "Start over" }));
     await waitFor(() => expect(screen.getByLabelText("What do you want done?")).toHaveValue("Sort my receipts"));
@@ -152,7 +146,7 @@ describe("temporary failures do not strand the person", () => {
 });
 
 describe("changing a request after its App was made (review finding F07)", () => {
-  it("offers a separate workflow instead of silently making a second App", async () => {
+  it("tells the person how to change the module later instead of silently making a second App", async () => {
     const client = briefedClient();
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -163,12 +157,41 @@ describe("changing a request after its App was made (review finding F07)", () =>
     client.nextCreationState = ready;
     await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
     const after = await screen.findByLabelText("After it was made");
-    expect(after).toHaveTextContent("Changing Notes list after it was made isn't possible yet");
+    expect(after).toHaveTextContent("Notes list is in the sidebar");
+    expect(after).toHaveTextContent("To change it later, open it and describe the change here");
     expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
 
-    await user.click(within(after).getByRole("button", { name: "Create a separate workflow" }));
+    await user.click(within(after).getByRole("button", { name: "Describe another" }));
     expect(screen.getByLabelText("What do you want done?")).toHaveValue("Keep a notes list for me");
     expect(client.creations.size).toBe(1);
+  });
+
+  it("a request typed while looking at a module changes that module and keeps its data", async () => {
+    const client = briefedClient();
+    client.apps = [sampleSummary()];
+    client.details.set("notes-list-1a2b3c", sampleDetail());
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Notes list" }));
+    await screen.findByRole("heading", { name: "Notes list" });
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    expect(panel).toHaveTextContent("I'm looking at Notes list");
+    expect(panel).toHaveTextContent("Everything already saved in it is kept");
+
+    await user.type(within(panel).getByLabelText("What do you want done?"), "Add a mood to each note");
+    await user.click(within(panel).getByRole("button", { name: "Send" }));
+    await within(panel).findByRole("button", { name: "Create it" });
+    const started = [...client.conversations.values()][0];
+    expect(started.change_of).toBe("notes-list-1a2b3c");
+    expect(panel).toHaveTextContent("Changing a module");
+
+    await user.click(within(panel).getByRole("button", { name: "Create it" }));
+    await screen.findByLabelText("Creating it");
+    client.nextCreationState = ready;
+    await screen.findByLabelText("Notes list is updated", {}, { timeout: 3000 });
+    const after = await screen.findByLabelText("After it was made");
+    expect(after).toHaveTextContent("Notes list is updated and its data is kept");
   });
 
   it("names the App it made, not the name planned for it", async () => {
@@ -182,7 +205,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     };
     const card = await screen.findByLabelText("Notes (made) is ready", {}, { timeout: 3000 });
     expect(within(card).getByRole("button", { name: "Open Notes (made)" })).toBeInTheDocument();
-    expect(await screen.findByLabelText("After it was made")).toHaveTextContent("Changing Notes (made) after it was made");
+    expect(await screen.findByLabelText("After it was made")).toHaveTextContent("Notes (made) is in the sidebar");
   });
 
   it("still lets the person correct the request before anything is made", async () => {
@@ -191,8 +214,42 @@ describe("changing a request after its App was made (review finding F07)", () =>
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list for me");
-    await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("button", { name: "Create it" });
     expect(screen.getByLabelText("Change or add something")).toBeInTheDocument();
+  });
+});
+
+describe("a module's own thread", () => {
+  it("shows the module's earlier requests when the assistant is opened from its page", async () => {
+    const client = briefedClient();
+    client.apps = [sampleSummary()];
+    client.details.set("notes-list-1a2b3c", sampleDetail());
+    const now = new Date().toISOString();
+    client.conversations.set("conv_old", {
+      conversation_id: "conv_old",
+      change_of: "notes-list-1a2b3c",
+      state: "briefed",
+      route_id: "fake",
+      created_at: now,
+      updated_at: now,
+      turns: [{ turn_id: "t1", sequence: 1, role: "user", kind: "request", content: { text: "Add a mood to each note" }, created_at: now }],
+      current_brief: null,
+      interpretation: null,
+      questions: [],
+      reply: "Done.",
+      delivery: "app",
+      error: null,
+    });
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Notes list" }));
+    const thread = await screen.findByRole("navigation", { name: "This module's requests" });
+    expect(within(thread).getByText("Add a mood to each note")).toBeInTheDocument();
+    expect(within(thread).getByText(/Change · Planned/)).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Recent requests" })).not.toBeInTheDocument();
+    await user.click(within(thread).getByText("Add a mood to each note"));
+    expect(await screen.findByText("Changing a module")).toBeInTheDocument();
   });
 });

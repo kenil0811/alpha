@@ -5,10 +5,11 @@ export type Invocable = "assistant" | "ui" | "manual" | "trigger";
 export type RetryClass = "pure" | "idempotent" | "requires_reconciliation";
 export type FieldKind =
   "text" | "number" | "integer" | "boolean" | "date" | "datetime" | "choice" | "reference" | "json";
+export type ColumnFormat = "text" | "number" | "date" | "datetime" | "pill" | "link" | "check";
+export type FilterOp = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "contains" | "starts_with" | "is_null";
 export type Bucket = "day" | "week" | "month";
 export type ViewKind = "records" | "aggregate";
 export type MetricFn = "count" | "sum" | "avg" | "min" | "max";
-export type FilterOp = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "contains" | "starts_with" | "is_null";
 
 export interface AppSource {
   /**
@@ -86,6 +87,20 @@ export interface AppSource {
   name: string;
   primary_action?: string | null;
   runtime_profile: string;
+  /**
+   * @maxItems 8
+   */
+  schedules?:
+    | []
+    | [ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec]
+    | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec];
+  screen?: ScreenDeclaration | null;
   sdk_version: string;
   /**
    * @maxItems 8
@@ -217,6 +232,10 @@ export interface AppSource {
         }
       ];
   ui?: UiDeclaration | null;
+  /**
+   * @maxItems 32
+   */
+  views?: ViewSpec[];
 }
 export interface ActionDefinition {
   /**
@@ -293,6 +312,450 @@ export interface FieldSpec {
   required?: boolean;
 }
 /**
+ * A local schedule: while Alpha is running, run `action` with `input` every N minutes or
+ * once a day at a local time. Missed occurrences are never caught up.
+ */
+export interface ScheduleSpec {
+  action: string;
+  daily_at?: string | null;
+  enabled?: boolean;
+  every_minutes?: number | null;
+  id: string;
+  input?: {
+    [k: string]: unknown;
+  };
+  title: string;
+}
+export interface ScreenDeclaration {
+  assistant_hint?: string | null;
+  icon?: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 8
+   */
+  tabs:
+    | [Tab]
+    | [Tab, Tab]
+    | [Tab, Tab, Tab]
+    | [Tab, Tab, Tab, Tab]
+    | [Tab, Tab, Tab, Tab, Tab]
+    | [Tab, Tab, Tab, Tab, Tab, Tab]
+    | [Tab, Tab, Tab, Tab, Tab, Tab, Tab]
+    | [Tab, Tab, Tab, Tab, Tab, Tab, Tab, Tab];
+}
+export interface Tab {
+  /**
+   * @minItems 1
+   * @maxItems 12
+   */
+  blocks:
+    | [QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ]
+    | [
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock,
+        QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock
+      ];
+  id: string;
+  title: string;
+}
+export interface QuickEntryBlock {
+  action: string;
+  extra?: {
+    [k: string]: unknown;
+  };
+  input: string;
+  kind: "quick_entry";
+  placeholder: string;
+  voice?: boolean;
+}
+export interface TableBlock {
+  /**
+   * @minItems 1
+   * @maxItems 24
+   */
+  columns: [Column, ...Column[]];
+  delete?: ActionBinding | null;
+  detail?: DetailSpec | null;
+  edit?: ActionBinding | null;
+  empty?: string | null;
+  kind: "table";
+  /**
+   * @maxItems 12
+   */
+  lists?:
+    | []
+    | [SavedList]
+    | [SavedList, SavedList]
+    | [SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList, SavedList]
+    | [
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList
+      ]
+    | [
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList,
+        SavedList
+      ];
+  page_size?: number;
+  /**
+   * @maxItems 6
+   */
+  row_actions?:
+    | []
+    | [ActionBinding]
+    | [ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding];
+  title?: string | null;
+  /**
+   * @maxItems 8
+   */
+  totals?:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string];
+  view: string;
+}
+export interface Column {
+  editable?: boolean;
+  field: string;
+  format?: ColumnFormat | null;
+  title?: string | null;
+  unit?: string | null;
+  width?: ("narrow" | "normal" | "wide") | null;
+}
+/**
+ * Run `action` with the record id as `id_param`, plus `input` and what the block adds.
+ */
+export interface ActionBinding {
+  action: string;
+  confirm?: string | null;
+  id_param?: string | null;
+  input?: {
+    [k: string]: unknown;
+  };
+  title?: string | null;
+}
+/**
+ * The record's own page, opened from a table row: every field of the view (or the ones
+ * listed), long text as readable paragraphs, and the actions that apply to one record.
+ */
+export interface DetailSpec {
+  /**
+   * @maxItems 8
+   */
+  actions?:
+    | []
+    | [ActionBinding]
+    | [ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding, ActionBinding]
+    | [
+        ActionBinding,
+        ActionBinding,
+        ActionBinding,
+        ActionBinding,
+        ActionBinding,
+        ActionBinding,
+        ActionBinding,
+        ActionBinding
+      ];
+  /**
+   * @maxItems 48
+   */
+  fields?: string[];
+  /**
+   * @maxItems 12
+   */
+  long_fields?:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string, string];
+  title_field?: string | null;
+}
+export interface SavedList {
+  id: string;
+  title: string;
+  where?: Clause | AllOf | AnyOf | Not | null;
+}
+export interface Clause {
+  field: string;
+  op: FilterOp;
+  value?: {
+    [k: string]: unknown;
+  };
+}
+export interface AllOf {
+  /**
+   * @minItems 1
+   * @maxItems 256
+   */
+  all: [Clause | AllOf | AnyOf | Not, ...(Clause | AllOf | AnyOf | Not)[]];
+}
+export interface AnyOf {
+  /**
+   * @minItems 1
+   * @maxItems 256
+   */
+  any: [Clause | AllOf | AnyOf | Not, ...(Clause | AllOf | AnyOf | Not)[]];
+}
+export interface Not {
+  not: Clause | AllOf | AnyOf | Not;
+}
+export interface MetricsBlock {
+  /**
+   * @minItems 1
+   * @maxItems 6
+   */
+  cards:
+    | [MetricCard]
+    | [MetricCard, MetricCard]
+    | [MetricCard, MetricCard, MetricCard]
+    | [MetricCard, MetricCard, MetricCard, MetricCard]
+    | [MetricCard, MetricCard, MetricCard, MetricCard, MetricCard]
+    | [MetricCard, MetricCard, MetricCard, MetricCard, MetricCard, MetricCard];
+  kind: "metrics";
+  title?: string | null;
+}
+export interface MetricCard {
+  goal?: number | null;
+  goal_from?: GoalFrom | null;
+  goal_label?: string | null;
+  hint?: string | null;
+  metric: string;
+  title: string;
+  unit?: string | null;
+  view: string;
+}
+/**
+ * A goal read from the first record of a records view (for goals the person sets).
+ */
+export interface GoalFrom {
+  field: string;
+  view: string;
+}
+export interface TrendBlock {
+  days?: number;
+  goal?: number | null;
+  goal_from?: GoalFrom | null;
+  kind: "trend";
+  title: string;
+  unit?: string | null;
+  view: string;
+  x: string;
+  y: string;
+}
+export interface BoardBlock {
+  badge_field?: string | null;
+  /**
+   * @maxItems 4
+   */
+  card_actions?:
+    | []
+    | [ActionBinding]
+    | [ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding];
+  /**
+   * @minItems 2
+   * @maxItems 8
+   */
+  columns:
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string];
+  field_param?: string | null;
+  group_field: string;
+  kind: "board";
+  move?: ActionBinding | null;
+  /**
+   * @maxItems 4
+   */
+  subtitle_fields?: [] | [string] | [string, string] | [string, string, string] | [string, string, string, string];
+  title?: string | null;
+  title_field: string;
+  view: string;
+}
+export interface ListBlock {
+  badge_field?: string | null;
+  empty?: string | null;
+  /**
+   * @maxItems 4
+   */
+  item_actions?:
+    | []
+    | [ActionBinding]
+    | [ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding]
+    | [ActionBinding, ActionBinding, ActionBinding, ActionBinding];
+  kind: "list";
+  link_field?: string | null;
+  /**
+   * @maxItems 4
+   */
+  subtitle_fields?: [] | [string] | [string, string] | [string, string, string] | [string, string, string, string];
+  title?: string | null;
+  title_field: string;
+  view: string;
+}
+export interface FormBlock {
+  action: string;
+  description?: string | null;
+  kind: "form";
+  prefill_view?: string | null;
+  submit_label?: string | null;
+  title?: string | null;
+}
+export interface TextBlock {
+  body: string;
+  kind: "text";
+  title?: string | null;
+}
+/**
  * What an App's custom UI may read and do. It carries no native privileges; the shell derives
  * the bridge grant from it and Core enforces the views.
  */
@@ -366,28 +829,4 @@ export interface Metric {
   field?: string | null;
   fn: MetricFn;
   name: string;
-}
-export interface Clause {
-  field: string;
-  op: FilterOp;
-  value?: {
-    [k: string]: unknown;
-  };
-}
-export interface AllOf {
-  /**
-   * @minItems 1
-   * @maxItems 256
-   */
-  all: [Clause | AllOf | AnyOf | Not, ...(Clause | AllOf | AnyOf | Not)[]];
-}
-export interface AnyOf {
-  /**
-   * @minItems 1
-   * @maxItems 256
-   */
-  any: [Clause | AllOf | AnyOf | Not, ...(Clause | AllOf | AnyOf | Not)[]];
-}
-export interface Not {
-  not: Clause | AllOf | AnyOf | Not;
 }

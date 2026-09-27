@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
-import type { CoreClient, HealthInfo } from "./core/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
-import { WorkflowsPanel } from "./workflows/WorkflowsPanel";
-import { Workspace } from "./workflows/Workspace";
 import { resolveSession } from "./core/session";
-import { RequestPanel } from "./components/RequestPanel";
-import { RunList } from "./components/RunList";
 import { useRuns } from "./components/useRuns";
-import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { AssistantPanel } from "./assistant/AssistantPanel";
-
-type Surface = { kind: "assistant" } | { kind: "workflows" } | { kind: "workspace"; appId: string } | { kind: "activity" };
+import { Rail, type Surface } from "./shell/Rail";
+import { Home } from "./shell/Home";
+import { Activity, Connections, Settings } from "./shell/Info";
+import { ModulePage } from "./modules/ModulePage";
+import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
+import { useTheme } from "./shell/theme";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -18,21 +17,21 @@ function devTools(): boolean {
 }
 
 const SELECTED_KEY = "alpha.selectedConversation";
+const SURFACE_KEY = "alpha.surface";
 
-/** The conversation the Assistant shows, remembered in this window so reopening Alpha returns to
- *  it. Storage can be unavailable; then Alpha simply starts on a new request. */
-function rememberedConversation(): string | null {
+function remembered<T>(key: string, fallback: T): T {
   try {
-    return window.localStorage.getItem(SELECTED_KEY);
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return null;
+    return fallback;
   }
 }
 
-function remember(id: string | null): void {
+function remember(key: string, value: unknown): void {
   try {
-    if (id) window.localStorage.setItem(SELECTED_KEY, id);
-    else window.localStorage.removeItem(SELECTED_KEY);
+    if (value === null || value === undefined) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* per-window convenience only */
   }
@@ -45,14 +44,22 @@ type Runtime =
 
 export function App({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean } = {}) {
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
-  const [showFixture, setShowFixture] = useState(false);
-  const [showRuntime, setShowRuntime] = useState(false);
-  const [surface, setSurface] = useState<Surface>({ kind: "assistant" });
-  const [conversationId, setConversationId] = useState<string | null>(rememberedConversation);
+  const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
+  const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
+  const [assistantOpen, setAssistantOpen] = useState(true);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [modules, setModules] = useState<AppSummary[]>([]);
+  const [modulesTick, setModulesTick] = useState(0);
   const dev = devOverride ?? devTools();
+  const [theme, setTheme] = useTheme();
+
+  const setSurface = useCallback((next: Surface) => {
+    setSurfaceState(next);
+    remember(SURFACE_KEY, next);
+  }, []);
   const selectConversation = useCallback((id: string | null) => {
     setConversationId(id);
-    remember(id);
+    remember(SELECTED_KEY, id);
   }, []);
 
   useEffect(() => {
@@ -79,82 +86,60 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     };
   }, [injected]);
 
+  const client = runtime.kind === "connected" ? runtime.client : null;
+  const nullClient = useMemo(() => new NullClient(), []);
+  const { runs, error: runsError, cancel } = useRuns(client ?? nullClient);
+
+  // The module list: reloaded when a creation finishes or a run completes (a new module shows up
+  // in the rail without a restart).
+  useEffect(() => {
+    if (!client || !isWorkflowsClient(client)) return;
+    let cancelled = false;
+    client
+      .listApps()
+      .then((all) => {
+        if (cancelled) return;
+        setModules(all.filter((a) => a.state === "active" || a.origin !== "fixture"));
+        if (pendingOpen.current && all.some((a) => a.app_id === pendingOpen.current)) pendingOpen.current = null;
+        setModulesLoaded(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, modulesTick, runs.length]);
+
+  const appNames = useMemo(() => Object.fromEntries(modules.map((m) => [m.app_id, m.name])), [modules]);
+  // A remembered module that no longer exists (another data directory, or removed) goes back
+  // to Home instead of a dead surface.
+  // A module just made is opened before the list has caught up, so the fallback waits for the
+  // next load to finish before judging.
+  const [modulesLoaded, setModulesLoaded] = useState(false);
+  const pendingOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!modulesLoaded || surface.kind !== "module" || pendingOpen.current === surface.appId) return;
+    if (!modules.some((m) => m.app_id === surface.appId)) setSurface({ kind: "home" });
+  }, [modulesLoaded, modules, surface, setSurface]);
+  const icons = useMemo(() => Object.fromEntries(modules.map((m) => [m.app_id, moduleIcon(m)])), [modules]);
+  const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
+
+  const openAssistant = useCallback((text?: string) => {
+    setAssistantOpen(true);
+    setDraft(text ?? null);
+  }, []);
+  // "New" always means a new module: leave the module page, or the request would change it.
+  const startNew = useCallback(() => {
+    selectConversation(null);
+    setSurface({ kind: "home" });
+    openAssistant("");
+  }, [openAssistant, selectConversation, setSurface]);
+
   return (
-    <div className="frame">
-      <header className="frame__header">
-        <div>
-          <h1 className="frame__title">Alpha</h1>
-          <div className="frame__subtitle">
-            Internal development build · runs while Alpha is running on this Mac · closing the window keeps it running
-          </div>
-        </div>
-        {runtime.kind === "connected" ? (
-          <nav className="nav" aria-label="Alpha">
-            {(
-              [
-                ["assistant", "Assistant"],
-                ["workflows", "My workflows"],
-                ["activity", "Activity"],
-              ] as const
-            ).map(([kind, label]) => {
-              const current = surface.kind === kind || (kind === "workflows" && surface.kind === "workspace");
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  className={current ? "nav__item nav__item--current" : "nav__item"}
-                  aria-current={current ? "page" : undefined}
-                  onClick={() => setSurface({ kind })}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
-        ) : null}
-        <div className="row">
-          {runtime.kind === "connected" && dev ? (
-            <>
-              <button type="button" className="button" onClick={() => setShowRuntime((v) => !v)}>
-                {showRuntime ? "Hide runtime fixture" : "Runtime fixture"}
-              </button>
-              <button type="button" className="button" onClick={() => setShowFixture((v) => !v)}>
-                {showFixture ? "Hide isolation fixture" : "Isolation fixture"}
-              </button>
-            </>
-          ) : null}
-          <RuntimeStatus runtime={runtime} />
-        </div>
-      </header>
-      <main className={dev && (showFixture || showRuntime) ? "frame__main frame__main--three" : "frame__main"}>
-        {runtime.kind === "connected" ? (
-          <>
-            {surface.kind === "assistant" ? (
-              <AssistantPanel
-                client={runtime.client}
-                conversationId={conversationId}
-                onSelect={selectConversation}
-                onOpenApp={(appId) => setSurface({ kind: "workspace", appId })}
-              />
-            ) : null}
-            {surface.kind === "workflows" && isWorkflowsClient(runtime.client) ? (
-              <WorkflowsPanel
-                client={runtime.client}
-                onOpen={(appId) => setSurface({ kind: "workspace", appId })}
-                onViewRequest={(id) => {
-                  selectConversation(id);
-                  setSurface({ kind: "assistant" });
-                }}
-              />
-            ) : null}
-            {surface.kind === "workspace" && isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
-              <Workspace client={runtime.client} appId={surface.appId} onBack={() => setSurface({ kind: "workflows" })} />
-            ) : null}
-            {surface.kind === "activity" || (dev && showRuntime) ? <Connected client={runtime.client} showRequest={dev && showRuntime} /> : null}
-            {dev && showFixture ? <GeneratedUiFixture client={runtime.client} /> : null}
-          </>
-        ) : (
-          <section className="panel">
+    <div className={assistantOpen ? "app" : "app app--assistant-hidden"}>
+      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} />
+      <main className="main">
+        {runtime.kind !== "connected" ? (
+          <section className="page">
             <h2>Runtime</h2>
             {runtime.kind === "connecting" ? (
               <p className="panel__hint">Connecting to the local runtime…</p>
@@ -164,48 +149,109 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
               </p>
             )}
           </section>
-        )}
+        ) : surface.kind === "home" ? (
+          <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
+        ) : surface.kind === "activity" ? (
+          <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
+        ) : surface.kind === "connections" ? (
+          <Connections client={runtime.client} />
+        ) : surface.kind === "settings" ? (
+          <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
+        ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
+          <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} />
+        ) : null}
+        {dev && runtime.kind === "connected" ? (
+          <section className="page">
+            <GeneratedUiFixture client={runtime.client} />
+          </section>
+        ) : null}
       </main>
+      {runtime.kind === "connected" ? (
+        <AssistantPanel
+          client={runtime.client}
+          conversationId={conversationId}
+          onSelect={selectConversation}
+          onOpenApp={(appId) => {
+            pendingOpen.current = appId;
+            setModulesTick((n) => n + 1);
+            setSurface({ kind: "module", appId });
+          }}
+          context={{ moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
+          onHide={() => setAssistantOpen(false)}
+          draft={draft}
+        />
+      ) : null}
+      {!assistantOpen ? (
+        <button type="button" className="btn btn--primary assist__fab" onClick={() => setAssistantOpen(true)}>
+          Assistant
+        </button>
+      ) : null}
     </div>
   );
 }
 
-function RuntimeStatus({ runtime }: { runtime: Runtime }) {
-  const label = runtime.kind === "connected" ? "Runtime connected" : runtime.kind === "connecting" ? "Connecting to runtime" : "Runtime unavailable";
-  const details =
-    runtime.kind === "connected"
-      ? `Core ${runtime.health.core_version} · Python ${runtime.health.python_version.split(" ")[0]}`
-      : undefined;
-  return (
-    <span className={`status status--${runtime.kind}`} role="status" title={details}>
-      <span className="status__dot" aria-hidden="true" />
-      {label}
-    </span>
-  );
+function moduleIcon(m: AppSummary): string {
+  const text = `${m.name} ${m.description}`.toLowerCase();
+  if (/food|meal|calorie|diet|eat/.test(text)) return "🍽";
+  if (/workout|gym|fitness|exercise/.test(text)) return "🏋️";
+  if (/job|opening|career|applic/.test(text)) return "💼";
+  if (/book|read/.test(text)) return "📚";
+  if (/money|spend|expense|budget|receipt/.test(text)) return "💳";
+  if (/task|todo|plan/.test(text)) return "☑";
+  return "▦";
 }
 
-function Connected({ client, showRequest }: { client: CoreClient; showRequest: boolean }) {
-  const { runs, error, submit, cancel } = useRuns(client);
-  const [appNames, setAppNames] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (!isWorkflowsClient(client)) return;
-    client
-      .listApps()
-      .then((apps) => setAppNames(Object.fromEntries(apps.map((a) => [a.app_id, a.name]))))
-      .catch(() => undefined);
-  }, [client]);
-  return (
-    <>
-      {showRequest ? <RequestPanel onSubmit={submit} /> : null}
-      <section className="panel surface surface--reading" aria-labelledby="results-heading">
-        <h2 id="results-heading">Activity</h2>
-        {error ? (
-          <p className="notice" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <RunList runs={runs} onCancel={cancel} appNames={appNames} />
-      </section>
-    </>
-  );
+/** Stands in until the runtime connects, so hooks keep a stable client reference. */
+class NullClient implements CoreClient {
+  private fail(): never {
+    throw new Error("runtime not connected");
+  }
+  health() {
+    return Promise.reject(new Error("runtime not connected"));
+  }
+  listRuns() {
+    return Promise.resolve([]);
+  }
+  createRun() {
+    return this.fail();
+  }
+  run() {
+    return this.fail();
+  }
+  cancelRun() {
+    return this.fail();
+  }
+  events() {
+    return Promise.resolve([]);
+  }
+  stream() {
+    return new Promise<void>(() => undefined);
+  }
+  startConversation() {
+    return this.fail();
+  }
+  conversation() {
+    return this.fail();
+  }
+  listConversations() {
+    return Promise.resolve([]);
+  }
+  appConversations() {
+    return Promise.resolve([]);
+  }
+  getSettings() {
+    return Promise.resolve([]);
+  }
+  updateSettings() {
+    return this.fail();
+  }
+  replyConversation() {
+    return this.fail();
+  }
+  retryConversation() {
+    return this.fail();
+  }
+  capabilities() {
+    return Promise.resolve([]);
+  }
 }

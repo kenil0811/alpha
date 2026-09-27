@@ -94,10 +94,19 @@ CATALOG: tuple[CapabilityFamily, ...] = (
     ),
     CapabilityFamily(
         family="http",
-        description="Reading public web sources and qualified APIs.",
-        available=False,
-        unavailable_reason="web and API access is not connected yet",
-        arrives_with="F13",
+        description="Reading public web pages and JSON APIs, and searching the web, on the "
+        "solution's behalf: prices, listings, articles, public data.",
+        available=True,
+        operations=(
+            "http.get(url, max_chars, raw) -> readable text (HTML reduced) or the raw body",
+            "http.search(query, count) -> titles, addresses and snippets",
+        ),
+        notes=(
+            "Public http(s) addresses only; nothing on this Mac or a private network.",
+            "At most 60 web requests per action run; bodies are capped at 2 MB.",
+            "No sign-in: sites that need an account or a browser session are not reachable "
+            "this way (that is the browser family).",
+        ),
     ),
     CapabilityFamily(
         family="browser",
@@ -117,10 +126,17 @@ CATALOG: tuple[CapabilityFamily, ...] = (
     ),
     CapabilityFamily(
         family="schedules",
-        description="Running a solution on a local schedule while Alpha is running.",
-        available=False,
-        unavailable_reason="local schedules are not connected yet",
-        arrives_with="F17",
+        description="Running one of a solution's actions on a local schedule (every N minutes, "
+        "or daily at a time) while Alpha is running, with last and next run shown and an on/off "
+        "switch.",
+        available=True,
+        operations=(
+            "schedules (declared in app.yaml: id, title, action, every_minutes | daily_at)",
+        ),
+        notes=(
+            "Runs only while Alpha is open on this Mac; missed times are never caught up.",
+            "The scheduled action must list trigger in invocable_from.",
+        ),
     ),
     CapabilityFamily(
         family="audio",

@@ -18,10 +18,10 @@ try {
 
   const measure = async (surface, width) => {
     const box = await page.evaluate(() => {
-      const main = document.querySelector("main.frame__main");
+      const main = document.querySelector("main.main");
       const style = getComputedStyle(main);
       const available = main.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      const section = main.querySelector(":scope > section");
+      const section = main.querySelector(":scope > section.page");
       const rect = section.getBoundingClientRect();
       const doc = document.scrollingElement;
       return {
@@ -39,23 +39,23 @@ try {
 
   for (const width of job.widths) {
     await page.setViewportSize({ width, height: 760 });
-    for (const surface of ["Assistant", "My workflows", "Activity"]) {
-      await page.getByRole("button", { name: surface, exact: true }).click();
+    for (const surface of ["Home", "Activity"]) {
+      await page.getByRole("navigation", { name: "Alpha" }).getByRole("button", { name: surface, exact: true }).click();
       await page.waitForTimeout(250);
       await measure(surface, width);
     }
   }
 
   // Continuity: a request stays reachable while Alpha is working on it, and after a reload.
-  await page.setViewportSize({ width: 1100, height: 760 });
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 760 });
+  const rail = page.getByRole("navigation", { name: "Alpha" });
   await page.getByLabel("What do you want done?").fill(job.request);
-  await page.getByRole("button", { name: "Ask Alpha" }).click();
+  await page.getByRole("button", { name: "Send" }).click();
   await page.getByText("Thinking about your request").waitFor({ timeout: 10_000 });
-  await page.getByRole("button", { name: "My workflows", exact: true }).click();
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  const asked = page.locator(".bubble--user", { hasText: job.request });
+  await rail.getByRole("button", { name: "Activity", exact: true }).click();
+  await rail.getByRole("button", { name: "Settings", exact: true }).click();
+  await rail.getByRole("button", { name: "Home", exact: true }).click();
+  const asked = page.locator(".msg--user", { hasText: job.request });
   result.continuity.request_shown_after_navigation = await asked.waitFor({ timeout: 10_000 }).then(() => true, () => false);
   await page.getByRole("button", { name: "Create it" }).waitFor({ timeout: 20_000 });
   result.continuity.answered_after_navigation = true;

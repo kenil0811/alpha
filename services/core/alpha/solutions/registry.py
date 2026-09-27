@@ -17,8 +17,10 @@ F08/F10; the release row written here is the minimal pointer an App run's owner 
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import stat
+import tempfile
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -135,6 +137,25 @@ def _now() -> str:
     return utc_now().isoformat().replace("+00:00", "Z")
 
 
+# What sealing and dependency resolution add to a Version; a package copied out of one must
+# not carry them (the builder's workspace uses the same list, see alpha.builds.workspace).
+_SEALED_ARTEFACTS = shutil.ignore_patterns(
+    "__pycache__",
+    ".DS_Store",
+    "*.pyc",
+    "dependencies",
+    "dist",
+    "node_modules",
+    "package.index.json",
+    "dependency.manifest.json",
+)
+
+
+def repoint_runtime(app_yaml: str, profile_id: str) -> str:
+    """The same app.yaml naming another runtime profile."""
+    return re.sub(r"(?m)^runtime_profile:.*$", f"runtime_profile: {profile_id}", app_yaml, count=1)
+
+
 def interpret_handler_report(
     report: dict[str, Any], source: AppSource, runtime_profile_id: str
 ) -> None:
@@ -234,8 +255,9 @@ class AppRegistry:
         interpret_handler_report(report, source, profile.profile_id)
         return report
 
-    def install(self, package_dir: Path) -> AppVersion:
-        """Development path (fixtures): prepare into the Versions store and make it current."""
+    def install(self, package_dir: Path, activation: Activation | None = None) -> AppVersion:
+        """Prepare a package into the Versions store and make it current (fixtures, and moving
+        an App to the current runtime)."""
         try:
             sealed, report = self.prepare(package_dir, self._root)
         except UnsupportedDependencies as exc:
@@ -243,7 +265,35 @@ class AppRegistry:
                 "the package needs packages outside the runtime profile",
                 qualification_requests=[r.model_dump() for r in exc.requests],
             ) from None
-        return self.register(sealed, report)
+        return self.register(sealed, report, activation)
+
+    def move_to_profile(self, app_id: str, profile: InstalledProfile) -> AppVersion:
+        """Re-prepare the App's current version on `profile` (normally the newest runtime, which
+        carries the current SDK), keeping its code, identity and records. The handlers must bind
+        on the new profile and the App's current release must still be the one this started
+        from, or nothing changes."""
+        current = self.current(app_id)
+        if current.runtime_profile_id == profile.profile_id:
+            return current
+        staging = Path(tempfile.mkdtemp(prefix="alpha-move-"))
+        try:
+            package = staging / "package"
+            shutil.copytree(current.location, package, ignore=_SEALED_ARTEFACTS, symlinks=False)
+            for path in [package, *package.rglob("*")]:
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
+            app_yaml = package / "app.yaml"
+            app_yaml.write_text(
+                repoint_runtime(app_yaml.read_text(encoding="utf-8"), profile.profile_id),
+                encoding="utf-8",
+            )
+            return self.install(
+                package,
+                Activation(
+                    kind="moved", origin=current.origin, expected_release_id=current.release_id
+                ),
+            )
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
 
     def activate_sealed(
         self, candidate_dir: Path, package_sha256: str, activation: Activation
@@ -442,7 +492,8 @@ class AppRegistry:
             source = (
                 AppSource.model_validate_json(row["source_json"]) if row["source_json"] else None
             )
-            entry["has_ui"] = bool(source and source.ui and source.ui.entry)
+            entry["has_ui"] = bool(source and source.has_screen())
+            entry["has_screen"] = bool(source and source.screen)
             entry["actions"] = len(source.actions) if source else 0
             apps.append(entry)
         return apps

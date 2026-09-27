@@ -1,5 +1,153 @@
 import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
 
+/**
+ * The declarative screen and its declared views, as Core returns them (contract app_source with
+ * every default filled in). Written out here so the shell has plain arrays, not the generated
+ * schema's tuple types.
+ */
+export type FilterNode = { field: string; op: string; value?: unknown } | { all: FilterNode[] } | { any: FilterNode[] } | { not: FilterNode };
+export interface DeclaredView {
+  id: string;
+  kind: "records" | "aggregate";
+  collection: string;
+  description?: string;
+  where: FilterNode | null;
+  fields: string[] | null;
+  filterable: string[];
+  sortable: string[];
+  default_order: { field: string; direction: "asc" | "desc" }[];
+  max_limit: number;
+  group_by: { field: string; bucket: "day" | "week" | "month" | null; timezone?: string | null }[];
+  metrics: { name: string; fn: string; field: string | null }[];
+}
+export interface ActionBinding {
+  action: string;
+  id_param?: string | null;
+  input: Record<string, unknown>;
+  title?: string | null;
+  confirm?: string | null;
+}
+export interface SavedList {
+  id: string;
+  title: string;
+  where: FilterNode | null;
+}
+export interface ScreenColumn {
+  field: string;
+  title?: string | null;
+  format?: "text" | "number" | "date" | "datetime" | "pill" | "link" | "check" | null;
+  unit?: string | null;
+  editable: boolean;
+  width?: "narrow" | "normal" | "wide" | null;
+}
+export interface QuickEntryBlock {
+  kind: "quick_entry";
+  action: string;
+  input: string;
+  placeholder: string;
+  voice: boolean;
+  extra: Record<string, unknown>;
+}
+export interface DetailSpec {
+  title_field?: string | null;
+  fields: string[];
+  long_fields: string[];
+  actions: ActionBinding[];
+}
+export interface TableBlock {
+  kind: "table";
+  view: string;
+  title?: string | null;
+  columns: ScreenColumn[];
+  lists: SavedList[];
+  /** Click a row to open the record's own page. */
+  detail?: DetailSpec | null;
+  edit: ActionBinding | null;
+  delete: ActionBinding | null;
+  row_actions: ActionBinding[];
+  totals: string[];
+  empty?: string | null;
+  page_size: number;
+}
+export interface GoalFrom {
+  view: string;
+  field: string;
+}
+export interface MetricCardSpec {
+  title: string;
+  view: string;
+  metric: string;
+  unit?: string | null;
+  goal?: number | null;
+  goal_from?: GoalFrom | null;
+  goal_label?: string | null;
+  hint?: string | null;
+}
+export interface MetricsBlock {
+  kind: "metrics";
+  title?: string | null;
+  cards: MetricCardSpec[];
+}
+export interface TrendBlock {
+  kind: "trend";
+  title: string;
+  view: string;
+  x: string;
+  y: string;
+  unit?: string | null;
+  goal?: number | null;
+  goal_from?: GoalFrom | null;
+  days: number;
+}
+export interface BoardBlock {
+  kind: "board";
+  view: string;
+  title?: string | null;
+  group_field: string;
+  columns: string[];
+  title_field: string;
+  subtitle_fields: string[];
+  badge_field?: string | null;
+  move: ActionBinding | null;
+  field_param?: string | null;
+  card_actions: ActionBinding[];
+}
+export interface ListBlock {
+  kind: "list";
+  view: string;
+  title?: string | null;
+  title_field: string;
+  subtitle_fields: string[];
+  badge_field?: string | null;
+  link_field?: string | null;
+  item_actions: ActionBinding[];
+  empty?: string | null;
+}
+export interface FormBlock {
+  kind: "form";
+  action: string;
+  title?: string | null;
+  description?: string | null;
+  submit_label?: string | null;
+  prefill_view?: string | null;
+}
+export interface TextBlock {
+  kind: "text";
+  title?: string | null;
+  body: string;
+}
+export type ScreenBlock = QuickEntryBlock | TableBlock | MetricsBlock | TrendBlock | BoardBlock | ListBlock | FormBlock | TextBlock;
+export interface ScreenTab {
+  id: string;
+  title: string;
+  blocks: ScreenBlock[];
+}
+export interface Screen {
+  icon?: string | null;
+  tabs: ScreenTab[];
+  assistant_hint?: string | null;
+}
+
 export interface CoreSession {
   baseUrl: string;
   token: string;
@@ -12,6 +160,21 @@ export interface SyntheticRunRequest {
   delay_seconds?: number;
   spawn_child?: boolean;
   timeout_seconds?: number;
+}
+
+/** A setting the person may change, as Core describes it. */
+export interface SettingField {
+  id: string;
+  group: string;
+  title: string;
+  description: string;
+  kind: "choice" | "integer";
+  options: { value: string; label: string }[];
+  minimum: number | null;
+  maximum: number | null;
+  unit: string | null;
+  default: unknown;
+  value: unknown;
 }
 
 export interface HealthInfo {
@@ -66,6 +229,8 @@ export interface Conversation {
   error: string | null;
   /** Where this conversation's data goes, stated by Core from the configured routes. */
   data_notice?: string | null;
+  /** The module this conversation changes (rebuilt in place, data kept); null for a new one. */
+  change_of?: string | null;
 }
 
 export interface ConversationReply {
@@ -96,9 +261,15 @@ export interface CoreClient {
   cancelRun(runId: string): Promise<Run>;
   events(runId: string): Promise<RunEvent[]>;
   stream(after: number, onItem: (item: StreamItem) => void, signal: AbortSignal): Promise<void>;
-  startConversation(text: string): Promise<Conversation>;
+  /** Begin a request: about something new, or (changeOf) about changing an existing module. */
+  startConversation(text: string, changeOf?: string | null): Promise<Conversation>;
   conversation(id: string): Promise<Conversation>;
   listConversations(): Promise<Conversation[]>;
+  /** Settings the person may change (models per stage, build limits) with current values. */
+  getSettings(): Promise<SettingField[]>;
+  updateSettings(values: Record<string, unknown>): Promise<SettingField[]>;
+  /** A module's own thread: the request that made it and every change since, newest first. */
+  appConversations(appId: string): Promise<Conversation[]>;
   replyConversation(id: string, reply: ConversationReply): Promise<Conversation>;
   /** Run a failed assistant turn again from the same input. */
   retryConversation(id: string): Promise<Conversation>;
@@ -132,6 +303,12 @@ export interface AppDetail {
   package_sha256: string;
   runtime_profile_id: string;
   ui: { entry?: string | null; views: ViewSpec[]; actions: string[] } | null;
+  /** Top-level declared views (shared by the declarative screen and any custom ui). */
+  views?: DeclaredView[];
+  /** The declarative screen Alpha draws itself, when the module has one. */
+  screen?: Screen | null;
+  has_screen?: boolean;
+  capabilities?: string[];
   actions: ActionSummary[];
   collections: CollectionSummary[];
   record_counts: Record<string, number>;
@@ -145,6 +322,8 @@ export interface JsonSchema {
   type?: string | string[];
   title?: string;
   description?: string;
+  /** What the action assumes when the input is left out. */
+  default?: unknown;
   properties?: Record<string, JsonSchema>;
   required?: string[];
   enum?: unknown[];
@@ -171,6 +350,34 @@ export interface CollectionSummary {
   name: string;
   description?: string;
   fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null }[];
+}
+
+export interface ScheduleStatus {
+  id: string;
+  title: string;
+  action: string;
+  /** Plain words: "every 2 hours", "every day at 21:00". */
+  when: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_run_id: string | null;
+  last_error: string | null;
+  next_run_at: string | null;
+}
+
+export interface RecordPageResult {
+  records: RecordRow[];
+  next_cursor: string | null;
+}
+
+export interface AggregateGroupResult {
+  key: Record<string, unknown>;
+  values: Record<string, number | string | null>;
+}
+
+export interface AggregateResultPage {
+  groups: AggregateGroupResult[];
+  truncated: boolean;
 }
 
 export interface AppSummary {
@@ -221,6 +428,8 @@ export interface Creation {
   brief_revision: number;
   app_id: string | null;
   app_name: string | null;
+  /** Set when this creation updates a module that already exists. */
+  change_of?: string | null;
   state: "planning" | "building" | "checking" | "activating" | "active" | "failed" | "cancelled";
   stage: string;
   label: string;
@@ -249,6 +458,10 @@ export interface WorkflowsClient {
   operationOutcome(runId: string): Promise<OperationOutcome>;
   cancelRun(runId: string): Promise<Run>;
   queryRecords(appId: string, collection: string, limit?: number): Promise<RecordRow[]>;
+  /** A page of a collection with a cursor, for the Data section. */
+  queryRecordsPage?(appId: string, body: Record<string, unknown>): Promise<RecordPageResult>;
+  /** A person's own change to a module's data: create, correct or delete one record. */
+  mutateRecord?(appId: string, mutation: Record<string, unknown>): Promise<RecordRow | null>;
   listRuns(): Promise<Run[]>;
   /** An authenticated image from Core (check screenshots), as an object URL. */
   imageUrl(path: string): Promise<string>;
@@ -272,6 +485,9 @@ export interface AppsClient {
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
+  listSchedules?(appId: string): Promise<ScheduleStatus[]>;
+  setSchedule?(appId: string, scheduleId: string, enabled: boolean): Promise<ScheduleStatus[]>;
+  runSchedule?(appId: string, scheduleId: string): Promise<ScheduleStatus[]>;
 }
 
 export function isAppsClient(client: unknown): client is AppsClient {
@@ -421,6 +637,18 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
     return this.request<Creation>(`/api/creations/${encodeURIComponent(creationId)}/cancel`, { method: "POST" });
   }
 
+  async queryRecordsPage(appId: string, body: Record<string, unknown>): Promise<RecordPageResult> {
+    return this.request<RecordPageResult>(`/api/apps/${encodeURIComponent(appId)}/records/query`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async mutateRecord(appId: string, mutation: Record<string, unknown>): Promise<RecordRow | null> {
+    const reply = await this.request<{ record: RecordRow | null }>(`/api/apps/${encodeURIComponent(appId)}/records/mutate`, {
+      method: "POST",
+      body: JSON.stringify({ mutation }),
+    });
+    return reply.record;
+  }
+
   async queryRecords(appId: string, collection: string, limit = 50): Promise<RecordRow[]> {
     const page = await this.request<{ records: RecordRow[] }>(`/api/apps/${encodeURIComponent(appId)}/records/query`, {
       method: "POST",
@@ -443,6 +671,27 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
       method: "POST",
       body: JSON.stringify(body),
     });
+  }
+
+  async listSchedules(appId: string): Promise<ScheduleStatus[]> {
+    const page = await this.request<{ schedules: ScheduleStatus[] }>(`/api/apps/${encodeURIComponent(appId)}/schedules`);
+    return page.schedules;
+  }
+
+  async setSchedule(appId: string, scheduleId: string, enabled: boolean): Promise<ScheduleStatus[]> {
+    const page = await this.request<{ schedules: ScheduleStatus[] }>(
+      `/api/apps/${encodeURIComponent(appId)}/schedules/${encodeURIComponent(scheduleId)}`,
+      { method: "POST", body: JSON.stringify({ enabled }) },
+    );
+    return page.schedules;
+  }
+
+  async runSchedule(appId: string, scheduleId: string): Promise<ScheduleStatus[]> {
+    const page = await this.request<{ schedules: ScheduleStatus[] }>(
+      `/api/apps/${encodeURIComponent(appId)}/schedules/${encodeURIComponent(scheduleId)}/run`,
+      { method: "POST" },
+    );
+    return page.schedules;
   }
 
   async operationOutcome(runId: string): Promise<OperationOutcome> {
@@ -477,12 +726,29 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
     return page.events;
   }
 
-  startConversation(text: string): Promise<Conversation> {
-    return this.request<Conversation>("/api/conversations", { method: "POST", body: JSON.stringify({ text }) });
+  startConversation(text: string, changeOf?: string | null): Promise<Conversation> {
+    const body: Record<string, unknown> = { text };
+    if (changeOf) body.change_of = changeOf;
+    return this.request<Conversation>("/api/conversations", { method: "POST", body: JSON.stringify(body) });
   }
 
   conversation(id: string): Promise<Conversation> {
     return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}`);
+  }
+
+  async appConversations(appId: string): Promise<Conversation[]> {
+    const page = await this.request<{ conversations: Conversation[] }>(`/api/apps/${encodeURIComponent(appId)}/conversations`);
+    return page.conversations;
+  }
+
+  async getSettings(): Promise<SettingField[]> {
+    const page = await this.request<{ settings: SettingField[] }>("/api/settings");
+    return page.settings;
+  }
+
+  async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {
+    const page = await this.request<{ settings: SettingField[] }>("/api/settings", { method: "PUT", body: JSON.stringify({ values }) });
+    return page.settings;
   }
 
   async listConversations(): Promise<Conversation[]> {

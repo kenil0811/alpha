@@ -8,7 +8,7 @@ goes through the same typed query compiler and platform limits as worker queries
 
 from __future__ import annotations
 
-from alpha_contracts.apps import UiDeclaration, ViewKind, ViewSpec, filter_fields
+from alpha_contracts.apps import AppSource, ViewKind, ViewSpec, filter_fields
 from alpha_contracts.records import (
     AggregateQuery,
     AggregateResult,
@@ -35,10 +35,11 @@ class ViewQueryRequest(BaseModel):
     cursor: str | None = Field(default=None, max_length=512)
 
 
-def resolve_view(ui: UiDeclaration | None, view_id: str) -> ViewSpec:
-    view = ui.view(view_id) if ui is not None else None
+def resolve_view(source: AppSource, view_id: str) -> ViewSpec:
+    """A view declared at the top level (`views`) or under `ui.views`."""
+    view = source.view(view_id)
     if view is None:
-        raise not_found(f"this App's UI has no view {view_id!r}", view=view_id)
+        raise not_found(f"this App has no view {view_id!r}", view=view_id)
     return view
 
 

@@ -19,6 +19,7 @@ from alpha_sdk._channel import Transport
 from alpha_sdk.artifacts import Artifacts
 from alpha_sdk.models import Models
 from alpha_sdk.records import Records
+from alpha_sdk.web import Web
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class Context:
         self.records = Records(transport)
         self.artifacts = Artifacts(transport)
         self.models = Models(transport)
+        self.web = Web(transport)
 
     @property
     def run_id(self) -> str:

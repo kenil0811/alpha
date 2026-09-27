@@ -58,7 +58,7 @@ export function useConversation(client: CoreClient, selectedId: string | null, o
     [onSelect],
   );
 
-  const start = useCallback((text: string) => act("start", () => client.startConversation(text)), [act, client]);
+  const start = useCallback((text: string, changeOf?: string | null) => act("start", () => client.startConversation(text, changeOf)), [act, client]);
   const reply = useCallback(
     (body: ConversationReply) => (conversation ? act("send", () => client.replyConversation(conversation.conversation_id, body)) : Promise.resolve()),
     [act, client, conversation],

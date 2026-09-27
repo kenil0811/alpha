@@ -26,7 +26,7 @@ from alpha.api.apps_routes import AppPlatform
 from alpha.api.apps_routes import register as register_app_routes
 from alpha.api.auth import make_auth_middleware
 from alpha.api.creation_routes import register as register_creation_routes
-from alpha.assistant.service import AssistantService, ConversationRecord
+from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
 from alpha.builds.store import AcceptanceExample, BuildRecord, plan_from_examples
@@ -35,6 +35,7 @@ from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
+from alpha.models.preferences import InvalidSetting
 from alpha.solutions.creation import CreationService
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
 
@@ -125,11 +126,19 @@ class ActivateRequest(BaseModel):
     expected_release_id: str | None = Field(default=None, max_length=80)
 
 
+class SettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    values: dict[str, Any] = Field(min_length=1, max_length=40)
+
+
 class ConversationStart(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=4000)
     route_id: str | None = Field(default=None, max_length=64)
+    # The module this conversation changes (rebuilt in place, data kept); omitted for a new one.
+    change_of: str | None = Field(default=None, max_length=80)
 
 
 class ConversationMessage(BaseModel):
@@ -301,6 +310,22 @@ def coordinator_profiles(coordinator: RunCoordinator) -> list[str]:
 
 
 def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGateway) -> None:
+    @app.get("/api/settings")
+    def get_settings() -> dict[str, Any]:
+        """Every setting the person may change, with its current value."""
+        prefs = gateway.preferences if gateway is not None else None
+        return {"settings": prefs.describe() if prefs is not None else []}
+
+    @app.put("/api/settings")
+    def put_settings(body: SettingsUpdate) -> dict[str, Any]:
+        prefs = gateway.preferences if gateway is not None else None
+        if prefs is None:
+            raise HTTPException(status_code=404, detail="settings are not available on this host")
+        try:
+            return {"settings": prefs.update(body.values)}
+        except InvalidSetting as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.get("/api/model-routes")
     def model_routes() -> dict[str, Any]:
         return {"routes": gateway.routes()}
@@ -411,9 +436,11 @@ def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None
     @app.post("/api/conversations", response_model=ConversationRecord, status_code=201)
     def start_conversation(body: ConversationStart) -> ConversationRecord:
         try:
-            return assistant.start(body.text, body.route_id)
+            return assistant.start(body.text, body.route_id, change_of=body.change_of)
         except RouteUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except UnknownApp as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/api/conversations", response_model=ConversationList)
     def list_conversations(limit: int = Query(default=20, ge=1, le=100)) -> ConversationList:
