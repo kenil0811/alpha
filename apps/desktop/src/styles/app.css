@@ -56,8 +56,9 @@ a { color: var(--primary); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- frame ---------- */
-.app { display: grid; grid-template-columns: 224px minmax(0, 1fr) 380px; height: 100%; min-height: 100vh; }
-.app--assistant-hidden { grid-template-columns: 224px minmax(0, 1fr); }
+.app { --rail-w: 224px; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr) 380px; height: 100%; min-height: 100vh; }
+.app--assistant-hidden { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+.app--rail-collapsed { --rail-w: 60px; }
 .rail {
   border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column;
   padding: 14px 10px; gap: 4px; position: sticky; top: 0; height: 100vh; overflow: auto;
@@ -414,3 +415,14 @@ a { color: var(--primary); }
 .progress__nums { margin-left: auto; font-family: var(--font-ed); font-size: 20px; color: var(--navy); }
 .progress__nums small { font-size: 13px; color: var(--text-3); font-family: var(--font-ui); }
 .goalbar--big { height: 14px; margin: 8px 0 6px; }
+
+/* The rail folded to icons */
+.rail__fold { margin-left: auto; width: 26px; height: 26px; color: var(--text-3); }
+.rail--collapsed { padding-left: 8px; padding-right: 8px; }
+.rail--collapsed .brand { justify-content: center; padding: 6px 0 12px; flex-wrap: wrap; gap: 6px; }
+.rail--collapsed .brand b, .rail--collapsed .navbtn__text, .rail--collapsed .rail__group, .rail--collapsed .rail__status-text, .rail--collapsed .navbtn__dot { display: none; }
+.rail--collapsed .rail__fold { margin-left: 0; }
+.rail--collapsed .navbtn { justify-content: center; padding: 9px 0; gap: 0; }
+.rail--collapsed .navbtn__ico { width: auto; font-size: 16px; }
+.rail--collapsed .rail__status { justify-content: center; padding: 8px 0; }
+.rail--collapsed .faint { display: none; }

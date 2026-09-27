@@ -46,7 +46,42 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
   const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
   const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
-  const [assistantOpen, setAssistantOpen] = useState(true);
+  // The assistant panel is open on Home and closed on a module page unless the person opened
+  // it there; both choices are remembered on this Mac. The rail can fold to icons.
+  const [openByKind, setOpenByKind] = useState<{ home: boolean; module: boolean }>(() => readPanelState());
+  const panelKind = surface.kind === "module" ? "module" : "home";
+  const assistantOpen = openByKind[panelKind];
+  const setAssistantOpen = useCallback(
+    (open: boolean) => {
+      setOpenByKind((current) => {
+        const next = { ...current, [panelKind]: open };
+        try {
+          window.localStorage.setItem("alpha.assistant.open", JSON.stringify(next));
+        } catch {
+          // storage may be unavailable; the choice then lasts for this window only
+        }
+        return next;
+      });
+    },
+    [panelKind],
+  );
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem("alpha.rail.collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleRail = useCallback(() => {
+    setRailCollapsed((c) => {
+      try {
+        window.localStorage.setItem("alpha.rail.collapsed", c ? "0" : "1");
+      } catch {
+        // see above
+      }
+      return !c;
+    });
+  }, []);
   const [draft, setDraft] = useState<string | null>(null);
   const [modules, setModules] = useState<AppSummary[]>([]);
   const [modulesTick, setModulesTick] = useState(0);
@@ -137,7 +172,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const openAssistant = useCallback((text?: string) => {
     setAssistantOpen(true);
     setDraft(text ?? null);
-  }, []);
+  }, [setAssistantOpen]);
   // "New" always means a new module: leave the module page, or the request would change it.
   const startNew = useCallback(() => {
     selectConversation(null);
@@ -146,8 +181,8 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   }, [openAssistant, selectConversation, setSurface]);
 
   return (
-    <div className={assistantOpen ? "app" : "app app--assistant-hidden"}>
-      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} />
+    <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
+      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
       <main className="main">
         {runtime.kind !== "connected" ? (
           <section className="page">
@@ -177,7 +212,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
           </section>
         ) : null}
       </main>
-      {runtime.kind === "connected" ? (
+      {runtime.kind === "connected" && assistantOpen ? (
         <AssistantPanel
           client={runtime.client}
           conversationId={conversationId}
@@ -199,6 +234,19 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
       ) : null}
     </div>
   );
+}
+
+function readPanelState(): { home: boolean; module: boolean } {
+  try {
+    const raw = window.localStorage.getItem("alpha.assistant.open");
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<{ home: boolean; module: boolean }>;
+      return { home: parsed.home ?? true, module: parsed.module ?? false };
+    }
+  } catch {
+    // fall through to the defaults
+  }
+  return { home: true, module: false };
 }
 
 function moduleIcon(m: AppSummary): string {
