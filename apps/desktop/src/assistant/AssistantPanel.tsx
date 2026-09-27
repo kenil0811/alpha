@@ -206,12 +206,12 @@ export function AssistantPanel({
               <QuestionsForm questions={conversation.questions} busy={busy} onAnswer={(answers) => reply({ answers })} onDefaults={() => reply({ use_defaults: true })} />
             ) : null}
             {conversation.current_brief && conversation.state !== "thinking" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
-            {conversation.state === "briefed" && conversation.delivery === "app" && conversation.current_brief && isWorkflowsClient(client) ? (
+            {conversation.state === "briefed" && conversation.delivery === "app" && (conversation.current_brief || conversation.quick_change) && isWorkflowsClient(client) ? (
               <CreationCard
                 client={client}
                 conversationId={conversation.conversation_id}
-                briefRevision={conversation.current_brief.revision}
-                unavailable={conversation.current_brief.unavailable_capabilities}
+                briefRevision={conversation.current_brief?.revision ?? 0}
+                unavailable={conversation.current_brief?.unavailable_capabilities ?? []}
                 onOpen={(appId) => onOpenApp?.(appId)}
                 onChange={onCreation}
               />

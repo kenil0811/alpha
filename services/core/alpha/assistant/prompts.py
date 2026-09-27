@@ -84,3 +84,41 @@ def turn_prompt(
             "USER: use your defaults for anything still open; I will revise later. Resolve every open question with a stated assumption and ask nothing more."
         )
     return "\n".join(parts)
+
+
+TRIAGE_SYSTEM = """You look at one request to change an App that already exists and decide how Alpha should make it.
+
+- "quick": the change stays inside what the App already has: wording, labels, layout, which blocks a tab shows, defaults, a small rule inside an existing action, a column or a saved list. Alpha edits the App's files directly in about a minute.
+- "full": the change needs new tables or fields, a new action, a new capability (reading the web, a schedule, the model), a new source to read, or is too vague to act on without asking. Alpha then plans and rebuilds with checks, which takes longer.
+
+When in doubt between the two, choose "quick" if the request names the thing to change and "full" if it describes new behaviour. Write `summary` as one sentence saying exactly what will change, in the person's words, and `reply` as one or two friendly sentences telling them what happens next (for quick: that Alpha is making the change now and their data is kept; for full: that this is bigger and Alpha will plan it and may ask a question). Output only the structured object."""
+
+
+def triage_prompt(text: str, existing: str) -> str:
+    return f"EXISTING APP:\n{existing}\n\nREQUESTED CHANGE:\n{text}"
+
+
+def triage_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["path", "summary", "reply"],
+        "properties": {
+            "path": {"type": "string", "enum": ["quick", "full"]},
+            "summary": {"type": "string", "maxLength": 400},
+            "reply": {"type": "string", "maxLength": 500},
+        },
+    }
+
+
+def fake_triage(prompt: str) -> dict[str, Any]:
+    """Control responder: small wording changes are quick, anything that adds is full."""
+    request = prompt.split("REQUESTED CHANGE:")[-1].lower()
+    quick = any(w in request for w in ("remove", "rename", "hide", "label", "quick:"))
+    return {
+        "path": "quick" if quick else "full",
+        "summary": request.strip()[:200] or "the change",
+        "reply": "I'm making that change now; your data is kept."
+        if quick
+        else "This is a bigger change; I'll plan it.",
+    }

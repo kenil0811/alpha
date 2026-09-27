@@ -19,9 +19,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import shutil
+import stat
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from alpha_contracts.briefs import Delivery, SolutionBrief
@@ -34,7 +39,7 @@ from alpha.builds.store import BuildRecord
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
 from alpha.solutions.planner import AcceptancePlanner, PlanningFailed, app_slug, wants_ui
-from alpha.solutions.registry import AppRegistry
+from alpha.solutions.registry import SEALED_ARTEFACTS, Activation, AppRegistry
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.creations")
@@ -57,7 +62,8 @@ CREATE TABLE IF NOT EXISTS creations (
     history_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    change_of TEXT
+    change_of TEXT,
+    result_json TEXT
 );
 """
 
@@ -191,6 +197,127 @@ def build_instructions(
     return "\n".join(lines)
 
 
+QUICK_MAX_BYTES = 160_000
+PACKAGE_FILE_KINDS = (".yaml", ".py", ".md")
+
+QUICK_CHANGE_SYSTEM = (
+    "You edit an existing Alpha App directly, the way a careful engineer edits a small "
+    "codebase: change exactly what the person asked for, keep everything else as it is, and "
+    "return every file you changed in full.\n\n"
+    "Rules:\n"
+    "- Return only files that change, each as its complete new content. Paths are app.yaml, "
+    "or under src/ or tests/. Never invent other paths.\n"
+    "- In app.yaml the lines app_id, runtime_profile and sdk_version must stay exactly as they "
+    "are. Collections keep every existing field with its name and kind (new fields must be "
+    "optional). Action ids stay. Everything a block or view refers to must still exist.\n"
+    "- The App contract and SDK reference are provided: follow them for screen blocks, views, "
+    "actions and handlers. Python uses only the standard library and alpha_sdk.\n"
+    "- If the change needs a new table or field, a new action, a new capability, a new source "
+    "to read, or you cannot tell what is meant, do not guess: set needs_full_build to true and "
+    "say why in reason.\n"
+    "- Write a one-sentence summary of what you changed for the person.\n"
+    "Output only the structured object."
+)
+
+
+def quick_change_prompt(request: str, files: dict[str, str], references: str, feedback: str) -> str:
+    parts = [f"REQUESTED CHANGE:\n{request}"]
+    if feedback:
+        parts.append(f"PREVIOUS ATTEMPT:\n{feedback}")
+    parts.append("CURRENT FILES:")
+    for path, content in files.items():
+        parts.append(f"----- {path} -----\n{content}")
+    if references:
+        parts.append(references)
+    return "\n\n".join(parts)
+
+
+def quick_change_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["files", "summary", "needs_full_build", "reason"],
+        "properties": {
+            "files": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "content"],
+                    "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                },
+            },
+            "summary": {"type": "string", "maxLength": 400},
+            "needs_full_build": {"type": "boolean"},
+            "reason": {"type": "string", "maxLength": 400},
+        },
+    }
+
+
+def fake_quick_change(request: str, files: dict[str, str]) -> dict[str, Any]:
+    """Control responder: rewrites the App's description to carry the request."""
+    text = files.get("app.yaml", "")
+    lines = [
+        (
+            f"description: Changed: {request.strip()[:80]}"
+            if line.startswith("description:")
+            else line
+        )
+        for line in text.splitlines()
+    ]
+    return {
+        "files": [{"path": "app.yaml", "content": "\n".join(lines) + "\n"}],
+        "summary": f"Changed the description to note: {request.strip()[:60]}",
+        "needs_full_build": False,
+        "reason": "",
+    }
+
+
+def read_package_files(location: Path) -> dict[str, str]:
+    """The files a quick change may see and edit: app.yaml and the sources, in a stable order."""
+    found: dict[str, str] = {}
+    for path in sorted(location.rglob("*")):
+        rel = path.relative_to(location)
+        if not path.is_file() or path.suffix not in PACKAGE_FILE_KINDS:
+            continue
+        top = rel.parts[0]
+        if rel.as_posix() != "app.yaml" and top not in ("src", "tests"):
+            continue
+        if "__pycache__" in rel.parts:
+            continue
+        found[rel.as_posix()] = path.read_text(encoding="utf-8", errors="replace")
+    return found
+
+
+def apply_edits(package: Path, edits: dict[str, str], source: Any) -> str | None:
+    """Write the model's files into the package copy. Returns a problem in words, or None."""
+    for rel, content in edits.items():
+        if rel.startswith(("/", "..")) or ".." in Path(rel).parts:
+            return f"{rel} is not a path inside the package"
+        if rel != "app.yaml" and Path(rel).parts[0] not in ("src", "tests"):
+            return f"{rel} is outside app.yaml, src/ and tests/"
+        if Path(rel).suffix not in PACKAGE_FILE_KINDS:
+            return f"{rel} is not a file kind a change may write"
+        target = package / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if rel == "app.yaml":
+            content = keep_identity(content, source)
+        target.write_text(content, encoding="utf-8")
+    return None
+
+
+def keep_identity(app_yaml: str, source: Any) -> str:
+    """The three lines the platform owns stay whatever the model wrote."""
+    for key, value in (
+        ("app_id", source.app_id),
+        ("runtime_profile", source.runtime_profile),
+        ("sdk_version", source.sdk_version),
+    ):
+        app_yaml = re.sub(rf"(?m)^{key}:.*$", f"{key}: {value}", app_yaml, count=1)
+    return app_yaml
+
+
 class CreationService:
     def __init__(
         self,
@@ -203,6 +330,9 @@ class CreationService:
         *,
         poll_seconds: float = 0.5,
         registry: AppRegistry | None = None,
+        inference: Any | None = None,
+        contract_reference: Path | None = None,
+        sdk_reference: Path | None = None,
     ) -> None:
         self._store = store
         self._assistant = assistant
@@ -212,15 +342,21 @@ class CreationService:
         self._routes = routes
         self._poll = poll_seconds
         self._registry = registry  # where a changed App's current version comes from
+        # The quick path: one structured model call edits the module's files directly.
+        self._inference = inference
+        self._contract_reference = contract_reference
+        self._sdk_reference = sdk_reference
         self._lock = threading.Lock()
         self._cancelled: set[str] = set()
         store.execute_script(_SCHEMA)
-        store.add_missing_columns("creations", {"change_of": "TEXT"})
+        store.add_missing_columns("creations", {"change_of": "TEXT", "result_json": "TEXT"})
 
     # ----- public ------------------------------------------------------------------------
 
     def start(self, conversation_id: str, *, builder_hint: str | None = None) -> CreationRecord:
         conversation = self._assistant.get(conversation_id)
+        if getattr(conversation, "quick_change", False) and conversation.state == "briefed":
+            return self._start_quick(conversation)
         brief = conversation.current_brief
         if conversation.state != "briefed" or brief is None:
             raise CreationRefused(
@@ -268,6 +404,207 @@ class CreationService:
             daemon=True,
         ).start()
         return self.get(creation_id)
+
+    def _start_quick(self, conversation: Any) -> CreationRecord:
+        app_id = conversation.change_of
+        for existing in self.list_for_conversation(conversation.conversation_id):
+            if existing.state not in TERMINAL:
+                return existing
+        if self._registry is None or self._inference is None:
+            raise CreationRefused("quick changes are not available on this host")
+        try:
+            current = self._registry.current(app_id)
+        except OperationFailed as exc:
+            raise CreationRefused(f"the module to change is not installed: {exc}") from exc
+        request = next((t.content.get("text") for t in conversation.turns if t.role == "user"), "")
+        creation_id = new_id("create")
+        now = _now()
+        with self._store.transaction() as conn:
+            conn.execute(
+                """INSERT INTO creations(creation_id, conversation_id, brief_id, brief_revision,
+                   app_id, app_name, state, plan_source, history_json, created_at, updated_at,
+                   change_of) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    creation_id,
+                    conversation.conversation_id,
+                    "quick",
+                    0,
+                    app_id,
+                    current.source.name,
+                    "building",
+                    "quick",
+                    "[]",
+                    now,
+                    now,
+                    app_id,
+                ),
+            )
+        self._note(creation_id, "building", "Making the change")
+        threading.Thread(
+            target=self._run_quick,
+            args=(creation_id, app_id, str(request or "")),
+            name=f"creation-{creation_id}",
+            daemon=True,
+        ).start()
+        return self.get(creation_id)
+
+    def _run_quick(self, creation_id: str, app_id: str, request: str) -> None:
+        try:
+            self._quick_change(creation_id, app_id, request)
+        except Exception as exc:
+            log.exception("quick change %s failed inside Core", creation_id)
+            self._finish(
+                creation_id,
+                "failed",
+                None,
+                {
+                    "reason": "platform_error",
+                    "message": "Something went wrong inside Alpha. Try again.",
+                    "error": f"{type(exc).__name__}: {exc}"[:300],
+                    "next_step": "retry",
+                },
+            )
+
+    def _quick_change(self, creation_id: str, app_id: str, request: str) -> None:
+        """Edit the module's files directly from the person's words: one model call returns the
+        changed files, the package must still validate and its handlers bind, then it becomes
+        the current version. One repair round when the first edit is refused."""
+        assert self._registry is not None and self._inference is not None
+        current = self._registry.current(app_id)
+        files = read_package_files(current.location)
+        if sum(len(v) for v in files.values()) > QUICK_MAX_BYTES:
+            self._finish(
+                creation_id,
+                "failed",
+                None,
+                {
+                    "reason": "needs_full_build",
+                    "message": "This module is too large to edit in one go; ask for the change "
+                    "again and say 'full rebuild'.",
+                    "next_step": "revise",
+                },
+            )
+            return
+        references = ""
+        for label, path in (
+            ("APP CONTRACT", self._contract_reference),
+            ("SDK REFERENCE", self._sdk_reference),
+        ):
+            if path is not None and path.is_file():
+                references += f"\n\n===== {label} =====\n{path.read_text(encoding='utf-8')}"
+        route = self._gateway.route(self._routes.builder, stage="builder_change")
+        feedback = ""
+        for attempt in (1, 2):
+            if self._stopped(creation_id):
+                return
+            prompt = quick_change_prompt(request, files, references, feedback)
+            try:
+                result = self._inference.call(
+                    route,
+                    system=QUICK_CHANGE_SYSTEM,
+                    prompt=prompt,
+                    schema=quick_change_schema(),
+                    scope_kind="quick_change",
+                    scope_ref=creation_id,
+                    fake=lambda _p: fake_quick_change(request, files),
+                )
+            except Exception as exc:
+                self._finish(
+                    creation_id,
+                    "failed",
+                    None,
+                    {
+                        "reason": "model_unavailable",
+                        "message": f"The model service could not make the edit: {exc}",
+                        "next_step": "retry",
+                    },
+                )
+                return
+            output = result.output if isinstance(result.output, dict) else {}
+            if output.get("needs_full_build"):
+                self._finish(
+                    creation_id,
+                    "failed",
+                    None,
+                    {
+                        "reason": "needs_full_build",
+                        "message": "This change is bigger than a quick edit: "
+                        f"{output.get('reason') or 'it adds new behaviour'}. Ask for it again "
+                        "and say 'full rebuild' to do it the long way.",
+                        "next_step": "revise",
+                    },
+                )
+                return
+            edits = {
+                str(f.get("path")): str(f.get("content"))
+                for f in output.get("files") or []
+                if isinstance(f, dict) and f.get("path")
+            }
+            if not edits:
+                feedback = "You returned no files. Return every file you change, in full."
+                continue
+            self._note(creation_id, "checking", "Checking it still holds together")
+            staging = Path(tempfile.mkdtemp(prefix="alpha-quick-"))
+            version = None
+            try:
+                package = staging / "package"
+                shutil.copytree(current.location, package, ignore=SEALED_ARTEFACTS, symlinks=False)
+                for path in [package, *package.rglob("*")]:
+                    path.chmod(path.stat().st_mode | stat.S_IWUSR)
+                problem = apply_edits(package, edits, current.source)
+                if problem is None:
+                    if not self._claim_activation(creation_id):
+                        return
+                    self._note(creation_id, "activating", "Switching it on")
+                    version = self._registry.install(
+                        package,
+                        Activation(
+                            kind="quick_change",
+                            origin=current.origin,
+                            expected_release_id=current.release_id,
+                            creation_id=creation_id,
+                        ),
+                    )
+            except OperationFailed as exc:
+                problem = exc.message
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
+            if problem is None and version is not None:
+                self._finish(
+                    creation_id,
+                    "active",
+                    {
+                        "release_id": version.release_id,
+                        "version_id": version.version_id,
+                        "app_id": version.app_id,
+                    },
+                    None,
+                    result={
+                        "app_id": version.app_id,
+                        "name": version.source.name,
+                        "actions": [a.id for a in version.source.actions],
+                        "has_ui": version.source.has_screen() or version.source.ui is not None,
+                        "checks_passed": 3,
+                        "preview_images": [],
+                        "attempts": attempt,
+                        "summary": str(output.get("summary") or "")[:400],
+                        "changed_files": sorted(edits),
+                    },
+                )
+                return
+            feedback = (
+                f"Your previous edit was rejected: {problem}. Fix it and return the files again."
+            )
+        self._finish(
+            creation_id,
+            "failed",
+            None,
+            {
+                "reason": "edit_rejected",
+                "message": f"The edit did not hold together: {feedback[:300]}",
+                "next_step": "retry",
+            },
+        )
 
     def get(self, creation_id: str) -> CreationRecord:
         rows = self._store.query("SELECT * FROM creations WHERE creation_id = ?", (creation_id,))
@@ -599,9 +936,15 @@ class CreationService:
         state: str,
         activated: dict[str, Any] | None,
         failure: dict[str, Any] | None,
+        result: dict[str, Any] | None = None,
     ) -> None:
         with self._store.transaction() as conn:
             self._finish_locked(conn, creation_id, state, activated, failure)
+            if result is not None:
+                conn.execute(
+                    "UPDATE creations SET result_json = ? WHERE creation_id = ?",
+                    (json.dumps(result), creation_id),
+                )
 
     def _finish_locked(
         self,
@@ -671,6 +1014,8 @@ class CreationService:
                     "preview_images": _preview_images(build, report),
                     "attempts": len(build.attempts),
                 }
+        if result is None and row["result_json"]:
+            result = json.loads(row["result_json"])
         detail = None
         if row["state"] == "building" and progress.get("attempt", 0) > 1:
             detail = f"Attempt {progress['attempt']} of {progress['max_attempts']}"

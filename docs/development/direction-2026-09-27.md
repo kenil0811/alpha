@@ -125,6 +125,13 @@ hand-built:
 - Shell fixes from that session: an action's result spans the form (tables no longer collapse
   to one letter per line), and editing a cell no longer also toggles the row's detail page.
 
+- Speed, evening: Kenil's change turn on the diet tracker ran past the 300 s limit on Opus.
+  Measured: wait = output tokens / model speed (assistant 13k tokens 143 s, plan 22k tokens
+  217 s). Now the assistant, the planner and modules' own calls default to Sonnet (Settings can
+  change it), both prompts ask for tight output, and a thinking turn shows a clock, a "longer
+  than usual" note at 90 s and a Stop button (Core kills the CLI process). The same change turn
+  retried on Sonnet: 11k tokens in 103 s, briefed correctly.
+
 ## Still to do
 
 - Model latency: one batch call takes 60 to 75 seconds on the CLI route; a faster route for

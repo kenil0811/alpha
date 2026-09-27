@@ -139,7 +139,7 @@ def _now() -> str:
 
 # What sealing and dependency resolution add to a Version; a package copied out of one must
 # not carry them (the builder's workspace uses the same list, see alpha.builds.workspace).
-_SEALED_ARTEFACTS = shutil.ignore_patterns(
+SEALED_ARTEFACTS = shutil.ignore_patterns(
     "__pycache__",
     ".DS_Store",
     "*.pyc",
@@ -278,7 +278,7 @@ class AppRegistry:
         staging = Path(tempfile.mkdtemp(prefix="alpha-move-"))
         try:
             package = staging / "package"
-            shutil.copytree(current.location, package, ignore=_SEALED_ARTEFACTS, symlinks=False)
+            shutil.copytree(current.location, package, ignore=SEALED_ARTEFACTS, symlinks=False)
             for path in [package, *package.rglob("*")]:
                 path.chmod(path.stat().st_mode | stat.S_IWUSR)
             app_yaml = package / "app.yaml"

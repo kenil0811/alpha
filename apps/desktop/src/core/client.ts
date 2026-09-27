@@ -231,6 +231,8 @@ export interface Conversation {
   data_notice?: string | null;
   /** The module this conversation changes (rebuilt in place, data kept); null for a new one. */
   change_of?: string | null;
+  /** A small change Alpha makes directly (no plan); its creation starts on its own. */
+  quick_change?: boolean;
 }
 
 export interface ConversationReply {

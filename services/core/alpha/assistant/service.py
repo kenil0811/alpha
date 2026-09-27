@@ -19,7 +19,14 @@ from alpha_contracts.briefs import Assumption, Delivery, Interpretation, OpenQue
 from pydantic import BaseModel, ValidationError
 
 from alpha.assistant.fake_model import fake_assistant
-from alpha.assistant.prompts import system_prompt, turn_prompt
+from alpha.assistant.prompts import (
+    TRIAGE_SYSTEM,
+    fake_triage,
+    system_prompt,
+    triage_prompt,
+    triage_schema,
+    turn_prompt,
+)
 from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
 from alpha.models.disclosure import data_notice, ground_output, is_remote
 from alpha.models.gateway import ModelGateway, ModelRoute
@@ -51,7 +58,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     latest_sequence INTEGER NOT NULL DEFAULT 0,
-    change_of TEXT
+    change_of TEXT,
+    quick_change INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS conversation_turns (
     turn_id TEXT PRIMARY KEY,
@@ -106,6 +114,9 @@ class ConversationRecord(BaseModel):
     brief_history: list[int]
     # The App this conversation changes (rebuilt in place, data kept); None for a new one.
     change_of: str | None = None
+    # True when the change is small enough for Alpha to edit the App's files directly (no
+    # brief, no plan): the creation starts on its own and the panel follows it.
+    quick_change: bool = False
 
 
 class AssistantService:
@@ -129,7 +140,11 @@ class AssistantService:
         self._describe_app = describe_app or (lambda _app_id: None)
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
-        store.add_missing_columns("conversations", {"change_of": "TEXT"})
+        store.add_missing_columns(
+            "conversations", {"change_of": "TEXT", "quick_change": "INTEGER NOT NULL DEFAULT 0"}
+        )
+        # Set by main once the creation service exists: starts a quick change for a conversation.
+        self.on_quick_change: Callable[[str], Any] | None = None
 
     # ----- public ------------------------------------------------------------------------
 
@@ -265,6 +280,9 @@ class AssistantService:
     def _run_turn(self, conversation_id: str, route: ModelRoute, latest: dict[str, Any]) -> None:
         try:
             record = self.get(conversation_id)
+            if record.change_of and len(record.turns) == 1 and latest.get("text"):
+                if self._triage_change(conversation_id, record, route, str(latest["text"])):
+                    return
             history = [
                 {"role": t.role, "content": t.content}
                 for t in record.turns[:-1]  # the latest user turn is passed separately
@@ -309,6 +327,68 @@ class AssistantService:
             result.usage.model_dump(mode="json"),
             grounded,
         )
+
+    def _triage_change(
+        self, conversation_id: str, record: ConversationRecord, route: ModelRoute, text: str
+    ) -> bool:
+        """First look at a change request: a small edit is made directly (quick change) and
+        needs no brief; anything bigger goes through the usual turn. Returns True when the
+        quick path took the conversation."""
+        assert record.change_of is not None
+        existing = self._describe_app(record.change_of) or ""
+        try:
+            result = self._inference.call(
+                route,
+                system=TRIAGE_SYSTEM,
+                prompt=triage_prompt(text, existing),
+                schema=triage_schema(),
+                scope_kind="change_triage",
+                scope_ref=conversation_id,
+                fake=fake_triage if route.route_id == "fake" else None,
+            )
+        except InferenceError as exc:
+            if exc.code == "cancelled":
+                return True
+            log.warning("change triage failed for %s (%s); planning instead", conversation_id, exc)
+            return False
+        output = result.output if isinstance(result.output, dict) else {}
+        if output.get("path") != "quick":
+            return False
+        summary = str(output.get("summary") or text)[:400]
+        reply = str(output.get("reply") or "I'm making that change now; your data is kept.")
+        now = utc_now()
+        with self._store.transaction() as conn:
+            self._append_turn_locked(
+                conn,
+                conversation_id,
+                "assistant",
+                "assistant",
+                {
+                    "reply": reply,
+                    "delivery": "app",
+                    "interpretation": {
+                        "outcome": summary,
+                        "main_input": "The module as it is today.",
+                        "useful_result": "The same module with this change, data kept.",
+                        "important_assumptions": [],
+                    },
+                    "questions": [],
+                    "quick_change": True,
+                    "model": result.model,
+                    "usage": result.usage.model_dump(mode="json"),
+                },
+            )
+            conn.execute(
+                """UPDATE conversations SET state = 'briefed', delivery = 'app', quick_change = 1,
+                   updated_at = ? WHERE conversation_id = ?""",
+                (_dt(now), conversation_id),
+            )
+        if self.on_quick_change is not None:
+            try:
+                self.on_quick_change(conversation_id)
+            except Exception:
+                log.exception("could not start the quick change for %s", conversation_id)
+        return True
 
     def _apply_turn(
         self,
@@ -540,6 +620,7 @@ class AssistantService:
         return ConversationRecord(
             conversation_id=row["conversation_id"],
             change_of=row["change_of"],
+            quick_change=bool(row["quick_change"]),
             state=row["state"],
             route_id=row["route_id"],
             created_at=row["created_at"],

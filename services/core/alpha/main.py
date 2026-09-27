@@ -110,6 +110,9 @@ def build(
         log.warning(
             "reconciled %d interrupted build(s) on startup: %s", len(build_report), build_report
         )
+    resources = (
+        PlatformResources(settings.platform_resources) if settings.platform_resources else None
+    )
     assistant = AssistantService(
         store,
         gateway,
@@ -127,7 +130,11 @@ def build(
         CreationRoutes(planner=settings.assistant_route, builder=settings.builder_route),
         poll_seconds=settings.creation_poll_seconds,
         registry=platform.registry,
+        inference=inference,
+        contract_reference=resources.app_contract_reference if resources else None,
+        sdk_reference=resources.sdk_reference if resources else None,
     )
+    assistant.on_quick_change = creations.start
     stalled = assistant.reconcile_on_startup()
     if stalled:
         log.warning(
