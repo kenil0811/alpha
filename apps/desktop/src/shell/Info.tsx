@@ -128,7 +128,7 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
           {fields
             .filter((f) => f.group === group)
             .map((f) => (
-              <div key={f.id} className="item">
+              <div key={f.id} className={f.kind === "text" ? "item item--stack" : "item"}>
                 <div className="item__body">
                   <label htmlFor={`setting-${f.id}`}>
                     <b>{f.title}</b>
@@ -136,7 +136,7 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
                   <div className="item__sub">{f.description}</div>
                 </div>
                 {f.kind === "text" ? (
-                  <div className="stack" style={{ gap: 6, width: "min(640px, 100%)" }}>
+                  <div className="stack" style={{ gap: 6, width: "100%" }}>
                     <textarea key={String(f.value ?? "")} id={`setting-${f.id}`} defaultValue={String(f.value ?? "")} rows={10} maxLength={f.maximum ?? undefined} onBlur={(e) => e.target.value !== String(f.value ?? "") && void change(f, e.target.value)} />
                     {String(f.value ?? "") !== String(f.default ?? "") ? (
                       <div className="row">
