@@ -51,6 +51,11 @@ def register(app: FastAPI, creations: CreationService) -> None:
         """The module's own thread: its creation and every change since, newest first."""
         return {"conversations": creations.conversations_for_app(app_id)}
 
+    @app.get("/api/apps/{app_id}/checks")
+    def app_checks(app_id: str) -> dict[str, Any]:
+        """Where the module's latest fast-lane behaviour checks stand, if any."""
+        return {"checks": creations.checks_for_app(app_id)}
+
     @app.get("/api/conversations/{conversation_id}/creations")
     def conversation_creations(conversation_id: str) -> dict[str, Any]:
         return {"creations": creations.list_for_conversation(conversation_id)}

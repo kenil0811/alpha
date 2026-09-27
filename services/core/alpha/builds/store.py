@@ -468,6 +468,43 @@ class BuildStore:
                 ),
             )
 
+    def set_candidate_checks(
+        self, build_id: str, checks: dict[str, Any], validation: dict[str, Any] | None = None
+    ) -> None:
+        """The outcome of a fast-lane candidate's later behaviour checks, kept on the ready
+        build (a terminal state, so not a transition)."""
+        with self._db.transaction() as conn:
+            row = conn.execute(
+                "SELECT candidate_json FROM builds WHERE build_id = ?", (build_id,)
+            ).fetchone()
+            if row is None or not row["candidate_json"]:
+                return
+            candidate = json.loads(row["candidate_json"])
+            candidate["checks"] = checks
+            sets, params = (
+                ["candidate_json = ?", "updated_at = ?"],
+                [
+                    json.dumps(candidate),
+                    _dt(utc_now()),
+                ],
+            )
+            if validation is not None:
+                sets.append("validation_json = ?")
+                params.append(json.dumps(validation, default=str))
+            params.append(build_id)
+            conn.execute(f"UPDATE builds SET {', '.join(sets)} WHERE build_id = ?", params)
+
+    def builds_with_pending_checks(self) -> list[str]:
+        rows = self._db.query(
+            "SELECT build_id, candidate_json FROM builds WHERE state = 'ready'"
+            " AND candidate_json LIKE '%pending%'"
+        )
+        return [
+            r["build_id"]
+            for r in rows
+            if (json.loads(r["candidate_json"]).get("checks") or {}).get("status") == "pending"
+        ]
+
     def update_plan(self, build_id: str, plan: ValidationPlan) -> None:
         """The full checks, written while the builder was already working."""
         with self._db.transaction() as conn:

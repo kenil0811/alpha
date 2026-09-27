@@ -348,6 +348,8 @@ export interface AppDetail {
   /** The declarative screen Alpha draws itself, when the module has one. */
   screen?: Screen | null;
   has_screen?: boolean;
+  /** An earlier version is installed, so "go back" is possible. */
+  can_revert?: boolean;
   capabilities?: string[];
   actions: ActionSummary[];
   collections: CollectionSummary[];
@@ -462,6 +464,23 @@ export interface CreationResult {
   /** For a change: exactly what the person will see differently, in one sentence. */
   summary?: string | null;
   changed_files?: string[];
+  /** The fast lane: behaviour checks that run after a simple module is switched on. Absent
+   *  when everything was checked before. */
+  checks?: CreationChecks | null;
+}
+
+export interface CreationChecks {
+  status: "pending" | "passed" | "failed" | "not_run";
+  checks_passed?: number;
+  failed_checks?: string[];
+  reason?: string;
+}
+
+/** Where a module's latest fast-lane checks stand, from its own page. */
+export interface AppChecks extends CreationChecks {
+  creation_id: string;
+  change_of: string | null;
+  release_id: string | null;
 }
 
 export interface Creation {
@@ -473,6 +492,8 @@ export interface Creation {
   app_name: string | null;
   /** Set when this creation updates a module that already exists. */
   change_of?: string | null;
+  release_id?: string | null;
+  version_id?: string | null;
   state: "planning" | "building" | "checking" | "activating" | "active" | "failed" | "cancelled";
   stage: string;
   label: string;
@@ -497,6 +518,12 @@ export interface WorkflowsClient {
   cancelCreation(creationId: string): Promise<Creation>;
   /** The most recent creations, newest first (in progress and finished). */
   recentCreations(): Promise<Creation[]>;
+  /** The module's latest behaviour checks (fast lane), or null when none apply. */
+  appChecks(appId: string): Promise<AppChecks | null>;
+  /** Back to the previous version; records are kept. */
+  revertApp(appId: string, expectedReleaseId?: string | null): Promise<{ release_id: string }>;
+  /** Take the module out of use; nothing on disk is deleted. */
+  removeApp(appId: string, expectedReleaseId?: string | null): Promise<void>;
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
   cancelRun(runId: string): Promise<Run>;
@@ -841,6 +868,25 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   async recentCreations(): Promise<Creation[]> {
     const page = await this.request<{ creations: Creation[] }>("/api/creations");
     return page.creations;
+  }
+
+  async appChecks(appId: string): Promise<AppChecks | null> {
+    const page = await this.request<{ checks: AppChecks | null }>(`/api/apps/${encodeURIComponent(appId)}/checks`);
+    return page.checks;
+  }
+
+  revertApp(appId: string, expectedReleaseId?: string | null): Promise<{ release_id: string }> {
+    return this.request<{ release_id: string }>(`/api/apps/${encodeURIComponent(appId)}/revert`, {
+      method: "POST",
+      body: JSON.stringify({ expected_release_id: expectedReleaseId ?? null }),
+    });
+  }
+
+  async removeApp(appId: string, expectedReleaseId?: string | null): Promise<void> {
+    await this.request(`/api/apps/${encodeURIComponent(appId)}/remove`, {
+      method: "POST",
+      body: JSON.stringify({ expected_release_id: expectedReleaseId ?? null }),
+    });
   }
 
   replyConversation(id: string, reply: ConversationReply): Promise<Conversation> {

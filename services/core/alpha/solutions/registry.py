@@ -449,6 +449,56 @@ class AppRegistry:
             (version_id, release_id, now, app_id),
         )
 
+    def previous_release(self, app_id: str) -> dict[str, Any] | None:
+        """The release before the current one, when its Version is still installed: what
+        "go back" returns to."""
+        rows = self._store.query(
+            """SELECT p.release_id, p.version_id FROM apps a
+               JOIN app_releases r ON r.release_id = a.current_release_id
+               JOIN app_releases p ON p.release_id = r.previous_release_id
+               JOIN app_versions v ON v.version_id = p.version_id
+               WHERE a.app_id = ? AND p.version_id != a.current_version_id""",
+            (app_id,),
+        )
+        return dict(rows[0]) if rows else None
+
+    def revert(
+        self, app_id: str, expected_release_id: str | None | AnyRelease = ANY_RELEASE
+    ) -> AppVersion:
+        """Make the previous release's Version current again (a new release of kind
+        `reverted`, so the history stays whole). The person's records are untouched: schema
+        changes are additive, so the older code reads them."""
+        current = self.current(app_id)
+        previous = self.previous_release(app_id)
+        if previous is None:
+            raise conflict(f"{app_id} has no earlier version to go back to", app_id=app_id)
+        if previous["version_id"] == current.version_id:
+            return current
+        now = _now()
+        with self._store.transaction() as conn:
+            self._check_expected(conn, app_id, Activation(expected_release_id=expected_release_id))
+            self._make_current(
+                conn,
+                app_id,
+                previous["version_id"],
+                Activation(kind="reverted", origin=current.origin),
+                now,
+            )
+        return self.current(app_id)
+
+    def retire(
+        self, app_id: str, expected_release_id: str | None | AnyRelease = ANY_RELEASE
+    ) -> None:
+        """Take the App out of use. Its Versions and its records stay on disk; only the shell
+        and the runtime stop offering it."""
+        self.current(app_id)  # must exist and be in use
+        with self._store.transaction() as conn:
+            self._check_expected(conn, app_id, Activation(expected_release_id=expected_release_id))
+            conn.execute(
+                "UPDATE apps SET state = 'removed', updated_at = ? WHERE app_id = ?",
+                (_now(), app_id),
+            )
+
     def _version_row(self, version_id: str) -> dict[str, Any] | None:
         rows = self._store.query("SELECT * FROM app_versions WHERE version_id = ?", (version_id,))
         return dict(rows[0]) if rows else None
@@ -459,7 +509,7 @@ class AppRegistry:
                JOIN app_versions v ON v.version_id = a.current_version_id WHERE a.app_id = ?""",
             (app_id,),
         )
-        if not rows:
+        if not rows or rows[0]["state"] == "removed":
             raise not_found(f"no App {app_id!r} is installed", app_id=app_id)
         row = rows[0]
         return AppVersion(

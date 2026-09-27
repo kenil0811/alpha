@@ -60,6 +60,8 @@ STAGES = ("package", "deps", "seal", "handlers", "behavior", "ui")
 
 # Behaviour scenarios run this many at a time; each has its own preview and worker.
 SCENARIO_WORKERS = 4
+# The one non-required mark a fast-lane report carries in place of its behaviour checks.
+DEFERRED_CHECK = "behavior.deferred"
 
 
 @dataclass
@@ -67,6 +69,20 @@ class VerificationOutcome:
     report: VerificationReport
     sealed: SealedPackage | None
     handler_report: dict[str, Any] | None = None
+    # Set by `verify_structure`: the run to continue with `verify_behaviour` (the fast lane
+    # switches a simple module on first and checks its behaviour afterwards).
+    pending: _Run | None = None
+
+
+def fast_eligible(source: AppSource) -> bool:
+    """A module that only keeps records (no web, no signed-in browser, no model calls, no
+    schedules) and draws itself through the shell: its structural checks decide that it is
+    safe to switch on, and its behaviour checks can run once it is in use."""
+    return (
+        set(source.capabilities) <= {"records"}
+        and not source.schedules
+        and (source.ui is None or source.ui.entry is None)
+    )
 
 
 def _result(
@@ -253,11 +269,81 @@ class CandidateVerifier:
             for stage in (self._package, self._deps, self._seal, self._handlers):
                 if not stage(run):
                     return run.finish()
-            self._behaviour(run)
-            self._ui(run)
-            return run.finish(self._candidate_tests(run))
+            return self._finish_behaviour(run)
         except Stopped:
             return None
+
+    def verify_structure(
+        self,
+        *,
+        build_id: str,
+        attempt_id: str,
+        attempt_number: int,
+        lineage: list[str],
+        builder_status: BuildResultStatus,
+        package_dir: Path,
+        attempt_dir: Path,
+        plan: ValidationPlan,
+        expected_app_id: str | None = None,
+        on_check: Callable[[CheckResult], None] | None = None,
+        stop: threading.Event | None = None,
+    ) -> VerificationOutcome | None:
+        """The stages that need no plan: package, dependencies, seal and handler binding. When
+        they pass, the outcome's report counts them alone and `pending` carries the run on to
+        `verify_behaviour`; when one fails, the outcome is final, as from `verify`."""
+        run = _Run(
+            build_id,
+            attempt_id,
+            attempt_number,
+            lineage,
+            builder_status,
+            package_dir,
+            attempt_dir,
+            plan,
+            expected_app_id,
+            on_check,
+            stop,
+            environment={
+                "os": f"{platform.system()} {platform.release()} {platform.machine()}",
+                "core_python": sys.version.split()[0],
+            },
+        )
+        try:
+            for stage in (self._package, self._deps, self._seal, self._handlers):
+                if not stage(run):
+                    return run.finish()
+        except Stopped:
+            return None
+        checks_before = list(run.checks)
+        run.checks.append(
+            CheckResult(
+                id=DEFERRED_CHECK,
+                stage="behavior",
+                required=False,
+                status=CheckStatus.SKIPPED,
+                summary="runs once the module is switched on",
+            )
+        )
+        run.reached = "ui"  # nothing after the handlers is marked as not run
+        outcome = run.finish()
+        run.checks = checks_before
+        run.reached = "handlers"
+        outcome.pending = run
+        return outcome
+
+    def verify_behaviour(self, run: _Run, plan: ValidationPlan) -> VerificationOutcome | None:
+        """The rest of a run `verify_structure` left pending, on the full plan."""
+        run.plan = plan
+        run.stop = None  # the build is settled; these checks run to the end
+        try:
+            return self._finish_behaviour(run)
+        except Stopped:
+            return None
+
+    def _finish_behaviour(self, run: _Run) -> VerificationOutcome:
+        self._behaviour(run)
+        self._ui(run)
+        return run.finish(self._candidate_tests(run))
 
     # ----- stages: each returns whether verification continues -------------------------
 

@@ -6,7 +6,8 @@
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ActionsView } from "../workflows/ActionsView";
@@ -45,6 +46,38 @@ const ACCESS: Record<string, { title: string; sub: string }> = {
   browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this module's Settings. Read-only and paced; every page is listed above." },
   artifacts: { title: "Files it produces", sub: "Kept by Alpha; opening them from Alpha arrives in a later release." },
 };
+
+/** The fast lane's follow-up on the module's own page: its behaviour checks, while they run
+ *  and when they land, with the one click back when they find a problem. */
+function ChecksBanner({ client, appId, releaseId, onReverted, onRemoved }: { client: ModuleClient; appId: string; releaseId: string; onReverted: () => void; onRemoved?: () => void }) {
+  const [checks, setChecks] = useState<AppChecks | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = () => {
+      client
+        .appChecks(appId)
+        .then((next) => {
+          if (cancelled) return;
+          setChecks(next);
+          if (next?.status === "pending") timer = setTimeout(load, 3000);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [client, appId, releaseId]);
+  // Only the checks of the version in use are the person's business here.
+  if (!checks || checks.status === "passed" || (checks.release_id && checks.release_id !== releaseId)) return null;
+  return (
+    <div className="card" style={{ padding: 10, marginBottom: 12 }} aria-label="Behaviour checks">
+      <ChecksNotice checks={checks} client={client} appId={appId} changeOf={checks.change_of} releaseId={checks.release_id} onReverted={onReverted} onRemoved={onRemoved} />
+    </div>
+  );
+}
 
 /** The module's declared schedules: on/off, last and next run, and Run now. */
 /** Which signed-in sites this module may read through: off until the person switches it on. */
@@ -204,6 +237,7 @@ export function ModulePage({
   onAsk,
   runs = [],
   onCancelRun,
+  onRemoved,
 }: {
   client: ModuleClient;
   appId: string;
@@ -212,7 +246,20 @@ export function ModulePage({
   /** Every run Alpha knows about; the page keeps the ones that belong to this module. */
   runs?: RunView[];
   onCancelRun?: (runId: string) => Promise<void>;
+  /** The module was taken out of use from this page; the shell leaves it. */
+  onRemoved?: () => void;
 }) {
+  const [goingBack, setGoingBack] = useState<"ask" | "busy" | string | null>(null);
+  const goBack = async () => {
+    setGoingBack("busy");
+    try {
+      await client.revertApp(appId, detail?.release_id ?? null);
+      setGoingBack("Back on the previous version. Your records are kept.");
+      changed();
+    } catch (e) {
+      setGoingBack(e instanceof Error ? e.message : String(e));
+    }
+  };
   const [detail, setDetail] = useState<AppDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -280,6 +327,7 @@ export function ModulePage({
       ) : null}
       {detail && context ? (
         <ModuleContext.Provider value={context}>
+          {section === "app" ? <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} /> : null}
           {section === "app" ? (
             screen && currentTab ? (
               <>
@@ -414,9 +462,28 @@ export function ModulePage({
                       <b>Version</b>
                       <div className="item__sub" title={`Version ${detail.version_id} · runtime ${detail.runtime_profile_id}`}>
                         Built by Alpha · the current version is in use
+                        {typeof goingBack === "string" && goingBack !== "ask" && goingBack !== "busy" ? ` · ${goingBack}` : ""}
                       </div>
                     </div>
-                    <span className="faint">Changes arrive in a later release</span>
+                    {detail.can_revert ? (
+                      goingBack === "ask" ? (
+                        <span className="row" style={{ gap: 6 }}>
+                          <span className="faint">Go back? Your records stay.</span>
+                          <button type="button" className="btn btn--sm btn--primary" onClick={() => void goBack()}>
+                            Go back
+                          </button>
+                          <button type="button" className="btn btn--sm" onClick={() => setGoingBack(null)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button type="button" className="btn btn--sm" disabled={goingBack === "busy"} onClick={() => setGoingBack("ask")}>
+                          Go back to the previous version
+                        </button>
+                      )
+                    ) : (
+                      <span className="faint">Changes arrive in a later release</span>
+                    )}
                   </div>
                 </div>
               </div>

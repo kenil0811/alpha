@@ -26,6 +26,7 @@ from tests.integration.app_harness import output, start_action, wait_run
 from tests.integration.build_harness import (
     NOTES_PLAN,
     checks,
+    events,
     report,
     start_build_core,
     submit,
@@ -436,7 +437,12 @@ def test_a_change_rebuilds_the_same_app_in_place_and_keeps_its_records(
         assert missing.status_code == 404, missing.text
         started = client.post(
             "/api/conversations",
-            json={"text": "Keep a notes list for me, no screen", "change_of": app_id},
+            # Core starts a change on its own once it is briefed; the fake builder's package
+            # therefore rides in the text.
+            json={
+                "text": "Keep a notes list for me, no screen fake:package notes_slow",
+                "change_of": app_id,
+            },
         ).json()
         cid = started["conversation_id"]
         assert started["change_of"] == app_id
@@ -462,3 +468,104 @@ def test_a_change_rebuilds_the_same_app_in_place_and_keeps_its_records(
     assert rows[app_id]["current_release_id"] == change["release_id"]
     assert [n["values"]["title"] for n in notes(core, app_id)] == ["Water the plants"]
     assert output(core, app_id, "count_notes", {}) == {"count": 1}
+
+
+# ----- the fast lane ---------------------------------------------------------------------------
+
+
+def app_checks(core: CoreProcess, app_id: str) -> dict[str, Any] | None:
+    with core.client() as client:
+        data: dict[str, Any] | None = client.get(f"/api/apps/{app_id}/checks").json()["checks"]
+    return data
+
+
+def test_a_records_only_module_is_switched_on_before_its_behaviour_checks(
+    build_core: CoreProcess,
+) -> None:
+    """A module that only keeps records and is drawn by the shell goes live after its
+    structural checks; the behaviour checks run right after and are reported on its page."""
+    core = build_core
+    final = create(core, "Keep a notes list for me", "package notes_screen")
+    assert final["state"] == "active", final
+    app_id = final["app_id"]
+    result = final["result"]
+    assert result["has_ui"] is True, "the declared screen counts as its screen"
+    assert result["checks"]["status"] in ("pending", "passed"), result
+
+    deadline = time.monotonic() + 180
+    standing = app_checks(core, app_id)
+    while (standing or {}).get("status") == "pending" and time.monotonic() < deadline:
+        time.sleep(0.5)
+        standing = app_checks(core, app_id)
+    assert standing is not None and standing["status"] == "passed", standing
+    assert standing["creation_id"] == final["creation_id"] and standing["change_of"] is None
+
+    # It was switched on first and checked after; the final report carries both halves.
+    kinds = [e["kind"] for e in events(core, final["build_id"])]
+    assert kinds.index("build.activated") < kinds.index("build.behaviour_checked"), kinds
+    build = build_of(core, final["build_id"])
+    assert build["candidate"]["checks"]["status"] == "passed"
+    full = checks(report(core, build))
+    assert full["handlers.bind"]["status"] == "passed"
+    assert any(k.startswith("behavior.") and v["status"] == "passed" for k, v in full.items())
+    assert "behavior.deferred" not in full
+    with core.client() as client:
+        assert (
+            client.get(f"/api/creations/{final['creation_id']}").json()["result"]["checks"][
+                "status"
+            ]
+            == "passed"
+        )
+
+    # Usable throughout: the person's own record, none of the checks' sample data.
+    output(core, app_id, "add_note", {"title": "Renew passport"}, origin="ui")
+    assert [n["values"]["title"] for n in notes(core, app_id)] == ["Renew passport"]
+
+
+def test_going_back_restores_the_previous_version_and_removing_keeps_the_data(
+    build_core: CoreProcess,
+) -> None:
+    core = build_core
+    first = create(core, "Keep a notes list for me")
+    app_id = first["app_id"]
+    output(core, app_id, "add_note", {"title": "Water the plants"}, origin="ui")
+    assert detail(core, app_id)["can_revert"] is False
+
+    with core.client() as client:
+        started = client.post(
+            "/api/conversations",
+            json={"text": "Keep a notes list for me fake:package notes_slow", "change_of": app_id},
+        ).json()
+        cid = started["conversation_id"]
+        deadline = time.monotonic() + 20
+        conversation = started
+        while conversation["state"] == "thinking" and time.monotonic() < deadline:
+            time.sleep(0.1)
+            conversation = client.get(f"/api/conversations/{cid}").json()
+    change = wait_creation(core, start_creation(core, cid, "package notes_slow")["creation_id"])
+    assert change["state"] == "active", change
+    info = detail(core, app_id)
+    assert info["version_id"] == change["version_id"] and info["can_revert"] is True
+
+    with core.client() as client:
+        stale = client.post(
+            f"/api/apps/{app_id}/revert", json={"expected_release_id": first["release_id"]}
+        )
+        assert stale.status_code == 409, stale.text
+        back = client.post(
+            f"/api/apps/{app_id}/revert", json={"expected_release_id": change["release_id"]}
+        )
+        assert back.status_code == 200, back.text
+    info = detail(core, app_id)
+    assert info["version_id"] == first["version_id"], "the previous version is in use again"
+    assert info["release_id"] not in (first["release_id"], change["release_id"])
+    assert {a["id"] for a in info["actions"]} == {"add_note", "count_notes"}
+    assert [n["values"]["title"] for n in notes(core, app_id)] == ["Water the plants"]
+    assert output(core, app_id, "count_notes", {}) == {"count": 1}
+
+    with core.client() as client:
+        gone = client.post(f"/api/apps/{app_id}/remove", json={})
+        assert gone.status_code == 200, gone.text
+        assert client.get(f"/api/apps/{app_id}").status_code == 404
+    assert app_id not in apps(core)
+    assert (core.data_dir / "versions" / first["version_id"]).is_dir(), "nothing is deleted"

@@ -30,8 +30,11 @@ export function useCreation(client: WorkflowsClient, conversationId: string, bri
     };
   }, [client, conversationId, briefRevision]);
 
-  const following = creation && !CREATION_DONE.has(creation.state) ? creation.creation_id : null;
-  const { reconnecting, refresh } = usePoll(following, () => client.creation(following!), setCreation, pollMs);
+  // Followed until it finishes, and on (more slowly) while a fast-lane module's behaviour
+  // checks are still running after it was switched on.
+  const checksPending = creation?.state === "active" && creation.result?.checks?.status === "pending";
+  const following = creation && (!CREATION_DONE.has(creation.state) || checksPending) ? creation.creation_id : null;
+  const { reconnecting, refresh } = usePoll(following, () => client.creation(following!), setCreation, checksPending ? Math.max(pollMs, 3000) : pollMs);
 
   const start = useCallback(async () => {
     setBusy(true);

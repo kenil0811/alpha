@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import {
+import { type AppChecks,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -99,6 +99,23 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
 
   async recentCreations(): Promise<Creation[]> {
     return [...this.creations.values()].reverse();
+  }
+
+  checks: AppChecks | null = null;
+  reverted: string[] = [];
+  removed: string[] = [];
+
+  async appChecks(): Promise<AppChecks | null> {
+    return this.checks;
+  }
+
+  async revertApp(appId: string): Promise<{ release_id: string }> {
+    this.reverted.push(appId);
+    return { release_id: "rel_previous" };
+  }
+
+  async removeApp(appId: string): Promise<void> {
+    this.removed.push(appId);
   }
 
   async cancelCreation(creationId: string): Promise<Creation> {

@@ -70,6 +70,17 @@ FIELDS: tuple[SettingField, ...] = (
         "sonnet",
     ),
     SettingField(
+        "build.fast_lane",
+        "Building limits",
+        "Simple modules go live early",
+        "A module that only keeps its own records (no web, no sign-ins, no model calls, no "
+        "schedules) is switched on as soon as its structure checks out; its behaviour checks "
+        "run right after, and you can go back with one click if they find a problem.",
+        "choice",
+        "on",
+        (("on", "On"), ("off", "Off: check everything first")),
+    ),
+    SettingField(
         "build.max_turns",
         "Building limits",
         "Steps per build attempt",

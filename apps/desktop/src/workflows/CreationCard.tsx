@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { Creation, WorkflowsClient } from "../core/client";
+import { ChecksNotice } from "./ChecksNotice";
 import { useCreation } from "./useCreation";
 
 const STAGES: { key: string; label: string }[] = [
@@ -232,6 +233,8 @@ function ReadyCard({
   }, [client, result.preview_images]);
 
   const verb = creation.change_of ? "is updated" : "is ready";
+  const [gone, setGone] = useState(false);
+  const checks = result.checks ?? null;
   return (
     <div className="creation creation--ready" aria-label={`${name} ${verb}`}>
       <h3 className="creation__title">
@@ -239,17 +242,28 @@ function ReadyCard({
       </h3>
       {creation.change_of && result.summary ? <p className="creation__summary">{result.summary}</p> : null}
       <p>
-        {creation.change_of && result.summary ? "Its data is kept. " : <>It passed all {result.checks_passed} of its checks{result.attempts > 1 ? ` (it took ${result.attempts} tries)` : ""}. {creation.change_of ? "Its data is kept. " : ""}</>}
+        {checks ? (
+          creation.change_of ? "Its data is kept. " : "Its structure checked out. "
+        ) : creation.change_of && result.summary ? (
+          "Its data is kept. "
+        ) : (
+          <>
+            It passed all {result.checks_passed} of its checks{result.attempts > 1 ? ` (it took ${result.attempts} tries)` : ""}. {creation.change_of ? "Its data is kept. " : ""}
+          </>
+        )}
         {result.has_ui ? "Open it to use its screen." : "Open it to run it from Alpha."}
       </p>
+      {checks ? <ChecksNotice checks={checks} client={client} appId={result.app_id} changeOf={creation.change_of} releaseId={creation.release_id} onRemoved={() => setGone(true)} /> : null}
       {unavailable.length ? (
         <p className="panel__hint">Not connected yet, so not part of it: {unavailable.join(", ")}.</p>
       ) : null}
-      <div className="row">
-        <button type="button" className="button button--primary" onClick={() => onOpen(result.app_id)}>
-          Open {name}
-        </button>
-      </div>
+      {gone ? null : (
+        <div className="row">
+          <button type="button" className="button button--primary" onClick={() => onOpen(result.app_id)}>
+            Open {name}
+          </button>
+        </div>
+      )}
       {images.length ? (
         <figure className="preview">
           <figcaption>

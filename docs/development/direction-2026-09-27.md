@@ -177,7 +177,25 @@ hand-built:
   animate in the shell. The assistant panel is closed on module pages by default and the rail
   folds to icons; both remembered.
 
+- Speed item (5), the fast lane (late evening): a module that only keeps records (no web,
+  browser, model calls or schedules) and is drawn by the shell is switched on as soon as its
+  structural checks pass (package, dependencies, seal, handler binding), without waiting for
+  the planner; its behaviour scenarios run right after, in the background, and the outcome is
+  shown on the creation card and the module's page. When they find a problem, one click goes
+  back: the previous version for a change (`POST /api/apps/{id}/revert`, a `reverted` release,
+  records kept) or out of use for a new module (`POST /api/apps/{id}/remove`; nothing on disk is
+  deleted). `CandidateVerifier.verify_structure` / `verify_behaviour`, `BuildService.submit(
+  fast_lane=)` and `check_deferred`, the candidate's `checks` field, `GET /api/apps/{id}/checks`,
+  Settings "Simple modules go live early" (on by default), module Settings "Go back to the
+  previous version". Integration: `notes_screen` fixture variant. Also fixed: a change on the
+  fake route starts on its own once briefed, so the fake builder's package now rides in the
+  text as a `fake:` directive (the change integration test had been failing since auto-start).
+
 ## Still to do
+
+- Measure a real new-module build end to end on the new speed path (parallel plan, fast lane).
+- The Mac app: the Tauri host in `apps/desktop/src-tauri` already supervises Core and the tray;
+  make `just dev` run again against the current shell, then packaging (F22: bundled runtime).
 
 - Quick changes on Sonnet for the edit itself would be ~40 s (Settings: model for changing a
   module); the module's existing checks should run in the background after a quick change with

@@ -2,7 +2,8 @@
 package handling, verification and repair); it can never prove generation quality and is never
 a qualification route.
 
-Modes, from the goal text `fake:<mode> [args]`:
+Modes, from a `fake:<mode> [args]` directive in the goal text (at the start, or after the
+brief's own words when the fake assistant wrote the brief):
 - succeed               writes a valid pure App package (one computation action)
 - package A [B ...]     copies test package A on attempt 1, B on attempt 2, ... (the last one
                         repeats); packages come from the host's ALPHA_FAKE_BUILDER_PACKAGES
@@ -98,7 +99,8 @@ class FakeHarness:
         )
 
     def start(self, inputs: HarnessInputs) -> FakeSession:
-        words = inputs.goal.removeprefix("fake:").split() if inputs.goal.startswith("fake:") else []
+        directive = re.search(r"fake:(\S+(?: \S+)*)", inputs.goal)
+        words = directive.group(1).split() if directive else []
         mode = words[0] if words else "succeed"
         return FakeSession(
             session_ref=f"fake-{os.getpid()}",

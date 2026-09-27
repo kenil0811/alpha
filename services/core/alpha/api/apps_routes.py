@@ -35,7 +35,7 @@ from alpha.execution.profiles import ProfileInventory
 from alpha.execution.scheduler import Scheduler
 from alpha.models.disclosure import app_data_notice
 from alpha.models.runtime import AppModelService
-from alpha.solutions.registry import AppRegistry
+from alpha.solutions.registry import ANY_RELEASE, AppRegistry
 
 _FIXTURE_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -58,6 +58,14 @@ class AppPlatform:
         if self.scheduler is not None:
             self.scheduler.stop()
         self.records.close()
+
+
+class ReleaseGuard(BaseModel):
+    """Only act if the module's current release is still this one (from the page that offered
+    the action); empty means act on whatever is current."""
+
+    model_config = ConfigDict(extra="forbid")
+    expected_release_id: str | None = None
 
 
 class RecordMutationRequest(BaseModel):
@@ -101,7 +109,31 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
 
     @app.get("/api/apps")
     def list_apps() -> dict[str, Any]:
-        return {"apps": platform.registry.list_apps()}
+        return {"apps": [a for a in platform.registry.list_apps() if a.get("state") == "active"]}
+
+    @app.post("/api/apps/{app_id}/revert")
+    def revert_app(app_id: str, body: ReleaseGuard | None = None) -> dict[str, Any]:
+        """Go back to the previous version. Records are kept."""
+        expected = body.expected_release_id if body and body.expected_release_id else ANY_RELEASE
+        try:
+            version = platform.registry.revert(app_id, expected)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return {
+            "app_id": version.app_id,
+            "version_id": version.version_id,
+            "release_id": version.release_id,
+        }
+
+    @app.post("/api/apps/{app_id}/remove")
+    def remove_app(app_id: str, body: ReleaseGuard | None = None) -> dict[str, Any]:
+        """Take the module out of use. Nothing is deleted from disk."""
+        expected = body.expected_release_id if body and body.expected_release_id else ANY_RELEASE
+        try:
+            platform.registry.retire(app_id, expected)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return {"app_id": app_id, "state": "removed"}
 
     @app.get("/api/apps/{app_id}")
     def get_app(app_id: str) -> dict[str, Any]:
@@ -143,6 +175,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             if source.screen
             else None,
             "has_screen": source.has_screen(),
+            "can_revert": platform.registry.previous_release(app_id) is not None,
         }
 
     @app.get("/api/apps/{app_id}/schedules")

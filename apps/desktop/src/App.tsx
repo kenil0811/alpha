@@ -204,7 +204,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
         ) : surface.kind === "settings" ? (
           <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
         ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
-          <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} />
+          <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }} />
         ) : null}
         {dev && runtime.kind === "connected" ? (
           <section className="page">

@@ -53,6 +53,27 @@ describe("creating a result", () => {
     expect(opened).toEqual(["notes-list-1a2b3c"]);
   });
 
+  it("tells the person a fast-lane module is on while its checks run, then offers the way back", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    client.nextCreationState = (c) => ready(c, { checks: { status: "pending" } });
+    const card = await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
+    expect(card).toHaveTextContent("Its structure checked out.");
+    expect(card).toHaveTextContent("Alpha is still checking how it behaves");
+    expect(card).not.toHaveTextContent("passed all");
+
+    // The checks land later, while the card is still followed.
+    const current = client.creations.get([...client.creations.keys()][0])!;
+    client.creations.set(current.creation_id, { ...current, result: { ...current.result!, checks: { status: "failed", failed_checks: ["the count was wrong"] } } });
+    await screen.findByText(/Alpha's later checks found a problem: the count was wrong/, {}, { timeout: 5000 });
+    await user.click(screen.getByRole("button", { name: "Remove it" }));
+    expect(client.removed).toEqual(["notes-list-1a2b3c"]);
+    expect(await screen.findByText(/Taken out of use/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Notes list" })).not.toBeInTheDocument();
+  });
+
   it("says what went wrong and what to do next when it could not be made", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();

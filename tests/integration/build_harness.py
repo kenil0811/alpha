@@ -246,6 +246,33 @@ def entry_only(p: Path) -> None:
     _screen(p).write_text(text)
 
 
+SCREEN_YAML = """views:
+  - id: notes.recent
+    collection: notes
+    fields: [title, noted_on]
+    sortable: [created_at]
+    default_order: [{field: created_at, direction: desc}]
+    max_limit: 50
+screen:
+  tabs:
+    - id: notes
+      title: Notes
+      blocks:
+        - {kind: quick_entry, action: add_note, input: title, placeholder: Add a note}
+        - kind: table
+          view: notes.recent
+          columns: [{field: title, title: Note}, {field: noted_on, title: Date, format: date}]
+"""
+
+
+def notes_screen(p: Path) -> None:
+    """Not a defect: the same notes, drawn by Alpha's shell from a declared screen instead of
+    a compiled ui. Records only, so the fast lane applies."""
+    shutil.rmtree(p / "ui")
+    text = _yaml(p).read_text(encoding="utf-8")
+    _yaml(p).write_text(text[: text.index("ui:\n")] + SCREEN_YAML, encoding="utf-8")
+
+
 def notes_slow(p: Path) -> None:
     """Not a defect: adds `slow_note`, which marks its scratch, waits, then saves a note, so a
     run can be cancelled mid-way (F08.C04)."""
@@ -464,6 +491,7 @@ VARIANTS: dict[str, Callable[[Path], None]] = {
         missing_prop,
         entry_only,
         notes_slow,
+        notes_screen,
         estimate_honest,
         estimate_invented,
         estimate_unlabelled,

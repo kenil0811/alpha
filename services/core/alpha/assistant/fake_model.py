@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 
@@ -203,8 +204,13 @@ def _unsupported() -> dict[str, Any]:
     }
 
 
-def _notes_app(with_screen: bool) -> dict[str, Any]:
-    """A neutral App brief matching the notes build fixture (control tests of creation)."""
+def _notes_app(with_screen: bool, directive: str | None = None) -> dict[str, Any]:
+    """A neutral App brief matching the notes build fixture (control tests of creation). A
+    `fake:<mode> ...` directive in the person's text travels in the goal, so a change that
+    Core starts on its own still reaches the fake builder's chosen package."""
+    goal = "Notes list, keep short notes and see the latest ones"
+    if directive:
+        goal += f" {directive}"
     return {
         "delivery": "app",
         "interpretation": {
@@ -217,7 +223,7 @@ def _notes_app(with_screen: bool) -> dict[str, Any]:
         "questions": [],
         "assumptions": ["Single user on this Mac"],
         "brief_draft": {
-            "goal": "Notes list, keep short notes and see the latest ones",
+            "goal": goal,
             "success_summary": "Adding a note takes a second and the latest notes are always listed.",
             "surfaces": ["custom_ui"] if with_screen else ["conversation"],
             "primary_journey": [
@@ -310,7 +316,11 @@ def fake_assistant(prompt: str) -> dict[str, Any]:
             "brief_draft": None,
         }
     if "notes list" in latest:
-        return _notes_app(with_screen="no screen" not in latest)
+        directive = re.search(r"fake:[a-z_]+(?: [a-z0-9_-]+)*", latest)
+        return _notes_app(
+            with_screen="no screen" not in latest,
+            directive=directive.group(0) if directive else None,
+        )
     if "whatsapp" in text or "text my" in text:
         return _unsupported()
     if "notes" in text and ("brief" in text or "summary" in text):

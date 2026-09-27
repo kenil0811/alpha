@@ -215,7 +215,7 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
           <div className="item">
             <div className="item__body">
               <b>{group}</b>
-              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How much a build may spend before it is stopped."}</div>
+              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How a build runs, and how much it may spend before it is stopped."}</div>
             </div>
           </div>
           {fields

@@ -301,6 +301,46 @@ class CreationService:
         ).start()
         return self.get(creation_id)
 
+    def _fast_lane(self) -> bool:
+        prefs = getattr(self._gateway, "preferences", None)
+        return prefs is None or prefs.get("build.fast_lane") != "off"
+
+    def _follow_checks(self, creation_id: str, build: BuildRecord) -> None:
+        """A fast-lane module is in use before its behaviour checks ran: run them now, in the
+        background; the creation's result reports them as they land."""
+        checks = (build.candidate or {}).get("checks") or {}
+        if checks.get("status") != "pending":
+            return
+
+        def run() -> None:
+            try:
+                self._builds.check_deferred(build.build_id)
+            except Exception:
+                log.exception("behaviour checks after activation failed for %s", creation_id)
+
+        threading.Thread(target=run, name=f"checks-{creation_id}", daemon=True).start()
+
+    def checks_for_app(self, app_id: str) -> dict[str, Any] | None:
+        """How the module's latest creation or change stands on its behaviour checks (the
+        fast lane), for the module's own page."""
+        rows = self._store.query(
+            "SELECT * FROM creations WHERE app_id = ? AND state = 'active'"
+            " ORDER BY updated_at DESC LIMIT 1",
+            (app_id,),
+        )
+        if not rows:
+            return None
+        record = self._record(rows[0])
+        checks = (record.result or {}).get("checks")
+        if not checks:
+            return None
+        return {
+            "creation_id": record.creation_id,
+            "change_of": record.change_of,
+            "release_id": record.release_id,
+            **checks,
+        }
+
     def _look_rules(self) -> str:
         """The person's own rules for how modules should look, from Settings, as a trailing
         section for the builder."""
@@ -718,6 +758,7 @@ class CreationService:
             route_id=self._routes.builder,
             app_id=app_id,
             base_package=current.location if current is not None else None,
+            fast_lane=self._fast_lane(),
         )
         with self._store.transaction() as conn:
             moved = conn.execute(
@@ -765,6 +806,7 @@ class CreationService:
             )
             return
         self._finish(creation_id, "active", activated, None)
+        self._follow_checks(creation_id, final)
 
     def _create_in_parallel(self, creation_id: str, brief: SolutionBrief, current: Any) -> None:
         """The builder starts at once on the brief's own examples; the planner writes the full
@@ -804,6 +846,7 @@ class CreationService:
             app_id=app_id,
             base_package=current.location if current is not None else None,
             plan_later=plan_later,
+            fast_lane=self._fast_lane(),
         )
         with self._store.transaction() as conn:
             moved = conn.execute(
@@ -883,6 +926,7 @@ class CreationService:
             )
             return
         self._finish(creation_id, "active", activated, None)
+        self._follow_checks(creation_id, final)
 
     def _wait_for_build(self, creation_id: str, build_id: str) -> BuildRecord | None:
         last_state: BuildState | None = None
@@ -1075,6 +1119,9 @@ class CreationService:
                     # the person's own records.
                     "preview_images": _preview_images(build, report),
                     "attempts": len(build.attempts),
+                    # The fast lane: behaviour checks that ran, or are running, after it was
+                    # switched on. Absent when everything was checked first.
+                    "checks": build.candidate.get("checks"),
                 }
         if result is None and row["result_json"]:
             result = json.loads(row["result_json"])
