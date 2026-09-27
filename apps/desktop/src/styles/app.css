@@ -174,7 +174,8 @@ a { color: var(--primary); }
 .table tfoot td { background: var(--surface-2); font-weight: 500; border-bottom: 0; }
 .table .rowbtn { opacity: 0; }
 .table tbody tr:hover .rowbtn, .table .rowbtn:focus-visible { opacity: 1; }
-.est { font-size: 11px; color: var(--warn); background: var(--warn-soft); padding: 0 6px; border-radius: 999px; margin-left: 6px; }
+/* An estimated value carries a small mark, not a badge: the number stays the thing you read */
+.est { font-size: 11px; color: var(--warn); margin-left: 3px; cursor: help; vertical-align: super; line-height: 1; }
 .pager { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: var(--text-3); }
 .pager .spacer { flex: 1; }
 

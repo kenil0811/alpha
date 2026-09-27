@@ -24,7 +24,7 @@ describe("the Data section", () => {
     await user.click(screen.getByRole("tab", { name: "Data" }));
     const table = await screen.findByRole("table", { name: "Notes" });
     expect(within(table).getByText("Buy milk")).toBeInTheDocument();
-    expect(within(table).getByText("estimate")).toBeInTheDocument();
+    expect(within(table).getByLabelText("estimate")).toHaveAttribute("title", expect.stringContaining("estimate"));
 
     await user.click(within(table).getByText("120"));
     const input = within(table).getByRole("spinbutton", { name: "Calories" });

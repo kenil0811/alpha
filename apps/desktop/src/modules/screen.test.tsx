@@ -112,7 +112,7 @@ describe("a module with a declared screen", () => {
     const table = await screen.findByRole("table");
     expect(within(table).getByText("long walk")).toBeInTheDocument();
     expect(within(table).getByText("120 units")).toBeInTheDocument();
-    expect(within(table).getByText("estimate")).toBeInTheDocument();
+    expect(within(table).getByLabelText("estimate")).toHaveAttribute("title", expect.stringContaining("estimate"));
     expect(within(table).getByText("150 units")).toBeInTheDocument(); // total
     expect(screen.getByText("Today")).toBeInTheDocument();
     expect(await screen.findByText("350 units left")).toBeInTheDocument();

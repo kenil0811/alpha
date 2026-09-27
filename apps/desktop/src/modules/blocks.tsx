@@ -505,7 +505,11 @@ function Cell({
   return (
     <td className={`${numeric ? "r num" : ""} ${editable ? "editable" : ""}`.trim()} onClick={(e) => begin(e)} tabIndex={editable ? 0 : undefined} onKeyDown={(e) => e.key === "Enter" && begin(e)} title={editable ? "Click to edit" : undefined}>
       {cell(value, column.format ?? undefined, column.unit, kind)}
-      {estimate ? <span className="est">estimate</span> : null}
+      {estimate ? (
+        <span className="est" title="An estimate. Click the cell to correct it." aria-label="estimate">
+          ≈
+        </span>
+      ) : null}
     </td>
   );
 }

@@ -265,7 +265,11 @@ function EditableCell({ row, field, kind, onCommit }: { row: RecordRow; field: F
   return (
     <td className={`${numeric ? "r num" : ""} editable`.trim()} onClick={begin} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && begin()} title={corrected ? "You changed this" : estimate ? "A model estimate" : "Click to edit"}>
       {show(value, kind) || <span className="faint">—</span>}
-      {estimate ? <span className="est">estimate</span> : null}
+      {estimate ? (
+        <span className="est" title="An estimate. Click the cell to correct it." aria-label="estimate">
+          ≈
+        </span>
+      ) : null}
     </td>
   );
 }
