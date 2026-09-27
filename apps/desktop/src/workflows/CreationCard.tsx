@@ -99,6 +99,16 @@ export function CreationCard({
     return <ReadyCard client={client} name={creation.result.name ?? creation.app_name ?? "Your App"} creation={creation} unavailable={unavailable} onOpen={onOpen} />;
   }
 
+  if (creation.state === "failed" && creation.failure?.reason === "nothing_to_change") {
+    return (
+      <div className="creation" aria-label="Nothing to change">
+        <p className="panel__hint" role="status">
+          {creation.failure.message}
+        </p>
+      </div>
+    );
+  }
+
   if (creation.state === "failed" && creation.failure?.reason === "handed_over") {
     return (
       <p className="panel__hint" role="status">
@@ -227,10 +237,9 @@ function ReadyCard({
       <h3 className="creation__title">
         {name} {verb}
       </h3>
+      {creation.change_of && result.summary ? <p className="creation__summary">{result.summary}</p> : null}
       <p>
-        It passed all {result.checks_passed} of its checks
-        {result.attempts > 1 ? ` (it took ${result.attempts} tries)` : ""}.{" "}
-        {creation.change_of ? "Its data is kept. " : ""}
+        {creation.change_of && result.summary ? "Its data is kept. " : <>It passed all {result.checks_passed} of its checks{result.attempts > 1 ? ` (it took ${result.attempts} tries)` : ""}. {creation.change_of ? "Its data is kept. " : ""}</>}
         {result.has_ui ? "Open it to use its screen." : "Open it to run it from Alpha."}
       </p>
       {unavailable.length ? (

@@ -186,7 +186,8 @@ a { color: var(--primary); }
 .metric__big { font-family: var(--font-ed); font-size: 26px; margin-top: 4px; color: var(--navy); }
 .metric__big small { font-size: 14px; color: var(--text-3); font-family: var(--font-ui); }
 .goalbar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; }
-.goalbar i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+.goalbar i { display: block; height: 100%; background: var(--primary); border-radius: 999px; transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1), background-color 300ms; }
+@media (prefers-reduced-motion: reduce) { .goalbar i { transition: none; } }
 .goalbar i.over { background: var(--warn); }
 
 .trend { padding: 12px 14px 8px; min-width: 0; }
@@ -426,3 +427,5 @@ a { color: var(--primary); }
 .rail--collapsed .navbtn__ico { width: auto; font-size: 16px; }
 .rail--collapsed .rail__status { justify-content: center; padding: 8px 0; }
 .rail--collapsed .faint { display: none; }
+
+.creation__summary { margin: 0 0 6px; font-weight: 500; }

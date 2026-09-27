@@ -439,6 +439,20 @@ class CreationService:
                 )
                 return
             output = result.output if isinstance(result.output, dict) else {}
+            if output.get("nothing_to_change"):
+                self._finish(
+                    creation_id,
+                    "failed",
+                    None,
+                    {
+                        "reason": "nothing_to_change",
+                        "message": str(
+                            output.get("reason") or "Nothing in the module needed to change."
+                        )[:400],
+                        "next_step": "revise",
+                    },
+                )
+                return
             if output.get("needs_full_build"):
                 # Not a dead end: the same request continues through the full path on its own.
                 reason = str(output.get("reason") or "it needs more than an edit").rstrip(".")

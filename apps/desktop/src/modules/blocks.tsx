@@ -568,6 +568,7 @@ function Metric({ card }: { card: Extract<"metrics">["cards"][number] }) {
   const raw = values ? values[card.metric] : null;
   const value = typeof raw === "number" ? raw : null;
   const dayBased = Boolean(spec?.group_by.some((g) => g.bucket === "day"));
+  const fill = useFill(goal != null && value !== null ? Math.min(100, (value / goal) * 100) : 0);
   return (
     <div className="card metric">
       <div className="metric__lab">{card.title}</div>
@@ -578,7 +579,7 @@ function Metric({ card }: { card: Extract<"metrics">["cards"][number] }) {
       {goal != null && value !== null ? (
         <>
           <div className="goalbar">
-            <i className={value > goal ? "over" : undefined} style={{ width: `${Math.min(100, (value / goal) * 100)}%` }} />
+            <i className={value > goal ? "over" : undefined} style={{ width: `${fill}%` }} />
           </div>
           <div className="faint">
             {value <= goal ? `${formatNumber(goal - value, card.unit)} left` : `${formatNumber(value - goal, card.unit)} over`}
@@ -594,6 +595,17 @@ function Metric({ card }: { card: Extract<"metrics">["cards"][number] }) {
 
 // ---------- progress ----------
 
+/** The width a goal bar should show: empty on first paint, then the real share, so the bar
+ *  fills in rather than appearing full; later changes animate through the stylesheet. */
+function useFill(share: number): number {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setShown(share));
+    return () => window.cancelAnimationFrame(frame);
+  }, [share]);
+  return shown;
+}
+
 /** One wide bar of a metric against its goal, with what is left or over in words. */
 function Progress({ block }: { block: Extract<"progress"> }) {
   const { view } = useModule();
@@ -604,7 +616,7 @@ function Progress({ block }: { block: Extract<"progress"> }) {
   const values = pickGroup(data, spec);
   const raw = values ? values[block.metric] : null;
   const value = typeof raw === "number" ? raw : values === null ? 0 : null;
-  const share = goal && value !== null ? Math.min(100, (value / goal) * 100) : 0;
+  const share = useFill(goal && value !== null ? Math.min(100, (value / goal) * 100) : 0);
   return (
     <div className="card progress" role="group" aria-label={block.title}>
       <div className="progress__head">

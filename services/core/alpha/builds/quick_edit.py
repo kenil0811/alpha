@@ -40,7 +40,15 @@ QUICK_CHANGE_SYSTEM = (
     "browser is a quick change: add browser to capabilities in app.yaml (ctx.web.get then uses "
     "the session for sites the person allows) and, where the code reports a page that could "
     "not be read, mention page.blocked as needing sign-in.\n"
-    "- Write a one-sentence summary of what you changed for the person.\n"
+    "- Change only what was asked. Never add blocks, tabs, fields or behaviour the person did "
+    "not ask for, even to compensate for something you cannot do.\n"
+    "- Some things belong to Alpha's shell, not to a module: animation, colours, fonts, "
+    "spacing, the look of bars, tables and buttons. When the request is only about such a "
+    "thing, or asks for what this module already has, return no files, set nothing_to_change "
+    "to true and say in reason, in plain words, what is the case (for example that bars already "
+    "animate as values change, or that colours are set for all modules in Settings).\n"
+    "- Write a one-sentence summary of what you changed for the person: exactly what they will "
+    "see, nothing more.\n"
     "Output only the structured object."
 )
 
@@ -61,7 +69,7 @@ def quick_change_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["files", "summary", "needs_full_build", "reason"],
+        "required": ["files", "summary", "needs_full_build", "nothing_to_change", "reason"],
         "properties": {
             "files": {
                 "type": "array",
@@ -75,6 +83,7 @@ def quick_change_schema() -> dict[str, Any]:
             },
             "summary": {"type": "string", "maxLength": 400},
             "needs_full_build": {"type": "boolean"},
+            "nothing_to_change": {"type": "boolean"},
             "reason": {"type": "string", "maxLength": 400},
         },
     }
@@ -95,6 +104,7 @@ def fake_quick_change(request: str, files: dict[str, str]) -> dict[str, Any]:
         "files": [{"path": "app.yaml", "content": "\n".join(lines) + "\n"}],
         "summary": f"Changed the description to note: {request.strip()[:60]}",
         "needs_full_build": False,
+        "nothing_to_change": False,
         "reason": "",
     }
 

@@ -459,6 +459,9 @@ export interface CreationResult {
   checks_passed: number;
   preview_images: { name: string; url: string }[];
   attempts: number;
+  /** For a change: exactly what the person will see differently, in one sentence. */
+  summary?: string | null;
+  changed_files?: string[];
 }
 
 export interface Creation {

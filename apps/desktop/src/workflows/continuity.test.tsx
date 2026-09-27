@@ -190,8 +190,13 @@ describe("changing a request after its App was made (review finding F07)", () =>
     expect(started.change_of).toBe("notes-list-1a2b3c");
     expect(panel).toHaveTextContent("Changing a module");
     expect(within(panel).queryByRole("button", { name: "Create it" })).not.toBeInTheDocument();
-    client.nextCreationState = ready;
-    await screen.findByLabelText("Notes list is updated", {}, { timeout: 3000 });
+    client.nextCreationState = (c) => {
+      const made = ready(c);
+      return { ...made, result: { ...made.result!, summary: "Each note now shows a mood next to its title." } };
+    };
+    const updated = await screen.findByLabelText("Notes list is updated", {}, { timeout: 3000 });
+    expect(updated).toHaveTextContent("Each note now shows a mood next to its title.");
+    expect(updated).not.toHaveTextContent("passed all");
     const after = await screen.findByLabelText("After it was made");
     expect(after).toHaveTextContent("Notes list is updated and its data is kept");
   });
