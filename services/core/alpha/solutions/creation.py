@@ -405,6 +405,18 @@ class CreationService:
         ).start()
         return self.get(creation_id)
 
+    def _look_rules(self) -> str:
+        """The person's own rules for how modules should look, from Settings, as a trailing
+        section for the builder."""
+        prefs = getattr(self._gateway, "preferences", None)
+        rules = str(prefs.get("look.rules") or "").strip() if prefs is not None else ""
+        if not rules:
+            return ""
+        return (
+            "\n\nAPPEARANCE AND BEHAVIOUR RULES FROM THE PERSON (follow them in every module):\n"
+            + rules
+        )
+
     def _start_quick(self, conversation: Any) -> CreationRecord:
         app_id = conversation.change_of
         for existing in self.list_for_conversation(conversation.conversation_id):
@@ -497,7 +509,7 @@ class CreationService:
         for attempt in (1, 2):
             if self._stopped(creation_id):
                 return
-            prompt = quick_change_prompt(request, files, references, feedback)
+            prompt = quick_change_prompt(request + self._look_rules(), files, references, feedback)
             try:
                 result = self._inference.call(
                     route,
@@ -776,7 +788,8 @@ class CreationService:
             plan=planned.plan,
             instructions=build_instructions(
                 brief, with_ui=wants_ui(brief), app_name=app_name, change=current is not None
-            ),
+            )
+            + self._look_rules(),
             route_id=self._routes.builder,
             app_id=app_id,
             base_package=current.location if current is not None else None,

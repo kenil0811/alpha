@@ -6,7 +6,7 @@ import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, type Surface } from "./shell/Rail";
 import { Home } from "./shell/Home";
-import { Activity, Connections, Settings } from "./shell/Info";
+import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
 import { ModulePage } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
@@ -52,6 +52,17 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const [modulesTick, setModulesTick] = useState(0);
   const dev = devOverride ?? devTools();
   const [theme, setTheme] = useTheme();
+  // The person's density choice lives in Core's settings; apply it once the runtime answers.
+  useEffect(() => {
+    if (runtime.kind !== "connected") return;
+    runtime.client
+      .getSettings()
+      .then((all) => {
+        const density = all.find((f) => f.id === "look.density");
+        if (density) applyDensity(String(density.value));
+      })
+      .catch(() => undefined);
+  }, [runtime]);
 
   const setSurface = useCallback((next: Surface) => {
     setSurfaceState(next);

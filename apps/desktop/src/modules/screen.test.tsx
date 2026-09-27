@@ -75,6 +75,7 @@ function screenDetail(): AppDetail {
               page_size: 50,
             },
             { kind: "metrics", cards: [{ title: "Today", view: "entries.by_day", metric: "total", unit: "units", goal: 500 }] },
+            { kind: "form", action: "correct_entry", title: "Fix an entry by hand", description: null, submit_label: "Save", prefill_view: null },
           ],
         },
         { id: "notes", title: "Notes", blocks: [{ kind: "text", body: "Plain words." }] },
@@ -187,5 +188,19 @@ describe("quick filters on a table", () => {
       const last = client.viewQueries.at(-1);
       expect(JSON.stringify(last?.body.where ?? {})).toContain('"field":"category","op":"eq","value":"evening"');
     });
+  });
+});
+
+describe("a second form on a tab", () => {
+  it("starts folded to one line and opens on demand", async () => {
+    const client = clientWithRows();
+    const user = userEvent.setup();
+    render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
+    const folded = await screen.findByRole("region", { name: "Fix an entry by hand" });
+    expect(within(folded).queryByRole("form")).not.toBeInTheDocument();
+    await user.click(within(folded).getByRole("button", { name: "Open" }));
+    expect(within(folded).getByRole("form", { name: "Fix an entry by hand" })).toBeInTheDocument();
+    await user.click(within(folded).getByRole("button", { name: "Close" }));
+    expect(within(folded).queryByRole("form")).not.toBeInTheDocument();
   });
 });

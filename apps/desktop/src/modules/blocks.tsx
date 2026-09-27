@@ -11,7 +11,7 @@ import { formatDay, formatNumber, humanize, outcomeWords, shiftDay, todayDay, us
 
 type Extract<K extends ScreenBlock["kind"]> = globalThis.Extract<ScreenBlock, { kind: K }>;
 
-export function Block({ block }: { block: ScreenBlock }) {
+export function Block({ block, position = 0 }: { block: ScreenBlock; position?: number }) {
   switch (block.kind) {
     case "quick_entry":
       return <QuickEntry block={block} />;
@@ -26,7 +26,7 @@ export function Block({ block }: { block: ScreenBlock }) {
     case "list":
       return <List block={block} />;
     case "form":
-      return <Form block={block} />;
+      return <Form block={block} folded={position > 0} />;
     case "text":
       return (
         <div className="card textblock">
@@ -841,8 +841,9 @@ function List({ block }: { block: Extract<"list"> }) {
 
 // ---------- form ----------
 
-function Form({ block }: { block: Extract<"form"> }) {
+function Form({ block, folded = false }: { block: Extract<"form">; folded?: boolean }) {
   const { client, detail, action, changed, view } = useModule();
+  const [open, setOpen] = useState(!folded);
   const spec = action(block.action);
   const prefillView = block.prefill_view ? view(block.prefill_view) : undefined;
   const body = useMemo<ViewQueryBody>(() => ({ limit: 1 }), []);
@@ -852,5 +853,20 @@ function Form({ block }: { block: Extract<"form"> }) {
   const first = data?.records[0];
   const initial: Record<string, string | boolean> = {};
   if (first) for (const [k, v] of Object.entries(first.values)) initial[k] = typeof v === "boolean" ? v : v === null || v === undefined ? "" : String(v);
-  return <ActionForm key={first?.id ?? "new"} client={client} appId={detail.app_id} action={spec} onChanged={changed} initial={initial} title={block.title ?? undefined} description={block.description ?? null} submitLabel={block.submit_label ?? undefined} />;
+  const form = <ActionForm key={first?.id ?? "new"} client={client} appId={detail.app_id} action={spec} onChanged={changed} initial={initial} title={block.title ?? undefined} description={block.description ?? null} submitLabel={block.submit_label ?? undefined} />;
+  if (!folded) return form;
+  const title = block.title ?? spec.title;
+  return (
+    <section className="folded" aria-label={title}>
+      <div className="folded__bar">
+        <h3>{title}</h3>
+        {block.description ? <span className="faint">{block.description}</span> : null}
+        <span className="spacer" />
+        <button type="button" className="btn btn--sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? "Close" : `Open`}
+        </button>
+      </div>
+      {open ? form : null}
+    </section>
+  );
 }

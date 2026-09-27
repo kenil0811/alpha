@@ -168,7 +168,7 @@ export interface SettingField {
   group: string;
   title: string;
   description: string;
-  kind: "choice" | "integer";
+  kind: "choice" | "integer" | "text";
   options: { value: string; label: string }[];
   minimum: number | null;
   maximum: number | null;

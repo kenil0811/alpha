@@ -24,7 +24,7 @@ class SettingField:
     group: str
     title: str
     description: str
-    kind: str  # "choice" | "integer"
+    kind: str  # "choice" | "integer" | "text"
     default: Any
     options: tuple[tuple[str, str], ...] = ()
     minimum: int | None = None
@@ -111,6 +111,29 @@ FIELDS: tuple[SettingField, ...] = (
         maximum=4,
     ),
 )
+FIELDS = (
+    *FIELDS,
+    SettingField(
+        "look.density",
+        "Look",
+        "Density",
+        "How much room forms, tables and cards take. Compact fits more on screen.",
+        "choice",
+        "compact",
+        (("compact", "Compact"), ("comfortable", "Comfortable")),
+    ),
+    SettingField(
+        "look.rules",
+        "Look",
+        "Rules for how modules should look and behave",
+        "Plain sentences Alpha follows when it builds or changes any module, for example "
+        '"tables first, forms after", "no emoji", "dates as 27 Sep", "one tab unless '
+        'there is a reason for more".',
+        "text",
+        "",
+        maximum=1500,
+    ),
+)
 BY_ID = {f.id: f for f in FIELDS}
 
 _SCHEMA = """
@@ -194,6 +217,12 @@ class Preferences:
         if spec.kind == "choice":
             if value not in {v for v, _ in spec.options}:
                 return f"{value!r} is not one of the choices"
+            return None
+        if spec.kind == "text":
+            if not isinstance(value, str):
+                return "needs text"
+            if spec.maximum is not None and len(value) > spec.maximum:
+                return f"at most {spec.maximum} characters"
             return None
         if not isinstance(value, int) or isinstance(value, bool):
             return "needs a whole number"

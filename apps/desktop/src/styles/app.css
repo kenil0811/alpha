@@ -111,7 +111,7 @@ a { color: var(--primary); }
 .notice--ok { color: var(--good); }
 .empty { color: var(--text-3); font-size: 13px; padding: 24px; text-align: center; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
 
 .section { margin-top: 22px; }
 .section__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -220,8 +220,8 @@ a { color: var(--primary); }
 .textblock p { margin: 0 0 8px; }
 
 /* ---------- forms (shared with the older action form) ---------- */
-.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.field label { font-size: 13px; font-weight: 500; }
+.field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.field label { font-size: 12px; font-weight: 500; color: var(--text-2); }
 .field textarea, .field select, .field input[type="text"], .field input[type="number"], .field input[type="date"], .field input:not([type]) {
   border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; background: var(--surface); font-size: 14px;
 }
@@ -234,7 +234,23 @@ a { color: var(--primary); }
 .panel__hint { font-size: 13px; color: var(--text-2); margin: 0; }
 .actions { display: flex; flex-direction: column; gap: 14px; }
 /* A form lays its fields out in columns so short inputs do not stretch across the window. */
-.action { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; background: var(--surface); align-items: start; }
+.action { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 10px; background: var(--surface); align-items: start; }
+.action > h3 { font-size: 14px; }
+.action .field input, .action .field select { padding: 5px 8px; font-size: 13px; }
+.action .field textarea { min-height: 52px; font-size: 13px; }
+.action > .row .btn { padding: 5px 10px; font-size: 12px; }
+.action > .panel__hint { font-size: 12px; }
+/* A second form on a tab starts folded: one line, opened on demand */
+.folded { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.folded__bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.folded__bar h3 { margin: 0; font-size: 14px; }
+.folded__bar .faint { font-size: 12px; }
+.folded .action { border: 0; border-top: 1px solid var(--border); border-radius: 0 0 10px 10px; }
+/* Comfortable density restores room */
+:root[data-density="comfortable"] .action { padding: 14px 16px 16px; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+:root[data-density="comfortable"] .action .field input, :root[data-density="comfortable"] .action .field select { padding: 8px 10px; font-size: 14px; }
+:root[data-density="comfortable"] .table td { padding: 10px 12px; }
+:root[data-density="comfortable"] .stack { gap: 18px; }
 .action > h3, .action > .panel__hint, .action > .row, .action > .notice, .action > .result, .action > .result__title, .action > .output, .action > .field--wide, .action > .field--inline { grid-column: 1 / -1; }
 .result { min-width: 0; }
 .result .table-wrap { overflow-x: auto; }

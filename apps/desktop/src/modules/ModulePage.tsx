@@ -217,11 +217,11 @@ export function ModulePage({
                     group.length > 1 ? (
                       <div className="chart-grid" key={`${currentTab.id}-${i}`}>
                         {group.map((block, j) => (
-                          <Block key={`${currentTab.id}-${i}-${j}`} block={block} />
+                          <Block key={`${currentTab.id}-${i}-${j}`} block={block} position={i} />
                         ))}
                       </div>
                     ) : (
-                      <Block key={`${currentTab.id}-${i}`} block={group[0]} />
+                      <Block key={`${currentTab.id}-${i}`} block={group[0]} position={i} />
                     ),
                   )}
                 </div>

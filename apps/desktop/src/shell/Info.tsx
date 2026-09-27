@@ -78,6 +78,11 @@ export function Connections({ client }: { client: CoreClient }) {
   );
 }
 
+/** Density is a document attribute the stylesheet reads; applied at load and when changed. */
+export function applyDensity(density: string): void {
+  document.documentElement.dataset.density = density === "comfortable" ? "comfortable" : "compact";
+}
+
 /** Every setting Core exposes, grouped, editable in place; a change is saved as it is made. */
 function ConfigurableSettings({ client }: { client: CoreClient }) {
   const [fields, setFields] = useState<SettingField[] | null>(null);
@@ -99,6 +104,7 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
   async function change(field: SettingField, raw: string) {
     const value = field.kind === "integer" ? Number(raw) : raw;
     if (field.kind === "integer" && !Number.isInteger(value)) return;
+    if (field.id === "look.density") applyDensity(String(value));
     setFields((all) => (all ?? []).map((f) => (f.id === field.id ? { ...f, value } : f)));
     try {
       setFields(await client.updateSettings({ [field.id]: value }));
@@ -116,7 +122,7 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
           <div className="item">
             <div className="item__body">
               <b>{group}</b>
-              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : "How much a build may spend before it is stopped."}</div>
+              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How much a build may spend before it is stopped."}</div>
             </div>
           </div>
           {fields
@@ -129,7 +135,9 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
                   </label>
                   <div className="item__sub">{f.description}</div>
                 </div>
-                {f.kind === "choice" ? (
+                {f.kind === "text" ? (
+                  <textarea id={`setting-${f.id}`} defaultValue={String(f.value ?? "")} rows={3} maxLength={f.maximum ?? undefined} style={{ width: "min(520px, 100%)" }} placeholder="Add rules Alpha should follow for every module…" onBlur={(e) => e.target.value !== String(f.value ?? "") && void change(f, e.target.value)} />
+                ) : f.kind === "choice" ? (
                   <select id={`setting-${f.id}`} className="btn btn--sm" value={String(f.value)} onChange={(e) => void change(f, e.target.value)}>
                     {f.options.map((o) => (
                       <option key={o.value} value={o.value}>
