@@ -210,8 +210,9 @@ export function AssistantPanel({
               <CreationCard
                 client={client}
                 conversationId={conversation.conversation_id}
-                briefRevision={conversation.current_brief?.revision ?? 0}
+                briefRevision={conversation.quick_change ? 0 : (conversation.current_brief?.revision ?? 0)}
                 unavailable={conversation.current_brief?.unavailable_capabilities ?? []}
+                auto={Boolean(conversation.change_of)}
                 onOpen={(appId) => onOpenApp?.(appId)}
                 onChange={onCreation}
               />

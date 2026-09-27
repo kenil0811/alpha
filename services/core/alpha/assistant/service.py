@@ -280,7 +280,9 @@ class AssistantService:
     def _run_turn(self, conversation_id: str, route: ModelRoute, latest: dict[str, Any]) -> None:
         try:
             record = self.get(conversation_id)
-            if record.change_of and len(record.turns) == 1 and latest.get("text"):
+            # Every plain-text turn on a change is triaged: small edits go the quick way even
+            # when typed into an older thread of the same module.
+            if record.change_of and latest.get("text") and not latest.get("answers"):
                 if self._triage_change(conversation_id, record, route, str(latest["text"])):
                     return
             history = [
@@ -327,6 +329,13 @@ class AssistantService:
             result.usage.model_dump(mode="json"),
             grounded,
         )
+        # A change the person asked for needs no second approval: once it is briefed, it goes.
+        after = self.get(conversation_id)
+        if after.change_of and after.state == "briefed" and self.on_quick_change is not None:
+            try:
+                self.on_quick_change(conversation_id)
+            except Exception:
+                log.exception("could not start the change for %s", conversation_id)
 
     def _triage_change(
         self, conversation_id: str, record: ConversationRecord, route: ModelRoute, text: str
@@ -353,6 +362,11 @@ class AssistantService:
             return False
         output = result.output if isinstance(result.output, dict) else {}
         if output.get("path") != "quick":
+            with self._store.transaction() as conn:
+                conn.execute(
+                    "UPDATE conversations SET quick_change = 0 WHERE conversation_id = ?",
+                    (conversation_id,),
+                )
             return False
         summary = str(output.get("summary") or text)[:400]
         reply = str(output.get("reply") or "I'm making that change now; your data is kept.")

@@ -3,7 +3,7 @@
  * not work out, and a final card saying what works and how to start. Preview images are the
  * checks' own screenshots with sample data, labelled as such; nothing here is the person's data.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Creation, WorkflowsClient } from "../core/client";
 import { useCreation } from "./useCreation";
 
@@ -34,6 +34,7 @@ export function CreationCard({
   unavailable,
   onOpen,
   onChange,
+  auto = false,
 }: {
   client: WorkflowsClient;
   conversationId: string;
@@ -42,16 +43,32 @@ export function CreationCard({
   onOpen: (appId: string) => void;
   /** Tells the surrounding conversation where the creation stands. */
   onChange?: (creation: Creation | null) => void;
+  /** A change the person already asked for: it starts on its own, no second approval. */
+  auto?: boolean;
 }) {
   const { creation, loaded, error, busy, reconnecting, refresh, start, cancel } = useCreation(client, conversationId, briefRevision);
   useEffect(() => {
     if (loaded) onChange?.(creation);
   }, [loaded, creation, onChange]);
+  const autoStarted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!auto || !loaded || creation || busy || autoStarted.current === `${conversationId}:${briefRevision}`) return;
+    autoStarted.current = `${conversationId}:${briefRevision}`;
+    void start();
+  }, [auto, loaded, creation, busy, start, conversationId, briefRevision]);
 
   if (!loaded) {
     return (
       <p className="panel__hint" role="status">
         Checking whether this is already being made…
+      </p>
+    );
+  }
+
+  if (!creation && auto && !error) {
+    return (
+      <p className="panel__hint" role="status">
+        Starting the change…
       </p>
     );
   }
@@ -65,7 +82,7 @@ export function CreationCard({
             : "When the plan above looks right, Alpha builds it, checks it and switches it on for you."}
         </p>
         <div className="row">
-          <button type="button" className="button button--primary" disabled={busy} onClick={() => void start()}>
+          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start()}>
             {creation?.state === "cancelled" ? "Create it again" : "Create it"}
           </button>
         </div>

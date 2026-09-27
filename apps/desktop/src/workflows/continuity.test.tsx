@@ -181,13 +181,12 @@ describe("changing a request after its App was made (review finding F07)", () =>
 
     await user.type(within(panel).getByLabelText("What do you want done?"), "Add a mood to each note");
     await user.click(within(panel).getByRole("button", { name: "Send" }));
-    await within(panel).findByRole("button", { name: "Create it" });
+    // A change the person asked for starts on its own: no second approval.
+    await screen.findByLabelText("Creating it");
     const started = [...client.conversations.values()][0];
     expect(started.change_of).toBe("notes-list-1a2b3c");
     expect(panel).toHaveTextContent("Changing a module");
-
-    await user.click(within(panel).getByRole("button", { name: "Create it" }));
-    await screen.findByLabelText("Creating it");
+    expect(within(panel).queryByRole("button", { name: "Create it" })).not.toBeInTheDocument();
     client.nextCreationState = ready;
     await screen.findByLabelText("Notes list is updated", {}, { timeout: 3000 });
     const after = await screen.findByLabelText("After it was made");
