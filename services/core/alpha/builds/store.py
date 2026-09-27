@@ -468,6 +468,14 @@ class BuildStore:
                 ),
             )
 
+    def update_plan(self, build_id: str, plan: ValidationPlan) -> None:
+        """The full checks, written while the builder was already working."""
+        with self._db.transaction() as conn:
+            conn.execute(
+                "UPDATE builds SET plan_json = ? WHERE build_id = ?",
+                (plan.model_dump_json(), build_id),
+            )
+
     def _row_to_record(self, row: Any) -> BuildRecord:
         attempts = self._db.query(
             "SELECT * FROM build_attempts WHERE build_id = ? ORDER BY number", (row["build_id"],)

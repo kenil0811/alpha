@@ -30,6 +30,7 @@ from typing import Any
 
 from alpha_contracts.briefs import Delivery, SolutionBrief
 from alpha_contracts.builds import TERMINAL_BUILD_STATES, BuildState
+from alpha_contracts.verification import ValidationPlan
 from pydantic import BaseModel
 
 from alpha.assistant.service import AssistantService
@@ -47,7 +48,13 @@ from alpha.builds.store import BuildRecord
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
 from alpha.solutions.conventions import DEFAULT_CONVENTIONS
-from alpha.solutions.planner import AcceptancePlanner, PlanningFailed, app_slug, wants_ui
+from alpha.solutions.planner import (
+    AcceptancePlanner,
+    PlanningFailed,
+    app_slug,
+    plan_from_brief_examples,
+    wants_ui,
+)
 from alpha.solutions.registry import SEALED_ARTEFACTS, Activation, AppRegistry
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
@@ -630,6 +637,9 @@ class CreationService:
         if change_of is not None:
             assert self._registry is not None
             current = self._registry.current(change_of)
+        if self._routes.planner != "fake" and not builder_hint:
+            self._create_in_parallel(creation_id, brief, current)
+            return
         try:
             planned = self._planner.plan(
                 brief, self._gateway.route(self._routes.planner, stage="planner"), creation_id
@@ -729,6 +739,124 @@ class CreationService:
             return
         self._finish(creation_id, "active", activated, None)
 
+    def _create_in_parallel(self, creation_id: str, brief: SolutionBrief, current: Any) -> None:
+        """The builder starts at once on the brief's own examples; the planner writes the full
+        checks meanwhile, and verification waits for them. Saves the planner's minutes on
+        every build."""
+        ready = threading.Event()
+        box: dict[str, Any] = {}
+
+        def plan_later(timeout: float) -> ValidationPlan | None:
+            ready.wait(timeout)
+            return box.get("plan")
+
+        if current is not None:
+            app_id, app_name = current.app_id, current.source.name
+        else:
+            app_name = " ".join(brief.goal.split()[:4]).strip(" .,:;") or "New module"
+            app_name = app_name[:1].upper() + app_name[1:]
+            app_id = app_slug(app_name, creation_id.removeprefix("create_")[:6])
+        try:
+            preliminary = plan_from_brief_examples(brief)
+        except PlanningFailed:  # a brief without executable examples: the builder starts anyway
+            preliminary = ValidationPlan()
+        with self._store.transaction() as conn:
+            conn.execute(
+                """UPDATE creations SET app_id = ?, app_name = ?, plan_json = ?, plan_source = ?,
+                   updated_at = ? WHERE creation_id = ?""",
+                (app_id, app_name, preliminary.model_dump_json(), "pending", _now(), creation_id),
+            )
+        build = self._builds.submit(
+            goal=brief.goal,
+            plan=preliminary,
+            instructions=build_instructions(
+                brief, with_ui=wants_ui(brief), app_name=app_name, change=current is not None
+            )
+            + self._look_rules(),
+            route_id=self._routes.builder,
+            app_id=app_id,
+            base_package=current.location if current is not None else None,
+            plan_later=plan_later,
+        )
+        with self._store.transaction() as conn:
+            moved = conn.execute(
+                "UPDATE creations SET build_id = ?, state = ?, updated_at = ?"
+                " WHERE creation_id = ? AND state NOT IN ('active', 'failed', 'cancelled')",
+                (build.build_id, "building", _now(), creation_id),
+            ).rowcount
+        if not moved:
+            ready.set()
+            try:
+                self._builds.cancel(build.build_id)
+            except Exception:
+                pass
+            return
+
+        def run_planner() -> None:
+            try:
+                planned = self._planner.plan(
+                    brief, self._gateway.route(self._routes.planner, stage="planner"), creation_id
+                )
+                box["plan"] = planned.plan
+                with self._store.transaction() as conn:
+                    conn.execute(
+                        """UPDATE creations SET plan_json = ?, plan_source = ?, updated_at = ?
+                           WHERE creation_id = ?""",
+                        (planned.plan.model_dump_json(), planned.source, _now(), creation_id),
+                    )
+            except PlanningFailed as exc:
+                self._finish(
+                    creation_id,
+                    "failed",
+                    None,
+                    {
+                        "reason": "plan_unavailable",
+                        "message": "Alpha couldn't work out how to check this request, so "
+                        "nothing was switched on.",
+                        "failed_checks": exc.problems or [str(exc)],
+                        "next_step": "retry",
+                    },
+                )
+                try:
+                    self._builds.cancel(build.build_id)
+                except Exception:
+                    pass
+            except Exception:
+                log.exception("planning %s failed inside Core", creation_id)
+            finally:
+                ready.set()
+
+        threading.Thread(target=run_planner, name=f"planner-{creation_id}", daemon=True).start()
+        self._note(creation_id, "building", "Building it while the checks are written")
+        final = self._wait_for_build(creation_id, build.build_id)
+        if final is None:
+            return
+        if final.state is not BuildState.READY:
+            self._finish(creation_id, "failed", None, self._build_failure(final))
+            return
+        if not self._claim_activation(creation_id):
+            return
+        try:
+            activated = self._builds.activate(
+                final.build_id,
+                expected_release_id=current.release_id if current is not None else None,
+                creation_id=creation_id,
+            )
+        except (OperationFailed, BuildNotReady) as exc:
+            message = exc.message if isinstance(exc, OperationFailed) else str(exc)
+            self._finish(
+                creation_id,
+                "failed",
+                None,
+                {
+                    "reason": "activation_refused",
+                    "message": f"It passed its checks but could not be switched on: {message}",
+                    "next_step": "retry",
+                },
+            )
+            return
+        self._finish(creation_id, "active", activated, None)
+
     def _wait_for_build(self, creation_id: str, build_id: str) -> BuildRecord | None:
         last_state: BuildState | None = None
         while True:
@@ -761,6 +889,12 @@ class CreationService:
                 "Try describing it without that part."
             )
             next_step = "revise"
+        elif reason == "plan_unavailable":
+            message = (
+                "Alpha couldn't finish writing the checks for this request, so nothing was "
+                "switched on. Try again."
+            )
+            next_step = "retry"
         elif reason == "plan_defect":
             message = (
                 "Alpha's own checks for this request were faulty, so what was built could not "

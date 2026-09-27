@@ -50,6 +50,8 @@ attempt when REPAIR.md exists, or from the App's current version when the instru
 say this is a CHANGE to an existing App. Read these files first:
 - PLAN.md: the independent checks the platform runs against your package by calling its actions
   for real and reading what was stored. They alone decide success; editing PLAN.md changes nothing.
+  Alpha may replace it with a fuller version while you work (the complete checks are written in
+  parallel): read PLAN.md again before you finish and satisfy every name, label and case in it.
 - REPAIR.md (only on a repair): the checks your previous attempt failed, with the evidence.
 - reference/APP_CONTRACT.md: every app.yaml field and rule, including `views` and `screen`.
 - reference/SDK.md: the only API your Python may use (ctx.records, ctx.artifacts, ctx.models).

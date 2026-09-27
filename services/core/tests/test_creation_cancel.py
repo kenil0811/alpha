@@ -8,6 +8,7 @@ with real builds is tests/integration/test_creations.py.
 from __future__ import annotations
 
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -234,3 +235,51 @@ def test_a_planning_failure_is_told_plainly_with_the_gaps_kept(tmp_path: Path) -
         "failed_checks": [gap],
         "next_step": "retry",
     }
+
+
+def test_on_a_live_route_the_builder_starts_before_the_plan_is_written(tmp_path: Path) -> None:
+    """The planner's minutes no longer sit in front of the builder: the build is submitted at
+    once with the brief's examples, and the full plan is handed over when it is ready."""
+    release = threading.Event()
+    seen: dict[str, Any] = {}
+
+    class SlowPlanner:
+        def plan(self, *_a: Any, **_k: Any) -> AcceptancePlan:
+            release.wait(5)
+            return AcceptancePlan("Notes list", PLAN, "model", [])
+
+    class ParallelBuilds(Builds):
+        def submit(self, **kwargs: Any) -> Any:
+            seen["submitted_before_plan"] = not release.is_set()
+            seen["plan_later"] = kwargs.get("plan_later")
+            seen["preliminary"] = kwargs["plan"]
+            return SimpleNamespace(build_id="build_1")
+
+    builds = ParallelBuilds()
+    assistant = SimpleNamespace(
+        get=lambda _cid: SimpleNamespace(state="briefed", current_brief=BRIEF, quick_change=False)
+    )
+    gateway = SimpleNamespace(route=lambda route_id, **_: SimpleNamespace(route_id=route_id))
+    svc = CreationService(
+        ControlStore(tmp_path / "control.sqlite"),
+        assistant,  # type: ignore[arg-type]
+        builds,  # type: ignore[arg-type]
+        SlowPlanner(),  # type: ignore[arg-type]
+        gateway,  # type: ignore[arg-type]
+        CreationRoutes(planner="claude-code-cli", builder="claude-code-cli"),
+        poll_seconds=0.01,
+    )
+    creation = svc.start("conv_1")
+    deadline = time.monotonic() + 5
+    while "plan_later" not in seen and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert seen["submitted_before_plan"] is True, "the build waited for the planner"
+    assert seen["preliminary"].scenarios == [], "the brief has no examples, so an empty start"
+    release.set()
+    assert seen["plan_later"](5) == PLAN, "verification receives the full plan"
+    for thread in threading.enumerate():
+        if thread.name == f"creation-{creation.creation_id}":
+            thread.join(timeout=10)
+    final = svc.get(creation.creation_id)
+    assert final.state == "active" and final.plan_source == "model"
+    assert final.app_id.startswith("keep-a-notes-list-")

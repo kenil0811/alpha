@@ -177,6 +177,12 @@ def render_plan(plan: ValidationPlan) -> str:
         "",
         "## Behaviour scenarios",
     ]
+    if not plan.scenarios:
+        lines += [
+            "",
+            "The complete checks are being written while you work and will replace this file. "
+            "Build to the goal and the instructions; re-read PLAN.md before you finish.",
+        ]
     for scenario in plan.scenarios:
         lines += ["", f"### {scenario.id}: {scenario.description}"]
         for step in scenario.steps:

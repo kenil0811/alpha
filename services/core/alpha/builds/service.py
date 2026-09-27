@@ -25,6 +25,7 @@ import re
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -69,6 +70,7 @@ from alpha.builds.workspace import (
     TargetProfiles,
     evidence_files,
     materialize,
+    render_plan,
     render_repair,
 )
 from alpha.capabilities.errors import OperationFailed
@@ -163,6 +165,8 @@ class BuildService:
         self._lock = threading.Lock()
         self._active: dict[str, WorkerHandle] = {}  # "build_id:attempt_id" -> handle
         self._cancel_requested: set[str] = set()  # build ids
+        self._plan_ready: dict[str, threading.Event] = {}  # builds whose plan is still coming
+        self._plan_failed: set[str] = set()
         self._stops: dict[str, threading.Event] = {}  # build id -> stop verification
         # The one-builder queue. The condition shares self._lock.
         self._waiting: deque[_QueuedBuild] = deque()
@@ -185,6 +189,7 @@ class BuildService:
         seed_package: str | None = None,
         app_id: str | None = None,
         base_package: Path | None = None,
+        plan_later: Callable[[float], ValidationPlan | None] | None = None,
     ) -> BuildRecord:
         """Queue a build. `app_id`, when given, is the identity the platform assigned (the
         package must use it); otherwise the builder chooses one. `base_package` is the installed
@@ -237,6 +242,16 @@ class BuildService:
             created_at=now,
             queued_payload={"route_id": route.route_id, "ahead": ahead},
         )
+        if plan_later is not None:
+            # The builder starts on a preliminary plan (the brief's own examples); the full
+            # checks arrive in parallel and replace it before verification.
+            self._plan_ready[build_id] = threading.Event()
+            threading.Thread(
+                target=self._watch_plan,
+                args=(build_id, plan_later, budget.max_total_seconds),
+                name=f"plan-{build_id}",
+                daemon=True,
+            ).start()
         with self._wakeup:
             self._waiting.append(_QueuedBuild(build_id, route, budget))
             if self._dispatcher is None:
@@ -782,6 +797,48 @@ class BuildService:
             self._gateway.record_usage(route.route_id, "build_attempt", attempt_id, built.usage)
         return built
 
+    def _watch_plan(
+        self, build_id: str, plan_later: Callable[[float], ValidationPlan | None], timeout: int
+    ) -> None:
+        plan = None
+        try:
+            plan = plan_later(float(timeout))
+        except Exception:
+            log.exception("waiting for the plan of %s failed", build_id)
+        if plan is not None:
+            self._db.update_plan(build_id, plan)
+            # The builder may still be working: give it the full checks where it reads them.
+            for attempt_dir in sorted((self._root / build_id).glob("attempt-*")):
+                try:
+                    (attempt_dir / "PLAN.md").write_text(render_plan(plan), encoding="utf-8")
+                    (attempt_dir / "plan.json").write_text(
+                        plan.model_dump_json(indent=2), encoding="utf-8"
+                    )
+                except OSError:
+                    pass
+            self._db.append(build_id, None, "build.plan_ready", {"scenarios": len(plan.scenarios)})
+        else:
+            self._plan_failed.add(build_id)
+        self._plan_ready[build_id].set()
+
+    def _await_plan(self, record: BuildRecord, attempt: _Attempt) -> BuildRecord | None:
+        """Before verification: the full plan, waited for when it is still being written. None
+        when it never came (the build then fails as plan_unavailable)."""
+        event = self._plan_ready.get(record.build_id)
+        if event is None:
+            return record
+        event.wait(float(record.budget.max_total_seconds))
+        if record.build_id in self._plan_failed or not event.is_set():
+            self._db.fail(
+                record.build_id,
+                attempt.attempt_id,
+                "plan_unavailable",
+                FailureCategory.PLATFORM_ERROR,
+                {"attempt": attempt.number},
+            )
+            return None
+        return self.get(record.build_id)
+
     def _quick_repair(
         self, record: BuildRecord, attempt: _Attempt, route: ModelRoute
     ) -> BuilderOutcome | None:
@@ -871,6 +928,17 @@ class BuildService:
     ) -> tuple[VerificationOutcome, Path, BuildUsage | None, bool] | None:
         """Decide what the attempt means: terminal (cancelled, harness failure, ready) or a
         failed verification a repair may follow."""
+        refreshed = self._await_plan(record, attempt)
+        if refreshed is None:
+            self._db.finish_attempt(
+                attempt.attempt_id,
+                "failed",
+                FailureCategory.PLATFORM_ERROR,
+                built.usage,
+                built.harness_exit,
+            )
+            return None
+        record = refreshed
         build_id, attempt_id = record.build_id, attempt.attempt_id
 
         def finish(status: str, category: FailureCategory | None) -> None:

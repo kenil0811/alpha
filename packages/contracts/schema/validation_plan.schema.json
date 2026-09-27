@@ -421,7 +421,6 @@
         "$ref": "#/$defs/Scenario"
       },
       "maxItems": 20,
-      "minItems": 1,
       "type": "array"
     },
     "ui": {
@@ -436,9 +435,6 @@
       "default": null
     }
   },
-  "required": [
-    "scenarios"
-  ],
   "title": "ValidationPlan",
   "type": "object",
   "x-alpha-contract-version": "0.2"

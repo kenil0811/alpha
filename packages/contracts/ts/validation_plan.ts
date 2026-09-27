@@ -5,10 +5,10 @@ export type FilterOp = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "conta
 export interface ValidationPlan {
   contract_version?: "0.2";
   /**
-   * @minItems 1
    * @maxItems 20
    */
-  scenarios:
+  scenarios?:
+    | []
     | [Scenario]
     | [Scenario, Scenario]
     | [Scenario, Scenario, Scenario]

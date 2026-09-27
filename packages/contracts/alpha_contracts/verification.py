@@ -104,7 +104,9 @@ class UiPlan(ContractModel):
 
 class ValidationPlan(ContractModel):
     contract_version: Literal["0.2"] = "0.2"
-    scenarios: list[Scenario] = Field(min_length=1, max_length=20)
+    # Empty only as a preliminary plan while the full checks are still being written; a
+    # build is never verified against an empty plan.
+    scenarios: list[Scenario] = Field(default_factory=list, max_length=20)
     ui: UiPlan | None = None
 
     @model_validator(mode="after")
