@@ -76,10 +76,13 @@ def test_the_gateway_applies_the_chosen_model_per_stage_and_the_limits(tmp_path:
 
 def test_look_rules_are_free_text_with_a_cap(tmp_path: Path) -> None:
     prefs = Preferences(ControlStore(tmp_path / "control.sqlite"))
-    assert prefs.get("look.density") == "compact" and prefs.get("look.rules") == ""
+    from alpha.solutions.conventions import DEFAULT_CONVENTIONS
+
+    assert prefs.get("look.density") == "compact"
+    assert prefs.get("look.rules") == DEFAULT_CONVENTIONS, "the defaults are readable and editable"
     prefs.update({"look.rules": "Tables first, forms after. No emoji."})
     assert prefs.get("look.rules") == "Tables first, forms after. No emoji."
-    with pytest.raises(InvalidSetting, match="at most 1500"):
-        prefs.update({"look.rules": "x" * 1501})
+    with pytest.raises(InvalidSetting, match="at most 3000"):
+        prefs.update({"look.rules": "x" * 3001})
     with pytest.raises(InvalidSetting, match="needs text"):
         prefs.update({"look.rules": 3})

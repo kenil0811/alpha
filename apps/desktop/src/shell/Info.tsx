@@ -136,7 +136,18 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
                   <div className="item__sub">{f.description}</div>
                 </div>
                 {f.kind === "text" ? (
-                  <textarea id={`setting-${f.id}`} defaultValue={String(f.value ?? "")} rows={3} maxLength={f.maximum ?? undefined} style={{ width: "min(520px, 100%)" }} placeholder="Add rules Alpha should follow for every module…" onBlur={(e) => e.target.value !== String(f.value ?? "") && void change(f, e.target.value)} />
+                  <div className="stack" style={{ gap: 6, width: "min(640px, 100%)" }}>
+                    <textarea key={String(f.value ?? "")} id={`setting-${f.id}`} defaultValue={String(f.value ?? "")} rows={10} maxLength={f.maximum ?? undefined} onBlur={(e) => e.target.value !== String(f.value ?? "") && void change(f, e.target.value)} />
+                    {String(f.value ?? "") !== String(f.default ?? "") ? (
+                      <div className="row">
+                        <button type="button" className="btn btn--sm" onClick={() => void change(f, String(f.default ?? ""))}>
+                          Reset to Alpha's defaults
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="faint">These are Alpha's defaults. Edit them freely; you can always reset.</span>
+                    )}
+                  </div>
                 ) : f.kind === "choice" ? (
                   <select id={`setting-${f.id}`} className="btn btn--sm" value={String(f.value)} onChange={(e) => void change(f, e.target.value)}>
                     {f.options.map((o) => (

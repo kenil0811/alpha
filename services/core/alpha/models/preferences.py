@@ -8,6 +8,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from alpha.solutions.conventions import DEFAULT_CONVENTIONS
 from alpha.storage.control_store import ControlStore, utc_now
 
 MODEL_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -126,12 +127,11 @@ FIELDS = (
         "look.rules",
         "Look",
         "Rules for how modules should look and behave",
-        "Plain sentences Alpha follows when it builds or changes any module, for example "
-        '"tables first, forms after", "no emoji", "dates as 27 Sep", "one tab unless '
-        'there is a reason for more".',
+        "Alpha's defaults, in plain sentences, followed when it builds or changes any module. "
+        "Edit them to your taste or reset to Alpha's.",
         "text",
-        "",
-        maximum=1500,
+        DEFAULT_CONVENTIONS,
+        maximum=3000,
     ),
 )
 BY_ID = {f.id: f for f in FIELDS}

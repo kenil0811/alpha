@@ -281,14 +281,21 @@ class CandidateVerifier:
         if run.source.screen is not None:
             tabs = ", ".join(t.title for t in run.source.screen.tabs)
             first = run.source.screen.tabs[0].blocks[0]
-            if run.plan.ui is not None and first.kind not in ("quick_entry", "form"):
+            # The conventions: the person lands on the data or the way in, never on a summary.
+            if run.plan.ui is not None and first.kind not in (
+                "quick_entry",
+                "form",
+                "table",
+                "board",
+                "list",
+            ):
                 return run.add(
                     _result(
                         "package.screen",
                         "package",
                         False,
-                        "the main interaction must come first: the first block of the first "
-                        f"tab is a {first.kind}, not a quick_entry or form",
+                        "the first tab must open on the data or the way in: its first block is "
+                        f"a {first.kind}, not a table, board, list, quick_entry or form",
                     )
                 )
             run.add(

@@ -38,6 +38,7 @@ from alpha.builds.service import BuildNotReady, BuildService
 from alpha.builds.store import BuildRecord
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
+from alpha.solutions.conventions import DEFAULT_CONVENTIONS
 from alpha.solutions.planner import AcceptancePlanner, PlanningFailed, app_slug, wants_ui
 from alpha.solutions.registry import SEALED_ARTEFACTS, Activation, AppRegistry
 from alpha.storage.control_store import ControlStore, new_id, utc_now
@@ -184,9 +185,10 @@ def build_instructions(
         "",
         "Declare the App's screen in app.yaml (screen: tabs of blocks) using the labels PLAN.md "
         "names: the quick entry's placeholder, column titles and tab names are what the person "
-        "sees. Put the main interaction first (a quick_entry or form), then the working table "
-        "with editable columns, then metrics and a trend where numbers change over time. Write "
-        "a custom ui/src/main.tsx only if no block can express the main interaction."
+        "sees. Lay the tabs and blocks out by the MODULE CONVENTIONS below: the data first, a "
+        "quick entry above it only when typing a line is the main way in, forms after, then "
+        "metrics and a trend. Write a custom ui/src/main.tsx only if no block can express the "
+        "main interaction."
         if with_ui
         else "This App needs no screen of its own: leave screen and ui out of app.yaml. Alpha "
         "shows one form for primary_action, the action the person runs to get the result; set "
@@ -410,11 +412,10 @@ class CreationService:
         section for the builder."""
         prefs = getattr(self._gateway, "preferences", None)
         rules = str(prefs.get("look.rules") or "").strip() if prefs is not None else ""
-        if not rules:
-            return ""
+        rules = rules or DEFAULT_CONVENTIONS.strip()
         return (
-            "\n\nAPPEARANCE AND BEHAVIOUR RULES FROM THE PERSON (follow them in every module):\n"
-            + rules
+            "\n\nMODULE CONVENTIONS (Alpha's defaults as the person has set them in Settings; "
+            "they decide layout, wording and behaviour, follow them in every module):\n" + rules
         )
 
     def _start_quick(self, conversation: Any) -> CreationRecord:

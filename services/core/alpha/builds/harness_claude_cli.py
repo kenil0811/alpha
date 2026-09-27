@@ -89,10 +89,10 @@ Rules:
   whose only purpose is to stand in for a page's contents.
 - The screen is DECLARED in app.yaml under `screen:` (tabs of blocks: quick_entry, table,
   metrics, trend, board, list, form, text) over read views declared under `views:`. Alpha
-  draws it. Every action a block runs must list ui in invocable_from. Put the main interaction
-  first (a quick_entry whose action does the whole job, or a form), then the working table with
-  editable columns, then metrics and trends. Use the labels PLAN.md names for placeholders,
-  column titles and tab names. Do not write ui/src/main.tsx.
+  draws it. Every action a block runs must list ui in invocable_from. Lay it out by the MODULE
+  CONVENTIONS in the instructions below (data first; a quick_entry above it only when typing a
+  line is the main way in; forms after; then metrics and trends). Use the labels PLAN.md names
+  for placeholders, column titles and tab names. Do not write ui/src/main.tsx.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
