@@ -281,6 +281,16 @@ export function ModulePage({
   onRemoved?: () => void;
 }) {
   const [goingBack, setGoingBack] = useState<"ask" | "busy" | string | null>(null);
+  const [removing, setRemoving] = useState<"ask" | "busy" | string | null>(null);
+  const removeModule = async () => {
+    setRemoving("busy");
+    try {
+      await client.removeApp(appId, detail?.release_id ?? null);
+      onRemoved?.();
+    } catch (e) {
+      setRemoving(e instanceof Error ? e.message : String(e));
+    }
+  };
   const goBack = async () => {
     setGoingBack("busy");
     try {
@@ -512,6 +522,42 @@ export function ModulePage({
                       )
                     ) : (
                       <span className="faint">Changes arrive in a later release</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="section">
+                <div className="section__head">
+                  <h2>Remove</h2>
+                </div>
+                <div className="card list">
+                  <div className="item">
+                    <div className="item__ico" aria-hidden="true">
+                      ✕
+                    </div>
+                    <div className="item__body">
+                      <b>Remove this module</b>
+                      <div className="item__sub">It leaves the sidebar and stops running. Its records and versions stay on this Mac, so Alpha can bring it back if you ask.</div>
+                      {typeof removing === "string" && removing !== "ask" && removing !== "busy" ? (
+                        <p className="notice" role="alert">
+                          {removing}
+                        </p>
+                      ) : null}
+                    </div>
+                    {removing === "ask" ? (
+                      <span className="row" style={{ gap: 6 }}>
+                        <span className="faint">Remove {detail.name}?</span>
+                        <button type="button" className="btn btn--sm btn--danger" onClick={() => void removeModule()}>
+                          Remove
+                        </button>
+                        <button type="button" className="btn btn--sm" onClick={() => setRemoving(null)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="btn btn--sm" disabled={removing === "busy"} onClick={() => setRemoving("ask")}>
+                        Remove this module
+                      </button>
                     )}
                   </div>
                 </div>
