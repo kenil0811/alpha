@@ -1,0 +1,9 @@
+.ui-dialog-overlay { position: fixed; inset: 0; background: rgba(26, 43, 60, 0.35); z-index: 40; }
+.ui-dialog-content {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--shadow-2);
+  padding: 20px; width: min(480px, 92vw); z-index: 41;
+}
+.ui-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.ui-dialog__title { margin: 0; font-size: var(--text-lg); font-weight: 500; }
+.ui-dialog__desc { margin: 0 0 12px; color: var(--text-2); font-size: var(--text-sm); }

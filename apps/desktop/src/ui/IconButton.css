@@ -1,0 +1,9 @@
+.ui-iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-button); border: 0; background: none; color: var(--text-2); cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.ui-iconbtn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.ui-iconbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ui-iconbtn--default { width: 36px; height: 36px; }
+.ui-iconbtn--sm { width: 28px; height: 28px; }

@@ -4,6 +4,7 @@
  * board, list and form, drawn by the trusted shell.
  */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { Search, X } from "lucide-react";
 import type { DetailSpec, ScreenColumn, ActionBinding, AggregateResultPage, DeclaredView, FilterNode, RecordPageResult, RecordRow, ScreenBlock } from "../core/client";
 import { MicButton, useSpeech } from "../shell/voice";
 import { ActionForm } from "../workflows/ActionsView";
@@ -250,7 +251,7 @@ function Table({ block }: { block: Extract<"table"> }) {
         ) : null}
         {searchable.length ? (
           <div className="search">
-            <span aria-hidden="true">⌕</span>
+            <Search size={13} aria-hidden="true" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search" />
           </div>
         ) : null}
@@ -314,7 +315,7 @@ function Table({ block }: { block: Extract<"table"> }) {
                     ))}
                     {block.delete ? (
                       <button type="button" className="btn btn--sm btn--ghost rowbtn" aria-label="Remove" title={block.delete.title ?? "Remove"} onClick={() => remove(row)}>
-                        ✕
+                        <X size={13} />
                       </button>
                     ) : null}
                   </td>
@@ -409,7 +410,7 @@ function Detail({
           </button>
         ) : null}
         <button type="button" className="btn btn--sm btn--ghost" onClick={onClose} aria-label="Close details">
-          ✕
+          <X size={14} />
         </button>
       </div>
       <dl className="kv">

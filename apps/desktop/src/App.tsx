@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
@@ -11,6 +12,7 @@ import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
 import { ModulePage } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
+import { TooltipProvider } from "./ui/Tooltip";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -215,8 +217,9 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   }, [openAssistant, selectConversation, setSurface]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
-      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
+      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
       <main className="main">
         {runtime.kind !== "connected" ? (
           <section className="page">
@@ -275,6 +278,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
         </button>
       ) : null}
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -291,15 +295,15 @@ function readPanelState(): { home: boolean; module: boolean } {
   return { home: true, module: false };
 }
 
-function moduleIcon(m: AppSummary): string {
+function moduleIcon(m: AppSummary): LucideIcon {
   const text = `${m.name} ${m.description}`.toLowerCase();
-  if (/food|meal|calorie|diet|eat/.test(text)) return "🍽";
-  if (/workout|gym|fitness|exercise/.test(text)) return "🏋️";
-  if (/job|opening|career|applic/.test(text)) return "💼";
-  if (/book|read/.test(text)) return "📚";
-  if (/money|spend|expense|budget|receipt/.test(text)) return "💳";
-  if (/task|todo|plan/.test(text)) return "☑";
-  return "▦";
+  if (/food|meal|calorie|diet|eat/.test(text)) return Utensils;
+  if (/workout|gym|fitness|exercise/.test(text)) return Dumbbell;
+  if (/job|opening|career|applic/.test(text)) return Briefcase;
+  if (/book|read/.test(text)) return BookOpen;
+  if (/money|spend|expense|budget|receipt/.test(text)) return CreditCard;
+  if (/task|todo|plan/.test(text)) return ListChecks;
+  return Boxes;
 }
 
 /** Stands in until the runtime connects, so hooks keep a stable client reference. */

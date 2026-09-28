@@ -1,0 +1,5 @@
+.ui-tooltip {
+  background: var(--navy); color: var(--bg); font-size: var(--text-xs); padding: 4px 8px;
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-2); z-index: 50;
+}
+.ui-tooltip__arrow { fill: var(--navy); }

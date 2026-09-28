@@ -6,7 +6,16 @@
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Boxes, Settings as SettingsIcon, icons as lucideIcons, type LucideIcon } from "lucide-react";
 import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+
+/** screen.icon is free-form data from a module's declared screen; only a real lucide name renders,
+ * anything else (an old emoji, a typo) safely falls back to the generic module icon. */
+function resolveIcon(name?: string | null): LucideIcon {
+  if (!name) return Boxes;
+  const pascal = name.replace(/(^\w|-\w)/g, (s) => s.replace("-", "").toUpperCase());
+  return (lucideIcons as Record<string, LucideIcon>)[pascal] ?? Boxes;
+}
 import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -241,7 +250,7 @@ export function ModulePage({
 }: {
   client: ModuleClient;
   appId: string;
-  icon?: string;
+  icon?: LucideIcon;
   onAsk: () => void;
   /** Every run Alpha knows about; the page keeps the ones that belong to this module. */
   runs?: RunView[];
@@ -303,7 +312,10 @@ export function ModulePage({
       <div className="modhead">
         <div className="modhead__title">
           <div className="modhead__ico" aria-hidden="true">
-            {screen?.icon ?? icon ?? "▦"}
+            {(() => {
+              const HeadIcon = screen?.icon ? resolveIcon(screen.icon) : icon ?? Boxes;
+              return <HeadIcon size={18} strokeWidth={1.75} />;
+            })()}
           </div>
           <div style={{ minWidth: 0 }}>
             <h2 id="module-heading">{detail?.name ?? "Opening…"}</h2>
@@ -436,7 +448,7 @@ export function ModulePage({
                 <div className="card list">
                   <div className="item">
                     <div className="item__ico" aria-hidden="true">
-                      ⚙
+                      <SettingsIcon size={14} />
                     </div>
                     <div className="item__body">
                       <b>What it can do</b>

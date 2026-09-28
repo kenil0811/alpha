@@ -4,6 +4,7 @@
  * creation, so leaving and coming back finds the same request.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ChevronRight } from "lucide-react";
 import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { MicButton, useSpeech } from "../shell/voice";
@@ -130,7 +131,7 @@ export function AssistantPanel({
           ) : null}
           {onHide ? (
             <button type="button" className="iconbtn" onClick={onHide} aria-label="Hide assistant">
-              ›
+              <ChevronRight size={16} />
             </button>
           ) : null}
         </div>

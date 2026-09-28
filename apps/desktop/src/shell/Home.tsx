@@ -1,4 +1,5 @@
 import type { Run } from "@alpha/contracts";
+import { Boxes, type LucideIcon } from "lucide-react";
 import type { AppSummary } from "../core/client";
 
 const ATTENTION = new Set(["waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation", "failed"]);
@@ -26,7 +27,7 @@ export function Home({
   onActivity,
 }: {
   modules: AppSummary[];
-  icons: Record<string, string>;
+  icons: Record<string, LucideIcon>;
   runs: Run[];
   onOpen: (appId: string) => void;
   onNew: () => void;
@@ -84,11 +85,12 @@ export function Home({
         <div className="modgrid">
           {modules.map((m) => {
             const last = lastRunByApp.get(m.app_id);
+            const Icon = icons[m.app_id] ?? Boxes;
             return (
               <div className="card modcard" key={m.app_id}>
                 <div className="modcard__top">
                   <div className="modcard__ico" aria-hidden="true">
-                    {icons[m.app_id] ?? "▦"}
+                    <Icon size={18} strokeWidth={1.75} />
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <b>{m.name}</b>
