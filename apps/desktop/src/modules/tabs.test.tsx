@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AppDetail } from "../core/client";
 import { sampleDetail } from "../test/fakeWorkflows";
 import { moduleTabs } from "./ModulePage";
 
@@ -17,7 +18,7 @@ describe("a module's tabs", () => {
   it("lets a declared screen tab that already lists a table stand in for its page", () => {
     const detail = sampleDetail({
       views: [{ id: "notes.recent", kind: "records", collection: "notes", where: null, fields: null, filterable: [], sortable: [], default_order: [], max_limit: 50, group_by: [], metrics: [] }],
-      screen: { tabs: [{ id: "today", title: "Today", blocks: [{ kind: "table", view: "notes.recent", columns: [{ field: "title", editable: false }], lists: [], row_actions: [], totals: [], page_size: 50 }] }] },
+      screen: { tabs: [{ id: "today", title: "Today", blocks: [{ kind: "table", view: "notes.recent", columns: [{ field: "title" }] }] }] } as unknown as AppDetail["screen"],
       collections: [
         { name: "notes", fields: [{ name: "title", kind: "text" }] },
         { name: "tags", fields: [{ name: "name", kind: "text" }] },
