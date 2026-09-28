@@ -99,3 +99,19 @@ export function MicButton({ listening, supported, onToggle, small = false }: { l
     </button>
   );
 }
+
+/** Read the assistant's replies aloud with the Mac's own voice (Settings: "Read replies aloud").
+ *  Only a reply that arrives while the conversation is on screen is spoken, never one that was
+ *  already there when it was opened. */
+export function useSpeakReplies(conversationId: string | null, reply: string | null, enabled: boolean): void {
+  const last = useRef<{ id: string | null; reply: string | null } | null>(null);
+  useEffect(() => {
+    const previous = last.current;
+    last.current = { id: conversationId, reply };
+    if (!enabled || !reply || !previous || previous.id !== conversationId || previous.reply === reply) return;
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") return;
+    synth.cancel();
+    synth.speak(new SpeechSynthesisUtterance(reply));
+  }, [conversationId, reply, enabled]);
+}

@@ -35,6 +35,8 @@ def test_defaults_are_described_and_changes_persist(tmp_path: Path) -> None:
         ({"build.max_total_minutes": 999}, "at most 120"),
         ({"nope": 1}, "no setting"),
         ({"build.max_repair_attempts": "two"}, "whole number"),
+        ({"look.avatar": True}, "not one of the choices"),
+        ({"voice.speak_replies": "loud"}, "not one of the choices"),
     ],
 )
 def test_bad_values_are_refused_with_the_reason(tmp_path: Path, values: dict, problem: str) -> None:
@@ -79,6 +81,10 @@ def test_look_rules_are_free_text_with_a_cap(tmp_path: Path) -> None:
     from alpha.solutions.conventions import DEFAULT_CONVENTIONS
 
     assert prefs.get("look.density") == "compact"
+    assert prefs.get("look.avatar") == "on", "the avatar is shown until the person hides it"
+    assert prefs.get("voice.speak_replies") == "off"
+    prefs.update({"look.avatar": "off"})
+    assert Preferences(ControlStore(tmp_path / "control.sqlite")).get("look.avatar") == "off"
     assert prefs.get("look.rules") == DEFAULT_CONVENTIONS, "the defaults are readable and editable"
     prefs.update({"look.rules": "Tables first, forms after. No emoji."})
     assert prefs.get("look.rules") == "Tables first, forms after. No emoji."

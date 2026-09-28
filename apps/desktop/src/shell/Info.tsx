@@ -1,9 +1,10 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
+import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, ModelConnection, SettingField } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
+import { ModelConnectionCard } from "./models";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
   return (
@@ -176,8 +177,21 @@ export function applyDensity(density: string): void {
   document.documentElement.dataset.density = density === "comfortable" ? "comfortable" : "compact";
 }
 
+const GROUP_WORDS: Record<string, string> = {
+  Models: "Which Claude model each stage uses. Changes apply to the next request or build.",
+  Look: "How every module is drawn, the assistant's avatar, and rules Alpha follows when it builds or changes one.",
+  "Building limits": "How a build runs, and how much it may spend before it is stopped.",
+  "Signed-in browser": "How gently modules read sites through your signed-in browser.",
+  Voice: "Speaking with the assistant. Dictation uses the microphone button in the assistant.",
+};
+
+/** The id a Settings section is reached by (the section links and "Open Settings -> Models"). */
+export function sectionId(group: string): string {
+  return `settings-${group.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
 /** Every setting Core exposes, grouped, editable in place; a change is saved as it is made. */
-function ConfigurableSettings({ client }: { client: CoreClient }) {
+function ConfigurableSettings({ client, onSettings }: { client: CoreClient; onSettings?: (fields: SettingField[]) => void }) {
   const [fields, setFields] = useState<SettingField[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
@@ -200,7 +214,9 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
     if (field.id === "look.density") applyDensity(String(value));
     setFields((all) => (all ?? []).map((f) => (f.id === field.id ? { ...f, value } : f)));
     try {
-      setFields(await client.updateSettings({ [field.id]: value }));
+      const saved = await client.updateSettings({ [field.id]: value });
+      setFields(saved);
+      onSettings?.(saved);
       setNote(`Saved. ${field.title} applies from the next time it is used.`);
     } catch (e) {
       setNote(`Could not save ${field.title.toLowerCase()}: ${e instanceof Error ? e.message : String(e)}`);
@@ -211,11 +227,11 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
   return (
     <>
       {groups.map((group) => (
-        <div key={group} className="card list" aria-label={group}>
+        <div key={group} className="card list" aria-label={group} id={group === "Models" ? undefined : sectionId(group)}>
           <div className="item">
             <div className="item__body">
               <b>{group}</b>
-              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How a build runs, and how much it may spend before it is stopped."}</div>
+              <div className="item__sub">{GROUP_WORDS[group] ?? ""}</div>
             </div>
           </div>
           {fields
@@ -268,7 +284,41 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
   );
 }
 
-export function Settings({ client, health, theme, onTheme }: { client: CoreClient; health: HealthInfo; theme: Theme; onTheme: (next: Theme) => void }) {
+export function Settings({
+  client,
+  health,
+  theme,
+  onTheme,
+  onSettings,
+  section,
+  connection = null,
+  onRefreshConnection = () => undefined,
+  onConnection = () => undefined,
+}: {
+  client: CoreClient;
+  health: HealthInfo;
+  theme: Theme;
+  onTheme: (next: Theme) => void;
+  /** Called with every setting after a change is saved (the shell applies look and voice). */
+  onSettings?: (fields: SettingField[]) => void;
+  /** A section to scroll to on open, e.g. "models". */
+  section?: string;
+  connection?: ModelConnection | null;
+  onRefreshConnection?: () => void;
+  onConnection?: (next: ModelConnection) => void;
+}) {
+  const [groups, setGroups] = useState<string[]>([]);
+  useEffect(() => {
+    client
+      .getSettings()
+      .then((all) => setGroups([...new Set(all.map((f) => f.group))]))
+      .catch(() => undefined);
+  }, [client]);
+  const jump = (id: string) => document.getElementById(id)?.scrollIntoView?.({ block: "start" });
+  useEffect(() => {
+    if (section) jump(sectionId(section));
+  }, [section, groups]);
+  const sections = [...groups, "About"];
   return (
     <section className="page" aria-labelledby="settings-heading">
       <div className="modhead">
@@ -278,8 +328,16 @@ export function Settings({ client, health, theme, onTheme }: { client: CoreClien
           </div>
         </div>
       </div>
-      <ConfigurableSettings client={client} />
-      <div className="card list">
+      <nav className="settings-nav" aria-label="Settings sections">
+        {sections.map((g) => (
+          <button key={g} type="button" className="chip" onClick={() => jump(sectionId(g))}>
+            {g}
+          </button>
+        ))}
+      </nav>
+      <ModelConnectionCard client={client} connection={connection} onRefresh={onRefreshConnection} onUpdate={onConnection} />
+      <ConfigurableSettings client={client} onSettings={onSettings} />
+      <div className="card list" id={sectionId("About")} aria-label="About">
         <div className="item">
           <div className="item__body">
             <b>Appearance</b>
@@ -297,6 +355,38 @@ export function Settings({ client, health, theme, onTheme }: { client: CoreClien
           <div className="item__body">
             <b>Where your data lives</b>
             <div className="item__sub">{health.data_dir}</div>
+          </div>
+        </div>
+        <div className="item">
+          <div className="item__body">
+            <b>What leaves this Mac</b>
+            <div className="item__sub">
+              Your requests, and what modules ask the model, go to Claude through your own Claude Code sign-in. Modules read the web only when they were made to, and sites you
+              signed into only when you switch that on per module. Records, files and settings stay in the folder above.
+            </div>
+          </div>
+        </div>
+        <div className="item">
+          <div className="item__body">
+            <b>Keyboard shortcuts</b>
+            <dl className="kv">
+              <div className="kv__row">
+                <dt>⌘↩</dt>
+                <dd>Send a request to the assistant</dd>
+              </div>
+              <div className="kv__row">
+                <dt>↩ / Esc</dt>
+                <dd>Save or cancel a cell you are editing</dd>
+              </div>
+              <div className="kv__row">
+                <dt>⌘W</dt>
+                <dd>Close the window; Alpha keeps running</dd>
+              </div>
+              <div className="kv__row">
+                <dt>⌘Q</dt>
+                <dd>Quit Alpha and stop everything</dd>
+              </div>
+            </dl>
           </div>
         </div>
         <div className="item">

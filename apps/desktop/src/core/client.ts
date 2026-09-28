@@ -314,6 +314,36 @@ export interface CoreClient {
   /** Stop a turn that is still thinking. */
   cancelConversation(id: string): Promise<Conversation>;
   capabilities(): Promise<CapabilityEntry[]>;
+  /** Settings -> Models: whether Claude is reachable through the local Claude Code login. */
+  modelConnection?(): Promise<ModelConnection>;
+  /** Run one tiny real call and report the connection with its outcome. */
+  checkModelConnection?(): Promise<ModelConnection>;
+  /** Start `claude auth login` (opens the browser); poll modelConnection for the outcome. */
+  signInToClaude?(): Promise<ModelConnection>;
+}
+
+export type ModelConnectionStatus = "connected" | "signed_out" | "cli_missing" | "cli_too_old" | "last_call_failed" | "not_used";
+
+/** What Core reports about the Claude Code CLI route. Never carries a credential. */
+export interface ModelConnection {
+  route_enabled: boolean;
+  status: ModelConnectionStatus;
+  fix: string | null;
+  cli_found: boolean;
+  cli_path: string | null;
+  cli_version: string | null;
+  min_supported_version: string;
+  version_supported: boolean;
+  missing_flags: string[];
+  logged_in: boolean | null;
+  account: { auth_method: string | null; email: string | null; organization: string | null; plan: string | null } | null;
+  last_successful_call_at: string | null;
+  last_call_latency_ms: number | null;
+  last_error: { code: string; message: string; at: string } | null;
+  login: { state: "waiting" | "signed_in" | "timed_out" | "not_completed"; started_at: string; finished_at?: string } | null;
+  checked_at: string;
+  /** Present on the answer to Check now. */
+  check?: { ok: boolean; code?: string; error?: string; elapsed_ms?: number };
 }
 
 export class CoreError extends Error {
@@ -863,6 +893,19 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
 
   retryConversation(id: string): Promise<Conversation> {
     return this.request<Conversation>(`/api/conversations/${encodeURIComponent(id)}/retry`, { method: "POST" });
+  }
+
+  modelConnection(): Promise<ModelConnection> {
+    return this.request<ModelConnection>("/api/models/connection");
+  }
+
+  checkModelConnection(): Promise<ModelConnection> {
+    // One real model call: allowed longer than the usual prompt answer.
+    return this.request<ModelConnection>("/api/models/connection/check", { method: "POST", signal: AbortSignal.timeout(90_000) });
+  }
+
+  signInToClaude(): Promise<ModelConnection> {
+    return this.request<ModelConnection>("/api/models/connection/login", { method: "POST" });
   }
 
   async recentCreations(): Promise<Creation[]> {

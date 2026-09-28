@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
+import type { AppSummary, CoreClient, HealthInfo, SettingField } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
 import { useRuns } from "./components/useRuns";
@@ -10,6 +10,9 @@ import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
 import { ModulePage } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
+import { useModelConnection } from "./shell/models";
+import { AssistantAvatar, useAvatarSignals } from "./avatar/Avatar";
+import { avatarView } from "./avatar/state";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -87,17 +90,24 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const [modulesTick, setModulesTick] = useState(0);
   const dev = devOverride ?? devTools();
   const [theme, setTheme] = useTheme();
-  // The person's density choice lives in Core's settings; apply it once the runtime answers.
+  // Look and voice choices live in Core's settings; applied once the runtime answers and again
+  // whenever Settings saves a change.
+  const [avatarShown, setAvatarShown] = useState(true);
+  const [speakReplies, setSpeakReplies] = useState(false);
+  const applySettings = useCallback((all: SettingField[]) => {
+    const value = (id: string) => all.find((f) => f.id === id)?.value;
+    const density = value("look.density");
+    if (density !== undefined) applyDensity(String(density));
+    setAvatarShown(value("look.avatar") !== "off");
+    setSpeakReplies(value("voice.speak_replies") === "on");
+  }, []);
   useEffect(() => {
     if (runtime.kind !== "connected") return;
     runtime.client
       .getSettings()
-      .then((all) => {
-        const density = all.find((f) => f.id === "look.density");
-        if (density) applyDensity(String(density.value));
-      })
+      .then(applySettings)
       .catch(() => undefined);
-  }, [runtime]);
+  }, [runtime, applySettings]);
 
   const setSurface = useCallback((next: Surface) => {
     setSurfaceState(next);
@@ -135,6 +145,15 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const client = runtime.kind === "connected" ? runtime.client : null;
   const nullClient = useMemo(() => new NullClient(), []);
   const { runs, error: runsError, cancel } = useRuns(client ?? nullClient);
+  const { connection, refresh: refreshConnection, update: updateConnection } = useModelConnection(client);
+  const signals = useAvatarSignals(client, conversationId);
+  // A failed turn may be a connection problem: ask again at once rather than at the next poll.
+  const failedTurn = signals.conversation?.state === "failed" ? signals.conversation.conversation_id : null;
+  useEffect(() => {
+    if (failedTurn) refreshConnection();
+  }, [failedTurn, refreshConnection]);
+  const avatar = avatarView({ conversation: signals.conversation, creations: signals.creations, runs: runs.map((r) => r.run), connection });
+  const openSettingsModels = useCallback(() => setSurface({ kind: "settings", section: "models" }), [setSurface]);
 
   // The module list: reloaded when a creation finishes or a run completes (a new module shows up
   // in the rail without a restart).
@@ -181,7 +200,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   }, [openAssistant, selectConversation, setSurface]);
 
   return (
-    <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
+    <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}${avatarShown ? " app--avatar" : ""}`}>
       <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
       <main className="main">
         {runtime.kind !== "connected" ? (
@@ -202,7 +221,17 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
         ) : surface.kind === "connections" ? (
           <Connections client={runtime.client} />
         ) : surface.kind === "settings" ? (
-          <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
+          <Settings
+            client={runtime.client}
+            health={runtime.health}
+            theme={theme}
+            onTheme={setTheme}
+            onSettings={applySettings}
+            section={surface.section}
+            connection={connection}
+            onRefreshConnection={refreshConnection}
+            onConnection={updateConnection}
+          />
         ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
           <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }} />
         ) : null}
@@ -225,9 +254,22 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
           context={{ moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
           onHide={() => setAssistantOpen(false)}
           draft={draft}
+          connection={connection}
+          onRefreshConnection={refreshConnection}
+          onOpenSettings={openSettingsModels}
+          speakReplies={speakReplies}
         />
       ) : null}
-      {!assistantOpen ? (
+      {runtime.kind === "connected" && avatarShown ? (
+        <AssistantAvatar
+          view={avatar}
+          beside={assistantOpen}
+          onClick={() => {
+            if (!assistantOpen) setAssistantOpen(true);
+            else document.getElementById("goal")?.focus();
+          }}
+        />
+      ) : !assistantOpen ? (
         <button type="button" className="btn btn--primary assist__fab" onClick={() => setAssistantOpen(true)}>
           Assistant
         </button>

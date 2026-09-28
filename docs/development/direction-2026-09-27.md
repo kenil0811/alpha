@@ -191,6 +191,24 @@ hand-built:
   fake route starts on its own once briefed, so the fake builder's package now rides in the
   text as a `fake:` directive (the change integration test had been failing since auto-start).
 
+- Avatar, Claude connection monitor and Settings sections (branch `feat/avatar-model-monitor`).
+  The assistant's avatar is Bridge's Zazoo panda (rig and painted layers ported from the Bridge
+  repository, the founder's own work; `apps/desktop/src/avatar/zazoo`), bottom-right on every
+  surface, opening the assistant on a click. Its state is derived from real state only
+  (`avatar/state.ts`): Claude unreachable, a failed turn/creation/recent run, waiting for the
+  person, a creation running, a turn in flight, a module run, idle. Reduced motion shows a still
+  head. Settings "Show the assistant's avatar" (`look.avatar`) and "Read replies aloud"
+  (`voice.speak_replies`, the Mac's own voice). Settings -> Models now starts with the
+  connection to Claude (`alpha/models/connection.py`, `GET /api/models/connection`,
+  `POST .../check` for one tiny Haiku call, `POST .../login` for a supervised
+  `claude auth login`): CLI missing, too old (decided by the flags Alpha passes that
+  `claude --help` lists; 2.1.223 lacks `--permission-prompts` and `--restricted`, 2.1.283
+  has them), signed out, last call failed, connected, with version, account, plan and the last
+  successful call. A turn that fails because of the connection says so in the assistant panel
+  with a link to Settings -> Models; an old CLI's "unknown option" is now `cli_too_old`
+  instead of "no output". Settings has section links and an About card (what leaves this Mac,
+  keyboard shortcuts). Not done: the floating desktop avatar window.
+
 ## Still to do
 
 - Measured (23:16, "a simple reading list", records only): assistant briefed in 25 s with no

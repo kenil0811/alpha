@@ -4,9 +4,10 @@
  * creation, so leaving and coming back finds the same request.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
+import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation, type ModelConnection } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
-import { MicButton, useSpeech } from "../shell/voice";
+import { MicButton, useSpeakReplies, useSpeech } from "../shell/voice";
+import { ConnectionProblem, isDisconnected } from "../shell/models";
 import { BriefCard } from "./BriefCard";
 import { QuestionsForm } from "./QuestionsForm";
 import { useConversation } from "./useConversation";
@@ -56,6 +57,10 @@ export function AssistantPanel({
   context = { moduleName: null },
   onHide,
   draft,
+  connection = null,
+  onRefreshConnection,
+  onOpenSettings,
+  speakReplies = false,
 }: {
   client: CoreClient;
   conversationId?: string | null;
@@ -65,6 +70,12 @@ export function AssistantPanel({
   onHide?: () => void;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
+  /** The Claude connection as last reported; a failed turn it explains is shown as such. */
+  connection?: ModelConnection | null;
+  onRefreshConnection?: () => void;
+  onOpenSettings?: () => void;
+  /** Read new replies aloud (Settings: Voice). */
+  speakReplies?: boolean;
 }) {
   const [ownSelection, setOwnSelection] = useState<string | null>(null);
   const selected = onSelect ? conversationId : ownSelection;
@@ -92,6 +103,11 @@ export function AssistantPanel({
   useEffect(() => {
     if (draft) setText(draft);
   }, [draft]);
+  useSpeakReplies(conversation?.conversation_id ?? null, conversation?.reply ?? null, speakReplies);
+  const failed = conversation?.state === "failed" ? conversation.conversation_id : null;
+  useEffect(() => {
+    if (failed) onRefreshConnection?.();
+  }, [failed, onRefreshConnection]);
   const made = creation?.state === "active";
   const making = creation !== null && !CREATION_DONE.has(creation.state);
 
@@ -190,8 +206,12 @@ export function AssistantPanel({
               </p>
             ) : null}
             {conversation.state === "failed" ? (
-              <div className="failure" role="alert" aria-label="Alpha could not work this out">
-                <p className="notice">Alpha could not work this out: {conversation.error ?? "something went wrong"}.</p>
+              <div className="failure" role={isDisconnected(connection) ? undefined : "alert"} aria-label="Alpha could not work this out">
+                {connection && isDisconnected(connection) ? (
+                  <ConnectionProblem connection={connection} onOpenSettings={onOpenSettings} />
+                ) : (
+                  <p className="notice">Alpha could not work this out: {conversation.error ?? "something went wrong"}.</p>
+                )}
                 <div className="row">
                   <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void retry()}>
                     Try again
