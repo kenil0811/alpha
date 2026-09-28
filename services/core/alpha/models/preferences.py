@@ -157,6 +157,26 @@ FIELDS = (
         (("compact", "Compact"), ("comfortable", "Comfortable")),
     ),
     SettingField(
+        "look.avatar",
+        "Look",
+        "Show the assistant's avatar",
+        "A small panda in the corner of every page. It shows what the assistant is doing "
+        "(thinking, making a module, waiting for you, or a problem) and opens the assistant "
+        "when you click it.",
+        "choice",
+        "on",
+        (("on", "Show"), ("off", "Hide")),
+    ),
+    SettingField(
+        "voice.speak_replies",
+        "Voice",
+        "Read replies aloud",
+        "The assistant's replies are spoken with the Mac's own voice as they arrive.",
+        "choice",
+        "off",
+        (("off", "Off"), ("on", "On")),
+    ),
+    SettingField(
         "look.rules",
         "Look",
         "Rules for how modules should look and behave",
