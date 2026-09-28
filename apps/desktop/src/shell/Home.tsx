@@ -1,5 +1,6 @@
 import type { Run } from "@alpha/contracts";
-import type { AppSummary } from "../core/client";
+import { type FormEvent, useEffect, useState } from "react";
+import { type AppSummary, type Nudge, type OnboardingStatus, type ProfileClient } from "../core/client";
 
 const ATTENTION = new Set(["waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation", "failed"]);
 
@@ -17,6 +18,122 @@ function ago(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/** The first conversation, once: five short questions, then Alpha's proposed first shape. */
+export function FirstSteps({ client, onStart }: { client: ProfileClient; onStart: (request: string) => void }) {
+  const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    client
+      .onboarding()
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  }, [client]);
+  if (!status || (status.done && !status.proposal?.options.length)) return null;
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await client.answerOnboarding(answers));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function skip() {
+    try {
+      setStatus(await client.skipOnboarding());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+  if (status.done && status.proposal) {
+    return (
+      <div className="card card--pad firststeps" aria-label="Where to begin">
+        <div className="eyebrow">Where to begin</div>
+        <p style={{ marginTop: 4 }}>{status.proposal.intro}</p>
+        <div className="proposal__options">
+          {status.proposal.options.map((o) => (
+            <div key={o.title} className="proposal__option">
+              <b>{o.title}</b>
+              <p>{o.request}</p>
+              <p className="faint">{o.why}</p>
+              <button type="button" className="btn btn--sm btn--primary" onClick={() => onStart(o.request)}>
+                Start with this
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="btn btn--sm btn--ghost" onClick={() => void skip()}>
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form className="card card--pad firststeps" aria-label="First steps" onSubmit={submit}>
+      <div className="eyebrow">First steps</div>
+      <p style={{ marginTop: 4 }}>Five short answers and Alpha proposes where to begin. Everything you say lands on your About you page, where you can change it.</p>
+      <div className="firststeps__grid">
+        {status.questions.map((q) => (
+          <div key={q.id} className="field field--compact">
+            <label htmlFor={`first-${q.id}`}>{q.label}</label>
+            <input id={`first-${q.id}`} value={answers[q.id] ?? ""} placeholder={q.hint} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
+          </div>
+        ))}
+      </div>
+      {error ? (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="row">
+        <button type="submit" className="btn btn--primary btn--sm" disabled={busy || !Object.values(answers).some((v) => v.trim())}>
+          {busy ? "Thinking…" : "Propose where to begin"}
+        </button>
+        <button type="button" className="btn btn--sm btn--ghost" onClick={() => void skip()} disabled={busy}>
+          Skip for now
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** What Alpha noticed in its weekly look: suggestions only, each a request away or dismissed. */
+export function Noticed({ client, onStart }: { client: ProfileClient; onStart: (request: string) => void }) {
+  const [rows, setRows] = useState<Nudge[]>([]);
+  useEffect(() => {
+    client
+      .nudges()
+      .then((r) => setRows(r.nudges))
+      .catch(() => undefined);
+  }, [client]);
+  if (!rows.length) return null;
+  return (
+    <div className="card card--pad noticed" aria-label="Alpha noticed">
+      <div className="eyebrow">Alpha noticed</div>
+      <ul className="noticed__list">
+        {rows.map((n) => (
+          <li key={n.nudge_id}>
+            <span>{n.text}</span>
+            <span className="row" style={{ gap: 6 }}>
+              <button type="button" className="btn btn--sm" onClick={() => onStart(n.next_step)}>
+                {n.next_step}
+              </button>
+              <button type="button" className="btn btn--sm btn--ghost" aria-label="Dismiss" title="Dismiss" onClick={() => void client.dismissNudge(n.nudge_id).then(() => setRows((all) => all.filter((x) => x.nudge_id !== n.nudge_id)))}>
+                ✕
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Home({
   modules,
   icons,
@@ -24,6 +141,8 @@ export function Home({
   onOpen,
   onNew,
   onActivity,
+  client,
+  onStart,
 }: {
   modules: AppSummary[];
   icons: Record<string, string>;
@@ -31,6 +150,8 @@ export function Home({
   onOpen: (appId: string) => void;
   onNew: () => void;
   onActivity: () => void;
+  client?: ProfileClient;
+  onStart?: (request: string) => void;
 }) {
   const today = new Date();
   const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -47,6 +168,8 @@ export function Home({
       <h1 id="home-heading" style={{ marginTop: 6 }}>
         {greeting()}
       </h1>
+      {client && onStart ? <FirstSteps client={client} onStart={onStart} /> : null}
+      {client && onStart ? <Noticed client={client} onStart={onStart} /> : null}
       <div className="today">
         <div className="card tile">
           <div className="tile__lab">Modules</div>

@@ -29,6 +29,7 @@ from alpha.api.app import create_app, shutting_down
 from alpha.api.apps_routes import AppPlatform
 from alpha.artifacts.service import ArtifactService
 from alpha.assistant.acting import ActService
+from alpha.assistant.research import Researcher
 from alpha.assistant.service import AssistantService
 from alpha.builds.preview import PreviewDeps
 from alpha.builds.service import BuildPipeline, BuildService
@@ -40,8 +41,10 @@ from alpha.capabilities.errors import OperationFailed
 from alpha.capabilities.web import WebService
 from alpha.config import ConfigError, CoreSettings
 from alpha.context.connections import ConnectionService
+from alpha.context.onboarding import OnboardingService
 from alpha.context.pack import ContextPacker
 from alpha.context.profile import ProfileService
+from alpha.context.review import ReviewService
 from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
@@ -125,6 +128,9 @@ def build(
     platform.registry.on_current_changed = connections.sync
     connections.sync_all()
     packer = ContextPacker(profile, platform.registry, platform.records, store)
+    review = ReviewService(
+        store, gateway, inference, default_route=settings.assistant_route, context=packer.build
+    )
     assistant = AssistantService(
         store,
         gateway,
@@ -133,6 +139,7 @@ def build(
         app_model_route=settings.app_model_route,
         describe_app=lambda app_id: _describe_app(platform.registry, app_id),
         context=packer.build,
+        researcher=Researcher(WebService()),
     )
     creations = CreationService(
         store,
@@ -193,7 +200,17 @@ def build(
         acting,
         profile,
         connections,
+        OnboardingService(
+            store,
+            profile,
+            gateway,
+            inference,
+            default_route=settings.assistant_route,
+            context=packer.build,
+        ),
+        review,
     )
+    review.start_if_due()
     return app, store, coordinator, builds
 
 

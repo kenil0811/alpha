@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import { type AppChecks, type ModuleConnection, type ProfileFact,
+import { type AppChecks, type ModuleConnection, type Nudge, type OnboardingStatus, type ProfileFact,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -121,6 +121,47 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
     const row = (this.related[`${module}/${collection}`] ?? []).find((r) => r.id === recordId);
     if (!row) throw new Error("not_found");
     return row;
+  }
+
+  nudgeRows: Nudge[] = [];
+  dismissed: string[] = [];
+
+  async nudges(): Promise<{ nudges: Nudge[]; last_run: string | null }> {
+    return { nudges: this.nudgeRows, last_run: null };
+  }
+
+  async reviewNow(): Promise<Nudge[]> {
+    return this.nudgeRows;
+  }
+
+  async dismissNudge(nudgeId: string): Promise<void> {
+    this.dismissed.push(nudgeId);
+    this.nudgeRows = this.nudgeRows.filter((n) => n.nudge_id !== nudgeId);
+  }
+
+  onboardingState: OnboardingStatus = {
+    done: true,
+    questions: [
+      { id: "occupation", label: "What do you do?", hint: "" },
+      { id: "goal", label: "What are you trying to get better at right now?", hint: "" },
+    ],
+    proposal: null,
+  };
+  onboardingAnswers: Record<string, string> | null = null;
+
+  async onboarding(): Promise<OnboardingStatus> {
+    return this.onboardingState;
+  }
+
+  async answerOnboarding(answers: Record<string, string>): Promise<OnboardingStatus> {
+    this.onboardingAnswers = answers;
+    this.onboardingState = { ...this.onboardingState, done: true, proposal: { intro: "I'd start here.", options: [{ title: "Coursework", request: "Keep a list of my courses with assignments", why: "It fills your week." }] } };
+    return this.onboardingState;
+  }
+
+  async skipOnboarding(): Promise<OnboardingStatus> {
+    this.onboardingState = { ...this.onboardingState, done: true, proposal: { intro: "", options: [], skipped: true } };
+    return this.onboardingState;
   }
 
   facts: ProfileFact[] = [];

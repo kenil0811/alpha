@@ -4,7 +4,7 @@
  * creation, so leaving and coming back finds the same request.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
+import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation, type Proposal } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { MicButton, useSpeech } from "../shell/voice";
 import { BriefCard } from "./BriefCard";
@@ -19,6 +19,8 @@ const EXAMPLES = [
 
 const STATE_WORDS: Record<Conversation["state"], string> = {
   thinking: "Thinking",
+  researching: "Looking around",
+  proposed: "Options to choose from",
   waiting_for_user: "Waiting for your answers",
   briefed: "Planned",
   answered: "Answered",
@@ -107,7 +109,8 @@ export function AssistantPanel({
     reset();
   }
 
-  const thinking = conversation?.state === "thinking";
+  const thinking = conversation?.state === "thinking" || conversation?.state === "researching";
+  const researching = conversation?.state === "researching";
   const userTurns = conversation?.turns.filter((t) => t.role === "user") ?? [];
   const changing = conversation ? Boolean(conversation.change_of) : Boolean(context.appId);
   const contextLabel = conversation ? (changing ? "Changing a module" : "New module") : context.moduleName ?? "Home";
@@ -183,7 +186,7 @@ export function AssistantPanel({
               </div>
             ) : null}
             {conversation.reply ? <div className="msg msg--ai">{conversation.reply}</div> : null}
-            {thinking ? <Thinking since={conversation.updated_at} busy={busy} onStop={() => void cancel()} /> : null}
+            {thinking ? <Thinking since={conversation.updated_at} busy={busy} onStop={() => void cancel()} label={researching ? "Looking around before proposing a shape…" : undefined} /> : null}
             {reconnecting ? (
               <p className="notice notice--quiet" role="status">
                 Lost contact with Alpha's runtime for a moment. Reconnecting…
@@ -205,7 +208,8 @@ export function AssistantPanel({
             {conversation.state === "waiting_for_user" && conversation.questions.length ? (
               <QuestionsForm questions={conversation.questions} busy={busy} onAnswer={(answers) => reply({ answers })} onDefaults={() => reply({ use_defaults: true })} />
             ) : null}
-            {conversation.current_brief && conversation.state !== "thinking" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
+            {conversation.state === "proposed" && conversation.proposal ? <ProposalCard proposal={conversation.proposal} busy={busy} onChoose={(option) => reply({ text: `Go with "${option.title}": ${option.summary}` })} /> : null}
+            {conversation.current_brief && !thinking && conversation.state !== "proposed" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
             {conversation.state === "briefed" && conversation.delivery === "app" && (conversation.current_brief || conversation.quick_change) && isWorkflowsClient(client) ? (
               <CreationCard
                 client={client}
@@ -232,7 +236,7 @@ export function AssistantPanel({
               </div>
             ) : null}
             {making ? <p className="panel__hint">You can change the request once this attempt finishes, or after you stop it.</p> : null}
-            {!made && !making && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user") ? (
+            {!made && !making && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user" || conversation.state === "proposed") ? (
               <form
                 className="correction"
                 onSubmit={(e) => {
@@ -294,7 +298,51 @@ export function AssistantPanel({
 }
 
 /** The wait, made visible: how long it has been, a word when it is longer than usual, and Stop. */
-function Thinking({ since, busy, onStop }: { since: string; busy: boolean; onStop: () => void }) {
+/** Two or three shapes Alpha proposes after looking around; the person picks one. */
+function ProposalCard({ proposal, busy, onChoose }: { proposal: Proposal; busy: boolean; onChoose: (option: Proposal["options"][number]) => void }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  return (
+    <div className="card card--pad proposal" aria-label="Options">
+      <p style={{ marginTop: 0 }}>{proposal.intro}</p>
+      <div className="proposal__options">
+        {proposal.options.map((option) => (
+          <div key={option.id} className={`proposal__option${option.id === proposal.default ? " proposal__option--default" : ""}`}>
+            <b>
+              {option.title}
+              {option.id === proposal.default ? <span className="pill pill--info" style={{ marginLeft: 8 }}>Alpha's pick</span> : null}
+            </b>
+            <p>{option.summary}</p>
+            <p className="faint">{option.why}</p>
+            <button type="button" className={`btn btn--sm${option.id === proposal.default ? " btn--primary" : ""}`} disabled={busy} onClick={() => onChoose(option)}>
+              {option.id === proposal.default ? "Go with this" : "Go with this instead"}
+            </button>
+          </div>
+        ))}
+      </div>
+      {proposal.evidence.length ? (
+        <p className="faint" style={{ marginBottom: 0 }}>
+          <button type="button" className="btn btn--sm btn--ghost" onClick={() => setShowEvidence((v) => !v)} aria-expanded={showEvidence}>
+            {showEvidence ? "Hide what Alpha looked at" : `What Alpha looked at (${proposal.evidence.length})`}
+          </button>
+        </p>
+      ) : null}
+      {showEvidence ? (
+        <ul className="proposal__evidence">
+          {proposal.evidence.map((e, i) => (
+            <li key={i}>
+              <a href={e.url} target="_blank" rel="noreferrer">
+                {e.title}
+              </a>
+              <span className="faint"> · {e.note}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function Thinking({ since, busy, onStop, label }: { since: string; busy: boolean; onStop: () => void; label?: string }) {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
     const started = new Date(since).getTime();
@@ -307,7 +355,7 @@ function Thinking({ since, busy, onStop }: { since: string; busy: boolean; onSto
   return (
     <div className="msg msg--ai" role="status">
       <div>
-        Thinking about your request… <span className="faint">{clock}</span>
+        {label ?? "Thinking about your request…"} <span className="faint">{clock}</span>
       </div>
       {seconds >= 90 ? <div className="faint" style={{ marginTop: 4 }}>Longer than usual. A large request or a busy model service can take a few minutes; you can stop and try again.</div> : null}
       <div className="row" style={{ marginTop: 8 }}>

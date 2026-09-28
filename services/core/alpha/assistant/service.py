@@ -27,6 +27,15 @@ from alpha.assistant.prompts import (
     triage_schema,
     turn_prompt,
 )
+from alpha.assistant.research import (
+    PROPOSE_SYSTEM,
+    Evidence,
+    Researcher,
+    fake_propose,
+    fake_research,
+    propose_prompt,
+    propose_schema,
+)
 from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
 from alpha.models.disclosure import data_notice, ground_output, is_remote
 from alpha.models.gateway import ModelGateway, ModelRoute
@@ -114,6 +123,9 @@ class ConversationRecord(BaseModel):
     brief_history: list[int]
     # The App this conversation changes (rebuilt in place, data kept); None for a new one.
     change_of: str | None = None
+    # After Alpha looked around: the shaped options for the person to choose from (state
+    # `proposed`), with the evidence they rest on.
+    proposal: dict[str, Any] | None = None
     # True when the change is small enough for Alpha to edit the App's files directly (no
     # brief, no plan): the creation starts on its own and the panel follows it.
     quick_change: bool = False
@@ -130,9 +142,12 @@ class AssistantService:
         app_model_route: str | None = None,
         describe_app: Callable[[str], str | None] | None = None,
         context: Callable[[str], str] | None = None,
+        researcher: Researcher | None = None,
     ) -> None:
         # What Alpha knows about the person and their modules, assembled for one sentence.
         self._context = context
+        # Looks around the web before a new module is proposed (None: propose without it).
+        self._researcher = researcher
         self._store = store
         self._gateway = gateway
         self._inference = inference
@@ -144,7 +159,13 @@ class AssistantService:
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
         store.add_missing_columns(
-            "conversations", {"change_of": "TEXT", "quick_change": "INTEGER NOT NULL DEFAULT 0"}
+            "conversations",
+            {
+                "change_of": "TEXT",
+                "quick_change": "INTEGER NOT NULL DEFAULT 0",
+                "proposal_json": "TEXT",
+                "researched": "INTEGER NOT NULL DEFAULT 0",
+            },
         )
         # Set by main once the creation service exists: starts a quick change for a conversation.
         self.on_quick_change: Callable[[str], Any] | None = None
@@ -353,6 +374,9 @@ class AssistantService:
             log.exception("assistant turn crashed for %s", conversation_id)
             self._fail(conversation_id, "something went wrong inside Alpha")
             return
+        proposal: dict[str, Any] | None = None
+        if self._should_research(record, output):
+            proposal = self._research_and_propose(conversation_id, route, output, known)
         self._apply_turn(
             conversation_id,
             latest,
@@ -360,6 +384,7 @@ class AssistantService:
             result.model,
             result.usage.model_dump(mode="json"),
             grounded,
+            proposal=proposal,
         )
         # A change the person asked for needs no second approval: once it is briefed, it goes.
         after = self.get(conversation_id)
@@ -368,6 +393,73 @@ class AssistantService:
                 self.on_quick_change(conversation_id)
             except Exception:
                 log.exception("could not start the change for %s", conversation_id)
+
+    def _should_research(self, record: ConversationRecord, output: AssistantTurnOutput) -> bool:
+        """Once per new-module conversation: when the brief is complete (no questions left) and
+        nothing has been proposed yet. Changes and answers are never researched."""
+        if record.change_of or output.delivery is not Delivery.APP or output.questions:
+            return False
+        if output.brief_draft is None:
+            return False
+        rows = self._store.query(
+            "SELECT researched FROM conversations WHERE conversation_id = ?",
+            (record.conversation_id,),
+        )
+        return bool(rows) and not rows[0]["researched"]
+
+    def _research_and_propose(
+        self,
+        conversation_id: str,
+        route: ModelRoute,
+        output: AssistantTurnOutput,
+        known: str | None,
+    ) -> dict[str, Any] | None:
+        """Look around, then propose two or three shapes. Never blocks the brief: any failure
+        means the conversation is briefed as before, without options."""
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE conversations SET state = 'researching', researched = 1, updated_at = ?"
+                " WHERE conversation_id = ? AND state = 'thinking'",
+                (_dt(utc_now()), conversation_id),
+            )
+        goal = output.brief_draft.goal if output.brief_draft else output.interpretation.outcome
+        brief = output.brief_draft.model_dump(mode="json") if output.brief_draft else {}
+        evidence: list[Evidence] = []
+        try:
+            if route.route_id == "fake":
+                evidence = fake_research(goal)
+            elif self._researcher is not None:
+                evidence = self._researcher.run(goal, brief, scope_ref=conversation_id)
+        except Exception:
+            log.exception("research failed for %s; proposing without it", conversation_id)
+        try:
+            result = self._inference.call(
+                route,
+                system=PROPOSE_SYSTEM,
+                prompt=propose_prompt(goal, brief, evidence, known),
+                schema=propose_schema(),
+                scope_kind="proposal",
+                scope_ref=conversation_id,
+                fake=fake_propose if route.route_id == "fake" else None,
+            )
+        except InferenceError as exc:
+            log.warning("proposal failed for %s: %s", conversation_id, exc)
+            return None
+        proposal: dict[str, Any] = result.output if isinstance(result.output, dict) else {}
+        raw_options = proposal.get("options")
+        options: list[dict[str, Any]] = [
+            o for o in (raw_options if isinstance(raw_options, list) else []) if isinstance(o, dict)
+        ]
+        if len(options) < 2:
+            return None
+        ids = {str(o.get("id")) for o in options}
+        default = str(proposal.get("default") or "")
+        return {
+            "intro": str(proposal.get("intro") or ""),
+            "options": options,
+            "default": default if default in ids else str(options[0].get("id")),
+            "evidence": [e.as_dict() for e in evidence],
+        }
 
     def _known(self, text: str) -> str | None:
         if self._context is None:
@@ -453,6 +545,7 @@ class AssistantService:
         model: str,
         usage: dict[str, Any],
         grounded: list[str] | None = None,
+        proposal: dict[str, Any] | None = None,
     ) -> None:
         record = self.get(conversation_id)
         user_turn = record.turns[-1]
@@ -498,8 +591,15 @@ class AssistantService:
                 state = "answered"
             elif output.questions:
                 state = "waiting_for_user"
+            elif proposal is not None:
+                state = "proposed"
             else:
                 state = "briefed"
+            if proposal is not None:
+                conn.execute(
+                    "UPDATE conversations SET proposal_json = ? WHERE conversation_id = ?",
+                    (json.dumps(proposal), conversation_id),
+                )
             conn.execute(
                 """UPDATE conversations SET state = ?, delivery = ?, current_brief_id = ?,
                    current_revision = ?, updated_at = ? WHERE conversation_id = ?""",
@@ -604,7 +704,7 @@ class AssistantService:
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'failed', error = ?, updated_at = ?"
-                " WHERE conversation_id = ? AND state = 'thinking'",
+                " WHERE conversation_id = ? AND state IN ('thinking', 'researching')",
                 (error, _dt(utc_now()), conversation_id),
             )
 
@@ -676,6 +776,9 @@ class AssistantService:
             conversation_id=row["conversation_id"],
             change_of=row["change_of"],
             quick_change=bool(row["quick_change"]),
+            proposal=json.loads(row["proposal_json"])
+            if "proposal_json" in row.keys() and row["proposal_json"]
+            else None,
             state=row["state"],
             route_id=row["route_id"],
             created_at=row["created_at"],

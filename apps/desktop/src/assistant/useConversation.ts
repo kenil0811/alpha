@@ -38,7 +38,7 @@ export function useConversation(client: CoreClient, selectedId: string | null, o
     };
   }, [client, selectedId, conversation?.conversation_id, onSelect]);
 
-  const thinking = conversation?.state === "thinking" ? conversation.conversation_id : null;
+  const thinking = conversation && (conversation.state === "thinking" || conversation.state === "researching") ? conversation.conversation_id : null;
   const { reconnecting } = usePoll(thinking, () => client.conversation(thinking!), setConversation);
 
   const act = useCallback(

@@ -71,3 +71,44 @@ def test_a_declined_quick_change_continues_through_the_full_path(tmp_path: Path)
     assert record.state == "briefed" and record.quick_change is False
     assert record.current_brief is not None, "the full path wrote a brief"
     assert started == [record.conversation_id, record.conversation_id]
+
+
+def test_a_new_module_is_researched_and_proposed_before_it_is_briefed(tmp_path: Path) -> None:
+    """Questions first, then a look around, then two or three shapes to choose from; the
+    person's choice becomes the brief, and the research is not run twice."""
+    store = ControlStore(tmp_path / "control.sqlite")
+    gateway = ModelGateway(store, frozenset({"fake"}))
+    service = AssistantService(store, gateway, StructuredInference(gateway), default_route="fake")
+    record = service.start("Keep a notes list for me")
+    record = settled(service, record.conversation_id)
+    assert record.state == "proposed", record.state
+    assert record.proposal is not None
+    assert [o["id"] for o in record.proposal["options"]] == ["lean", "full"]
+    assert record.proposal["default"] == "full"
+    assert record.proposal["evidence"][0]["kind"] == "search"
+    assert record.current_brief is not None, "the brief is ready behind the options"
+
+    service.reply(record.conversation_id, text="Go with 'List with tags and a done flag'.")
+    record = settled(service, record.conversation_id)
+    assert record.state == "briefed"
+    assert record.proposal is not None, "the choice stays on record"
+    usage = store.query("SELECT scope_kind FROM model_usage ORDER BY rowid")
+    assert [r["scope_kind"] for r in usage].count("proposal") == 1
+
+
+def test_changes_and_answers_are_not_researched(tmp_path: Path) -> None:
+    store = ControlStore(tmp_path / "control.sqlite")
+    gateway = ModelGateway(store, frozenset({"fake"}))
+    service = AssistantService(
+        store,
+        gateway,
+        StructuredInference(gateway),
+        default_route="fake",
+        describe_app=lambda _app_id: "Name: Notes list",
+    )
+    record = settled(
+        service, service.start("Keep a notes list for me", change_of="notes-x").conversation_id
+    )
+    assert record.state == "briefed" and record.proposal is None
+    answer = settled(service, service.start("What is the capital of Australia?").conversation_id)
+    assert answer.state == "answered" and answer.proposal is None

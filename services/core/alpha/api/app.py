@@ -38,7 +38,9 @@ from alpha.capabilities.catalog import catalog_entries, profile_versions
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
 from alpha.context.connections import ConnectionService
+from alpha.context.onboarding import OnboardingService
 from alpha.context.profile import ProfileService
+from alpha.context.review import ReviewService
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
@@ -193,6 +195,8 @@ def create_app(
     acting: ActService | None = None,
     profile: ProfileService | None = None,
     connections: ConnectionService | None = None,
+    onboarding: OnboardingService | None = None,
+    review: ReviewService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -285,7 +289,7 @@ def create_app(
     if acting is not None:
         register_act_routes(app, acting)
     if profile is not None:
-        register_profile_routes(app, profile)
+        register_profile_routes(app, profile, onboarding, review)
     if connections is not None:
         register_connection_routes(app, connections)
     if platform is not None and platform.browser is not None:

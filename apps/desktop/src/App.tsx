@@ -240,7 +240,19 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
             )}
           </section>
         ) : surface.kind === "home" ? (
-          <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
+          <Home
+            modules={modules}
+            icons={icons}
+            runs={runs.map((r) => r.run)}
+            onOpen={(appId) => setSurface({ kind: "module", appId })}
+            onNew={startNew}
+            onActivity={() => setSurface({ kind: "activity" })}
+            client={isProfileClient(runtime.client) ? runtime.client : undefined}
+            onStart={(request) => {
+              selectConversation(null);
+              openAssistant(request);
+            }}
+          />
         ) : surface.kind === "activity" ? (
           <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
         ) : surface.kind === "about" ? (

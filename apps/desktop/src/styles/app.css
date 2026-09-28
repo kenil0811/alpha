@@ -506,3 +506,15 @@ body.avatar-window #root { height: 100vh; }
 .chart__bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
 .chart__fill { width: 100%; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 2px; transition: height 400ms ease; }
 .chart__label { font-size: 10px; color: var(--text-3); margin-top: 4px; }
+
+/* ---------- proposal ---------- */
+.proposal__options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+.proposal__option { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.proposal__option p { margin: 0; }
+.proposal__option--default { border-color: var(--primary); background: var(--primary-soft); }
+.proposal__evidence { margin: 8px 0 0; padding-left: 18px; font-size: 12px; }
+.firststeps { margin-bottom: 14px; }
+.firststeps__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 12px; margin: 10px 0; }
+.noticed { margin-bottom: 14px; }
+.noticed__list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.noticed__list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }

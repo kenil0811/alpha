@@ -241,7 +241,15 @@ export interface ConversationTurn {
   created_at: string;
 }
 
-export type ConversationState = "thinking" | "waiting_for_user" | "briefed" | "answered" | "failed";
+export type ConversationState = "thinking" | "researching" | "proposed" | "waiting_for_user" | "briefed" | "answered" | "failed";
+
+/** After Alpha looked around: shaped options to choose from, and the evidence behind them. */
+export interface Proposal {
+  intro: string;
+  options: { id: string; title: string; summary: string; why: string }[];
+  default: string;
+  evidence: { kind: string; title: string; url: string; note: string }[];
+}
 
 export interface Conversation {
   conversation_id: string;
@@ -262,6 +270,7 @@ export interface Conversation {
   change_of?: string | null;
   /** A small change Alpha makes directly (no plan); its creation starts on its own. */
   quick_change?: boolean;
+  proposal?: Proposal | null;
 }
 
 export interface ConversationReply {
@@ -575,7 +584,29 @@ export function isConnectionsClient(client: unknown): client is ConnectionsClien
   return typeof (client as Partial<ConnectionsClient>)?.connections === "function";
 }
 
+/** The first conversation: five questions, then a proposed first shape. */
+export interface OnboardingStatus {
+  done: boolean;
+  questions: { id: string; label: string; hint: string }[];
+  proposal: { intro: string; options: { title: string; request: string; why: string }[]; skipped?: boolean } | null;
+}
+
+/** Something Alpha noticed in its weekly look, with a next step to send as a request. */
+export interface Nudge {
+  nudge_id: string;
+  text: string;
+  next_step: string;
+  module?: string | null;
+  created_at: string;
+}
+
 export interface ProfileClient {
+  nudges(): Promise<{ nudges: Nudge[]; last_run: string | null }>;
+  reviewNow(): Promise<Nudge[]>;
+  dismissNudge(nudgeId: string): Promise<void>;
+  onboarding(): Promise<OnboardingStatus>;
+  answerOnboarding(answers: Record<string, string>): Promise<OnboardingStatus>;
+  skipOnboarding(): Promise<OnboardingStatus>;
   profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }>;
   addFact(field: string, value: unknown): Promise<ProfileFact>;
   acceptFact(factId: string): Promise<ProfileFact>;
@@ -975,6 +1006,31 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   relatedGet(appId: string, module: string, collection: string, recordId: string): Promise<{ id: string; title: string; values: Record<string, unknown> }> {
     return this.request(`/api/apps/${encodeURIComponent(appId)}/related/${encodeURIComponent(module)}/${encodeURIComponent(collection)}/${encodeURIComponent(recordId)}`);
+  }
+
+  nudges(): Promise<{ nudges: Nudge[]; last_run: string | null }> {
+    return this.request("/api/nudges");
+  }
+
+  async reviewNow(): Promise<Nudge[]> {
+    const page = await this.request<{ nudges: Nudge[] }>("/api/nudges/review", { method: "POST", signal: AbortSignal.timeout(120_000) });
+    return page.nudges;
+  }
+
+  async dismissNudge(nudgeId: string): Promise<void> {
+    await this.request(`/api/nudges/${encodeURIComponent(nudgeId)}/dismiss`, { method: "POST" });
+  }
+
+  onboarding(): Promise<OnboardingStatus> {
+    return this.request("/api/onboarding");
+  }
+
+  answerOnboarding(answers: Record<string, string>): Promise<OnboardingStatus> {
+    return this.request("/api/onboarding", { method: "POST", body: JSON.stringify({ answers }) });
+  }
+
+  skipOnboarding(): Promise<OnboardingStatus> {
+    return this.request("/api/onboarding/skip", { method: "POST" });
   }
 
   profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }> {

@@ -139,4 +139,32 @@ describe("a turn that takes long", () => {
     await waitFor(() => expect(client.cancelled).toEqual(["conv_1"]));
     expect(await screen.findByRole("alert", { name: "Alpha could not work this out" })).toHaveTextContent("You stopped it");
   });
+
+  it("shows the shaped options after Alpha looked around, and the choice becomes the reply", async () => {
+    const client = new FakeCoreClient();
+    const proposal = {
+      intro: "Two shapes; the fuller one is what I'd build for you.",
+      options: [
+        { id: "lean", title: "Just the list", summary: "A notes table with a quick add box.", why: "Fastest to start." },
+        { id: "full", title: "List with tags", summary: "The list plus tags, a done flag and a weekly count.", why: "What most people want." },
+      ],
+      default: "full",
+      evidence: [{ kind: "search", title: "How people keep notes", url: "https://example.com/notes", note: "Title, date, tags." }],
+    };
+    client.assistantScript = (c: Conversation, reply: ConversationReply | null): Conversation =>
+      reply === null ? { ...c, state: "proposed", delivery: "app", current_brief: sampleBrief(), proposal } : { ...c, state: "briefed", delivery: "app", current_brief: sampleBrief() };
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const card = await screen.findByLabelText("Options");
+    expect(within(card).getByText("List with tags")).toBeInTheDocument();
+    expect(within(card).getByText("Alpha's pick")).toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "What Alpha looked at (1)" }));
+    expect(within(card).getByRole("link", { name: "How people keep notes" })).toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "Go with this" }));
+    await waitFor(() => expect(String(client.conversations.get("conv_1")?.turns.at(-1)?.content.text)).toMatch(/^Go with "List with tags"/));
+    await waitFor(() => expect(screen.queryByLabelText("Options")).not.toBeInTheDocument());
+  });
 });

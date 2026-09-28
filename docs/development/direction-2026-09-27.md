@@ -257,8 +257,23 @@ hand-built:
   other modules with their views and fields. Also: hidden columns are remembered instead of
   shown ones, so a field a module gains later appears on its own.
 
+- 28 September, night: the researching assistant. (1) First steps: five short questions on
+  Home (`FirstSteps`), answers become accepted profile facts, one model call proposes two or
+  three modules to begin with, each a request sentence to send (`alpha/context/onboarding.py`,
+  `/api/onboarding`). (2) Research before the brief: when a new-module brief is complete and no
+  question is left, the conversation goes `researching` (`alpha/assistant/research.py`: two web
+  searches for how such a tool is shaped, the first hit and any named source read, 45 s, all
+  fenced as data), then a proposal call gives two or three shaped options with a default and
+  the evidence behind them; state `proposed`, the shell shows a card, the choice is a normal
+  reply and becomes the brief; once per conversation, never for changes or answers. (3) Weekly
+  nudges: `alpha/context/review.py` reads the context pack once a week (and on request),
+  writes at most three observations with a next step, shown on Home under "Alpha noticed",
+  each a request away or dismissed.
+
 ## Still to do
 
+- Assistant: the person's own words for "your call" and "ask me fewer questions"; research
+  through the signed-in browser for sources that need it; nudges that link to the module.
 - Connections: the second brain graph over relations; a module reading another's aggregate
   views in its summary cards; asking before a brand-new module reads an existing one.
 - Profile: the five-question first conversation that seeds it (with the research stage); a
