@@ -614,6 +614,63 @@ export interface ProfileClient {
   forgetFact(factId: string): Promise<void>;
 }
 
+export interface SkillInput {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface SkillDraft {
+  title: string;
+  description: string;
+  kind: "procedure" | "code";
+  instructions: string;
+  module: string | null;
+  action: string | null;
+  inputs: SkillInput[];
+  produces: string;
+  sources: string[];
+}
+
+export interface SkillSpec extends SkillDraft {
+  id: string;
+  created_by: "person" | "assistant";
+  state: "active" | "retired";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillRun {
+  run_id: string;
+  skill_id: string;
+  inputs: Record<string, unknown>;
+  state: "running" | "done" | "failed";
+  summary: string;
+  items: Record<string, unknown>[];
+  evidence: Record<string, unknown>[];
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface SchedulesClient {
+  listSchedules?(appId: string): Promise<ScheduleStatus[]>;
+  setSchedule?(appId: string, scheduleId: string, enabled: boolean): Promise<ScheduleStatus[]>;
+}
+
+export interface SkillsClient {
+  /** The abilities Alpha keeps outside any module: listed, made, changed, run, retired. */
+  listSkills(): Promise<SkillSpec[]>;
+  createSkill(draft: SkillDraft): Promise<SkillSpec>;
+  getSkill(skillId: string): Promise<{ skill: SkillSpec; runs: SkillRun[] }>;
+  updateSkill(skillId: string, draft: SkillDraft): Promise<SkillSpec>;
+  retireSkill(skillId: string): Promise<void>;
+  runSkill(skillId: string, inputs: Record<string, unknown>): Promise<SkillRun>;
+}
+
+export function isSkillsClient(client: unknown): client is SkillsClient {
+  return typeof (client as Partial<SkillsClient>)?.listSkills === "function";
+}
+
 export function isProfileClient(client: unknown): client is ProfileClient {
   return typeof (client as Partial<ProfileClient>)?.profile === "function";
 }
@@ -1035,6 +1092,32 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }> {
     return this.request("/api/profile");
+  }
+
+  async listSkills(): Promise<SkillSpec[]> {
+    const page = await this.request<{ skills: SkillSpec[] }>("/api/skills");
+    return page.skills;
+  }
+
+  createSkill(draft: SkillDraft): Promise<SkillSpec> {
+    return this.request("/api/skills", { method: "POST", body: JSON.stringify(draft) });
+  }
+
+  getSkill(skillId: string): Promise<{ skill: SkillSpec; runs: SkillRun[] }> {
+    return this.request(`/api/skills/${encodeURIComponent(skillId)}`);
+  }
+
+  updateSkill(skillId: string, draft: SkillDraft): Promise<SkillSpec> {
+    return this.request(`/api/skills/${encodeURIComponent(skillId)}`, { method: "PUT", body: JSON.stringify(draft) });
+  }
+
+  async retireSkill(skillId: string): Promise<void> {
+    await this.request(`/api/skills/${encodeURIComponent(skillId)}`, { method: "DELETE" });
+  }
+
+  runSkill(skillId: string, inputs: Record<string, unknown>): Promise<SkillRun> {
+    // A run reads the web in steps; it is bounded in Core (150 s) so the wait here is longer.
+    return this.request(`/api/skills/${encodeURIComponent(skillId)}/run`, { method: "POST", body: JSON.stringify({ inputs }), signal: AbortSignal.timeout(200_000) });
   }
 
   addFact(field: string, value: unknown): Promise<ProfileFact> {

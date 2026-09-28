@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS act_turns (
 );
 """
 
-KINDS = ("run", "query", "open", "build", "change", "answer", "done")
+KINDS = ("run", "query", "skill", "open", "build", "change", "answer", "done")
 MAX_STEPS = 8
 MAX_RUNS_PER_STEP = 40
 TIME_BUDGET_SECONDS = 240.0
@@ -66,6 +66,7 @@ STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said on
 Step kinds:
 - "run": do something with a module through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
 - "query": read a module's view to answer a question. Give app_id and view_id.
+- "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a module's actions if the person asked for that, or report.
 - "open": the person wants to look at a module or a tab. Give app_id and, when clear, tab_id.
 - "change": the person wants a listed module to work or look differently. Give app_id.
 - "build": the person wants something no listed module can do. Alpha starts making it.
@@ -114,6 +115,8 @@ def step_schema() -> dict[str, Any]:
             },
             "view_id": {"type": ["string", "null"]},
             "tab_id": {"type": ["string", "null"]},
+            "skill_id": {"type": ["string", "null"]},
+            "inputs": {"type": ["object", "null"]},
             "reply": {"type": "string", "maxLength": 400},
         },
     }
@@ -160,8 +163,11 @@ def step_prompt(
     today: str,
     context_app: str | None,
     known: str = "",
+    skills: str = "",
 ) -> str:
     parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
+    if skills:
+        parts += ["SKILLS (usable with a skill step):", skills, ""]
     if known:
         parts += [
             "WHAT ALPHA KNOWS (profile facts and records; use them, never ask for what is here):",
@@ -197,7 +203,7 @@ def fake_act(prompt: str) -> dict[str, Any]:
     """Control responder: a `fake:` directive in the sentence picks the steps."""
     said = prompt.split("THE PERSON SAID:")[-1].split("OBSERVATIONS")[0].strip()
     observed = "(none yet)" not in prompt.split("OBSERVATIONS")[-1]
-    match = re.search(r"fake:(runs|run|query|open|change|build|answer)\s*(.*)$", said, re.S)
+    match = re.search(r"fake:(runs|run|query|skill|open|change|build|answer)\s*(.*)$", said, re.S)
     if not match:
         return {"kind": "answer", "reply": "I can't do that yet, but I could make it."}
     kind, rest = match.group(1), match.group(2).strip()
@@ -222,6 +228,10 @@ def fake_act(prompt: str) -> dict[str, Any]:
         )
     elif kind == "query":
         out.update(app_id=words[0], view_id=words[1])
+    elif kind == "skill":
+        out.update(
+            skill_id=words[0], inputs=json.loads(" ".join(words[1:])) if len(words) > 1 else {}
+        )
     elif kind == "open":
         out.update(app_id=words[0], tab_id=words[1] if len(words) > 1 else None)
     elif kind == "change":
@@ -239,6 +249,8 @@ def summary_reply(observations: list[dict[str, Any]]) -> str:
             else:
                 failed += 1
         if "rows" in obs:
+            read += 1
+        if obs.get("step") == "skill":
             read += 1
     parts = []
     if done:
@@ -261,6 +273,9 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
         return f"ran {', '.join(names)} {len(runs)} time(s){where}: {ok} succeeded, {len(runs) - ok} failed"
     if any("rows" in o for o in observations):
         return f"read {app_name or 'a module'}; nothing was changed"
+    used = [str(o.get("skill")) for o in observations if o.get("step") == "skill"]
+    if used:
+        return f"used the skill {', '.join(used)}; nothing was changed"
     if kind == "open":
         return f"opened {app_name or 'a module'} in Alpha's window"
     if kind in ("build", "change"):
@@ -283,6 +298,7 @@ class ActService:
         timezone: str = "UTC",
         creations: Any | None = None,
         context: Callable[[str], str] | None = None,
+        skills: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
     ) -> None:
@@ -295,6 +311,7 @@ class ActService:
         self._assistant = assistant
         self._creations = creations
         self._context = context
+        self._skills = skills
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -325,6 +342,7 @@ class ActService:
                 known = self._context(text)
             except Exception:
                 log.exception("context pack failed; the sentence goes on without it")
+        skills_text = self._skills.catalogue_text() if self._skills is not None else ""
         recent = self.recent(5)
         started = time.monotonic()
         deadline = started + TIME_BUDGET_SECONDS
@@ -346,6 +364,7 @@ class ActService:
                         self._today(),
                         context,
                         known=known,
+                        skills=skills_text,
                     ),
                     schema=step_schema(),
                     scope_kind="act",
@@ -377,6 +396,14 @@ class ActService:
                 observations.append(
                     self._read(step_app, names[step_app], str(output.get("view_id") or ""))
                 )
+                continue
+            if step_kind == "skill" and output.get("skill_id") and self._skills is not None:
+                kind = kind if kind == "run" else "skill"
+                observations.append(self._use_skill(str(output["skill_id"]), output.get("inputs")))
+                if time.monotonic() > deadline:
+                    observations.append({"note": "out of time; the rest was not done"})
+                    reply = ""
+                    break
                 continue
             if step_kind == "open" and step_app:
                 kind, app_id = "open", step_app
@@ -552,6 +579,22 @@ class ActService:
         if isinstance(rows, list) and rows and isinstance(rows[0], dict) and "values" in rows[0]:
             rows = [r["values"] for r in rows]
         return {"step": "query", "module": app_name, "view": view_id, "rows": rows}
+
+    def _use_skill(self, skill_id: str, inputs: Any) -> dict[str, Any]:
+        payload = inputs if isinstance(inputs, dict) else {}
+        if self._skills is None:
+            return {"step": "skill", "skill": skill_id, "error": "skills are not available"}
+        try:
+            result = self._skills.run(skill_id, payload)
+        except OperationFailed as exc:
+            return {"step": "skill", "skill": skill_id, "error": exc.message}
+        return {
+            "step": "skill",
+            "skill": skill_id,
+            "state": result.state,
+            "summary": result.summary,
+            "items": result.items[:25],
+        }
 
     def _wait(self, run_id: str, seconds: float) -> Run | None:
         deadline = time.monotonic() + seconds

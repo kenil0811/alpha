@@ -45,6 +45,7 @@ from alpha.context.onboarding import OnboardingService
 from alpha.context.pack import ContextPacker
 from alpha.context.profile import ProfileService
 from alpha.context.review import ReviewService
+from alpha.context.skills import SkillService
 from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
@@ -175,6 +176,19 @@ def build(
         timezone=settings.timezone,
     )
     platform.scheduler.start()
+    skills = SkillService(
+        store,
+        gateway,
+        inference,
+        default_route=settings.assistant_route,
+        web=WebService(),
+        registry=platform.registry,
+        records=platform.records,
+        runs=platform.runs,
+        timezone=platform.runs.timezone,
+        context=packer.build,
+    )
+    platform.broker.bind_skills(skills)
     acting = ActService(
         store,
         gateway,
@@ -187,6 +201,7 @@ def build(
         timezone=platform.runs.timezone,
         creations=creations,
         context=packer.build,
+        skills=skills,
     )
     app = create_app(
         settings,
@@ -209,6 +224,7 @@ def build(
             context=packer.build,
         ),
         review,
+        skills,
     )
     review.start_if_due()
     return app, store, coordinator, builds

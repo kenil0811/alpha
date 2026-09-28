@@ -28,6 +28,7 @@ from alpha_contracts.records import (
     RecordQuery,
 )
 from alpha_contracts.runs import Run, RunEvent
+from alpha_contracts.skills import SkillDraft, SkillRun, SkillSpec
 from alpha_contracts.verification import ValidationPlan, VerificationReport
 
 PUBLISHED: dict[str, type[BaseModel]] = {
@@ -53,6 +54,9 @@ PUBLISHED: dict[str, type[BaseModel]] = {
     "model_estimate": ModelEstimate,
     "validation_plan": ValidationPlan,
     "verification_report": VerificationReport,
+    "skill_spec": SkillSpec,
+    "skill_draft": SkillDraft,
+    "skill_run": SkillRun,
 }
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"

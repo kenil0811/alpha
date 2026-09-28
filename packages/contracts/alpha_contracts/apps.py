@@ -48,7 +48,17 @@ HANDLER_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_]
 # Capability families an App can declare in this release. Anything else is rejected rather than
 # silently ignored; later tickets add families with their providers.
 KNOWN_CAPABILITIES: frozenset[str] = frozenset(
-    {"records", "artifacts", "models", "http", "schedules", "browser", "profile", "connections"}
+    {
+        "records",
+        "artifacts",
+        "models",
+        "http",
+        "schedules",
+        "browser",
+        "profile",
+        "connections",
+        "skills",
+    }
 )
 
 

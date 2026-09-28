@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "SkillInput": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 300,
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SkillInput",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What a person (or the assistant) sends to make or change a skill.",
+  "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/SkillInput"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "instructions": {
+      "default": "",
+      "maxLength": 6000,
+      "type": "string"
+    },
+    "kind": {
+      "default": "procedure",
+      "enum": [
+        "procedure",
+        "code"
+      ],
+      "type": "string"
+    },
+    "module": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "produces": {
+      "default": "",
+      "maxLength": 400,
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 12,
+      "type": "array"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "description"
+  ],
+  "title": "SkillDraft",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

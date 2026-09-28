@@ -43,6 +43,8 @@ OPERATIONS: frozenset[str] = frozenset(
         "modules.list",
         "modules.query",
         "modules.get",
+        "skills.list",
+        "skills.run",
     }
 )
 

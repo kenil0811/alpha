@@ -11,6 +11,7 @@ from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.context.connections import ConnectionService
 from alpha.context.profile import ProfileService
+from alpha.context.skills import SkillService
 from alpha.data.store import RecordService
 from alpha.execution.broker import CapabilityBroker, RunGrant
 from alpha.models.gateway import ModelGateway
@@ -30,7 +31,7 @@ def _no_app(app_id: str) -> Any:
 
 
 # Operations that legitimately take no arguments answer with data.
-NO_ARGUMENT_OPERATIONS = frozenset({"profile.all", "modules.list"})
+NO_ARGUMENT_OPERATIONS = frozenset({"profile.all", "modules.list", "skills.list"})
 
 
 def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
@@ -48,6 +49,7 @@ def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
             RecordService(tmp_path / "apps"),
             "UTC",
         ),
+        skills=SkillService(control, gateway, StructuredInference(gateway), default_route="fake"),
     )
     families = frozenset(op.split(".", 1)[0] for op in OPERATIONS)
     token = broker.issue(

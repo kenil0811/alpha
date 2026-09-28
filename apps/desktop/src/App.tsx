@@ -10,6 +10,7 @@ import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, type Surface } from "./shell/Rail";
 import { Home } from "./shell/Home";
 import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
+import { Intelligence } from "./shell/Intelligence";
 import { ModulePage } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
@@ -257,6 +258,8 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
           <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
         ) : surface.kind === "about" ? (
           isProfileClient(runtime.client) ? <AboutYou client={runtime.client} /> : null
+        ) : surface.kind === "intelligence" ? (
+          <Intelligence client={runtime.client} modules={modules} icons={icons} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} onOpenAccounts={() => setSurface({ kind: "connections" })} />
         ) : surface.kind === "connections" ? (
           <Connections client={runtime.client} />
         ) : surface.kind === "settings" ? (

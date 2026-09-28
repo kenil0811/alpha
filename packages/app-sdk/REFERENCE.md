@@ -193,6 +193,22 @@ collection: courses}`; it stores that record's id, the page shows its title, and
 `ctx.modules.get` reads it. Which modules exist, with their views and fields, is listed in the
 build notes when there are any.
 
+## Skills (`skills` capability)
+
+```python
+skills = ctx.skills.list()  # [{id, title, description, inputs, produces}] the person keeps
+found = ctx.skills.run("find_people_to_cold_call", {"industry": "logistics"})
+found["summary"], found["items"]  # plain words, and rows grounded in what was read
+```
+
+A skill is a way the person taught Alpha to do one kind of job outside any module, usually by
+searching and reading the web (find people to cold call, check a supplier, compare prices). A
+module may use one when the person's request calls for it: run it, then keep the items through
+your own records if they should stay. A run is bounded to a couple of minutes and says in
+`state` whether it finished; never pretend items exist when it failed. Declare `skills` in the
+App's `capabilities` and in the action's `capability_requirements`. Skills are made on the
+Intelligence page, not by modules.
+
 ## Failures
 
 `OperationError` subclasses: `InvalidValue` (a value the collection rejects), `NotFound`,

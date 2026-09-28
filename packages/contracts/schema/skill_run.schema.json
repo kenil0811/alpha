@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "evidence": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "inputs": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "items": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "skill_id": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "running",
+        "done",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "summary": {
+      "default": "",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "skill_id",
+    "inputs",
+    "state",
+    "started_at"
+  ],
+  "title": "SkillRun",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

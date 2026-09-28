@@ -21,6 +21,7 @@ from alpha_sdk.models import Models
 from alpha_sdk.modules import Modules
 from alpha_sdk.profile import Profile
 from alpha_sdk.records import Records
+from alpha_sdk.skills import Skills
 from alpha_sdk.web import Web
 
 
@@ -43,6 +44,7 @@ class Context:
         self.web = Web(transport)
         self.profile = Profile(transport)
         self.modules = Modules(transport)
+        self.skills = Skills(transport)
 
     @property
     def run_id(self) -> str:

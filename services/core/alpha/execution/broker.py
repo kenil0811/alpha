@@ -86,6 +86,13 @@ class ModuleViewQuery(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
 
 
+class SkillRunArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skill: str = Field(min_length=2, max_length=64)
+    inputs: dict[str, Any] = Field(default_factory=dict, max_length=16)
+
+
 class ModuleRecordGet(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -114,10 +121,13 @@ class CapabilityBroker:
         browser: BrowserService | None = None,
         profile: ProfileService | None = None,
         connections: ConnectionService | None = None,
+        skills: Any | None = None,
     ) -> None:
         self._browser = browser
         self._profile = profile
         self._connections = connections
+        # Skills need the registry and runs, which come after the broker: bound with bind_skills.
+        self._skills = skills
         self._store = store
         self._records = records
         self._artifacts = artifacts
@@ -127,6 +137,9 @@ class CapabilityBroker:
         self._grants: dict[str, RunGrant] = {}
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
+
+    def bind_skills(self, skills: Any) -> None:
+        self._skills = skills
 
     def revoke_all_on_startup(self) -> int:
         """Tokens from a previous Core instance can never be valid again."""
@@ -334,6 +347,18 @@ class CapabilityBroker:
             return self._connections.get(
                 grant.app_id, fetch.module, fetch.collection, fetch.id
             ).model_dump(mode="json")
+        if operation.startswith("skills."):
+            if self._skills is None:
+                raise unavailable("skills are not available on this Mac")
+            if operation == "skills.list":
+                return {"skills": [k.model_dump(mode="json") for k in self._skills.active()]}
+            ask = _parse(SkillRunArgs, args)
+            skill = self._skills.get(ask.skill)
+            if skill.kind != "procedure":
+                # A code skill is a module action; a module calls that action, never a skill
+                # that would call back into a module and wait on itself.
+                raise forbidden(f"skill {ask.skill!r} runs a module action; call the action")
+            return self._skills.run(ask.skill, ask.inputs).model_dump(mode="json")
         if operation.startswith("profile."):
             if self._profile is None:
                 raise unavailable("the profile is not available on this Mac")

@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import { type AppChecks, type ModuleConnection, type Nudge, type OnboardingStatus, type ProfileFact,
+import { type AppChecks, type ScheduleStatus, type SkillDraft, type SkillRun, type SkillSpec, type ModuleConnection, type Nudge, type OnboardingStatus, type ProfileFact,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -121,6 +121,70 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
     const row = (this.related[`${module}/${collection}`] ?? []).find((r) => r.id === recordId);
     if (!row) throw new Error("not_found");
     return row;
+  }
+
+  skillRows: SkillSpec[] = [];
+  skillRuns: SkillRun[] = [];
+  skillCalls: string[] = [];
+
+  async listSkills(): Promise<SkillSpec[]> {
+    return this.skillRows.filter((s) => s.state === "active");
+  }
+
+  async createSkill(draft: SkillDraft): Promise<SkillSpec> {
+    const id = draft.title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const spec: SkillSpec = { ...draft, id, created_by: "person", state: "active", created_at: "2026-09-28T10:00:00Z", updated_at: "2026-09-28T10:00:00Z" };
+    this.skillRows = [...this.skillRows, spec];
+    this.skillCalls.push(`create ${id}`);
+    return spec;
+  }
+
+  async getSkill(skillId: string): Promise<{ skill: SkillSpec; runs: SkillRun[] }> {
+    const skill = this.skillRows.find((s) => s.id === skillId);
+    if (!skill) throw new Error("not_found");
+    return { skill, runs: this.skillRuns.filter((r) => r.skill_id === skillId) };
+  }
+
+  async updateSkill(skillId: string, draft: SkillDraft): Promise<SkillSpec> {
+    this.skillRows = this.skillRows.map((s) => (s.id === skillId ? { ...s, ...draft } : s));
+    this.skillCalls.push(`update ${skillId}`);
+    return this.skillRows.find((s) => s.id === skillId) as SkillSpec;
+  }
+
+  async retireSkill(skillId: string): Promise<void> {
+    this.skillRows = this.skillRows.map((s) => (s.id === skillId ? { ...s, state: "retired" } : s));
+    this.skillCalls.push(`retire ${skillId}`);
+  }
+
+  async runSkill(skillId: string, inputs: Record<string, unknown>): Promise<SkillRun> {
+    this.skillCalls.push(`run ${skillId} ${JSON.stringify(inputs)}`);
+    const run: SkillRun = {
+      run_id: `skillrun_${this.skillRuns.length + 1}`,
+      skill_id: skillId,
+      inputs,
+      state: "done",
+      summary: "Found two people worth a call.",
+      items: [
+        { name: "Ada Example", role: "Head of Ops", company: "Acme", source: "https://example.com/ada" },
+        { name: "Ben Sample", role: "Founder", company: "Bolt", source: "https://example.com/ben" },
+      ],
+      evidence: [{ kind: "search", title: "Ada", url: "https://example.com/ada", snippet: "Head of Ops" }],
+      started_at: "2026-09-28T10:00:00Z",
+      finished_at: "2026-09-28T10:00:20Z",
+    };
+    this.skillRuns = [run, ...this.skillRuns];
+    return run;
+  }
+
+  scheduleRows: Record<string, ScheduleStatus[]> = {};
+
+  async listSchedules(appId: string): Promise<ScheduleStatus[]> {
+    return this.scheduleRows[appId] ?? [];
+  }
+
+  async setSchedule(appId: string, scheduleId: string, enabled: boolean): Promise<ScheduleStatus[]> {
+    this.scheduleRows[appId] = (this.scheduleRows[appId] ?? []).map((s) => (s.id === scheduleId ? { ...s, enabled } : s));
+    return this.scheduleRows[appId];
   }
 
   nudgeRows: Nudge[] = [];

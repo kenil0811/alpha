@@ -1,0 +1,133 @@
+{
+  "$defs": {
+    "SkillInput": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 300,
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,47}$",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SkillInput",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "created_by": {
+      "default": "person",
+      "enum": [
+        "person",
+        "assistant"
+      ],
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/SkillInput"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "instructions": {
+      "default": "",
+      "maxLength": 6000,
+      "type": "string"
+    },
+    "kind": {
+      "default": "procedure",
+      "enum": [
+        "procedure",
+        "code"
+      ],
+      "type": "string"
+    },
+    "module": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "produces": {
+      "default": "",
+      "maxLength": 400,
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 12,
+      "type": "array"
+    },
+    "state": {
+      "default": "active",
+      "enum": [
+        "active",
+        "retired"
+      ],
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "description",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "SkillSpec",
+  "type": "object",
+  "x-alpha-contract-version": "0.2"
+}

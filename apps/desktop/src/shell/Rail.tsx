@@ -6,6 +6,7 @@ export type Surface =
   | { kind: "activity" }
   | { kind: "connections" }
   | { kind: "about" }
+  | { kind: "intelligence" }
   | { kind: "settings" }
   | { kind: "module"; appId: string };
 
@@ -83,6 +84,7 @@ export function Rail({
           <ThemeControl theme={theme} onChange={onTheme} compact />
         </div>
       )}
+      {item({ kind: "intelligence" }, "◈", "Intelligence")}
       {item({ kind: "about" }, "☺", "About you")}
       {item({ kind: "connections" }, "⛓", "Connections")}
       {item({ kind: "settings" }, "⚙", "Settings")}

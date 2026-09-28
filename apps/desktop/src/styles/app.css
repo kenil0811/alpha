@@ -518,3 +518,22 @@ body.avatar-window #root { height: 100vh; }
 .noticed { margin-bottom: 14px; }
 .noticed__list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .noticed__list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+
+/* Intelligence */
+.linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--text); cursor: pointer; text-align: left; }
+.linklike:hover { color: var(--primary); }
+.intel { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.intel__card { min-width: 0; }
+.intel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.intel__facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; margin: 0; }
+.intel__facts div { min-width: 0; }
+.intel__facts dt { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
+.intel__facts dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.intel__modules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.intel__modules li { display: flex; flex-direction: column; gap: 1px; }
+.intel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 12px; }
+.skill__meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: -4px; }
+.skill__run { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.skill__result { display: flex; flex-direction: column; gap: 8px; }
+.skill__evidence { margin: 6px 0 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.skill__evidence a, .skill__result a { color: var(--primary); }
