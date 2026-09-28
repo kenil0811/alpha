@@ -35,6 +35,7 @@ from alpha.capabilities.catalog import catalog_entries, profile_versions
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
 from alpha.execution.coordinator import RunCoordinator
+from alpha.models.connection import ConnectionMonitor, LoginUnavailable
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
 from alpha.solutions.creation import CreationService
@@ -175,6 +176,7 @@ def create_app(
     assistant: AssistantService | None = None,
     platform: AppPlatform | None = None,
     creations: CreationService | None = None,
+    connection: ConnectionMonitor | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -266,6 +268,8 @@ def create_app(
         register_creation_routes(app, creations)
     if platform is not None and platform.browser is not None:
         register_browser_routes(app, platform.browser)
+    if connection is not None:
+        register_connection_routes(app, connection)
 
     @app.get("/api/events/stream")
     async def stream_events(
@@ -310,6 +314,25 @@ def create_app(
 
 def coordinator_profiles(coordinator: RunCoordinator) -> list[str]:
     return list(coordinator.supervisor_profiles())
+
+
+def register_connection_routes(app: FastAPI, connection: ConnectionMonitor) -> None:
+    """Settings -> Models: whether the Claude Code CLI route works, and why not."""
+
+    @app.get("/api/models/connection")
+    def model_connection() -> dict[str, Any]:
+        return connection.snapshot()
+
+    @app.post("/api/models/connection/check")
+    def check_model_connection() -> dict[str, Any]:
+        return connection.check()
+
+    @app.post("/api/models/connection/login")
+    def login_model_connection() -> dict[str, Any]:
+        try:
+            return connection.login()
+        except LoginUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGateway) -> None:

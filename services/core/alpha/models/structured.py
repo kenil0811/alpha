@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import pwd
+import shutil
 import subprocess
 import threading
 import time
@@ -19,6 +20,7 @@ from typing import Any
 from alpha_contracts.builds import BuildUsage, CostBasis
 
 from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.storage.control_store import utc_now
 
 # The JSON Schema keywords the CLI's strict validator knows. Anything else (Pydantic's
 # `discriminator`, a vendor extension) makes the CLI refuse the whole call before the model runs,
@@ -100,6 +102,31 @@ class StructuredInference:
         self._running: dict[str, subprocess.Popen[str]] = {}
         self._cancelled: set[str] = set()
         self._lock = threading.Lock()
+        # The most recent failed CLI call ({code, message, at}); the connection monitor shows it
+        # until a later call succeeds.
+        self.last_failure: dict[str, str] | None = None
+        # The most recent CLI call that returned a usable answer ({at, elapsed_ms}). Usage is
+        # recorded for failed calls too, so model_usage alone cannot say which calls worked.
+        self.last_success: dict[str, Any] | None = None
+
+    def cli_path(self) -> str | None:
+        """Where the CLI this service runs lives, resolved on the same PATH, or None."""
+        return shutil.which(self._binary, path=self._path)
+
+    def cli_env(self) -> dict[str, str]:
+        """The cleared environment every CLI call gets: the user's HOME and account name (the
+        CLI finds its subscription login by them) and a fixed PATH; nothing else."""
+        owner = pwd.getpwuid(os.getuid()).pw_name
+        return {
+            "PATH": self._path,
+            "HOME": self._home or pwd.getpwuid(os.getuid()).pw_dir,
+            "USER": owner,
+            "LOGNAME": owner,
+            "LANG": "C.UTF-8",
+            "TERM": "dumb",
+            "DISABLE_AUTOUPDATER": "1",
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        }
 
     def cancel(self, scope_ref: str) -> bool:
         """Stop the call running for `scope_ref`, if any. Returns whether one was running."""
@@ -124,6 +151,7 @@ class StructuredInference:
         scope_kind: str,
         scope_ref: str,
         fake: Any | None = None,
+        timeout_seconds: int | None = None,
     ) -> StructuredResult:
         if route.route_id == "fake":
             if fake is None:
@@ -139,7 +167,18 @@ class StructuredInference:
             raise InferenceError(
                 "route_unavailable", f"no structured inference for {route.route_id}"
             )
-        return self._claude_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        try:
+            result = self._claude_cli(
+                route, system, prompt, schema, scope_kind, scope_ref, timeout_seconds
+            )
+        except InferenceError as exc:
+            if exc.code != "cancelled":
+                at = utc_now().isoformat().replace("+00:00", "Z")
+                self.last_failure = {"code": exc.code, "message": str(exc)[:300], "at": at}
+            raise
+        at = utc_now().isoformat().replace("+00:00", "Z")
+        self.last_success = {"at": at, "elapsed_ms": result.elapsed_ms}
+        return result
 
     def _claude_cli(
         self,
@@ -149,18 +188,10 @@ class StructuredInference:
         schema: dict[str, Any],
         scope_kind: str,
         scope_ref: str,
+        timeout_seconds: int | None = None,
     ) -> StructuredResult:
-        owner = pwd.getpwuid(os.getuid()).pw_name
-        env = {
-            "PATH": self._path,
-            "HOME": self._home or pwd.getpwuid(os.getuid()).pw_dir,
-            "USER": owner,
-            "LOGNAME": owner,
-            "LANG": "C.UTF-8",
-            "TERM": "dumb",
-            "DISABLE_AUTOUPDATER": "1",
-            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-        }
+        env = self.cli_env()
+        timeout = timeout_seconds or self._timeout
         argv = [
             self._binary,
             "-p",
@@ -200,11 +231,11 @@ class StructuredInference:
             self._cancelled.discard(scope_ref)
             self._running[scope_ref] = proc
         try:
-            stdout, stderr = proc.communicate(timeout=self._timeout)
+            stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             proc.kill()
             proc.communicate()
-            raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+            raise InferenceError("timeout", f"model call exceeded {timeout}s") from exc
         finally:
             with self._lock:
                 self._running.pop(scope_ref, None)
@@ -215,7 +246,14 @@ class StructuredInference:
         elapsed = int((time.monotonic() - started) * 1000)
         line = next((ln for ln in stdout.splitlines() if ln.startswith("{")), None)
         if line is None:
-            raise InferenceError("cli_no_output", (stderr or stdout)[-300:] or "no output")
+            said = (stderr or stdout)[-300:] or "no output"
+            # An older CLI refuses a flag Alpha passes before doing anything
+            # ("error: unknown option '--permission-prompts'").
+            if "unknown option" in said:
+                raise InferenceError("cli_too_old", said)
+            if "Not logged in" in said:
+                raise InferenceError("cli_not_logged_in", said)
+            raise InferenceError("cli_no_output", said)
         try:
             result = json.loads(line)
         except json.JSONDecodeError as exc:

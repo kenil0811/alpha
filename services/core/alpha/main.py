@@ -45,6 +45,7 @@ from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.profiles import ProfileInventory, sdk_source_digest
 from alpha.execution.scheduler import Scheduler
 from alpha.execution.supervisor import WorkerSupervisor
+from alpha.models.connection import ConnectionMonitor
 from alpha.models.gateway import ModelGateway
 from alpha.models.preferences import Preferences
 from alpha.models.runtime import AppModelService
@@ -157,7 +158,17 @@ def build(
         timezone=settings.timezone,
     )
     platform.scheduler.start()
-    app = create_app(settings, store, coordinator, builds, gateway, assistant, platform, creations)
+    app = create_app(
+        settings,
+        store,
+        coordinator,
+        builds,
+        gateway,
+        assistant,
+        platform,
+        creations,
+        ConnectionMonitor(store, gateway, inference),
+    )
     return app, store, coordinator, builds
 
 

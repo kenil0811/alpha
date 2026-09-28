@@ -40,6 +40,7 @@ _PLAIN_FAILURE = {
     "timeout": "the model service took too long to answer",
     "cli_missing": "Alpha could not reach its model service",
     "cli_not_logged_in": "Alpha's model service is not signed in",
+    "cli_too_old": "Claude Code on this Mac is too old for Alpha",
     "cli_error": "the model service returned an error",
     "cli_bad_json": "the model service's answer could not be read",
     "route_unavailable": "no model service is available for this request",
