@@ -23,6 +23,7 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   files: "reading your files",
   http: "reading websites and services",
   browser: "working inside websites",
+  profile: "what Alpha knows about you",
   messaging: "sending messages",
   schedules: "running on a schedule",
   audio: "audio",

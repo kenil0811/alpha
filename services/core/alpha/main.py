@@ -39,6 +39,8 @@ from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed
 from alpha.capabilities.web import WebService
 from alpha.config import ConfigError, CoreSettings
+from alpha.context.pack import ContextPacker
+from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService
 from alpha.execution.app_runs import AppRunService, HandlerBinder
 from alpha.execution.broker import CapabilityBroker
@@ -116,6 +118,8 @@ def build(
     resources = (
         PlatformResources(settings.platform_resources) if settings.platform_resources else None
     )
+    profile = ProfileService(store)
+    packer = ContextPacker(profile, platform.registry, platform.records, store)
     assistant = AssistantService(
         store,
         gateway,
@@ -123,6 +127,7 @@ def build(
         default_route=settings.assistant_route,
         app_model_route=settings.app_model_route,
         describe_app=lambda app_id: _describe_app(platform.registry, app_id),
+        context=packer.build,
     )
     creations = CreationService(
         store,
@@ -169,9 +174,19 @@ def build(
         default_route=settings.assistant_route,
         timezone=platform.runs.timezone,
         creations=creations,
+        context=packer.build,
     )
     app = create_app(
-        settings, store, coordinator, builds, gateway, assistant, platform, creations, acting
+        settings,
+        store,
+        coordinator,
+        builds,
+        gateway,
+        assistant,
+        platform,
+        creations,
+        acting,
+        profile,
     )
     return app, store, coordinator, builds
 
@@ -317,6 +332,7 @@ def build_app_platform(
         on_event=lambda run_id, kind, payload: _append(store, run_id, kind, payload),
         web=WebService(),
         browser=browser,
+        profile=ProfileService(store),
     )
     revoked = broker.revoke_all_on_startup()
     if revoked:

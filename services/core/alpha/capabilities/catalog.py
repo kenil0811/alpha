@@ -131,6 +131,23 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         ),
     ),
     CapabilityFamily(
+        family="profile",
+        description="What Alpha knows about the person, shared by every module: their degree, "
+        "skills, target roles, goals, location. A module reads it instead of asking again, "
+        "and passes on what the person tells it.",
+        available=True,
+        operations=(
+            "profile.get(field) / profile.all() -> accepted facts",
+            "profile.set(field, value) records what the person typed into this App",
+            "profile.suggest(field, value, why) proposes what the App worked out; the person "
+            "accepts it on their About you page",
+        ),
+        notes=(
+            "Every fact carries where it came from; the person can correct or forget any of it.",
+            "Plain snake_case field names shared across modules: degree, skills, target_roles.",
+        ),
+    ),
+    CapabilityFamily(
         family="messaging",
         description="Sending messages or notifications through chat or email services.",
         available=False,

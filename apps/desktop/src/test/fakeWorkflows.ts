@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import { type AppChecks,
+import { type AppChecks, type ProfileFact,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -99,6 +99,39 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
 
   async recentCreations(): Promise<Creation[]> {
     return [...this.creations.values()].reverse();
+  }
+
+  facts: ProfileFact[] = [];
+  suggestions: ProfileFact[] = [];
+  factCalls: string[] = [];
+
+  async profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }> {
+    return { facts: this.facts, suggestions: this.suggestions };
+  }
+
+  async addFact(field: string, value: unknown): Promise<ProfileFact> {
+    this.factCalls.push(`add ${field}`);
+    const fact: ProfileFact = { fact_id: `fact_${this.facts.length + 1}`, field, value, provenance: "person", source: "person", confidence: 1, state: "accepted", recorded_at: new Date().toISOString() };
+    this.facts = [...this.facts.filter((f) => f.field !== field), fact];
+    return fact;
+  }
+
+  async acceptFact(factId: string): Promise<ProfileFact> {
+    this.factCalls.push(`accept ${factId}`);
+    const fact = this.suggestions.find((s) => s.fact_id === factId)!;
+    this.suggestions = this.suggestions.filter((s) => s.fact_id !== factId);
+    this.facts = [...this.facts, { ...fact, state: "accepted" }];
+    return fact;
+  }
+
+  async rejectFact(factId: string): Promise<void> {
+    this.factCalls.push(`reject ${factId}`);
+    this.suggestions = this.suggestions.filter((s) => s.fact_id !== factId);
+  }
+
+  async forgetFact(factId: string): Promise<void> {
+    this.factCalls.push(`forget ${factId}`);
+    this.facts = this.facts.filter((f) => f.fact_id !== factId);
   }
 
   checks: AppChecks | null = null;

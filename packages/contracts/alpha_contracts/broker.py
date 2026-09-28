@@ -36,6 +36,10 @@ OPERATIONS: frozenset[str] = frozenset(
         "models.structured",
         "http.get",
         "http.search",
+        "profile.get",
+        "profile.all",
+        "profile.set",
+        "profile.suggest",
     }
 )
 

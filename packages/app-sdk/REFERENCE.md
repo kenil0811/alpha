@@ -29,6 +29,7 @@ failures; the run then fails and the person sees why.
 | `ctx.artifacts` | immutable output files |
 | `ctx.models` | bounded structured model calls; results are labelled estimates |
 | `ctx.web` | public web pages and search (the `http` capability; below) |
+| `ctx.profile` | what Alpha knows about the person, shared by all their modules (the `profile` capability; below) |
 | `ctx.today()` | today's `date` in the person's timezone |
 | `ctx.now()`, `ctx.local_now()` | current `datetime` in UTC / the person's timezone |
 | `ctx.timezone` | the person's IANA timezone name |
@@ -145,6 +146,25 @@ capped at 2 MB, and a run may make at most 60 web requests. Nothing is signed in
 an account are out of reach. When a fetch fails the call raises `Unavailable`; report that
 plainly and store nothing invented. Text you extract from a page is a source, not a fact the
 person typed: keep the address it came from alongside what you save.
+
+## Profile (`profile` capability)
+
+```python
+roles = ctx.profile.get("target_roles")  # the accepted value, or None
+known = ctx.profile.all()  # {field: value} for every accepted fact
+ctx.profile.set("degree", "MSc Computer Science")  # what the person typed into this App
+ctx.profile.suggest("skills", ["Python", "SQL"], why="from the modules listed in Academics")
+```
+
+Facts about the person live in one place and every module can read them, so a job module
+knows the coursework an academics module recorded and a diet module knows a goal the person
+set elsewhere. `set` passes on what the person told this App (it becomes an accepted fact,
+labelled as coming from this App). `suggest` is for what the App worked out: the person sees it
+on their About you page and accepts or rejects it; until then reads do not return it. Use plain
+snake_case field names another module would also choose (degree, university, skills,
+target_roles, location, dietary_goal, weekly_budget), never invent a fact, and prefer the
+profile over asking the person for something Alpha already knows. Declare `profile` in the
+App's `capabilities` and in the action's `capability_requirements`.
 
 ## Failures
 

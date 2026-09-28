@@ -5,6 +5,7 @@ export type Surface =
   | { kind: "home" }
   | { kind: "activity" }
   | { kind: "connections" }
+  | { kind: "about" }
   | { kind: "settings" }
   | { kind: "module"; appId: string };
 
@@ -82,6 +83,7 @@ export function Rail({
           <ThemeControl theme={theme} onChange={onTheme} compact />
         </div>
       )}
+      {item({ kind: "about" }, "☺", "About you")}
       {item({ kind: "connections" }, "⛓", "Connections")}
       {item({ kind: "settings" }, "⚙", "Settings")}
       <div className={`rail__status rail__status--${runtime}`} role="status" title={collapsed ? (runtime === "connected" ? "Runtime connected" : runtime === "connecting" ? "Connecting to runtime" : "Runtime unavailable") : undefined}>

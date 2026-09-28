@@ -159,8 +159,15 @@ def step_prompt(
     observations: list[dict[str, Any]],
     today: str,
     context_app: str | None,
+    known: str = "",
 ) -> str:
     parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
+    if known:
+        parts += [
+            "WHAT ALPHA KNOWS (profile facts and records; use them, never ask for what is here):",
+            known,
+            "",
+        ]
     parts.append("FACTS (what is true right now; the only source for claims about progress):")
     parts += [f"- {f}" for f in facts] or ["- nothing is running or being made right now"]
     parts.append("")
@@ -275,6 +282,7 @@ class ActService:
         default_route: str,
         timezone: str = "UTC",
         creations: Any | None = None,
+        context: Callable[[str], str] | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
     ) -> None:
@@ -286,6 +294,7 @@ class ActService:
         self._records = records
         self._assistant = assistant
         self._creations = creations
+        self._context = context
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -310,6 +319,12 @@ class ActService:
         turn_id = new_id("act")
         catalogue = catalogue_text(sources)
         facts = self._facts(names)
+        known = ""
+        if self._context is not None:
+            try:
+                known = self._context(text)
+            except Exception:
+                log.exception("context pack failed; the sentence goes on without it")
         recent = self.recent(5)
         started = time.monotonic()
         deadline = started + TIME_BUDGET_SECONDS
@@ -323,7 +338,14 @@ class ActService:
                     route,
                     system=STEP_SYSTEM,
                     prompt=step_prompt(
-                        text, catalogue, facts, recent, observations, self._today(), context
+                        text,
+                        catalogue,
+                        facts,
+                        recent,
+                        observations,
+                        self._today(),
+                        context,
+                        known=known,
                     ),
                     schema=step_schema(),
                     scope_kind="act",

@@ -234,8 +234,23 @@ hand-built:
   say: declare tables well, do not design screens. Existing modules keep their screens and gain
   the pages.
 
+- 28 September, late: profile facts and context packs. `alpha/context/profile.py` keeps
+  append-only facts about the person (field, value, provenance person/module/assistant/
+  inferred, source, confidence, state accepted/suggested/rejected/retracted, supersedes); a
+  correction is a new fact, forgetting retracts. Modules get `ctx.profile` (the `profile`
+  capability: get/all read accepted facts, set records what the person typed, suggest waits for
+  a yes). `GET/POST /api/profile…`; the shell's About you page lists facts with their source,
+  takes suggestions' yes or no, corrects in place and forgets. `alpha/context/pack.py` assembles
+  a pack for every assistant and avatar turn: accepted facts, the modules with counts, records
+  that match the sentence's words (a bounded contains-search over text and choice fields, most
+  recent first), recent activity; each line names its source. The assistant prompt gained rule
+  9c (build on what is known, never ask for it again, name the module a fact came from).
+
 ## Still to do
 
+- Profile: the five-question first conversation that seeds it (with the research stage); a
+  "why does Alpha think this" trail per fact; the assistant recording facts it learns in
+  conversation as suggestions.
 - Derived pages: relations across modules as a field kind; a records view of saved lists shared
   with the assistant; column widths and reordering; a form view.
 - Avatar: Kenil's own character art and emotes; a floating window that follows Spaces is done,

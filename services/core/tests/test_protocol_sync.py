@@ -8,6 +8,7 @@ from typing import Any, get_args
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.errors import HTTP_STATUS
+from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService
 from alpha.execution.broker import CapabilityBroker, RunGrant
 from alpha.models.gateway import ModelGateway
@@ -22,6 +23,10 @@ def test_every_failure_code_has_an_http_status() -> None:
     assert set(HTTP_STATUS) == set(get_args(CapabilityErrorCode))
 
 
+# Operations that legitimately take no arguments answer with data.
+NO_ARGUMENT_OPERATIONS = frozenset({"profile.all"})
+
+
 def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
     control = ControlStore(tmp_path / "control.sqlite")
     gateway = ModelGateway(control, frozenset({"fake"}))
@@ -30,6 +35,7 @@ def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
         RecordService(tmp_path / "apps"),
         ArtifactService(control, tmp_path / "artifacts"),
         AppModelService(control, gateway, StructuredInference(gateway), "fake"),
+        profile=ProfileService(control),
     )
     families = frozenset(op.split(".", 1)[0] for op in OPERATIONS)
     token = broker.issue(
@@ -53,6 +59,9 @@ def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
             "args": {},
         }
         reply = broker.handle("run_sync", message)
+        if operation in NO_ARGUMENT_OPERATIONS:
+            assert reply["status"] == "completed", (operation, reply)
+            continue
         # Empty arguments are refused by the operation's own parser, never as unknown.
         assert reply["status"] == "failed", (operation, reply)
         assert reply["error"]["code"] == "invalid_input", (operation, reply)

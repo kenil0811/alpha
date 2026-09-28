@@ -27,6 +27,7 @@ from alpha.api.apps_routes import register as register_app_routes
 from alpha.api.auth import make_auth_middleware
 from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.creation_routes import register as register_creation_routes
+from alpha.api.profile_routes import register as register_profile_routes
 from alpha.assistant.acting import ActService, ActTurn
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
@@ -35,6 +36,7 @@ from alpha.builds.store import AcceptanceExample, BuildRecord, plan_from_example
 from alpha.capabilities.catalog import catalog_entries, profile_versions
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.config import CoreSettings
+from alpha.context.profile import ProfileService
 from alpha.execution.coordinator import RunCoordinator
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
@@ -187,6 +189,7 @@ def create_app(
     platform: AppPlatform | None = None,
     creations: CreationService | None = None,
     acting: ActService | None = None,
+    profile: ProfileService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -278,6 +281,8 @@ def create_app(
         register_creation_routes(app, creations)
     if acting is not None:
         register_act_routes(app, acting)
+    if profile is not None:
+        register_profile_routes(app, profile)
     if platform is not None and platform.browser is not None:
         register_browser_routes(app, platform.browser)
 

@@ -76,6 +76,7 @@ const ACCESS: Record<string, { title: string; sub: string }> = {
   schedules: { title: "Runs on a timer while Alpha is open", sub: "Its schedules are listed under Automations with an on/off switch." },
   browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this module's Settings. Read-only and paced; every page is listed above." },
   artifacts: { title: "Files it produces", sub: "Kept by Alpha; opening them from Alpha arrives in a later release." },
+  profile: { title: "What Alpha knows about you", sub: "Reads the facts on your About you page and passes on what you tell it; anything it works out waits there for your yes." },
 };
 
 /** The fast lane's follow-up on the module's own page: its behaviour checks, while they run

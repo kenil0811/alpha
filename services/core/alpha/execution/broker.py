@@ -20,6 +20,7 @@ from typing import Any
 
 from alpha_contracts.artifacts import ArtifactOwner, ArtifactProvenance, ArtifactRef, CreateArtifact
 from alpha_contracts.broker import OPERATIONS, CapabilityCall, StructuredModelCall
+from alpha_contracts.profile import FactClaim, FactLookup
 from alpha_contracts.records import (
     AggregateQuery,
     CorrectRecord,
@@ -39,6 +40,7 @@ from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed, forbidden, invalid, unavailable
 from alpha.capabilities.web import WebService
+from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService, WriteContext
 from alpha.models.runtime import AppModelService
 from alpha.storage.control_store import ControlStore, utc_now
@@ -88,8 +90,10 @@ class CapabilityBroker:
         on_event: Callable[[str, str, dict[str, Any]], None] | None = None,
         web: WebService | None = None,
         browser: BrowserService | None = None,
+        profile: ProfileService | None = None,
     ) -> None:
         self._browser = browser
+        self._profile = profile
         self._store = store
         self._records = records
         self._artifacts = artifacts
@@ -288,6 +292,26 @@ class CapabilityBroker:
             if self._web is None:
                 raise unavailable("web access is not connected on this Mac")
             return self._web.search(grant.run_id, search_request).model_dump(mode="json")
+        if operation.startswith("profile."):
+            if self._profile is None:
+                raise unavailable("the profile is not available on this Mac")
+            if operation == "profile.get":
+                lookup = _parse(FactLookup, args)
+                fact = self._profile.get(lookup.field)
+                return None if fact is None else fact.model_dump(mode="json")
+            if operation == "profile.all":
+                return {"facts": [f.model_dump(mode="json") for f in self._profile.current()]}
+            claim = _parse(FactClaim, args)
+            fact = self._profile.claim(
+                claim.field,
+                claim.value,
+                provenance="module" if operation == "profile.set" else "inferred",
+                source=grant.app_id,
+                why=claim.why,
+                confidence=claim.confidence,
+                accepted=operation == "profile.set",
+            )
+            return fact.model_dump(mode="json")
         raise invalid(f"unknown operation {operation!r}")  # pragma: no cover
 
 

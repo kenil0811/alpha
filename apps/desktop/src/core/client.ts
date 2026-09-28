@@ -537,6 +537,32 @@ export interface ActTurn {
   created_at: string;
 }
 
+/** One fact Alpha knows about the person, with where it came from. */
+export interface ProfileFact {
+  fact_id: string;
+  field: string;
+  value: unknown;
+  provenance: "person" | "module" | "assistant" | "inferred";
+  source: string;
+  why?: string | null;
+  confidence: number;
+  state: "accepted" | "suggested" | "rejected" | "retracted";
+  supersedes?: string | null;
+  recorded_at: string;
+}
+
+export interface ProfileClient {
+  profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }>;
+  addFact(field: string, value: unknown): Promise<ProfileFact>;
+  acceptFact(factId: string): Promise<ProfileFact>;
+  rejectFact(factId: string): Promise<void>;
+  forgetFact(factId: string): Promise<void>;
+}
+
+export function isProfileClient(client: unknown): client is ProfileClient {
+  return typeof (client as Partial<ProfileClient>)?.profile === "function";
+}
+
 export interface ActClient {
   /** Do what the sentence asks, at once; resolves when Alpha can say what happened. */
   act(text: string, appId?: string | null): Promise<ActTurn>;
@@ -655,7 +681,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -903,6 +929,26 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async recentCreations(): Promise<Creation[]> {
     const page = await this.request<{ creations: Creation[] }>("/api/creations");
     return page.creations;
+  }
+
+  profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }> {
+    return this.request("/api/profile");
+  }
+
+  addFact(field: string, value: unknown): Promise<ProfileFact> {
+    return this.request<ProfileFact>("/api/profile/facts", { method: "POST", body: JSON.stringify({ field, value }) });
+  }
+
+  acceptFact(factId: string): Promise<ProfileFact> {
+    return this.request<ProfileFact>(`/api/profile/facts/${encodeURIComponent(factId)}/accept`, { method: "POST" });
+  }
+
+  async rejectFact(factId: string): Promise<void> {
+    await this.request(`/api/profile/facts/${encodeURIComponent(factId)}/reject`, { method: "POST" });
+  }
+
+  async forgetFact(factId: string): Promise<void> {
+    await this.request(`/api/profile/facts/${encodeURIComponent(factId)}/forget`, { method: "POST" });
   }
 
   act(text: string, appId?: string | null): Promise<ActTurn> {

@@ -129,7 +129,10 @@ class AssistantService:
         default_route: str,
         app_model_route: str | None = None,
         describe_app: Callable[[str], str | None] | None = None,
+        context: Callable[[str], str] | None = None,
     ) -> None:
+        # What Alpha knows about the person and their modules, assembled for one sentence.
+        self._context = context
         self._store = store
         self._gateway = gateway
         self._inference = inference
@@ -319,7 +322,8 @@ class AssistantService:
             ]
             current = record.current_brief.model_dump(mode="json") if record.current_brief else None
             existing = self._describe_app(record.change_of) if record.change_of else None
-            prompt = turn_prompt(history, current, latest, existing=existing)
+            known = self._known(str(latest.get("text") or ""))
+            prompt = turn_prompt(history, current, latest, existing=existing, known=known)
             result = self._inference.call(
                 route,
                 system=system_prompt(self._notice(route)),
@@ -364,6 +368,15 @@ class AssistantService:
                 self.on_quick_change(conversation_id)
             except Exception:
                 log.exception("could not start the change for %s", conversation_id)
+
+    def _known(self, text: str) -> str | None:
+        if self._context is None:
+            return None
+        try:
+            return self._context(text) or None
+        except Exception:
+            log.exception("context pack failed; the turn goes on without it")
+            return None
 
     def _triage_change(
         self, conversation_id: str, record: ConversationRecord, route: ModelRoute, text: str

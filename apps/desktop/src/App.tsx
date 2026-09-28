@@ -3,6 +3,8 @@ import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
 import { HANDOFF_KEY } from "./avatar/AvatarWindow";
+import { AboutYou } from "./shell/AboutYou";
+import { isProfileClient } from "./core/client";
 import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, type Surface } from "./shell/Rail";
@@ -241,6 +243,8 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
           <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
         ) : surface.kind === "activity" ? (
           <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
+        ) : surface.kind === "about" ? (
+          isProfileClient(runtime.client) ? <AboutYou client={runtime.client} /> : null
         ) : surface.kind === "connections" ? (
           <Connections client={runtime.client} />
         ) : surface.kind === "settings" ? (
