@@ -191,7 +191,30 @@ hand-built:
   fake route starts on its own once briefed, so the fake builder's package now rides in the
   text as a `fake:` directive (the change integration test had been failing since auto-start).
 
+- 28 September, early morning: the Mac app took over the person's data (`diet-run/data` copied
+  into `~/Library/Application Support/com.alpha.desktop`; `/Applications/Alpha.app` installed;
+  `just app` bundles Core, builds and installs). The third verb, do: `alpha/assistant/acting.py`
+  (`POST /api/act`): one Sonnet call maps a sentence to a module's action, view, tab, a change
+  or a new build, Core runs it at once, a second short call says what happened (1.7 to 3.3 s to
+  decide, about 3 s to phrase). The desktop avatar: a transparent always-on-top Tauri window
+  (`avatar`) with a placeholder character (`apps/desktop/src/avatar`), a panel that grows from
+  the bottom-right corner, the same voice toggle, handoffs to the main window through shared
+  storage (open a module or a conversation), a tray item and a Settings switch. Verified live
+  in the installed app: "open the backend job radar" opened it in the main window; "how many
+  books have I finished this year" read the reading list; in the browser shell "how many
+  calories have I eaten today" and "log two boiled eggs" ran the diet tracker's view and
+  action (the eggs were saved with a model estimate). Known: every rebuild of the ad-hoc-signed
+  app re-triggers the macOS Desktop-folder prompt on a Finder launch (allow once per build; a
+  terminal launch inherits access); the bundled runtime must be re-synced (`just bundle-core`,
+  part of `just app`) after any Core change or the app serves stale routes.
+
 ## Still to do
+
+- Avatar: Kenil's own character art and emotes; a floating window that follows Spaces is done,
+  a hotkey and a bubble that speaks replies aloud are not; the main window's assistant panel
+  should get the same "do" verb.
+- Sign the app with a stable identity (or bundle runtime and resources, F22) so macOS stops
+  asking for folder access after each build.
 
 - Measured (23:16, "a simple reading list", records only): assistant briefed in 25 s with no
   questions; build 4 min 32 s, all of it the builder session on the CLI route (plan ready after

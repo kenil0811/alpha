@@ -28,6 +28,7 @@ from alpha import __version__
 from alpha.api.app import create_app, shutting_down
 from alpha.api.apps_routes import AppPlatform
 from alpha.artifacts.service import ArtifactService
+from alpha.assistant.acting import ActService
 from alpha.assistant.service import AssistantService
 from alpha.builds.preview import PreviewDeps
 from alpha.builds.service import BuildPipeline, BuildService
@@ -157,7 +158,20 @@ def build(
         timezone=settings.timezone,
     )
     platform.scheduler.start()
-    app = create_app(settings, store, coordinator, builds, gateway, assistant, platform, creations)
+    acting = ActService(
+        store,
+        gateway,
+        inference,
+        registry=platform.registry,
+        runs=platform.runs,
+        records=platform.records,
+        assistant=assistant,
+        default_route=settings.assistant_route,
+        timezone=platform.runs.timezone,
+    )
+    app = create_app(
+        settings, store, coordinator, builds, gateway, assistant, platform, creations, acting
+    )
     return app, store, coordinator, builds
 
 

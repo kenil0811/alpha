@@ -27,6 +27,7 @@ from alpha.api.apps_routes import register as register_app_routes
 from alpha.api.auth import make_auth_middleware
 from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.creation_routes import register as register_creation_routes
+from alpha.assistant.acting import ActService, ActTurn
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
@@ -142,6 +143,16 @@ class ConversationStart(BaseModel):
     change_of: str | None = Field(default=None, max_length=80)
 
 
+class ActRequest(BaseModel):
+    """One sentence for the desktop assistant to act on: run, read, open, change or build."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=2000)
+    # The module the person is looking at, when any; helps resolve "add one" or "check it".
+    app_id: str | None = Field(default=None, max_length=80)
+
+
 class ConversationMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -175,6 +186,7 @@ def create_app(
     assistant: AssistantService | None = None,
     platform: AppPlatform | None = None,
     creations: CreationService | None = None,
+    acting: ActService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -264,6 +276,8 @@ def create_app(
         register_app_routes(app, platform)
     if creations is not None:
         register_creation_routes(app, creations)
+    if acting is not None:
+        register_act_routes(app, acting)
     if platform is not None and platform.browser is not None:
         register_browser_routes(app, platform.browser)
 
@@ -425,6 +439,21 @@ def register_build_routes(app: FastAPI, builds: BuildService, gateway: ModelGate
     @app.get("/api/dependency-requests")
     def dependency_requests(build_id: str | None = None) -> dict[str, Any]:
         return {"requests": builds.dependency_requests(build_id)}
+
+
+def register_act_routes(app: FastAPI, acting: ActService) -> None:
+    @app.post("/api/act", response_model=ActTurn)
+    def act(body: ActRequest) -> ActTurn:
+        """Do what the sentence asks, at once, and say what happened. Blocks while the run
+        finishes (bounded), so the avatar can speak the outcome."""
+        try:
+            return acting.act(body.text, context_app_id=body.app_id)
+        except RouteUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/act")
+    def recent_acts(limit: int = Query(default=10, ge=1, le=50)) -> dict[str, Any]:
+        return {"turns": acting.recent(limit)}
 
 
 def register_assistant_routes(app: FastAPI, assistant: AssistantService) -> None:

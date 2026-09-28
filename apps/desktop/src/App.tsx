@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
+import { HANDOFF_KEY } from "./avatar/AvatarWindow";
 import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, type Surface } from "./shell/Rail";
@@ -110,6 +111,31 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     setConversationId(id);
     remember(SELECTED_KEY, id);
   }, []);
+  // The desktop avatar hands over a module or a conversation through shared storage (the two
+  // windows share an origin); this window goes there and comes forward.
+  useEffect(() => {
+    const follow = (raw: string | null) => {
+      if (!raw) return;
+      try {
+        const handoff = JSON.parse(raw) as { app_id?: string | null; conversation_id?: string | null };
+        if (handoff.conversation_id) {
+          selectConversation(handoff.conversation_id);
+          setSurface({ kind: "home" });
+          setAssistantOpen(true);
+        } else if (handoff.app_id) {
+          setModulesTick((n) => n + 1);
+          setSurface({ kind: "module", appId: handoff.app_id });
+        }
+      } catch {
+        /* not a handoff */
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === HANDOFF_KEY) follow(event.newValue);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [selectConversation, setSurface]);
 
   useEffect(() => {
     let cancelled = false;

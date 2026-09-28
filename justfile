@@ -69,3 +69,12 @@ bundle-core:
 # Run the desktop app in development (Vite shell + Tauri host + bundled Core).
 dev: bundle-core
     pnpm --filter @alpha/desktop tauri dev
+
+# Build the Mac app with the current Core and install it as /Applications/Alpha.app.
+# Launching it from the Finder asks once per build whether Alpha may read the Desktop folder
+# (the runtime and resources still live in this repository); allow it.
+app: bundle-core
+    pnpm --filter @alpha/desktop tauri build
+    rm -rf /Applications/Alpha.app
+    cp -R apps/desktop/src-tauri/target/release/bundle/macos/Alpha.app /Applications/Alpha.app
+    @echo "Installed /Applications/Alpha.app"

@@ -508,6 +508,28 @@ export interface Creation {
 
 export const CREATION_DONE = new Set(["active", "failed", "cancelled"]);
 
+/** One sentence the desktop assistant acted on, and what happened. */
+export interface ActTurn {
+  turn_id: string;
+  text: string;
+  kind: "run" | "query" | "open" | "build" | "change" | "answer";
+  app_id: string | null;
+  app_name?: string | null;
+  action_id: string | null;
+  run_id: string | null;
+  conversation_id: string | null;
+  /** Where the main window should go: a module (and tab) or a conversation. */
+  open: { app_id?: string | null; tab_id?: string | null; conversation_id?: string | null } | null;
+  reply: string;
+  created_at: string;
+}
+
+export interface ActClient {
+  /** Do what the sentence asks, at once; resolves when Alpha can say what happened. */
+  act(text: string, appId?: string | null): Promise<ActTurn>;
+  recentActs(): Promise<ActTurn[]>;
+}
+
 /** Creating results and using them (F08 routes). */
 export interface WorkflowsClient {
   listApps(): Promise<AppSummary[]>;
@@ -620,7 +642,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -868,6 +890,16 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient {
   async recentCreations(): Promise<Creation[]> {
     const page = await this.request<{ creations: Creation[] }>("/api/creations");
     return page.creations;
+  }
+
+  act(text: string, appId?: string | null): Promise<ActTurn> {
+    // A run may take a while; the avatar waits for the outcome rather than a promise.
+    return this.request<ActTurn>("/api/act", { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }), signal: AbortSignal.timeout(150_000) });
+  }
+
+  async recentActs(): Promise<ActTurn[]> {
+    const page = await this.request<{ turns: ActTurn[] }>("/api/act");
+    return page.turns;
   }
 
   async appChecks(appId: string): Promise<AppChecks | null> {

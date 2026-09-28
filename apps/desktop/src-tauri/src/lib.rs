@@ -15,7 +15,10 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
+use tauri::{
+    AppHandle, LogicalSize, Manager, PhysicalPosition, RunEvent, State, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 
 const READY_PREFIX: &str = "ALPHA_CORE_READY ";
 /// Generated-UI qualification fixture, served from its own origin (`alpha-ui://<app-id>/`) so
@@ -111,6 +114,118 @@ struct HostState {
 
 /// How long the shell waits for Core before it is told the runtime did not start.
 const SESSION_WAIT: Duration = Duration::from_secs(600);
+
+/// The desktop assistant: a small always-on-top window with Alpha's character that the person
+/// talks to from anywhere (run, read, open, change or build, at once). Its own webview loads
+/// the same shell, which renders the avatar when the window label says so.
+const AVATAR_LABEL: &str = "avatar";
+const AVATAR_IDLE: (f64, f64) = (132.0, 148.0);
+const AVATAR_OPEN: (f64, f64) = (380.0, 560.0);
+const AVATAR_MARGIN: f64 = 20.0;
+/// Present in the data directory when the person hid the avatar; it stays hidden until shown.
+const AVATAR_HIDDEN_MARKER: &str = "avatar-hidden";
+
+fn avatar_marker() -> Option<PathBuf> {
+    DATA_DIR.get().map(|d| d.join(AVATAR_HIDDEN_MARKER))
+}
+
+fn place_bottom_right(window: &WebviewWindow, size: (f64, f64)) -> tauri::Result<()> {
+    let monitor = match window.current_monitor()? {
+        Some(m) => Some(m),
+        None => window.primary_monitor()?,
+    };
+    if let Some(monitor) = monitor {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area();
+        let x = area.position.x as f64 + area.size.width as f64 - (size.0 + AVATAR_MARGIN) * scale;
+        let y = area.position.y as f64 + area.size.height as f64 - (size.1 + AVATAR_MARGIN) * scale;
+        window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32))?;
+    }
+    Ok(())
+}
+
+fn build_avatar(app: &AppHandle) -> tauri::Result<()> {
+    let window = WebviewWindowBuilder::new(app, AVATAR_LABEL, WebviewUrl::App("index.html".into()))
+        .title("Alpha assistant")
+        .inner_size(AVATAR_IDLE.0, AVATAR_IDLE.1)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .focused(false)
+        .visible(false)
+        .build()?;
+    place_bottom_right(&window, AVATAR_IDLE)?;
+    let hidden = avatar_marker().map(|m| m.exists()).unwrap_or(false);
+    if !hidden {
+        window.show()?;
+    }
+    Ok(())
+}
+
+/// Grow the avatar into its panel (or back), keeping its bottom-right corner where it is, so
+/// it opens upward and leftward from wherever the person left it.
+#[tauri::command]
+fn avatar_layout(app: AppHandle, expanded: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window(AVATAR_LABEL)
+        .ok_or("no avatar window")?;
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let position = window.outer_position().map_err(|e| e.to_string())?;
+    let size = window.outer_size().map_err(|e| e.to_string())?;
+    let right = position.x + size.width as i32;
+    let bottom = position.y + size.height as i32;
+    let (width, height) = if expanded { AVATAR_OPEN } else { AVATAR_IDLE };
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
+    let physical_w = (width * scale).round() as i32;
+    let physical_h = (height * scale).round() as i32;
+    window
+        .set_position(PhysicalPosition::new(right - physical_w, bottom - physical_h))
+        .map_err(|e| e.to_string())?;
+    if expanded {
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn avatar_visible(app: AppHandle, visible: bool) -> Result<bool, String> {
+    let window = app
+        .get_webview_window(AVATAR_LABEL)
+        .ok_or("no avatar window")?;
+    if visible {
+        window.show().map_err(|e| e.to_string())?;
+        if let Some(marker) = avatar_marker() {
+            let _ = std::fs::remove_file(marker);
+        }
+    } else {
+        window.hide().map_err(|e| e.to_string())?;
+        if let Some(marker) = avatar_marker() {
+            let _ = std::fs::write(marker, b"");
+        }
+    }
+    Ok(visible)
+}
+
+#[tauri::command]
+fn avatar_is_visible(app: AppHandle) -> Result<bool, String> {
+    let window = app
+        .get_webview_window(AVATAR_LABEL)
+        .ok_or("no avatar window")?;
+    window.is_visible().map_err(|e| e.to_string())
+}
+
+/// Bring the main window forward (the avatar hands a module or conversation over to it).
+#[tauri::command]
+fn show_main(app: AppHandle) -> Result<(), String> {
+    show_main_window(&app);
+    Ok(())
+}
 
 fn random_token() -> Result<String, String> {
     use std::io::Read;
@@ -433,7 +548,14 @@ pub fn run() {
     tauri::Builder::default()
         .manage(HostState::default())
         .register_uri_scheme_protocol("alpha-ui", |_ctx, request| generated_ui_response(&request))
-        .invoke_handler(tauri::generate_handler![core_session, runtime_info])
+        .invoke_handler(tauri::generate_handler![
+            core_session,
+            runtime_info,
+            avatar_layout,
+            avatar_visible,
+            avatar_is_visible,
+            show_main
+        ])
         .setup(|app| {
             let handle = app.handle().clone();
             let launch = app.state::<HostState>().launch.clone();
@@ -459,9 +581,15 @@ pub fn run() {
                 }
             }
 
+            if let Err(error) = build_avatar(app.handle()) {
+                note(&format!("avatar window not created: {error}"));
+            }
+
             let open = MenuItem::with_id(app, "open", "Open Alpha", true, None::<&str>)?;
+            let avatar_item =
+                MenuItem::with_id(app, "avatar", "Show or hide the assistant", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Alpha", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit_item])?;
+            let menu = Menu::with_items(app, &[&open, &avatar_item, &quit_item])?;
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().cloned().expect("window icon"))
                 .icon_as_template(true)
@@ -470,6 +598,10 @@ pub fn run() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show_main_window(app),
+                    "avatar" => {
+                        let shown = avatar_is_visible(app.clone()).unwrap_or(false);
+                        let _ = avatar_visible(app.clone(), !shown);
+                    }
                     "quit" => quit(app),
                     _ => {}
                 })

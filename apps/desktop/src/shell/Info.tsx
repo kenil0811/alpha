@@ -1,4 +1,5 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
+import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
 import { RunList } from "../components/RunList";
@@ -268,6 +269,52 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
   );
 }
 
+/** The desktop assistant window: on or off, remembered by the host. Only inside the Mac app. */
+function AvatarSetting() {
+  const [shown, setShown] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!hasTauri()) return;
+    let cancelled = false;
+    import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke<boolean>("avatar_is_visible"))
+      .then((visible) => {
+        if (!cancelled) setShown(visible);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (shown === null) return null;
+  const set = async (visible: boolean) => {
+    setShown(visible);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      setShown(await invoke<boolean>("avatar_visible", { visible }));
+    } catch {
+      setShown(!visible);
+    }
+  };
+  return (
+    <div className="card list" aria-label="Desktop assistant">
+      <div className="item">
+        <div className="item__body">
+          <b>Alpha on your desktop</b>
+          <div className="item__sub">A small Alpha stays above your other windows. Click it or speak to log something, ask a question, open a module or start something new.</div>
+        </div>
+        <div className="toggle" role="group" aria-label="Desktop assistant">
+          <button type="button" aria-pressed={shown} onClick={() => void set(true)}>
+            Shown
+          </button>
+          <button type="button" aria-pressed={!shown} onClick={() => void set(false)}>
+            Hidden
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Settings({ client, health, theme, onTheme }: { client: CoreClient; health: HealthInfo; theme: Theme; onTheme: (next: Theme) => void }) {
   return (
     <section className="page" aria-labelledby="settings-heading">
@@ -279,6 +326,7 @@ export function Settings({ client, health, theme, onTheme }: { client: CoreClien
         </div>
       </div>
       <ConfigurableSettings client={client} />
+      <AvatarSetting />
       <div className="card list">
         <div className="item">
           <div className="item__body">
