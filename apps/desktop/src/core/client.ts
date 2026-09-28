@@ -894,7 +894,7 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   act(text: string, appId?: string | null): Promise<ActTurn> {
     // A run may take a while; the avatar waits for the outcome rather than a promise.
-    return this.request<ActTurn>("/api/act", { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }), signal: AbortSignal.timeout(150_000) });
+    return this.request<ActTurn>("/api/act", { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }), signal: AbortSignal.timeout(300_000) });
   }
 
   async recentActs(): Promise<ActTurn[]> {

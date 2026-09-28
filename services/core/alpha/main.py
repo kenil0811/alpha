@@ -168,6 +168,7 @@ def build(
         assistant=assistant,
         default_route=settings.assistant_route,
         timezone=platform.runs.timezone,
+        creations=creations,
     )
     app = create_app(
         settings, store, coordinator, builds, gateway, assistant, platform, creations, acting

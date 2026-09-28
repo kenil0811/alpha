@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import yaml
-from alpha.assistant.acting import ActService, catalogue_text, template_reply
+from alpha.assistant.acting import ActService, catalogue_text, outcome_line, summary_reply
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
 from alpha.models.structured import StructuredInference
@@ -69,6 +69,9 @@ class Assistant:
         self.started.append((text, change_of))
         return SimpleNamespace(conversation_id="conv_9")
 
+    def get(self, conversation_id: str) -> Any:
+        return SimpleNamespace(state="answered")
+
 
 def service(tmp_path: Path, runs: Runs, assistant: Assistant) -> ActService:
     store = ControlStore(tmp_path / "control.sqlite")
@@ -95,23 +98,24 @@ def test_the_catalogue_names_only_what_the_assistant_may_run() -> None:
     assert "view notes.recent: Latest notes" in text
 
 
-def test_a_sentence_runs_the_action_at_once_and_says_so(tmp_path: Path) -> None:
+def test_a_sentence_runs_the_action_at_once_and_says_what_happened(tmp_path: Path) -> None:
     runs, assistant = Runs(), Assistant()
     svc = service(tmp_path, runs, assistant)
     turn = svc.act('fake:run notes add_note {"title": "Call the bank"}')
     assert turn.kind == "run" and turn.app_id == "notes" and turn.action_id == "add_note"
     assert runs.invoked == [("notes", "add_note", {"title": "Call the bank"}, RunOrigin.ASSISTANT)]
     assert turn.run_id == "run_1"
-    assert turn.reply == "Done: add a note in Notes (fixture)."
+    assert turn.reply == "Done: 1 succeeded, 0 failed, 0 read.", "written after the outcome"
+    assert turn.outcome == "ran add_note 1 time(s) in Notes (fixture): 1 succeeded, 0 failed"
     assert [t.turn_id for t in svc.recent()] == [turn.turn_id]
 
 
-def test_a_result_with_numbers_is_phrased(tmp_path: Path) -> None:
+def test_several_entries_go_in_one_step(tmp_path: Path) -> None:
     runs, assistant = Runs(), Assistant()
-    runs.output = {"count": 3}
     svc = service(tmp_path, runs, assistant)
-    turn = svc.act("fake:run notes count_notes")
-    assert turn.reply.startswith("Done.") and '"count": 3' in turn.reply
+    turn = svc.act('fake:runs notes add_note [{"title": "a"}, {"title": "b"}, {"title": "c"}]')
+    assert [i[2]["title"] for i in runs.invoked] == ["a", "b", "c"]
+    assert turn.reply == "Done: 3 succeeded, 0 failed, 0 read."
 
 
 def test_a_failed_run_is_reported_not_hidden(tmp_path: Path) -> None:
@@ -119,7 +123,8 @@ def test_a_failed_run_is_reported_not_hidden(tmp_path: Path) -> None:
     runs.state = RunState.FAILED
     svc = service(tmp_path, runs, assistant)
     turn = svc.act('fake:run notes add_note {"title": "x"}')
-    assert turn.kind == "run" and "didn't finish" in turn.reply
+    assert turn.kind == "run" and turn.reply == "Done: 0 succeeded, 1 failed, 0 read."
+    assert "0 succeeded, 1 failed" in (turn.outcome or "")
 
 
 def test_open_change_and_build_route_to_the_right_place(tmp_path: Path) -> None:
@@ -137,6 +142,19 @@ def test_open_change_and_build_route_to_the_right_place(tmp_path: Path) -> None:
     ]
     plain = svc.act("hello there")
     assert plain.kind == "answer" and runs.invoked == []
+    assert plain.outcome == "nothing was done; Alpha only replied"
+
+
+def test_the_facts_say_what_earlier_sentences_led_to(tmp_path: Path) -> None:
+    """A later "are you still on it?" is answered from these, never from the story."""
+    runs, assistant = Runs(), Assistant()
+    svc = service(tmp_path, runs, assistant)
+    svc.act("fake:build fill ten days of data")
+    facts = svc._facts({"notes": "Notes (fixture)"})
+    assert facts == [
+        'the conversation started for "fake:build fill ten days of data" is now: '
+        "answered in Alpha's window; nothing is being built"
+    ]
 
 
 def test_an_unknown_module_or_action_is_answered_plainly(tmp_path: Path) -> None:
@@ -144,10 +162,15 @@ def test_an_unknown_module_or_action_is_answered_plainly(tmp_path: Path) -> None
     svc = service(tmp_path, runs, assistant)
     assert svc.act("fake:run nowhere add_note {}").kind == "answer"
     turn = svc.act("fake:run notes fly {}")
-    assert turn.kind == "run" and "nothing that does that" in turn.reply and runs.invoked == []
+    assert turn.kind == "run" and "1 failed" in turn.reply and runs.invoked == []
 
 
-def test_template_replies_read_naturally() -> None:
-    assert template_reply("count notes", {"count": 3}) == "Done: count notes. count 3."
-    assert template_reply("save", {"id": "r", "revision": 2}) == "Done: save."
-    assert template_reply("latest notes", [1, 2]) == "latest notes: 2 item(s)."
+def test_summaries_read_naturally() -> None:
+    assert summary_reply([]) == "Nothing was done."
+    assert summary_reply([{"results": [{"outcome": "succeeded"}, {"outcome": "failed: x"}]}]) == (
+        "Finished: 1 done, 1 did not go through."
+    )
+    assert outcome_line("open", {}, "Notes") == "opened Notes in Alpha's window"
+    assert outcome_line("query", {"observations": [{"rows": []}]}, "Notes") == (
+        "read Notes; nothing was changed"
+    )
