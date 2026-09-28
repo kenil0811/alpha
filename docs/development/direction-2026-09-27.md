@@ -208,6 +208,16 @@ hand-built:
   terminal launch inherits access); the bundled runtime must be re-synced (`just bundle-core`,
   part of `just app`) after any Core change or the app serves stale routes.
 
+- 28 September, evening: Kenil asked the avatar to "fill in some mock data in my diet
+  tracker for the past 10 days". The single-shot verb routed it to a new build, the assistant
+  refused, and the avatar then claimed twice to be "still working". Replaced with a step loop
+  (`ActService.act`): each step one model call over the modules, FACTS (runs in flight,
+  creations in progress, what earlier sentences actually led to) and this sentence's
+  observations; a step runs a batch of actions (up to 40), reads a view, opens, changes,
+  builds, or finishes with a reply written from the observations. Verified: 22 entries over
+  ten days through `log_entry`, reported as such. Rule kept: a claim of progress is allowed
+  only when FACTS show something running.
+
 ## Still to do
 
 - Avatar: Kenil's own character art and emotes; a floating window that follows Spaces is done,
