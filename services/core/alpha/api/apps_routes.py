@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
+from alpha.context.connections import ConnectionService
 from alpha.data.store import RecordService, WriteContext
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.execution.app_runs import AppRunService, HandlerBinder
@@ -53,6 +54,7 @@ class AppPlatform:
     fixture_apps_dir: Path | None = None
     scheduler: Scheduler | None = None
     browser: BrowserService | None = None
+    connections: ConnectionService | None = None
 
     def close(self) -> None:
         if self.scheduler is not None:
@@ -176,6 +178,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             else None,
             "has_screen": source.has_screen(),
             "summary": [b.model_dump(mode="json", by_alias=True) for b in source.summary],
+            "uses": [u.model_dump(mode="json") for u in source.uses],
             "can_revert": platform.registry.previous_release(app_id) is not None,
         }
 

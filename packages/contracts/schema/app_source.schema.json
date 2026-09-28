@@ -546,6 +546,7 @@
         "multiselect",
         "url",
         "reference",
+        "relation",
         "json"
       ],
       "title": "FieldKind",
@@ -650,6 +651,18 @@
           "anyOf": [
             {
               "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "module": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
             },
             {
               "type": "null"
@@ -1078,6 +1091,36 @@
         "cards"
       ],
       "title": "MetricsBlock",
+      "type": "object"
+    },
+    "ModuleUse": {
+      "additionalProperties": false,
+      "description": "Another module this one reads: the views it may query, and why, in the person's\nwords. The person sees every use on the module's Settings with a switch.",
+      "properties": {
+        "module": {
+          "pattern": "^[a-z][a-z0-9_-]{2,63}$",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "module",
+        "views",
+        "purpose"
+      ],
+      "title": "ModuleUse",
       "type": "object"
     },
     "Not": {
@@ -2140,6 +2183,13 @@
         }
       ],
       "default": null
+    },
+    "uses": {
+      "items": {
+        "$ref": "#/$defs/ModuleUse"
+      },
+      "maxItems": 8,
+      "type": "array"
     },
     "views": {
       "items": {

@@ -48,8 +48,17 @@ HANDLER_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_]
 # Capability families an App can declare in this release. Anything else is rejected rather than
 # silently ignored; later tickets add families with their providers.
 KNOWN_CAPABILITIES: frozenset[str] = frozenset(
-    {"records", "artifacts", "models", "http", "schedules", "browser", "profile"}
+    {"records", "artifacts", "models", "http", "schedules", "browser", "profile", "connections"}
 )
+
+
+class ModuleUse(ContractModel):
+    """Another module this one reads: the views it may query, and why, in the person's
+    words. The person sees every use on the module's Settings with a switch."""
+
+    module: str = Field(pattern=APP_ID_PATTERN)
+    views: list[str] = Field(min_length=1, max_length=12)
+    purpose: str = Field(min_length=1, max_length=300)
 
 
 class EffectClass(StrEnum):
@@ -153,6 +162,8 @@ class AppSource(ContractModel):
     trigger_templates: list[dict[str, Any]] = Field(default_factory=list, max_length=8)
     # Local schedules Alpha runs while it is open (the schedules capability).
     schedules: list[ScheduleSpec] = Field(default_factory=list, max_length=8)
+    # Other modules this one reads (the connections capability).
+    uses: list[ModuleUse] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def _consistent(self) -> AppSource:
@@ -184,6 +195,22 @@ class AppSource(ContractModel):
             raise ValueError("schedule ids must be unique")
         if self.schedules and "schedules" not in self.capabilities:
             raise ValueError("an App with schedules must declare the schedules capability")
+        used = [u.module for u in self.uses]
+        if len(set(used)) != len(used):
+            raise ValueError("each module appears once under uses")
+        if self.app_id in used:
+            raise ValueError("a module does not list itself under uses")
+        if self.uses and "connections" not in self.capabilities:
+            raise ValueError(
+                "an App that uses other modules must declare the connections capability"
+            )
+        for collection in self.collections:
+            for spec in collection.fields:
+                if spec.kind is FieldKind.RELATION and spec.module not in used:
+                    raise ValueError(
+                        f"{collection.name}.{spec.name} relates to module {spec.module!r}, "
+                        "which must be listed under uses"
+                    )
         for schedule in self.schedules:
             scheduled = self.action(schedule.action)
             if scheduled is None:

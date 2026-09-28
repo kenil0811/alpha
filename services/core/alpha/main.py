@@ -39,6 +39,7 @@ from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed
 from alpha.capabilities.web import WebService
 from alpha.config import ConfigError, CoreSettings
+from alpha.context.connections import ConnectionService
 from alpha.context.pack import ContextPacker
 from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService
@@ -119,6 +120,10 @@ def build(
         PlatformResources(settings.platform_resources) if settings.platform_resources else None
     )
     profile = ProfileService(store)
+    connections = platform.connections
+    assert connections is not None
+    platform.registry.on_current_changed = connections.sync
+    connections.sync_all()
     packer = ContextPacker(profile, platform.registry, platform.records, store)
     assistant = AssistantService(
         store,
@@ -187,6 +192,7 @@ def build(
         creations,
         acting,
         profile,
+        connections,
     )
     return app, store, coordinator, builds
 
@@ -324,6 +330,8 @@ def build_app_platform(
         root=settings.data_dir / "browser",
         preferences=gateway.preferences,
     )
+    # The registry comes after the broker; the connection service is bound to it below.
+    connections = ConnectionService(store, None, records, settings.timezone)
     broker = CapabilityBroker(
         store,
         records,
@@ -333,6 +341,7 @@ def build_app_platform(
         web=WebService(),
         browser=browser,
         profile=ProfileService(store),
+        connections=connections,
     )
     revoked = broker.revoke_all_on_startup()
     if revoked:
@@ -347,6 +356,7 @@ def build_app_platform(
         ui_builder=toolchain.build_ui if toolchain else None,
     )
     registry.reconcile_on_startup()
+    connections.bind(registry)
     runs = AppRunService(
         coordinator, supervisor, registry, inventory, broker, timezone=settings.timezone
     )
@@ -361,6 +371,7 @@ def build_app_platform(
         binder=binder,
         fixture_apps_dir=settings.dev_fixture_apps_dir,
         browser=browser,
+        connections=connections,
     )
 
 

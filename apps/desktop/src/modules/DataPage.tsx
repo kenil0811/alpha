@@ -5,7 +5,7 @@
  * shown. Changes made here are the person's own records, not a module action.
  */
 import { type DragEvent, type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CollectionSummary, FilterNode, RecordRow } from "../core/client";
+import { type CollectionSummary, type FilterNode, type RecordRow, isConnectionsClient } from "../core/client";
 import { DATE_KINDS, coerce, editText, firstOfKind, inputType, isNumeric, openChoices, showValue, titleFieldOf, type FieldInfo } from "./fields";
 import { Block } from "./blocks";
 import { formatNumber, humanize, useModule } from "./useModule";
@@ -26,7 +26,7 @@ interface SavedList {
   filters: Record<string, string>;
   search: string;
   hideDone: boolean;
-  columns: string[] | null;
+  hidden: string[];
 }
 
 function remembered<T>(key: string, fallback: T): T {
@@ -65,7 +65,9 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [hideDone, setHideDone] = useState(false);
   const [sort, setSort] = useState<{ field: string; direction: "asc" | "desc" } | null>(page?.sort ?? null);
-  const [columns, setColumns] = useState<string[]>(() => remembered<string[]>(`${key}.columns`, page?.columns ?? fields.map((f) => f.name)));
+  // Columns the person hid are remembered; a field the module gains later shows up on its own.
+  const [hidden, setHidden] = useState<string[]>(() => remembered<string[]>(`${key}.hidden`, []));
+  const columns = useMemo(() => (page?.columns ?? fields.map((f) => f.name)).filter((c) => !hidden.includes(c)), [page?.columns, fields, hidden]);
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [rows, setRows] = useState<RecordRow[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
   });
 
   useEffect(() => remember(`${key}.view`, view), [key, view]);
-  useEffect(() => remember(`${key}.columns`, columns), [key, columns]);
+  useEffect(() => remember(`${key}.hidden`, hidden), [key, hidden]);
   useEffect(() => remember(`${key}.lists`, lists), [key, lists]);
 
   const searchable = useMemo(() => fields.filter((f) => f.kind === "text" || f.kind === "long_text" || f.kind === "url").map((f) => f.name), [fields]);
@@ -144,12 +146,12 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
     setFilters(list?.filters ?? {});
     setSearch(list?.search ?? "");
     setHideDone(list?.hideDone ?? false);
-    if (list?.columns) setColumns(list.columns);
+    if (list) setHidden(list.hidden);
   }
   function saveList() {
     const title = window.prompt("Name this list", "");
     if (!title) return;
-    const list: SavedList = { id: `list_${Date.now().toString(36)}`, title, filters, search, hideDone, columns };
+    const list: SavedList = { id: `list_${Date.now().toString(36)}`, title, filters, search, hideDone, hidden };
     setLists((all) => [...all, list]);
     setListId(list.id);
     setMenu(false);
@@ -221,7 +223,7 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
                 <div className="menu__head">Columns</div>
                 {fields.map((f) => (
                   <label key={f.name} className="menu__item">
-                    <input type="checkbox" checked={shownColumns.includes(f.name)} onChange={(e) => setColumns((c) => (e.target.checked ? [...fields.map((x) => x.name).filter((n) => c.includes(n) || n === f.name)] : c.filter((n) => n !== f.name)))} /> {humanize(f.name)}
+                    <input type="checkbox" checked={shownColumns.includes(f.name)} onChange={(e) => setHidden((h) => (e.target.checked ? h.filter((n) => n !== f.name) : [...h, f.name]))} /> {humanize(f.name)}
                   </label>
                 ))}
                 <div className="menu__head">Lists</div>
@@ -336,8 +338,78 @@ function TableView({ rows, fields, columns, byName, sort, onSort, openId, onOpen
   );
 }
 
+/** Titles of related records, fetched once per module and record. */
+const relatedTitles = new Map<string, string>();
+
+/** A relation to another module's record: its title, and a picker over that collection. */
+function RelationCell({ row, field, onCommit }: { row: RecordRow; field: FieldInfo; onCommit: (text: string) => void }) {
+  const { client, detail } = useModule();
+  const value = row.values[field.name];
+  const key = `${field.module}/${field.collection}/${String(value ?? "")}`;
+  const [title, setTitle] = useState<string | null>(() => relatedTitles.get(key) ?? null);
+  const [picking, setPicking] = useState(false);
+  const [options, setOptions] = useState<{ id: string; title: string }[] | null>(null);
+  useEffect(() => {
+    if (!value || !field.module || !field.collection || relatedTitles.has(key) || !isConnectionsClient(client)) return;
+    let cancelled = false;
+    client
+      .relatedGet(detail.app_id, field.module, field.collection, String(value))
+      .then((r) => {
+        relatedTitles.set(key, r.title);
+        if (!cancelled) setTitle(r.title);
+      })
+      .catch(() => {
+        if (!cancelled) setTitle(String(value));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, detail.app_id, field.module, field.collection, key, value]);
+  async function open(e: { stopPropagation: () => void }) {
+    e.stopPropagation();
+    if (!field.module || !field.collection || !isConnectionsClient(client)) return;
+    setPicking(true);
+    try {
+      setOptions(await client.relatedPick(detail.app_id, field.module, field.collection));
+    } catch {
+      setOptions([]);
+    }
+  }
+  if (picking) {
+    return (
+      <td onClick={(e) => e.stopPropagation()}>
+        <select
+          autoFocus
+          value={String(value ?? "")}
+          aria-label={humanize(field.name)}
+          onChange={(e) => {
+            const chosen = options?.find((o) => o.id === e.target.value);
+            if (chosen) relatedTitles.set(`${field.module}/${field.collection}/${chosen.id}`, chosen.title);
+            setPicking(false);
+            onCommit(e.target.value);
+          }}
+          onBlur={() => setPicking(false)}
+        >
+          <option value="">—</option>
+          {(options ?? []).map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.title}
+            </option>
+          ))}
+        </select>
+      </td>
+    );
+  }
+  return (
+    <td className="editable" onClick={(e) => void open(e)} tabIndex={0} title="Click to choose">
+      {value ? <span className="pill pill--info">{title ?? "…"}</span> : <span className="faint">—</span>}
+    </td>
+  );
+}
+
 function Cell({ row, field, onCommit }: { row: RecordRow; field: FieldInfo; onCommit: (text: string) => void }) {
   const [editing, setEditing] = useState(false);
+  if (field.kind === "relation") return <RelationCell row={row} field={field} onCommit={onCommit} />;
   const [text, setText] = useState("");
   const value = row.values[field.name];
   const numeric = isNumeric(field.kind);

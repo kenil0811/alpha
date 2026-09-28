@@ -41,6 +41,9 @@ class FieldKind(StrEnum):
     MULTISELECT = "multiselect"
     URL = "url"
     REFERENCE = "reference"
+    # A record in ANOTHER module's collection (`module` + `collection`): the id of that record.
+    # Reading it back goes through a declared connection to that module.
+    RELATION = "relation"
     JSON = "json"
 
 
@@ -62,6 +65,8 @@ class FieldSpec(ContractModel):
         default=None, max_length=200
     )
     collection: Identifier | None = None
+    # Relation fields only: the module (app id) whose collection the record lives in.
+    module: str | None = Field(default=None, max_length=64)
     max_bytes: int | None = Field(default=None, ge=16, le=65_536)
     # Status fields only: the choices that mean finished.
     done_choices: list[Annotated[str, Field(min_length=1, max_length=200)]] | None = Field(
@@ -98,8 +103,13 @@ class FieldSpec(ContractModel):
         if kind is FieldKind.REFERENCE:
             if self.collection is None:
                 raise ValueError("a reference field names its target collection")
+        elif kind is FieldKind.RELATION:
+            if self.collection is None or self.module is None:
+                raise ValueError("a relation field names its target module and collection")
         elif self.collection is not None:
-            raise ValueError("collection applies to reference fields only")
+            raise ValueError("collection applies to reference and relation fields only")
+        if self.module is not None and kind is not FieldKind.RELATION:
+            raise ValueError("module applies to relation fields only")
         if self.max_bytes is not None and kind is not FieldKind.JSON:
             raise ValueError("max_bytes applies to json fields only")
         return self

@@ -16,6 +16,7 @@ export type FieldKind =
   | "multiselect"
   | "url"
   | "reference"
+  | "relation"
   | "json";
 export type ColumnFormat = "text" | "number" | "date" | "datetime" | "pill" | "link" | "check";
 export type FilterOp = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "contains" | "starts_with" | "is_null";
@@ -297,6 +298,19 @@ export interface AppSource {
       ];
   ui?: UiDeclaration | null;
   /**
+   * @maxItems 8
+   */
+  uses?:
+    | []
+    | [ModuleUse]
+    | [ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse]
+    | [ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse, ModuleUse];
+  /**
    * @maxItems 32
    */
   views?: ViewSpec[];
@@ -375,6 +389,7 @@ export interface FieldSpec {
   max_length?: number | null;
   maximum?: number | null;
   minimum?: number | null;
+  module?: string | null;
   name: string;
   required?: boolean;
 }
@@ -1708,4 +1723,29 @@ export interface Metric {
   field?: string | null;
   fn: MetricFn;
   name: string;
+}
+/**
+ * Another module this one reads: the views it may query, and why, in the person's
+ * words. The person sees every use on the module's Settings with a switch.
+ */
+export interface ModuleUse {
+  module: string;
+  purpose: string;
+  /**
+   * @minItems 1
+   * @maxItems 12
+   */
+  views:
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string, string];
 }

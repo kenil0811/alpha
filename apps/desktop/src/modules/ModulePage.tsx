@@ -6,7 +6,7 @@
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+import { type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ModuleConnection, type ScheduleStatus, isConnectionsClient } from "../core/client";
 import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -77,7 +77,69 @@ const ACCESS: Record<string, { title: string; sub: string }> = {
   browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this module's Settings. Read-only and paced; every page is listed above." },
   artifacts: { title: "Files it produces", sub: "Kept by Alpha; opening them from Alpha arrives in a later release." },
   profile: { title: "What Alpha knows about you", sub: "Reads the facts on your About you page and passes on what you tell it; anything it works out waits there for your yes." },
+  connections: { title: "Other modules' data, read-only", sub: "Reads what the modules listed under Settings keep, through the views they declare. Each one has a switch." },
 };
+
+/** What this module reads from other modules, with the person's switch on each. */
+function ConnectionSwitches({ client, appId }: { client: ModuleClient; appId: string }) {
+  const [rows, setRows] = useState<ModuleConnection[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isConnectionsClient(client)) return;
+    let cancelled = false;
+    client
+      .connections(appId)
+      .then((all) => {
+        if (!cancelled) setRows(all);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, appId]);
+  if (!isConnectionsClient(client) || !rows?.length) return null;
+  const toggle = async (row: ModuleConnection) => {
+    try {
+      setRows(await client.setConnection(appId, row.module, !row.enabled));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="section" style={{ marginTop: 0 }}>
+      <div className="section__head">
+        <h2>Reads from other modules</h2>
+        <span className="faint">Read-only, through the views those modules declare. Switch any off; the module then says it cannot read it.</span>
+      </div>
+      {error ? (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="card list" aria-label="Connections">
+        {rows.map((row) => (
+          <div className="item" key={row.module}>
+            <div className="item__ico" aria-hidden="true">
+              ⇄
+            </div>
+            <div className="item__body">
+              <b>{row.name}</b>
+              <div className="item__sub">
+                {row.purpose} · {row.views.map((v) => v.collection ?? v.id).join(", ")}
+                {row.installed ? "" : " · not installed right now"}
+              </div>
+            </div>
+            <button type="button" className={`btn btn--sm${row.enabled ? " btn--primary" : ""}`} aria-pressed={row.enabled} onClick={() => void toggle(row)}>
+              {row.enabled ? "On" : "Off"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** The fast lane's follow-up on the module's own page: its behaviour checks, while they run
  *  and when they land, with the one click back when they find a problem. */
@@ -468,6 +530,7 @@ export function ModulePage({
 
           {section === "settings" ? (
             <>
+              {(detail.uses ?? []).length ? <ConnectionSwitches client={client} appId={appId} /> : null}
               {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
               <div className="section" style={{ marginTop: (detail.capabilities ?? []).includes("browser") ? undefined : 0 }}>
                 <div className="section__head">

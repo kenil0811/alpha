@@ -148,6 +148,23 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         ),
     ),
     CapabilityFamily(
+        family="connections",
+        description="Reading what the person's other modules keep, through the views those "
+        "modules declare: a resume module reads the coursework in Academics, a budget module "
+        "reads the meals in a diet tracker. Read-only, declared, and switchable by the person.",
+        available=True,
+        operations=(
+            "modules.available() -> the modules this App may read and their views",
+            "modules.query(module, view, where, limit) -> that module's records through its view",
+            "modules.get(module, collection, id) -> one related record",
+            "a field of kind relation (module + collection) links a record to another module's",
+        ),
+        notes=(
+            "Each use is declared in app.yaml (module, views, purpose) and shown with a switch.",
+            "Nothing is copied: the reader sees the current rows of the source module.",
+        ),
+    ),
+    CapabilityFamily(
         family="messaging",
         description="Sending messages or notifications through chat or email services.",
         available=False,

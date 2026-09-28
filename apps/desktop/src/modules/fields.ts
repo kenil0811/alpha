@@ -11,6 +11,8 @@ export interface FieldInfo {
   description?: string;
   choices?: string[] | null;
   done_choices?: string[] | null;
+  module?: string | null;
+  collection?: string | null;
 }
 
 export const NUMERIC_KINDS = new Set(["number", "integer"]);

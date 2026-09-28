@@ -55,7 +55,8 @@ collections:
       - {name: eaten_on, kind: date, required: true}          # "YYYY-MM-DD"
       - {name: logged_at, kind: datetime}                     # ISO 8601 with offset
       - {name: done, kind: boolean}
-      - {name: meal, kind: reference, collection: meals}      # id of a record in a collection
+      - {name: meal, kind: reference, collection: meals}      # id of a record in this module
+      - {name: course, kind: relation, module: academics, collection: courses}   # a record in another module (see uses)
       - {name: extra, kind: json, max_bytes: 4096}
     indexes: [[eaten_on]]
     unique: [[title, eaten_on]]
@@ -269,6 +270,25 @@ What the shell does with the declaration: the quick entry sends the typed line a
 action's `message` output (return a `message` in the person's words); editable cells send
 `{id_param: id, <field>: value}` and refresh the views; totals and pagination are automatic;
 model estimates are labelled from record provenance.
+
+### uses (reading the person's other modules)
+
+```yaml
+capabilities: [records, connections]
+uses:
+  - module: academics                          # the other module's id (the build notes list them)
+    views: [courses.all, assignments.recent]   # views it declared; read through them, read-only
+    purpose: The resume lists the courses and projects kept in Academics.
+```
+
+A module never opens another module's tables. It declares what it reads and why, in the
+person's words; the person sees each use on this module's Settings with a switch. Read with
+`ctx.modules.query(module, view, limit=...)`; when the switch is off the call raises and the
+action says so in its result. To link one record to another module's record, declare a field
+`{name: course, kind: relation, module: academics, collection: courses}`: it stores that record's
+id, the page shows its title and lets the person pick another, and `ctx.modules.get` reads it.
+The build notes list the person's other modules with their views and fields; read them instead
+of asking the person to enter the same data twice.
 
 ### schedules (run an action while Alpha is open)
 

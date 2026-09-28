@@ -67,6 +67,7 @@ _ORDERABLE = {
     FieldKind.CHOICE,
     FieldKind.BOOLEAN,
     FieldKind.REFERENCE,
+    FieldKind.RELATION,
 }
 
 
@@ -155,7 +156,12 @@ def _compile(
         value = _value(field, node.value)
         return (f"({expr} = ?)" if op is FilterOp.EQ else f"({expr} IS NOT ?)"), [value]
     if op in (FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE):
-        if field.kind in (FieldKind.BOOLEAN, FieldKind.CHOICE, FieldKind.REFERENCE):
+        if field.kind in (
+            FieldKind.BOOLEAN,
+            FieldKind.CHOICE,
+            FieldKind.REFERENCE,
+            FieldKind.RELATION,
+        ):
             raise invalid(f"{field.name} cannot be compared with {op.value}", field=field.name)
         symbol = {FilterOp.LT: "<", FilterOp.LTE: "<=", FilterOp.GT: ">", FilterOp.GTE: ">="}[op]
         return f"({expr} {symbol} ?)", [_value(field, node.value)]

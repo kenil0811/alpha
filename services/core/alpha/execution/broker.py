@@ -26,22 +26,26 @@ from alpha_contracts.records import (
     CorrectRecord,
     CreateRecord,
     DeleteRecord,
+    Filter,
     GetRecord,
     RecordBatch,
     RecordMutation,
     RecordQuery,
+    SortKey,
     UpdateRecord,
 )
 from alpha_contracts.runs import RunOrigin
 from alpha_contracts.web import HttpGetRequest, HttpSearchRequest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.browser import BrowserService
 from alpha.capabilities.errors import OperationFailed, forbidden, invalid, unavailable
 from alpha.capabilities.web import WebService
+from alpha.context.connections import ConnectionService
 from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService, WriteContext
+from alpha.data.views import ViewQueryRequest
 from alpha.models.runtime import AppModelService
 from alpha.storage.control_store import ControlStore, utc_now
 
@@ -72,6 +76,24 @@ class RunGrant:
     timezone: str
 
 
+class ModuleViewQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    module: str = Field(min_length=3, max_length=64)
+    view: str = Field(min_length=1, max_length=64)
+    where: Filter | None = None
+    order_by: list[SortKey] = Field(default_factory=list, max_length=3)
+    limit: int = Field(default=100, ge=1, le=500)
+
+
+class ModuleRecordGet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    module: str = Field(min_length=3, max_length=64)
+    collection: str = Field(min_length=1, max_length=48)
+    id: str = Field(min_length=1, max_length=64)
+
+
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -91,9 +113,11 @@ class CapabilityBroker:
         web: WebService | None = None,
         browser: BrowserService | None = None,
         profile: ProfileService | None = None,
+        connections: ConnectionService | None = None,
     ) -> None:
         self._browser = browser
         self._profile = profile
+        self._connections = connections
         self._store = store
         self._records = records
         self._artifacts = artifacts
@@ -292,6 +316,24 @@ class CapabilityBroker:
             if self._web is None:
                 raise unavailable("web access is not connected on this Mac")
             return self._web.search(grant.run_id, search_request).model_dump(mode="json")
+        if operation.startswith("modules."):
+            if self._connections is None:
+                raise unavailable("connections between modules are not available on this Mac")
+            if operation == "modules.list":
+                return {"modules": self._connections.available(grant.app_id)}
+            if operation == "modules.query":
+                read = _parse(ModuleViewQuery, args)
+                page = self._connections.read(
+                    grant.app_id,
+                    read.module,
+                    read.view,
+                    ViewQueryRequest(where=read.where, order_by=read.order_by, limit=read.limit),
+                )
+                return page.model_dump(mode="json", by_alias=True)
+            fetch = _parse(ModuleRecordGet, args)
+            return self._connections.get(
+                grant.app_id, fetch.module, fetch.collection, fetch.id
+            ).model_dump(mode="json")
         if operation.startswith("profile."):
             if self._profile is None:
                 raise unavailable("the profile is not available on this Mac")

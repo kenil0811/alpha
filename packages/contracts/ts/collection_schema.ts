@@ -13,6 +13,7 @@ export type FieldKind =
   | "multiselect"
   | "url"
   | "reference"
+  | "relation"
   | "json";
 
 export interface CollectionSchema {
@@ -57,6 +58,7 @@ export interface FieldSpec {
   max_length?: number | null;
   maximum?: number | null;
   minimum?: number | null;
+  module?: string | null;
   name: string;
   required?: boolean;
 }

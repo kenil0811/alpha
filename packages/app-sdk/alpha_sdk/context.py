@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from alpha_sdk._channel import Transport
 from alpha_sdk.artifacts import Artifacts
 from alpha_sdk.models import Models
+from alpha_sdk.modules import Modules
 from alpha_sdk.profile import Profile
 from alpha_sdk.records import Records
 from alpha_sdk.web import Web
@@ -41,6 +42,7 @@ class Context:
         self.models = Models(transport)
         self.web = Web(transport)
         self.profile = Profile(transport)
+        self.modules = Modules(transport)
 
     @property
     def run_id(self) -> str:

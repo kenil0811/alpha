@@ -4,10 +4,12 @@ HTTP status, and every contract operation reaches a handler in the broker."""
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, get_args
 
 from alpha.artifacts.service import ArtifactService
-from alpha.capabilities.errors import HTTP_STATUS
+from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
+from alpha.context.connections import ConnectionService
 from alpha.context.profile import ProfileService
 from alpha.data.store import RecordService
 from alpha.execution.broker import CapabilityBroker, RunGrant
@@ -23,8 +25,12 @@ def test_every_failure_code_has_an_http_status() -> None:
     assert set(HTTP_STATUS) == set(get_args(CapabilityErrorCode))
 
 
+def _no_app(app_id: str) -> Any:
+    raise OperationFailed("not_found", f"no App {app_id!r}", {})
+
+
 # Operations that legitimately take no arguments answer with data.
-NO_ARGUMENT_OPERATIONS = frozenset({"profile.all"})
+NO_ARGUMENT_OPERATIONS = frozenset({"profile.all", "modules.list"})
 
 
 def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
@@ -36,6 +42,12 @@ def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
         ArtifactService(control, tmp_path / "artifacts"),
         AppModelService(control, gateway, StructuredInference(gateway), "fake"),
         profile=ProfileService(control),
+        connections=ConnectionService(
+            control,
+            SimpleNamespace(current=_no_app, list_apps=lambda: []),
+            RecordService(tmp_path / "apps"),
+            "UTC",
+        ),
     )
     families = frozenset(op.split(".", 1)[0] for op in OPERATIONS)
     token = broker.issue(

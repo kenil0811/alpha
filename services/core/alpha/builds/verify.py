@@ -369,6 +369,36 @@ class CandidateVerifier:
                     "package.identity", "package", True, "app_id is the identity Alpha assigned"
                 )
             )
+        if run.source.uses:
+            problems: list[str] = []
+            for use in run.source.uses:
+                try:
+                    other = self._registry.current(use.module).source
+                except OperationFailed:
+                    problems.append(f"{use.module} is not installed")
+                    continue
+                missing = [v for v in use.views if other.view(v) is None]
+                if missing:
+                    problems.append(f"{use.module} has no view {', '.join(missing)}")
+            if problems:
+                return run.add(
+                    _result(
+                        "package.connections",
+                        "package",
+                        False,
+                        "the modules this App reads must exist with those views: "
+                        + "; ".join(problems),
+                    )
+                )
+            run.add(
+                _result(
+                    "package.connections",
+                    "package",
+                    True,
+                    "reads "
+                    + ", ".join(f"{u.module} ({', '.join(u.views)})" for u in run.source.uses),
+                )
+            )
         if run.source.screen is not None:
             tabs = ", ".join(t.title for t in run.source.screen.tabs)
             first = run.source.screen.tabs[0].blocks[0]

@@ -115,7 +115,7 @@ def normalize(spec: FieldSpec, value: Any, *, where: str) -> Any:
                 f"{where}{name} must be a list of {spec.choices}", field=name, choices=spec.choices
             )
         return list(dict.fromkeys(value))
-    if kind is FieldKind.REFERENCE:
+    if kind in (FieldKind.REFERENCE, FieldKind.RELATION):
         if not isinstance(value, str) or not RECORD_ID_PATTERN.match(value):
             raise invalid(f"{where}{name} must be a record id", field=name)
         return value
@@ -192,6 +192,8 @@ def fields_to_json_schema(fields: Iterable[FieldSpec]) -> dict[str, Any]:
             node = {"type": "string", "enum": list(spec.choices or [])}
         elif spec.kind is FieldKind.MULTISELECT:
             node = {"type": "array", "items": {"type": "string", "enum": list(spec.choices or [])}}
+        elif spec.kind in (FieldKind.REFERENCE, FieldKind.RELATION):
+            node = {"type": "string", "description": "the id of the record"}
         elif spec.kind is FieldKind.JSON:
             # A list or object the instruction describes (one entry per item in a batch); the
             # value is bounded by max_bytes and depth when it comes back.

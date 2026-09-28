@@ -218,6 +218,9 @@ class AppRegistry:
         store.add_missing_columns("apps", _APP_COLUMNS)
         store.add_missing_columns("app_releases", _RELEASE_COLUMNS)
         versions_root.mkdir(parents=True, exist_ok=True)
+        # Told whenever an App's current Version changes (install, activation, revert), with
+        # the new source: connections keep their switches in step with what is declared.
+        self.on_current_changed: Callable[[str, AppSource], None] | None = None
 
     @property
     def inventory(self) -> ProfileInventory:
@@ -403,7 +406,18 @@ class AppRegistry:
                 "UPDATE apps SET name = ?, description = ?, updated_at = ? WHERE app_id = ?",
                 (source.name, source.description, now, source.app_id),
             )
+        self._changed(source.app_id, source)
         return self.current(source.app_id)
+
+    def _changed(self, app_id: str, source: AppSource) -> None:
+        if self.on_current_changed is None:
+            return
+        try:
+            self.on_current_changed(app_id, source)
+        except Exception:  # a listener must never break an activation
+            import logging
+
+            logging.getLogger("alpha.registry").exception("on_current_changed failed")
 
     @staticmethod
     def _check_expected(conn: Any, app_id: str, activation: Activation) -> None:
@@ -484,7 +498,9 @@ class AppRegistry:
                 Activation(kind="reverted", origin=current.origin),
                 now,
             )
-        return self.current(app_id)
+        restored = self.current(app_id)
+        self._changed(app_id, restored.source)
+        return restored
 
     def retire(
         self, app_id: str, expected_release_id: str | None | AnyRelease = ANY_RELEASE

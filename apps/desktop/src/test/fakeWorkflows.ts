@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import { type AppChecks, type ProfileFact,
+import { type AppChecks, type ModuleConnection, type ProfileFact,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -99,6 +99,28 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
 
   async recentCreations(): Promise<Creation[]> {
     return [...this.creations.values()].reverse();
+  }
+
+  connectionRows: ModuleConnection[] = [];
+  related: Record<string, { id: string; title: string; values: Record<string, unknown> }[]> = {};
+
+  async connections(): Promise<ModuleConnection[]> {
+    return this.connectionRows;
+  }
+
+  async setConnection(_appId: string, module: string, enabled: boolean): Promise<ModuleConnection[]> {
+    this.connectionRows = this.connectionRows.map((c) => (c.module === module ? { ...c, enabled } : c));
+    return this.connectionRows;
+  }
+
+  async relatedPick(_appId: string, module: string, collection: string, q = ""): Promise<{ id: string; title: string }[]> {
+    return (this.related[`${module}/${collection}`] ?? []).filter((r) => r.title.toLowerCase().includes(q.toLowerCase())).map((r) => ({ id: r.id, title: r.title }));
+  }
+
+  async relatedGet(_appId: string, module: string, collection: string, recordId: string) {
+    const row = (this.related[`${module}/${collection}`] ?? []).find((r) => r.id === recordId);
+    if (!row) throw new Error("not_found");
+    return row;
   }
 
   facts: ProfileFact[] = [];

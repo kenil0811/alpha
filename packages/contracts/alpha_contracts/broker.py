@@ -40,6 +40,9 @@ OPERATIONS: frozenset[str] = frozenset(
         "profile.all",
         "profile.set",
         "profile.suggest",
+        "modules.list",
+        "modules.query",
+        "modules.get",
     }
 )
 

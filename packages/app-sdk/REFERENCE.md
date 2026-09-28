@@ -30,6 +30,7 @@ failures; the run then fails and the person sees why.
 | `ctx.models` | bounded structured model calls; results are labelled estimates |
 | `ctx.web` | public web pages and search (the `http` capability; below) |
 | `ctx.profile` | what Alpha knows about the person, shared by all their modules (the `profile` capability; below) |
+| `ctx.modules` | other modules' data, through the connections this App declared (the `connections` capability; below) |
 | `ctx.today()` | today's `date` in the person's timezone |
 | `ctx.now()`, `ctx.local_now()` | current `datetime` in UTC / the person's timezone |
 | `ctx.timezone` | the person's IANA timezone name |
@@ -165,6 +166,32 @@ snake_case field names another module would also choose (degree, university, ski
 target_roles, location, dietary_goal, weekly_budget), never invent a fact, and prefer the
 profile over asking the person for something Alpha already knows. Declare `profile` in the
 App's `capabilities` and in the action's `capability_requirements`.
+
+## Other modules (`connections` capability)
+
+```python
+uses = ctx.modules.list()  # what this App may read right now
+rows = ctx.modules.query("academics", "courses.all", limit=50)  # Records, read-only
+course = ctx.modules.get("academics", "courses", course_id)  # one related record
+```
+
+A module never reaches into another module's tables directly. It declares in app.yaml what it
+reads and why:
+
+```yaml
+capabilities: [records, connections]
+uses:
+  - module: academics                          # the other module's id
+    views: [courses.all, assignments.recent]   # views it declared; read through them, read-only
+    purpose: The resume lists the courses and projects kept in Academics.
+```
+
+The person sees each use on this module's Settings with a switch; when it is off, `query`
+raises `Forbidden`, and the App says so in its result instead of guessing. To point one record
+at another module's record, declare a field `{name: course, kind: relation, module: academics,
+collection: courses}`; it stores that record's id, the page shows its title, and
+`ctx.modules.get` reads it. Which modules exist, with their views and fields, is listed in the
+build notes when there are any.
 
 ## Failures
 

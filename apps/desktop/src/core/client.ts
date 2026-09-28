@@ -349,6 +349,8 @@ export interface AppDetail {
   screen?: Screen | null;
   /** Summary cards the builder chose, drawn on the Summary tab above the derived pages. */
   summary?: ScreenBlock[];
+  /** Other modules this one reads, as declared. */
+  uses?: { module: string; views: string[]; purpose: string }[];
   has_screen?: boolean;
   /** An earlier version is installed, so "go back" is possible. */
   can_revert?: boolean;
@@ -393,7 +395,7 @@ export interface ActionSummary {
 export interface CollectionSummary {
   name: string;
   description?: string;
-  fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null; done_choices?: string[] | null }[];
+  fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null; done_choices?: string[] | null; module?: string | null; collection?: string | null }[];
   /** The field that names a record. */
   title_field?: string | null;
   /** How the derived page opens; every collection has one even without this. */
@@ -551,6 +553,28 @@ export interface ProfileFact {
   recorded_at: string;
 }
 
+/** One declared use of another module, with the person's switch. */
+export interface ModuleConnection {
+  module: string;
+  name: string;
+  purpose: string;
+  views: { id: string; collection: string | null; kind: string | null }[];
+  enabled: boolean;
+  installed: boolean;
+}
+
+export interface ConnectionsClient {
+  connections(appId: string): Promise<ModuleConnection[]>;
+  setConnection(appId: string, module: string, enabled: boolean): Promise<ModuleConnection[]>;
+  /** Rows of a connected module's collection to choose a relation from. */
+  relatedPick(appId: string, module: string, collection: string, q?: string): Promise<{ id: string; title: string }[]>;
+  relatedGet(appId: string, module: string, collection: string, recordId: string): Promise<{ id: string; title: string; values: Record<string, unknown> }>;
+}
+
+export function isConnectionsClient(client: unknown): client is ConnectionsClient {
+  return typeof (client as Partial<ConnectionsClient>)?.connections === "function";
+}
+
 export interface ProfileClient {
   profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }>;
   addFact(field: string, value: unknown): Promise<ProfileFact>;
@@ -681,7 +705,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -929,6 +953,28 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async recentCreations(): Promise<Creation[]> {
     const page = await this.request<{ creations: Creation[] }>("/api/creations");
     return page.creations;
+  }
+
+  async connections(appId: string): Promise<ModuleConnection[]> {
+    const page = await this.request<{ connections: ModuleConnection[] }>(`/api/apps/${encodeURIComponent(appId)}/connections`);
+    return page.connections;
+  }
+
+  async setConnection(appId: string, module: string, enabled: boolean): Promise<ModuleConnection[]> {
+    const page = await this.request<{ connections: ModuleConnection[] }>(`/api/apps/${encodeURIComponent(appId)}/connections/${encodeURIComponent(module)}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    });
+    return page.connections;
+  }
+
+  async relatedPick(appId: string, module: string, collection: string, q = ""): Promise<{ id: string; title: string }[]> {
+    const page = await this.request<{ rows: { id: string; title: string }[] }>(`/api/apps/${encodeURIComponent(appId)}/related/${encodeURIComponent(module)}/${encodeURIComponent(collection)}?q=${encodeURIComponent(q)}`);
+    return page.rows;
+  }
+
+  relatedGet(appId: string, module: string, collection: string, recordId: string): Promise<{ id: string; title: string; values: Record<string, unknown> }> {
+    return this.request(`/api/apps/${encodeURIComponent(appId)}/related/${encodeURIComponent(module)}/${encodeURIComponent(collection)}/${encodeURIComponent(recordId)}`);
   }
 
   profile(): Promise<{ facts: ProfileFact[]; suggestions: ProfileFact[] }> {

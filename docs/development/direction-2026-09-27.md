@@ -246,8 +246,21 @@ hand-built:
   recent first), recent activity; each line names its source. The assistant prompt gained rule
   9c (build on what is known, never ask for it again, name the module a fact came from).
 
+- 28 September, later: connections and relations. A module declares `uses:` (another
+  module's id, the views it reads, a purpose in the person's words) with the `connections`
+  capability; `alpha/context/connections.py` keeps a switch per use (on when declared, the
+  person can turn it off in the module's Settings), reads go through the source module's
+  declared views (`ctx.modules.available/query/get`, broker `modules.*`), nothing is copied. A
+  `relation` field kind (module + collection) stores another module's record id; the page
+  shows its title and offers a picker (`/api/apps/{id}/related/…`). The verifier checks that
+  used modules and views exist (`package.connections`); the builder's notes list the person's
+  other modules with their views and fields. Also: hidden columns are remembered instead of
+  shown ones, so a field a module gains later appears on its own.
+
 ## Still to do
 
+- Connections: the second brain graph over relations; a module reading another's aggregate
+  views in its summary cards; asking before a brand-new module reads an existing one.
 - Profile: the five-question first conversation that seeds it (with the research stage); a
   "why does Alpha think this" trail per fact; the assistant recording facts it learns in
   conversation as suggestions.

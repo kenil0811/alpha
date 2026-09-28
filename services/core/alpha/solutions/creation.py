@@ -144,8 +144,46 @@ CHANGE_NOTE = (
 )
 
 
+def modules_available(registry: Any, *, except_app: str | None = None) -> str:
+    """The person's other modules, with the views a new module may read through a
+    connection, for the builder's notes. Empty when there are none."""
+    if registry is None:
+        return ""
+    lines: list[str] = []
+    try:
+        entries = registry.list_apps()
+    except Exception:
+        return ""
+    for entry in entries[:12]:
+        if entry.get("state") != "active" or entry.get("app_id") == except_app:
+            continue
+        try:
+            source = registry.current(entry["app_id"]).source
+        except Exception:
+            continue
+        views = []
+        for view in list(source.views)[:6]:
+            collection = next((c for c in source.collections if c.name == view.collection), None)
+            fields = view.fields or ([f.name for f in collection.fields] if collection else [])
+            views.append(
+                f"{view.id} ({view.kind.value} over {view.collection}: {', '.join(fields[:8])})"
+            )
+        if not views:
+            continue
+        lines.append(
+            f"- {source.name} [id {entry['app_id']}]: {source.description} Views: "
+            + "; ".join(views)
+        )
+    return "\n".join(lines)
+
+
 def build_instructions(
-    brief: SolutionBrief, *, with_ui: bool, app_name: str, change: bool = False
+    brief: SolutionBrief,
+    *,
+    with_ui: bool,
+    app_name: str,
+    change: bool = False,
+    modules: str = "",
 ) -> str:
     """What the builder is told about the person's goal, in the brief's own words."""
     lines = [
@@ -186,6 +224,15 @@ def build_instructions(
         lines += ["", "Constraints:"] + [f"- {c}" for c in brief.constraints]
     if brief.assumptions:
         lines += ["", "Agreed assumptions:"] + [f"- {a.text}" for a in brief.assumptions]
+    if modules:
+        lines += [
+            "",
+            "OTHER MODULES THE PERSON HAS (read them instead of asking for the same data again; "
+            "declare each one you read under uses: with the views and a purpose in the person's "
+            "words, list the connections capability, and read with ctx.modules.query; link a "
+            "record to one of theirs with a field of kind relation, module + collection):",
+            modules,
+        ]
     if brief.unavailable_capabilities:
         lines += [
             "",
@@ -757,7 +804,11 @@ class CreationService:
             goal=goal,
             plan=planned.plan,
             instructions=build_instructions(
-                brief, with_ui=wants_ui(brief), app_name=app_name, change=current is not None
+                brief,
+                with_ui=wants_ui(brief),
+                app_name=app_name,
+                change=current is not None,
+                modules=modules_available(self._registry, except_app=app_id),
             )
             + self._look_rules(),
             route_id=self._routes.builder,
@@ -844,7 +895,11 @@ class CreationService:
             goal=brief.goal,
             plan=preliminary,
             instructions=build_instructions(
-                brief, with_ui=wants_ui(brief), app_name=app_name, change=current is not None
+                brief,
+                with_ui=wants_ui(brief),
+                app_name=app_name,
+                change=current is not None,
+                modules=modules_available(self._registry, except_app=app_id),
             )
             + self._look_rules(),
             route_id=self._routes.builder,
