@@ -67,7 +67,14 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
   const [sort, setSort] = useState<{ field: string; direction: "asc" | "desc" } | null>(page?.sort ?? null);
   // Columns the person hid are remembered; a field the module gains later shows up on its own.
   const [hidden, setHidden] = useState<string[]>(() => remembered<string[]>(`${key}.hidden`, []));
-  const columns = useMemo(() => (page?.columns ?? fields.map((f) => f.name)).filter((c) => !hidden.includes(c)), [page?.columns, fields, hidden]);
+  // The order the person put columns in, and the widths they dragged; new fields go to the end.
+  const [order, setOrder] = useState<string[]>(() => remembered<string[]>(`${key}.order`, []));
+  const [widths, setWidths] = useState<Record<string, number>>(() => remembered<Record<string, number>>(`${key}.widths`, {}));
+  const columns = useMemo(() => {
+    const base = (page?.columns ?? fields.map((f) => f.name)).filter((c) => !hidden.includes(c));
+    const placed = order.filter((c) => base.includes(c));
+    return [...placed, ...base.filter((c) => !placed.includes(c))];
+  }, [page?.columns, fields, hidden, order]);
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [rows, setRows] = useState<RecordRow[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -83,6 +90,18 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
 
   useEffect(() => remember(`${key}.view`, view), [key, view]);
   useEffect(() => remember(`${key}.hidden`, hidden), [key, hidden]);
+  useEffect(() => remember(`${key}.order`, order), [key, order]);
+  useEffect(() => remember(`${key}.widths`, widths), [key, widths]);
+  const moveColumn = (name: string, by: -1 | 1) =>
+    setOrder(() => {
+      const current = [...columns];
+      const at = current.indexOf(name);
+      const to = at + by;
+      if (at < 0 || to < 0 || to >= current.length) return current;
+      current.splice(at, 1);
+      current.splice(to, 0, name);
+      return current;
+    });
   useEffect(() => remember(`${key}.lists`, lists), [key, lists]);
 
   const searchable = useMemo(() => fields.filter((f) => f.kind === "text" || f.kind === "long_text" || f.kind === "url").map((f) => f.name), [fields]);
@@ -221,11 +240,31 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
             {menu ? (
               <div className="menu__list" role="menu">
                 <div className="menu__head">Columns</div>
-                {fields.map((f) => (
-                  <label key={f.name} className="menu__item">
-                    <input type="checkbox" checked={shownColumns.includes(f.name)} onChange={(e) => setHidden((h) => (e.target.checked ? h.filter((n) => n !== f.name) : [...h, f.name]))} /> {humanize(f.name)}
-                  </label>
-                ))}
+                {[...shownColumns, ...fields.map((f) => f.name).filter((n) => !shownColumns.includes(n))].map((name) => {
+                  const at = shownColumns.indexOf(name);
+                  return (
+                    <div key={name} className="menu__item menu__item--col">
+                      <label>
+                        <input type="checkbox" checked={at >= 0} onChange={(e) => setHidden((h) => (e.target.checked ? h.filter((n) => n !== name) : [...h, name]))} /> {humanize(name)}
+                      </label>
+                      {at >= 0 ? (
+                        <span className="menu__arrows">
+                          <button type="button" className="iconbtn" aria-label={`Move ${humanize(name)} left`} disabled={at === 0} onClick={() => moveColumn(name, -1)}>
+                            ↑
+                          </button>
+                          <button type="button" className="iconbtn" aria-label={`Move ${humanize(name)} right`} disabled={at === shownColumns.length - 1} onClick={() => moveColumn(name, 1)}>
+                            ↓
+                          </button>
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {Object.keys(widths).length ? (
+                  <button type="button" className="menu__item" role="menuitem" onClick={() => setWidths({})}>
+                    Reset column widths
+                  </button>
+                ) : null}
                 <div className="menu__head">Lists</div>
                 <button type="button" className="menu__item" role="menuitem" onClick={saveList} disabled={!filtered && !shownColumns.length}>
                   Save the current filters as a list
@@ -249,7 +288,7 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
           </p>
         ) : null}
         {view === "table" ? (
-          <TableView rows={rows ?? []} fields={fields} columns={shownColumns} byName={byName} sort={sort} onSort={setSort} openId={openId} onOpen={setOpenId} onCommit={commit} empty={rows && !rows.length ? (filtered ? "Nothing matches." : "Nothing here yet.") : null} />
+          <TableView rows={rows ?? []} fields={fields} columns={shownColumns} byName={byName} widths={widths} onWidth={(name, w) => setWidths((all) => ({ ...all, [name]: w }))} sort={sort} onSort={setSort} openId={openId} onOpen={setOpenId} onCommit={commit} empty={rows && !rows.length ? (filtered ? "Nothing matches." : "Nothing here yet.") : null} />
         ) : null}
         {view === "board" && groupField ? <BoardView rows={rows ?? []} field={groupField} titleField={titleField} fields={fields} onOpen={setOpenId} onMove={(row, value) => move(row, groupField, value)} /> : null}
         {view === "list" ? <ListView rows={rows ?? []} titleField={titleField} columns={shownColumns} byName={byName} onOpen={setOpenId} /> : null}
@@ -278,7 +317,7 @@ export function DataPage({ collection }: { collection: CollectionSummary }) {
 
 // ---------- table ----------
 
-function TableView({ rows, fields, columns, byName, sort, onSort, openId, onOpen, onCommit, empty }: { rows: RecordRow[]; fields: FieldInfo[]; columns: string[]; byName: Map<string, FieldInfo>; sort: { field: string; direction: "asc" | "desc" } | null; onSort: (s: { field: string; direction: "asc" | "desc" } | null) => void; openId: string | null; onOpen: (id: string) => void; onCommit: (row: RecordRow, field: FieldInfo, text: string) => void; empty: string | null }) {
+function TableView({ rows, fields, columns, byName, widths, onWidth, sort, onSort, openId, onOpen, onCommit, empty }: { rows: RecordRow[]; fields: FieldInfo[]; columns: string[]; byName: Map<string, FieldInfo>; widths: Record<string, number>; onWidth: (name: string, width: number) => void; sort: { field: string; direction: "asc" | "desc" } | null; onSort: (s: { field: string; direction: "asc" | "desc" } | null) => void; openId: string | null; onOpen: (id: string) => void; onCommit: (row: RecordRow, field: FieldInfo, text: string) => void; empty: string | null }) {
   const totals = columns.filter((c) => isNumeric(byName.get(c)?.kind ?? "")).map((c) => ({ field: c, value: rows.reduce((sum, r) => sum + (typeof r.values[c] === "number" ? (r.values[c] as number) : 0), 0) }));
   return (
     <div className="tablewrap">
@@ -288,11 +327,32 @@ function TableView({ rows, fields, columns, byName, sort, onSort, openId, onOpen
             {columns.map((c) => {
               const kind = byName.get(c)?.kind ?? "text";
               return (
-                <th key={c} className={isNumeric(kind) ? "r" : undefined} aria-sort={sort?.field === c ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}>
+                <th key={c} className={isNumeric(kind) ? "r th--sizable" : "th--sizable"} style={widths[c] ? { width: widths[c], minWidth: widths[c], maxWidth: widths[c] } : undefined} aria-sort={sort?.field === c ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}>
                   <button type="button" onClick={() => onSort(sort?.field === c ? (sort.direction === "asc" ? { field: c, direction: "desc" } : null) : { field: c, direction: "asc" })}>
                     {humanize(c)}
                     {sort?.field === c ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}
                   </button>
+                  <span
+                    className="th__grip"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Resize ${humanize(c)}`}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const th = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
+                      const startX = e.clientX;
+                      const startW = th.getBoundingClientRect().width;
+                      const onMove = (ev: PointerEvent) => onWidth(c, Math.max(64, Math.round(startW + ev.clientX - startX)));
+                      const onUp = () => {
+                        window.removeEventListener("pointermove", onMove);
+                        window.removeEventListener("pointerup", onUp);
+                      };
+                      window.addEventListener("pointermove", onMove);
+                      window.addEventListener("pointerup", onUp);
+                    }}
+                  />
                 </th>
               );
             })}

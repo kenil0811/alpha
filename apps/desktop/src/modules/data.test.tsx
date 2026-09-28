@@ -52,3 +52,25 @@ describe("a derived table page", () => {
     expect(await screen.findByText("Water the plants")).toBeInTheDocument();
   });
 });
+
+describe("columns on a derived page", () => {
+  it("can be reordered from the menu, and the order is remembered", async () => {
+    const fake = client();
+    const user = userEvent.setup();
+    const { unmount } = render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
+    await screen.findByRole("heading", { name: "Notes list" });
+    const table = await screen.findByRole("table");
+    const headers = () => within(table).getAllByRole("columnheader").map((h) => h.textContent?.trim()).filter(Boolean);
+    expect(headers()).toEqual(["Title", "Calories"]);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Move Calories left" }));
+    expect(headers()).toEqual(["Calories", "Title"]);
+    expect(within(table).getByRole("separator", { name: "Resize Calories" })).toBeInTheDocument();
+    unmount();
+
+    render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
+    await screen.findByRole("heading", { name: "Notes list" });
+    const again = await screen.findByRole("table");
+    await waitFor(() => expect(within(again).getAllByRole("columnheader").map((h) => h.textContent?.trim()).filter(Boolean)).toEqual(["Calories", "Title"]));
+  });
+});

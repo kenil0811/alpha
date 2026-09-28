@@ -270,6 +270,23 @@ hand-built:
   writes at most three observations with a next step, shown on Home under "Alpha noticed",
   each a request away or dismissed.
 
+- 28 September, late night: standalone skills, the Intelligence page, column order and widths.
+  (1) Skills (`alpha_contracts/skills.py`, `alpha/context/skills.py`, `/api/skills…`): a
+  reusable ability outside any module: title, what it does, how Alpha does it (a procedure in
+  plain steps, or a module action), the inputs it needs, what it produces, the sources it may
+  read. A procedure runs as a bounded step loop (search, read a page, read one of the person's
+  modules, done; 8 steps, 150 s) with fetched text fenced as data and the items taken only
+  from what was read; every run is kept with its evidence. The avatar's step loop has a
+  "skill" step and sees the catalogue; a module reaches skills through `ctx.skills`
+  (`skills` capability, ops `skills.list` and `skills.run`; only procedure skills, so a module
+  never waits on a skill that would call back into a module). (2) Intelligence (rail item,
+  `shell/Intelligence.tsx`): Second brain (the facts, what each module keeps), Skills (list,
+  make, run with inputs, results table with sources, retire), Automations (every schedule
+  across modules, switchable) and Connections (every module-to-module read, switchable; a
+  link to accounts and sites). (3) Derived pages: columns can be moved from the ⋯ menu and
+  resized by dragging the header edge; order and widths are remembered per table. The record
+  panel is the form view.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research
@@ -279,8 +296,11 @@ hand-built:
 - Profile: the five-question first conversation that seeds it (with the research stage); a
   "why does Alpha think this" trail per fact; the assistant recording facts it learns in
   conversation as suggestions.
-- Derived pages: relations across modules as a field kind; a records view of saved lists shared
-  with the assistant; column widths and reordering; a form view.
+- Derived pages: a records view of saved lists shared with the assistant; dragging columns
+  directly (today: arrows in the menu); grouping in the table view.
+- Skills: the assistant teaching a skill from a conversation ("remember how I do this"); a
+  skill that runs on a schedule; a skill's items saved into a module in one step from the
+  results table; per-module Intelligence tab.
 - Avatar: Kenil's own character art and emotes; a floating window that follows Spaces is done,
   a hotkey and a bubble that speaks replies aloud are not; the main window's assistant panel
   should get the same "do" verb.
