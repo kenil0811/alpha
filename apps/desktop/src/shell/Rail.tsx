@@ -5,7 +5,7 @@ export type Surface =
   | { kind: "home" }
   | { kind: "activity" }
   | { kind: "connections" }
-  | { kind: "settings" }
+  | { kind: "settings"; section?: string }
   | { kind: "module"; appId: string };
 
 export function sameSurface(a: Surface, b: Surface): boolean {

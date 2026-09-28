@@ -429,3 +429,27 @@ a { color: var(--primary); }
 .rail--collapsed .faint { display: none; }
 
 .creation__summary { margin: 0 0 6px; font-weight: 500; }
+
+/* The assistant's avatar: bottom-right of the page, beside the assistant panel when it is open. */
+.avatar { position: fixed; right: 16px; bottom: 16px; z-index: 6; width: 64px; height: 64px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center; cursor: pointer; overflow: visible; }
+.avatar--beside { right: calc(380px + 16px); }
+.avatar:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.avatar__face { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; }
+.avatar__dot { position: absolute; right: 2px; bottom: 2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text-3); }
+.avatar--thinking .avatar__dot, .avatar--building .avatar__dot, .avatar--working .avatar__dot { background: var(--primary); animation: avatar-pulse 1.4s ease-in-out infinite; }
+.avatar--awaiting .avatar__dot { background: var(--warn); }
+.avatar--error .avatar__dot, .avatar--disconnected .avatar__dot { background: var(--bad); }
+.avatar__bubble { position: absolute; right: calc(100% + 10px); bottom: 12px; max-width: 260px; width: max-content; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; text-align: left; opacity: 0; transform: translateX(4px); transition: opacity 0.15s ease, transform 0.15s ease; pointer-events: none; }
+.avatar:hover .avatar__bubble, .avatar:focus-visible .avatar__bubble, .avatar:not(.avatar--idle) .avatar__bubble { opacity: 1; transform: none; }
+.avatar--error .avatar__bubble, .avatar--disconnected .avatar__bubble { border-color: var(--bad); }
+@keyframes avatar-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .avatar__dot { animation: none !important; }
+  .avatar__bubble { transition: none; transform: none; }
+}
+@media (max-width: 760px) { .avatar--beside { display: none; } }
+
+.settings-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+[aria-labelledby="settings-heading"] .card + .card { margin-top: 14px; }
+/* Room under the last card so the avatar never sits on a control at the end of a page. */
+.app--avatar .page { padding-bottom: 104px; }

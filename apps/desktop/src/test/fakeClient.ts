@@ -5,6 +5,7 @@ import type {
   ConversationReply,
   CoreClient,
   HealthInfo,
+  ModelConnection,
   SettingField,
   BrowserSite,
   BrowserAccess,
@@ -121,6 +122,24 @@ export class FakeCoreClient implements CoreClient {
     const c = this.conversations.get(id);
     if (!c) throw new Error("conversation_not_found");
     return c;
+  }
+
+  /** What Settings -> Models reports; null means this host does not answer (older Core). */
+  connection: ModelConnection | null = fakeConnection("connected");
+  connectionChecks = 0;
+  signIns = 0;
+  async modelConnection(): Promise<ModelConnection> {
+    if (!this.connection) throw new Error("not found");
+    return this.connection;
+  }
+  async checkModelConnection(): Promise<ModelConnection> {
+    this.connectionChecks += 1;
+    return { ...(await this.modelConnection()), check: { ok: this.connection?.status === "connected", elapsed_ms: 900 } };
+  }
+  async signInToClaude(): Promise<ModelConnection> {
+    this.signIns += 1;
+    this.connection = { ...(await this.modelConnection()), login: { state: "waiting", started_at: new Date().toISOString() } };
+    return this.connection;
   }
 
   settingsFields: SettingField[] = [
@@ -298,6 +317,35 @@ export function sampleBrief(overrides: Partial<SolutionBrief> = {}): SolutionBri
     unavailable_capabilities: ["records"],
     selected_context_snapshot_id: "conv_1.context.r1",
     supersedes_revision: null,
+    ...overrides,
+  };
+}
+
+/** A connection report as Core gives it, for one status. */
+export function fakeConnection(status: ModelConnection["status"], overrides: Partial<ModelConnection> = {}): ModelConnection {
+  const fixes: Partial<Record<ModelConnection["status"], string>> = {
+    signed_out: "Sign in to Claude Code: press Sign in, or run `claude auth login` in Terminal.",
+    cli_missing: "Install Claude Code (https://claude.com/claude-code), sign in once, then press Check now.",
+    cli_too_old: "Update Claude Code: run `claude update` in Terminal, then press Check now.",
+    last_call_failed: "Press Check now to try a small call. If it keeps failing, see the reason above.",
+  };
+  return {
+    route_enabled: status !== "not_used",
+    status,
+    fix: fixes[status] ?? null,
+    cli_found: status !== "cli_missing",
+    cli_path: status === "cli_missing" ? null : "/opt/homebrew/bin/claude",
+    cli_version: status === "cli_missing" ? null : status === "cli_too_old" ? "2.1.223" : "2.1.283",
+    min_supported_version: "2.1.283",
+    version_supported: status !== "cli_too_old" && status !== "cli_missing",
+    missing_flags: status === "cli_too_old" ? ["--permission-prompts", "--restricted"] : [],
+    logged_in: status === "signed_out" ? false : status === "connected" || status === "last_call_failed" ? true : null,
+    account: status === "connected" || status === "last_call_failed" ? { auth_method: "claude.ai", email: "person@example.com", organization: "Person", plan: "max" } : null,
+    last_successful_call_at: status === "connected" ? new Date(Date.now() - 120_000).toISOString() : null,
+    last_call_latency_ms: status === "connected" ? 7400 : null,
+    last_error: status === "last_call_failed" ? { code: "timeout", message: "model call exceeded 300s", at: new Date().toISOString() } : null,
+    login: null,
+    checked_at: new Date().toISOString(),
     ...overrides,
   };
 }
