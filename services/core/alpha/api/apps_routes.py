@@ -175,6 +175,7 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             if source.screen
             else None,
             "has_screen": source.has_screen(),
+            "summary": [b.model_dump(mode="json", by_alias=True) for b in source.summary],
             "can_revert": platform.registry.previous_release(app_id) is not None,
         }
 

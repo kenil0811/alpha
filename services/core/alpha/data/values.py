@@ -18,6 +18,7 @@ from alpha_contracts.records import FieldKind, FieldSpec
 
 from alpha.capabilities.errors import invalid
 
+LONG_TEXT_DEFAULT_MAX = 20_000
 TEXT_DEFAULT_MAX = 2_000
 JSON_DEFAULT_MAX_BYTES = 16_384
 JSON_MAX_DEPTH = 8
@@ -43,12 +44,20 @@ def normalize(spec: FieldSpec, value: Any, *, where: str) -> Any:
     kind = spec.kind
     if value is None:
         return None
-    if kind is FieldKind.TEXT:
+    if kind in (FieldKind.TEXT, FieldKind.LONG_TEXT, FieldKind.URL):
         if not isinstance(value, str):
             raise invalid(f"{where}{name} must be text", field=name)
-        limit = spec.max_length or TEXT_DEFAULT_MAX
+        limit = spec.max_length or (
+            LONG_TEXT_DEFAULT_MAX if kind is FieldKind.LONG_TEXT else TEXT_DEFAULT_MAX
+        )
         if len(value) > limit:
             raise invalid(f"{where}{name} is longer than {limit} characters", field=name)
+        if (
+            kind is FieldKind.URL
+            and value
+            and not value.lower().startswith(("http://", "https://"))
+        ):
+            raise invalid(f"{where}{name} must be a web address starting with http", field=name)
         return value
     if kind in (FieldKind.NUMBER, FieldKind.INTEGER):
         if isinstance(value, bool) or not isinstance(value, int | float):
@@ -90,12 +99,22 @@ def normalize(spec: FieldSpec, value: Any, *, where: str) -> Any:
         if parsed.tzinfo is None:
             raise invalid(f"{where}{name} needs a timezone offset (for example Z)", field=name)
         return format_datetime(parsed)
-    if kind is FieldKind.CHOICE:
+    if kind in (FieldKind.CHOICE, FieldKind.STATUS):
         if not isinstance(value, str) or value not in (spec.choices or []):
             raise invalid(
                 f"{where}{name} must be one of {spec.choices}", field=name, choices=spec.choices
             )
         return value
+    if kind is FieldKind.MULTISELECT:
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list) or any(
+            not isinstance(v, str) or v not in (spec.choices or []) for v in value
+        ):
+            raise invalid(
+                f"{where}{name} must be a list of {spec.choices}", field=name, choices=spec.choices
+            )
+        return list(dict.fromkeys(value))
     if kind is FieldKind.REFERENCE:
         if not isinstance(value, str) or not RECORD_ID_PATTERN.match(value):
             raise invalid(f"{where}{name} must be a record id", field=name)
@@ -149,8 +168,14 @@ def fields_to_json_schema(fields: Iterable[FieldSpec]) -> dict[str, Any]:
     required: list[str] = []
     for spec in fields:
         node: dict[str, Any]
-        if spec.kind is FieldKind.TEXT:
-            node = {"type": "string", "maxLength": spec.max_length or TEXT_DEFAULT_MAX}
+        if spec.kind in (FieldKind.TEXT, FieldKind.LONG_TEXT, FieldKind.URL):
+            node = {
+                "type": "string",
+                "maxLength": spec.max_length
+                or (
+                    LONG_TEXT_DEFAULT_MAX if spec.kind is FieldKind.LONG_TEXT else TEXT_DEFAULT_MAX
+                ),
+            }
         elif spec.kind in (FieldKind.NUMBER, FieldKind.INTEGER):
             node = {"type": "number" if spec.kind is FieldKind.NUMBER else "integer"}
             if spec.minimum is not None:
@@ -163,8 +188,10 @@ def fields_to_json_schema(fields: Iterable[FieldSpec]) -> dict[str, Any]:
             node = {"type": "string", "format": "date"}
         elif spec.kind is FieldKind.DATETIME:
             node = {"type": "string", "format": "date-time"}
-        elif spec.kind is FieldKind.CHOICE:
+        elif spec.kind in (FieldKind.CHOICE, FieldKind.STATUS):
             node = {"type": "string", "enum": list(spec.choices or [])}
+        elif spec.kind is FieldKind.MULTISELECT:
+            node = {"type": "array", "items": {"type": "string", "enum": list(spec.choices or [])}}
         elif spec.kind is FieldKind.JSON:
             # A list or object the instruction describes (one entry per item in a batch); the
             # value is bounded by max_bytes and depth when it comes back.

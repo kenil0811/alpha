@@ -27,25 +27,31 @@ sdk_version: 0.1.0            # exact value given by the platform
 capabilities: [records]       # records, artifacts, models, http, browser, schedules: only what the actions use
 collections: [...]
 actions: [...]
-views: [...]                  # declared read views
-screen: {...}                 # the screen Alpha draws (normal)
+views: [...]                  # declared read views (for summary cards and any screen)
+summary: [...]                # cards Alpha draws on the Summary tab (normal)
+screen: {...}                 # extra tabs of blocks (only when a derived page is not enough)
 ui: {...}                     # a custom compiled screen (rare)
 ```
 
 Unknown fields are rejected. The package cannot name grants, secrets, credentials, local paths
 or releases. `modules` must stay empty: extra Python packages are not available.
 
-### collections
+### collections (each one is a page)
 
 ```yaml
 collections:
-  - name: meals                         # lowercase identifier
+  - name: meals                         # lowercase identifier; the page is called "Meals"
     description: One eaten meal.
+    title_field: title                  # names a record: its page title, a board card's first line
     fields:
       - {name: title, kind: text, required: true, max_length: 200}
+      - {name: notes, kind: long_text}                        # paragraphs; a block on the record page
       - {name: calories, kind: number, minimum: 0, maximum: 10000}
       - {name: servings, kind: integer, minimum: 1}
       - {name: kind, kind: choice, required: true, choices: [breakfast, lunch, dinner, snack]}
+      - {name: state, kind: status, choices: [planned, eaten, skipped], done_choices: [eaten, skipped]}
+      - {name: tags, kind: multiselect, choices: [protein, quick, treat]}   # several at once, a list
+      - {name: recipe, kind: url}                             # a web address, shown as a link
       - {name: eaten_on, kind: date, required: true}          # "YYYY-MM-DD"
       - {name: logged_at, kind: datetime}                     # ISO 8601 with offset
       - {name: done, kind: boolean}
@@ -53,10 +59,55 @@ collections:
       - {name: extra, kind: json, max_bytes: 4096}
     indexes: [[eaten_on]]
     unique: [[title, eaten_on]]
+    page:                               # how its page opens; everything else is a click away
+      view: table                       # table | board | list | calendar | chart
+      group_field: state                # the status or choice field a board groups by
+      date_field: eaten_on              # the date field a calendar or chart uses
+      sort: {field: eaten_on, direction: desc}
+      columns: [eaten_on, title, calories, kind, state]      # shown in this order; the rest on the record page
+      quick_entry:                      # one line typed above the table runs this action
+        action: log_meal
+        input: text
+        placeholder: "What did you eat? e.g. 2 eggs and toast"
 ```
 
 Every record also has `id`, `revision`, `created_at` and `updated_at`; do not declare them.
 Declaring any collection requires the `records` capability.
+
+Alpha draws a page for every collection: the table first (sort, search, filters on choice and
+status fields, hide done, edits in place, an add row, a record page for each row, saved lists),
+with board, list, calendar and chart a click away. Nothing about the page has to be designed;
+declare the fields well and set `title_field`, a `status` field with `done_choices` for anything
+with a lifecycle, and `page` only to change how it opens. A `quick_entry` action takes the typed
+line and does the whole job (parse, estimate through `ctx.models` if the module has it, save,
+return a `message`).
+
+### summary (the Summary tab)
+
+```yaml
+summary:
+  - kind: metrics
+    cards:
+      - {title: Calories today, view: meals.by_day, metric: total, unit: kcal, goal_from: {view: goals.current, field: calorie_goal}}
+      - {title: Meals today, view: meals.by_day, metric: meals}
+  - kind: progress
+    title: Calories today
+    view: meals.by_day
+    metric: total
+    unit: kcal
+    goal_from: {view: goals.current, field: calorie_goal}
+  - kind: trend
+    title: Calories per day
+    view: meals.by_day
+    x: eaten_on_day
+    y: total
+    unit: kcal
+    days: 14
+```
+
+Summary cards are metric cards, one progress bar and trends over aggregate views (`text` blocks
+are allowed for one short note). Declare them when the person will want numbers at a glance;
+they become the module's first tab. At most four metric cards. The person can edit them later.
 
 ### actions
 
@@ -114,12 +165,13 @@ screen can only narrow it with filters on `filterable` fields and sort on `sorta
 Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `metrics` (count,
 sum, avg, min, max). Put a text field the person will search in `filterable`.
 
-### screen (drawn by Alpha; the normal way to give an App a screen)
+### screen (extra tabs, only when a derived page is not enough)
 
-Alpha draws a declared screen with its own components, so every module gets the same tables,
-quick entry, metrics, trend chart, board, list and forms, and nothing is compiled. Declare tabs
-of blocks. Every block reads through a view above and writes through an action whose
-`invocable_from` includes `ui`.
+Every collection already has its page and the summary has its tab, so most modules declare no
+screen. Declare one only for an interaction those cannot give (a form that sets a goal, a board
+that must call a specific action when a card moves, a table over a filtered view with row
+actions). Its tabs are added after the Summary tab and before the derived pages. Every block
+reads through a view above and writes through an action whose `invocable_from` includes `ui`.
 
 ```yaml
 screen:

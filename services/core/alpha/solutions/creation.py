@@ -198,16 +198,21 @@ def build_instructions(
         "PLAN.md is what Alpha will check. Where it names an action, input, collection, field "
         "or label differently from the notes above, use PLAN.md's name.",
         "",
-        "Declare the App's screen in app.yaml (screen: tabs of blocks) using the labels PLAN.md "
-        "names: the quick entry's placeholder, column titles and tab names are what the person "
-        "sees. Lay the tabs and blocks out by the MODULE CONVENTIONS below: the data first, a "
-        "quick entry above it only when typing a line is the main way in, forms after, then "
-        "metrics and a trend. Write a custom ui/src/main.tsx only if no block can express the "
-        "main interaction."
+        "Alpha draws a page for every collection you declare (a table first; board, list, "
+        "calendar and chart a click away; a record page for each row; the person edits cells in "
+        "place), so do NOT declare a screen. Instead: give each collection a title_field and, "
+        "where it helps, a page: block (the opening view, the status field a board groups by, "
+        "the date field a calendar uses, the columns shown in order, and a quick_entry when "
+        "typing one line is the main way in). Use the richer field kinds: status (with "
+        "done_choices) for anything with a lifecycle, multiselect for tags, url for links, "
+        "long_text for notes. Declare summary: cards (metric cards, a progress bar, a trend "
+        "over aggregate views) when the person will want numbers at a glance; they become the "
+        "Summary tab. Declare screen: tabs only for an interaction no derived page can give; "
+        "write a custom ui/src/main.tsx only if no block can express it either."
         if with_ui
-        else "This App needs no screen of its own: leave screen and ui out of app.yaml. Alpha "
-        "shows one form for primary_action, the action the person runs to get the result; set "
-        "it, give it a clear title and description, mark pasted or long text inputs multiline: "
+        else "This App needs no page of its own beyond its collections (each gets a page) and "
+        "one form for primary_action, the action the person runs to get the result; set it, "
+        "give it a clear title and description, mark pasted or long text inputs multiline: "
         "true, and return readable data (lists of entries become tables). Keep helper steps "
         "internal: do not list an action as manual if it needs another step's output.",
     ]

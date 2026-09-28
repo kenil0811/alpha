@@ -218,8 +218,25 @@ hand-built:
   ten days through `log_entry`, reported as such. Rule kept: a claim of progress is allowed
   only when FACTS show something running.
 
+- 28 September, evening, after the decisions of the day (see
+  ~/.claude memory "Direction 2026-09-28"): derived pages. Every collection is a page Alpha
+  draws (`apps/desktop/src/modules/DataPage.tsx`): table first with sort, search, filters on
+  choice and status fields, hide done, edits in place, an add row, a record panel, saved lists
+  (kept per module in the shell); board (drag between status columns), list, calendar and
+  chart a click away. New field kinds `long_text`, `status` (with `done_choices`),
+  `multiselect`, `url`; `CollectionSchema.title_field` and `page` (opening view, group and
+  date fields, sort, columns, quick entry); `AppSource.summary` cards (metrics, progress,
+  trend, text) as the Summary tab. A module's tabs are Summary, any custom Screen, declared
+  screen tabs, one page per table, and Actions when nothing else offers manual actions; the
+  Data section is gone. A module with tables counts as having a screen (no primary action
+  needed). Builder instructions, APP_CONTRACT.md, the template and the default conventions now
+  say: declare tables well, do not design screens. Existing modules keep their screens and gain
+  the pages.
+
 ## Still to do
 
+- Derived pages: relations across modules as a field kind; a records view of saved lists shared
+  with the assistant; column widths and reordering; a form view.
 - Avatar: Kenil's own character art and emotes; a floating window that follows Spaces is done,
   a hotkey and a bubble that speaks replies aloud are not; the main window's assistant panel
   should get the same "do" verb.

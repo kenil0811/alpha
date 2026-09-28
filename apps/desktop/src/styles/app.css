@@ -466,3 +466,43 @@ body.avatar-window #root { height: 100vh; }
 @keyframes avatar-talk { from { transform: scaleY(0.5); } to { transform: scaleY(1.1); } }
 @keyframes avatar-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 @media (prefers-reduced-motion: reduce) { .character *, .character { animation: none !important; } }
+
+/* ---------- derived pages ---------- */
+.toolbar--page { gap: 6px; }
+.toolbar--page .spacer { flex: 1; }
+.toggle--views { margin-left: 0; }
+.toggle--views button { padding: 4px 10px; font-size: 12px; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.menu { position: relative; }
+.menu__list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); padding: 6px; display: flex; flex-direction: column; }
+.menu__head { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); padding: 6px 8px 2px; }
+.menu__item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 13px; border-radius: 6px; background: none; border: 0; text-align: left; color: var(--text); }
+.menu__item:hover { background: var(--hover); }
+.addrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); align-items: end; }
+.addrow .row { grid-column: 1 / -1; }
+.field--compact label { font-size: 11px; color: var(--text-3); }
+.field--compact input, .field--compact select, .field--compact textarea { width: 100%; }
+.table td.editable:hover { box-shadow: inset 0 0 0 1px var(--border); cursor: text; }
+.table--kv th { text-transform: none; letter-spacing: 0; font-size: 12px; width: 180px; background: transparent; }
+.board--page { padding: 12px; }
+.board__col { background: var(--surface-2); border-radius: 10px; padding: 10px; min-height: 120px; }
+.board__col--over { outline: 2px solid var(--primary); }
+.board__col--done { opacity: 0.85; }
+.board__card { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; cursor: grab; }
+.board__card:hover { border-color: var(--primary); }
+.list__row { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--line); background: none; font-size: 13px; }
+.list__row:hover { background: var(--hover); }
+.calendar { padding: 12px; }
+.calendar__head { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+.calendar__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar__dow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: center; padding: 4px 0; }
+.calendar__day { min-height: 76px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.calendar__day--pad { border-color: transparent; }
+.calendar__num { color: var(--text-3); font-size: 11px; }
+.calendar__chip { text-align: left; background: var(--primary-soft); color: var(--primary); border: 0; border-radius: 6px; padding: 2px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart { padding: 12px; }
+.chart__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.chart__bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; }
+.chart__bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.chart__fill { width: 100%; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 2px; transition: height 400ms ease; }
+.chart__label { font-size: 10px; color: var(--text-3); margin-top: 4px; }

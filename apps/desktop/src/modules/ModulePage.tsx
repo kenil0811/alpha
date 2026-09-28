@@ -12,12 +12,31 @@ import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ActionsView } from "../workflows/ActionsView";
 import { GeneratedScreen } from "../workflows/GeneratedScreen";
-import { SavedData } from "../workflows/SavedData";
 import { Block } from "./blocks";
-import { DataSection } from "./DataSection";
+import { DataPage } from "./DataPage";
 import { ModuleContext, humanize, makeModuleContext, type ModuleClient } from "./useModule";
 
-type Section = "app" | "data" | "activity" | "settings";
+type Section = "app" | "activity" | "settings";
+
+/** The tabs a module shows: its summary, any declared screen tabs, then one page per table. */
+type PageTab =
+  | { id: string; title: string; kind: "summary" }
+  | { id: string; title: string; kind: "ui" }
+  | { id: string; title: string; kind: "screen"; index: number }
+  | { id: string; title: string; kind: "collection"; name: string }
+  | { id: string; title: string; kind: "actions" };
+
+export function moduleTabs(detail: AppDetail): PageTab[] {
+  const tabs: PageTab[] = [];
+  if (detail.summary?.length) tabs.push({ id: "summary", title: "Summary", kind: "summary" });
+  if (detail.ui?.entry) tabs.push({ id: "ui", title: "Screen", kind: "ui" });
+  (detail.screen?.tabs ?? []).forEach((t, index) => tabs.push({ id: `screen:${t.id}`, title: t.title, kind: "screen", index }));
+  for (const c of detail.collections) tabs.push({ id: `page:${c.name}`, title: humanize(c.name), kind: "collection", name: c.name });
+  // Actions a person runs by hand get a tab when no declared screen already offers them.
+  const manual = detail.actions.some((a) => a.invocable_from.includes("manual"));
+  if (manual && !detail.screen) tabs.push({ id: "actions", title: "Actions", kind: "actions" });
+  return tabs;
+}
 
 /** Runs of charts sit side by side instead of one tall card each. */
 function groupBlocks<T extends { kind: string }>(blocks: T[]): T[][] {
@@ -282,8 +301,10 @@ export function ModulePage({
 
   const context = useMemo(() => (detail ? makeModuleContext(client, detail, version, changed) : null), [client, detail, version, changed]);
   const screen = detail?.screen ?? null;
-  const currentTab = screen ? screen.tabs.find((t) => t.id === tab) ?? screen.tabs[0] : null;
-  const counts = detail ? Object.values(detail.record_counts).reduce((a, b) => a + b, 0) : 0;
+  const tabs = useMemo(() => (detail ? moduleTabs(detail) : []), [detail]);
+  const currentTab = tabs.find((t) => t.id === tab) ?? tabs[0] ?? null;
+  const screenTab = currentTab?.kind === "screen" && screen ? screen.tabs[currentTab.index] : null;
+  const pageCollection = currentTab?.kind === "collection" && detail ? detail.collections.find((c) => c.name === currentTab.name) : null;
   const mine = useMemo(() => runs.filter((r) => (r.run.owner as { app_id?: string }).app_id === appId), [runs, appId]);
   const attention = mine.filter((r) => ["failed", "waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation"].includes(r.run.state)).length;
 
@@ -312,7 +333,6 @@ export function ModulePage({
         </div>
         <div className="toggle toggle--sections" role="tablist" aria-label="Module sections">
           {sectionTab("app", "App")}
-          {sectionTab("data", "Data")}
           {sectionTab("activity", "Activity", attention)}
           {sectionTab("settings", "Settings")}
         </div>
@@ -329,57 +349,54 @@ export function ModulePage({
         <ModuleContext.Provider value={context}>
           {section === "app" ? <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} /> : null}
           {section === "app" ? (
-            screen && currentTab ? (
+            tabs.length ? (
               <>
-                {screen.tabs.length > 1 ? (
+                {tabs.length > 1 ? (
                   <div className="subtabs" role="tablist" aria-label={`${detail.name} tabs`}>
-                    {screen.tabs.map((t) => (
-                      <button key={t.id} type="button" role="tab" aria-selected={currentTab.id === t.id} onClick={() => setTab(t.id)}>
+                    {tabs.map((t) => (
+                      <button key={t.id} type="button" role="tab" aria-selected={currentTab?.id === t.id} onClick={() => setTab(t.id)}>
                         {t.title}
                       </button>
                     ))}
                   </div>
                 ) : null}
-                <div className="blocks" key={currentTab.id}>
-                  {groupBlocks(currentTab.blocks).map((group, i) =>
-                    group.length > 1 ? (
-                      <div className="chart-grid" key={`${currentTab.id}-${i}`}>
-                        {group.map((block, j) => (
-                          <Block key={`${currentTab.id}-${i}-${j}`} block={block} position={i} />
-                        ))}
-                      </div>
-                    ) : (
-                      <Block key={`${currentTab.id}-${i}`} block={group[0]} position={i} />
-                    ),
-                  )}
-                </div>
-              </>
-            ) : detail.ui?.entry ? (
-              <>
-                <GeneratedScreen client={client} detail={detail} />
-                <details style={{ marginTop: 16 }}>
-                  <summary className="muted">Actions and saved data</summary>
-                  <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
-                  <SavedData client={client} appId={appId} collections={detail.collections} refresh={version} />
-                </details>
+                {currentTab?.kind === "summary" ? (
+                  <div className="blocks" key="summary">
+                    {groupBlocks(detail.summary ?? []).map((group, i) =>
+                      group.length > 1 ? (
+                        <div className="chart-grid" key={`summary-${i}`}>
+                          {group.map((block, j) => (
+                            <Block key={`summary-${i}-${j}`} block={block} position={i} />
+                          ))}
+                        </div>
+                      ) : (
+                        <Block key={`summary-${i}`} block={group[0]} position={i} />
+                      ),
+                    )}
+                  </div>
+                ) : null}
+                {screenTab ? (
+                  <div className="blocks" key={screenTab.id}>
+                    {groupBlocks(screenTab.blocks).map((group, i) =>
+                      group.length > 1 ? (
+                        <div className="chart-grid" key={`${screenTab.id}-${i}`}>
+                          {group.map((block, j) => (
+                            <Block key={`${screenTab.id}-${i}-${j}`} block={block} position={i} />
+                          ))}
+                        </div>
+                      ) : (
+                        <Block key={`${screenTab.id}-${i}`} block={group[0]} position={i} />
+                      ),
+                    )}
+                  </div>
+                ) : null}
+                {pageCollection ? <DataPage key={pageCollection.name} collection={pageCollection} /> : null}
+                {currentTab?.kind === "ui" ? <GeneratedScreen client={client} detail={detail} /> : null}
+                {currentTab?.kind === "actions" ? <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} /> : null}
               </>
             ) : (
-              <>
-                <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
-                <SavedData client={client} appId={appId} collections={detail.collections} refresh={version} />
-              </>
+              <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
             )
-          ) : null}
-
-          {section === "data" ? (
-            <>
-              <div className="section__head" style={{ marginBottom: 12 }}>
-                <span className="faint">
-                  {counts} record{counts === 1 ? "" : "s"} across {detail.collections.length} table{detail.collections.length === 1 ? "" : "s"} · {detail.data_notice ?? "Its records stay on this Mac."} · Changes you make here are kept as yours.
-                </span>
-              </div>
-              <DataSection client={client} detail={detail} version={version} onChanged={changed} />
-            </>
           ) : null}
 
           {section === "activity" ? (

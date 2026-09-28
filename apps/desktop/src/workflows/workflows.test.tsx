@@ -145,8 +145,8 @@ describe("an App without its own screen", () => {
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
 
     expect(await screen.findByRole("heading", { name: "Notes list" })).toBeInTheDocument();
-    expect(await screen.findByText("No notes saved yet.")).toBeInTheDocument();
-    expect(screen.getByText("What to remember")).toBeInTheDocument();
+    await user.click(await screen.findByRole("tab", { name: "Actions" }));
+    expect(await screen.findByText("What to remember")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Title"), "Buy milk");
     await user.click(screen.getByLabelText("Pinned (optional)"));
     client.records.set("notes-list-1a2b3c/notes", [
@@ -166,9 +166,11 @@ describe("an App without its own screen", () => {
     expect(client.invocations).toEqual([
       { appId: "notes-list-1a2b3c", actionId: "add_note", input: { title: "Buy milk", pinned: true }, origin: "user" },
     ]);
-    const table = await screen.findByRole("table", { name: "Notes" });
-    expect(within(table).getByText("Buy milk")).toBeInTheDocument();
-    expect(within(table).getByText("(estimate)")).toBeInTheDocument();
+    // The saved record is on the module's own Notes page, labelled as an estimate where it is one.
+    await user.click(screen.getByRole("tab", { name: "Notes" }));
+    const table = await screen.findByRole("table");
+    expect(await within(table).findByText("Buy milk")).toBeInTheDocument();
+    expect(within(table).getByLabelText("estimate")).toBeInTheDocument();
   });
 
   it("refuses a missing required input before running and shows a failed run's reason", async () => {
@@ -215,8 +217,8 @@ describe("an App with its own compiled screen", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail({ ui: { entry: "ui/src/main.tsx", views: [], actions: ["add_note"] } }));
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
-    expect(screen.getByText("Actions and saved data")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
+    expect(screen.getByRole("tab", { name: "Actions" })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(screen.getByText(/Its records stay on this Mac\./)).toBeInTheDocument();
     expect(screen.queryByText(/pyprof/)).not.toBeInTheDocument();
   });
@@ -282,7 +284,7 @@ describe("where the data goes", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(await screen.findByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
   });
 });

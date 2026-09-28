@@ -26,14 +26,26 @@ RESERVED_FIELD_NAMES: frozenset[str] = SYSTEM_FIELDS | {"revision", "collection"
 
 class FieldKind(StrEnum):
     TEXT = "text"
+    # Several paragraphs: shown as a block on the record page, one line in a table cell.
+    LONG_TEXT = "long_text"
     NUMBER = "number"
     INTEGER = "integer"
     BOOLEAN = "boolean"
     DATE = "date"
     DATETIME = "datetime"
     CHOICE = "choice"
+    # A choice with a lifecycle: `done_choices` name the values that mean finished, so a board
+    # orders its columns and a filter can ask for what is still open.
+    STATUS = "status"
+    # Several choices at once, stored as a list.
+    MULTISELECT = "multiselect"
+    URL = "url"
     REFERENCE = "reference"
     JSON = "json"
+
+
+TEXT_KINDS = frozenset({FieldKind.TEXT, FieldKind.LONG_TEXT, FieldKind.URL})
+CHOICE_KINDS = frozenset({FieldKind.CHOICE, FieldKind.STATUS, FieldKind.MULTISELECT})
 
 
 class FieldSpec(ContractModel):
@@ -51,13 +63,17 @@ class FieldSpec(ContractModel):
     )
     collection: Identifier | None = None
     max_bytes: int | None = Field(default=None, ge=16, le=65_536)
+    # Status fields only: the choices that mean finished.
+    done_choices: list[Annotated[str, Field(min_length=1, max_length=200)]] | None = Field(
+        default=None, max_length=50
+    )
 
     @model_validator(mode="after")
     def _consistent(self) -> FieldSpec:
         kind = self.kind
         if self.name in RESERVED_FIELD_NAMES:
             raise ValueError(f"field name {self.name!r} is reserved")
-        if self.max_length is not None and kind is not FieldKind.TEXT:
+        if self.max_length is not None and kind not in TEXT_KINDS:
             raise ValueError("max_length applies to text fields only")
         if (self.minimum is not None or self.maximum is not None) and kind not in (
             FieldKind.NUMBER,
@@ -66,13 +82,19 @@ class FieldSpec(ContractModel):
             raise ValueError("minimum/maximum apply to number and integer fields only")
         if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
             raise ValueError("minimum is greater than maximum")
-        if kind is FieldKind.CHOICE:
+        if kind in CHOICE_KINDS:
             if not self.choices:
-                raise ValueError("a choice field needs at least one choice")
+                raise ValueError(f"a {kind.value} field needs at least one choice")
             if len(set(self.choices)) != len(self.choices):
                 raise ValueError("choices must be unique")
         elif self.choices is not None:
-            raise ValueError("choices apply to choice fields only")
+            raise ValueError("choices apply to choice, status and multiselect fields only")
+        if self.done_choices is not None:
+            if kind is not FieldKind.STATUS:
+                raise ValueError("done_choices applies to status fields only")
+            unknown = sorted(set(self.done_choices) - set(self.choices or []))
+            if unknown:
+                raise ValueError(f"done_choices names unknown choices {unknown}")
         if kind is FieldKind.REFERENCE:
             if self.collection is None:
                 raise ValueError("a reference field names its target collection")
@@ -83,12 +105,36 @@ class FieldSpec(ContractModel):
         return self
 
 
+class PageSpec(ContractModel):
+    """How the collection's derived page opens. Every collection gets a page (table first,
+    with the other views a click away); this only sets the starting point and what to hide."""
+
+    view: Literal["table", "board", "list", "calendar", "chart"] = "table"
+    # The status or choice field a board groups by; the date field a calendar or chart uses.
+    group_field: Identifier | None = None
+    date_field: Identifier | None = None
+    sort: SortKey | None = None
+    # Columns in the order shown; fields left out are on the record page only.
+    columns: list[Identifier] | None = Field(default=None, max_length=24)
+    # Where a person types one line to add an entry: the action that takes it and its input.
+    quick_entry: QuickEntrySpec | None = None
+
+
+class QuickEntrySpec(ContractModel):
+    action: str = Field(min_length=1, max_length=64)
+    input: str = Field(min_length=1, max_length=64)
+    placeholder: str = Field(min_length=1, max_length=200)
+
+
 class CollectionSchema(ContractModel):
     name: Identifier
     description: str = Field(default="", max_length=500)
     fields: list[FieldSpec] = Field(min_length=1, max_length=64)
     indexes: list[list[Identifier]] = Field(default_factory=list, max_length=8)
     unique: list[list[Identifier]] = Field(default_factory=list, max_length=4)
+    # The field that names a record (its page title, a board card's first line).
+    title_field: Identifier | None = None
+    page: PageSpec | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> CollectionSchema:
@@ -97,6 +143,29 @@ class CollectionSchema(ContractModel):
             raise ValueError(f"collection {self.name!r} declares a field twice")
         known = set(names) | SYSTEM_FIELDS
         by_name = {f.name: f for f in self.fields}
+        if self.title_field is not None and self.title_field not in by_name:
+            raise ValueError(f"title_field {self.title_field!r} is not a field")
+        if self.page is not None:
+            page = self.page
+            for label, name in (("group_field", page.group_field), ("date_field", page.date_field)):
+                if name is not None and name not in known:
+                    raise ValueError(f"page {label} {name!r} is not a field")
+            if page.group_field is not None and by_name[page.group_field].kind not in (
+                FieldKind.CHOICE,
+                FieldKind.STATUS,
+            ):
+                raise ValueError("page group_field must be a choice or status field")
+            if (
+                page.date_field is not None
+                and page.date_field in by_name
+                and by_name[page.date_field].kind not in (FieldKind.DATE, FieldKind.DATETIME)
+            ):
+                raise ValueError("page date_field must be a date or datetime field")
+            if page.sort is not None and page.sort.field not in known:
+                raise ValueError(f"page sort field {page.sort.field!r} is not a field")
+            for column in page.columns or []:
+                if column not in known:
+                    raise ValueError(f"page column {column!r} is not a field")
         for group, label in ((self.indexes, "index"), (self.unique, "unique constraint")):
             for fields in group:
                 if not 1 <= len(fields) <= 3:

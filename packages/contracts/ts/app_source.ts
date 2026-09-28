@@ -4,7 +4,19 @@ export type EffectClass = "none" | "local_write" | "external_read" | "external_w
 export type Invocable = "assistant" | "ui" | "manual" | "trigger";
 export type RetryClass = "pure" | "idempotent" | "requires_reconciliation";
 export type FieldKind =
-  "text" | "number" | "integer" | "boolean" | "date" | "datetime" | "choice" | "reference" | "json";
+  | "text"
+  | "long_text"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "date"
+  | "datetime"
+  | "choice"
+  | "status"
+  | "multiselect"
+  | "url"
+  | "reference"
+  | "json";
 export type ColumnFormat = "text" | "number" | "date" | "datetime" | "pill" | "link" | "check";
 export type FilterOp = "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "contains" | "starts_with" | "is_null";
 export type Bucket = "day" | "week" | "month";
@@ -102,6 +114,58 @@ export interface AppSource {
     | [ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec, ScheduleSpec];
   screen?: ScreenDeclaration | null;
   sdk_version: string;
+  /**
+   * @maxItems 8
+   */
+  summary?:
+    | []
+    | [MetricsBlock | ProgressBlock | TrendBlock | TextBlock]
+    | [MetricsBlock | ProgressBlock | TrendBlock | TextBlock, MetricsBlock | ProgressBlock | TrendBlock | TextBlock]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ]
+    | [
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+        MetricsBlock | ProgressBlock | TrendBlock | TextBlock
+      ];
   /**
    * @maxItems 8
    */
@@ -290,6 +354,8 @@ export interface CollectionSchema {
     | [string[], string[], string[], string[], string[], string[], string[]]
     | [string[], string[], string[], string[], string[], string[], string[], string[]];
   name: string;
+  page?: PageSpec | null;
+  title_field?: string | null;
   /**
    * @maxItems 4
    */
@@ -303,6 +369,7 @@ export interface FieldSpec {
   choices?: string[] | null;
   collection?: string | null;
   description?: string;
+  done_choices?: string[] | null;
   kind: FieldKind;
   max_bytes?: number | null;
   max_length?: number | null;
@@ -310,6 +377,27 @@ export interface FieldSpec {
   minimum?: number | null;
   name: string;
   required?: boolean;
+}
+/**
+ * How the collection's derived page opens. Every collection gets a page (table first,
+ * with the other views a click away); this only sets the starting point and what to hide.
+ */
+export interface PageSpec {
+  columns?: string[] | null;
+  date_field?: string | null;
+  group_field?: string | null;
+  quick_entry?: QuickEntrySpec | null;
+  sort?: SortKey | null;
+  view?: "table" | "board" | "list" | "calendar" | "chart";
+}
+export interface QuickEntrySpec {
+  action: string;
+  input: string;
+  placeholder: string;
+}
+export interface SortKey {
+  direction?: "asc" | "desc";
+  field: string;
 }
 /**
  * A local schedule: while Alpha is running, run `action` with `input` every N minutes or
@@ -1610,10 +1698,6 @@ export interface ViewSpec {
    */
   sortable?: string[];
   where?: Clause | AllOf | AnyOf | Not | null;
-}
-export interface SortKey {
-  direction?: "asc" | "desc";
-  field: string;
 }
 export interface GroupKey {
   bucket?: Bucket | null;

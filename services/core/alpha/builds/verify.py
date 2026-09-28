@@ -397,8 +397,19 @@ class CandidateVerifier:
                     f"Alpha draws its screen: {tabs}",
                 )
             )
+        elif run.source.collections:
+            # Every collection is a page Alpha draws; nothing has to be declared for it.
+            pages = ", ".join(c.name for c in run.source.collections)
+            run.add(
+                _result(
+                    "package.screen",
+                    "package",
+                    True,
+                    f"Alpha draws a page for each table: {pages}",
+                )
+            )
         elif run.source.ui is None or run.source.ui.entry is None:
-            # Without its own screen, Alpha runs the App from one form (M1 review finding F03).
+            # Without a table or a screen, Alpha runs the App from one form (M1 finding F03).
             if run.source.primary_action is None:
                 return run.add(
                     _result(

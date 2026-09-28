@@ -35,6 +35,8 @@ from alpha_contracts.screens import (
     ProgressBlock,
     QuickEntryBlock,
     ScreenDeclaration,
+    SummaryBlock,
+    Tab,
     TableBlock,
     TrendBlock,
 )
@@ -139,7 +141,10 @@ class AppSource(ContractModel):
     # Declared read views shared by the declarative screen and any custom ui.
     views: list[ViewSpec] = Field(default_factory=list, max_length=32)
     # The declarative screen Alpha's shell draws (no compile step). See alpha_contracts.screens.
+    # Optional: every collection already gets a derived page; a screen adds tabs beyond them.
     screen: ScreenDeclaration | None = None
+    # Summary cards drawn above the derived pages: metric cards, a progress bar, a trend.
+    summary: list[SummaryBlock] = Field(default_factory=list, max_length=8)
     ui: UiDeclaration | None = None
     # The one action a person runs to get this App's result. Required (by verification) for an
     # App without its own screen, so Alpha can offer one clear form instead of every internal
@@ -211,6 +216,22 @@ class AppSource(ContractModel):
                 raise ValueError(f"view {view.id} names unknown fields {unknown}")
         if self.screen is not None:
             self._check_screen(self.screen, by_name)
+        if self.summary:
+            blocks: list[Any] = list(self.summary)
+            summary_tab = Tab(id="summary", title="Summary", blocks=blocks)
+            self._check_screen(ScreenDeclaration(tabs=[summary_tab]), by_name)
+        for collection in self.collections:
+            quick = collection.page.quick_entry if collection.page is not None else None
+            if quick is not None:
+                quick_action = self.action(quick.action)
+                if quick_action is None:
+                    raise ValueError(f"{collection.name} quick entry runs undeclared action")
+                if Invocable.UI not in quick_action.invocable_from:
+                    raise ValueError(
+                        f"{collection.name} quick entry action is not invocable from ui"
+                    )
+                if quick.input not in quick_action.input_schema.get("properties", {}):
+                    raise ValueError(f"{collection.name} quick entry names an unknown input")
         if self.ui is not None:
             for view in self.ui.views:
                 target = by_name.get(view.collection)
@@ -250,8 +271,13 @@ class AppSource(ContractModel):
         return found
 
     def has_screen(self) -> bool:
-        """True when the shell can draw this App: a declarative screen or a custom ui entry."""
-        return self.screen is not None or (self.ui is not None and self.ui.entry is not None)
+        """True when the shell can draw this App: derived pages for its collections, a
+        declarative screen, or a custom ui entry."""
+        return (
+            bool(self.collections)
+            or self.screen is not None
+            or (self.ui is not None and self.ui.entry is not None)
+        )
 
     def _check_screen(self, screen: ScreenDeclaration, by_name: dict[str, Any]) -> None:
         def view_of(view_id: str, where: str) -> ViewSpec:

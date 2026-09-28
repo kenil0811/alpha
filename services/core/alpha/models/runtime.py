@@ -56,6 +56,10 @@ SYSTEM_PROMPT = (
 )
 _ALLOWED_OUTPUT_KINDS = {
     FieldKind.TEXT,
+    FieldKind.LONG_TEXT,
+    FieldKind.URL,
+    FieldKind.STATUS,
+    FieldKind.MULTISELECT,
     FieldKind.NUMBER,
     FieldKind.INTEGER,
     FieldKind.BOOLEAN,
@@ -86,15 +90,19 @@ def fake_estimate(fields: list[FieldSpec], instruction: str) -> dict[str, Any]:
             else:
                 value = low if low is not None else (high if high is not None else 1)
             out[spec.name] = int(value) if spec.kind is FieldKind.INTEGER else float(value)
-        elif spec.kind is FieldKind.TEXT:
+        elif spec.kind in (FieldKind.TEXT, FieldKind.LONG_TEXT):
             out[spec.name] = f"estimated {spec.name}"[: spec.max_length or 2000]
+        elif spec.kind is FieldKind.URL:
+            out[spec.name] = "https://example.com/estimated"
+        elif spec.kind is FieldKind.MULTISELECT:
+            out[spec.name] = (spec.choices or [])[:1]
         elif spec.kind is FieldKind.BOOLEAN:
             out[spec.name] = False
         elif spec.kind is FieldKind.DATE:
             out[spec.name] = date.today().isoformat()
         elif spec.kind is FieldKind.DATETIME:
             out[spec.name] = datetime.now(tz=UTC).isoformat()
-        elif spec.kind is FieldKind.CHOICE:
+        elif spec.kind in (FieldKind.CHOICE, FieldKind.STATUS):
             out[spec.name] = (spec.choices or [""])[0]
         elif spec.kind is FieldKind.JSON:
             out[spec.name] = [{"ref": 1, "estimate": f"estimated {spec.name}"}]

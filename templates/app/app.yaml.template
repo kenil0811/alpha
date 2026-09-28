@@ -8,9 +8,13 @@ capabilities: [records]
 primary_action: add_item   # the action a person runs from the assistant or by hand
 collections:
   - name: items
+    title_field: title
     fields:
       - {name: title, kind: text, required: true, max_length: 200}
       - {name: noted_on, kind: date, required: true}
+    page:
+      sort: {field: noted_on, direction: desc}
+      quick_entry: {action: add_item, input: title, placeholder: "Add an item"}
 actions:
   - id: add_item
     title: Add an item
@@ -36,18 +40,7 @@ views:
     sortable: [title, noted_on, created_at]
     default_order: [{field: created_at, direction: desc}]
     max_limit: 100
-# The screen Alpha draws for this App: tabs made of blocks (see APP_CONTRACT.md). No compile step.
-screen:
-  tabs:
-    - id: items
-      title: Items
-      blocks:
-        - kind: quick_entry
-          action: add_item
-          input: title
-          placeholder: "Add an item"
-        - kind: table
-          view: items.recent
-          columns:
-            - {field: noted_on, format: date, title: Day}
-            - {field: title}
+# Every collection is a page Alpha draws (table first, board/list/calendar/chart a click away).
+# `summary:` cards make the Summary tab (see APP_CONTRACT.md); a `screen:` is only for tabs a
+# derived page cannot give.
+summary: []

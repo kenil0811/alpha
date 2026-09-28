@@ -347,6 +347,8 @@ export interface AppDetail {
   views?: DeclaredView[];
   /** The declarative screen Alpha draws itself, when the module has one. */
   screen?: Screen | null;
+  /** Summary cards the builder chose, drawn on the Summary tab above the derived pages. */
+  summary?: ScreenBlock[];
   has_screen?: boolean;
   /** An earlier version is installed, so "go back" is possible. */
   can_revert?: boolean;
@@ -391,7 +393,18 @@ export interface ActionSummary {
 export interface CollectionSummary {
   name: string;
   description?: string;
-  fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null }[];
+  fields: { name: string; kind: string; required?: boolean; description?: string; choices?: string[] | null; done_choices?: string[] | null }[];
+  /** The field that names a record. */
+  title_field?: string | null;
+  /** How the derived page opens; every collection has one even without this. */
+  page?: {
+    view?: "table" | "board" | "list" | "calendar" | "chart";
+    group_field?: string | null;
+    date_field?: string | null;
+    sort?: { field: string; direction: "asc" | "desc" } | null;
+    columns?: string[] | null;
+    quick_entry?: { action: string; input: string; placeholder: string } | null;
+  } | null;
 }
 
 export interface ScheduleStatus {

@@ -1,4 +1,4 @@
-/** The Data section: every table a module keeps, editable by the person as their own change. */
+/** The derived page: every table a module keeps, editable by the person as their own change. */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -15,25 +15,25 @@ function client(): FakeWorkflowsClient {
   return fake;
 }
 
-describe("the Data section", () => {
+describe("a derived table page", () => {
   it("shows each table, corrects a cell as the person's change and removes a row", async () => {
     const fake = client();
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Data" }));
-    const table = await screen.findByRole("table", { name: "Notes" });
+    const table = await screen.findByRole("table");
     expect(within(table).getByText("Buy milk")).toBeInTheDocument();
     expect(within(table).getByLabelText("estimate")).toHaveAttribute("title", expect.stringContaining("estimate"));
 
-    await user.click(within(table).getByText("120"));
+    await user.click(within(table).getAllByText("120")[0]);
     const input = within(table).getByRole("spinbutton", { name: "Calories" });
     await user.clear(input);
     await user.type(input, "95{Enter}");
     await waitFor(() => expect(fake.mutations[0]).toMatchObject({ op: "correct", collection: "notes", id: "rec_1", expected_revision: 1, changes: { calories: 95 } }));
-    expect(await within(table).findByText("95")).toBeInTheDocument();
+    expect((await within(table).findAllByText("95")).length).toBeGreaterThan(0);
 
-    await user.click(within(table).getByRole("button", { name: "Remove rec_2" }));
+    await user.click(within(table).getByRole("row", { name: "Open Call Ravi" }));
+    await user.click(screen.getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(fake.mutations[1]).toMatchObject({ op: "delete", id: "rec_2", expected_revision: 3 }));
     await waitFor(() => expect(within(table).queryByText("Call Ravi")).not.toBeInTheDocument());
   });
@@ -43,8 +43,7 @@ describe("the Data section", () => {
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Data" }));
-    await user.click(await screen.findByRole("button", { name: "Add a row" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     const form = screen.getByRole("form", { name: "Add to Notes" });
     await user.type(within(form).getByLabelText("Title"), "Water the plants");
     await user.type(within(form).getByLabelText("Calories (optional)"), "0");

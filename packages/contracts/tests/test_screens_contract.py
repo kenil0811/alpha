@@ -239,7 +239,76 @@ def test_app_without_screen_still_valid() -> None:
     del data["screen"]
     del data["views"]
     source = AppSource.model_validate(data)
-    assert not source.has_screen()
+    assert source.has_screen(), "its collections give it derived pages"
+    data["collections"] = []
+    assert not AppSource.model_validate(data).has_screen()
+
+
+def test_richer_field_kinds_and_page_settings() -> None:
+    from alpha_contracts.records import CollectionSchema
+
+    schema = CollectionSchema.model_validate(
+        {
+            "name": "tasks",
+            "title_field": "title",
+            "fields": [
+                {"name": "title", "kind": "text", "required": True},
+                {"name": "notes", "kind": "long_text"},
+                {"name": "link", "kind": "url"},
+                {"name": "tags", "kind": "multiselect", "choices": ["home", "work"]},
+                {
+                    "name": "state",
+                    "kind": "status",
+                    "choices": ["todo", "doing", "done"],
+                    "done_choices": ["done"],
+                },
+                {"name": "due", "kind": "date"},
+            ],
+            "page": {
+                "view": "board",
+                "group_field": "state",
+                "date_field": "due",
+                "sort": {"field": "due", "direction": "asc"},
+                "columns": ["title", "due"],
+            },
+        }
+    )
+    assert schema.page is not None and schema.page.group_field == "state"
+    with pytest.raises(ValidationError, match="done_choices names unknown"):
+        CollectionSchema.model_validate(
+            {
+                "name": "t",
+                "fields": [
+                    {"name": "s", "kind": "status", "choices": ["a"], "done_choices": ["z"]}
+                ],
+            }
+        )
+    with pytest.raises(ValidationError, match="group_field must be a choice or status"):
+        CollectionSchema.model_validate(
+            {"name": "t", "fields": [{"name": "n", "kind": "text"}], "page": {"group_field": "n"}}
+        )
+    with pytest.raises(ValidationError, match="title_field"):
+        CollectionSchema.model_validate(
+            {"name": "t", "title_field": "nope", "fields": [{"name": "n", "kind": "text"}]}
+        )
+
+
+def test_summary_cards_are_checked_like_a_screen() -> None:
+    data = copy.deepcopy(SOURCE)
+    del data["screen"]
+    data["summary"] = [
+        {
+            "kind": "metrics",
+            "cards": [{"title": "Today", "view": "entries.by_day", "metric": "total"}],
+        }
+    ]
+    source = AppSource.model_validate(data)
+    assert len(source.summary) == 1
+    data["summary"] = [
+        {"kind": "metrics", "cards": [{"title": "x", "view": "nope", "metric": "total"}]}
+    ]
+    with pytest.raises(ValidationError, match="undeclared view"):
+        AppSource.model_validate(data)
 
 
 def test_a_negated_filter_accepts_both_spellings() -> None:

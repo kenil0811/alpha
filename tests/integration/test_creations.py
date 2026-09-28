@@ -175,15 +175,15 @@ def test_an_app_without_its_own_screen_is_used_through_its_actions(
     final = create(core, "Keep a notes list for me, no screen")
     assert final["state"] == "active", final
     app_id = final["app_id"]
-    assert final["result"]["has_ui"] is False
+    assert final["result"]["has_ui"] is True, "its notes table is a page Alpha draws"
     info = detail(core, app_id)
-    assert info["ui"] is None
+    assert info["ui"] is None and info["screen"] is None
     actions = {a["id"]: a for a in info["actions"]}
     assert set(actions) == {"add_note", "count_notes"}
     assert actions["add_note"]["input_schema"]["required"] == ["title"]
     assert "manual" in actions["add_note"]["invocable_from"]
     assert not (core.data_dir / "versions" / final["version_id"] / "dist" / "ui").exists()
-    assert apps(core)[app_id]["has_ui"] is False
+    assert apps(core)[app_id]["has_screen"] is False and apps(core)[app_id]["has_ui"] is True
 
     output(core, app_id, "add_note", {"title": "Call the bank"})
     assert output(core, app_id, "count_notes", {}) == {"count": 1}
@@ -398,18 +398,20 @@ def get_creation(core: CoreProcess, creation_id: str) -> dict[str, Any]:
 def test_an_app_without_a_screen_must_name_its_main_action(
     data_dir: Path, build_profiles: BuildProfiles, build_packages: Path
 ) -> None:
-    """M1-R04 (review finding F03): without its own screen, Alpha offers one form for the App's
-    primary action, so a screenless candidate that names none is not made ready."""
+    """M1-R04 (review finding F03), revised for derived pages: a module that keeps a table gets
+    a page for it and needs no primary action; one without a table or a screen still must name
+    the one action a person runs."""
     core = start_build_core(
         data_dir, build_profiles.root, build_packages, {"ALPHA_BUILD_MAX_TOTAL_SECONDS": "1"}
     )
     try:
         final = create(core, "Keep a notes list for me, no screen", "package no_primary")
-        assert final["state"] == "failed", final
+        assert final["state"] == "active", final
         build = build_of(core, final["build_id"])
-        check = checks(report(core, build))["package.primary_action"]
-        assert check["status"] == "failed", check
-        assert "primary_action" in check["summary"]
+        check = checks(report(core, build))["package.screen"]
+        assert check["status"] == "passed" and "notes" in check["summary"], check
+        info = detail(core, final["app_id"])
+        assert info["primary_action"] is None and info["has_screen"] is True
 
         made = create(core, "Keep a notes list for me, no screen", "package notes_ok")
         assert made["state"] == "active", made

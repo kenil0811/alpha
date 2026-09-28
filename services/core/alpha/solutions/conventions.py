@@ -4,9 +4,9 @@
 reset it; the builder, the quick-change editor and the verifier follow whatever is set."""
 
 DEFAULT_CONVENTIONS = """\
-Lead with what the person came for. When a module keeps a list of things, the working table or board comes first on the main tab; a one-line quick entry sits above it only when typing a line is the main way things get in. Manual forms come after the data and start folded.
-One subject per tab, named by what it shows (Openings, Sources, Goals), never by a verb. Four tabs at most; the first is the one used every day.
-Every table has a detail page, an Added time, saved lists for its statuses and quick filters for its choices. Columns are the five or six the person scans; the rest live on the detail page.
+Every table the module keeps is a page of its own, drawn by Alpha the same way everywhere: a table first, with board, list, calendar and chart a click away, a record page for each row, and edits in place. Do not design screens; declare the tables well: a title field, a status field with its finished values, the columns the person scans first, and a quick entry above the table when typing one line is the main way things get in.
+A Summary tab with the numbers that matter (at most four cards, a progress bar against a goal, a trend when numbers change over time) comes first when the module has numbers worth a glance; otherwise the main table is the first tab.
+One subject per page, named by what it holds (Openings, Sources, Goals), never by a verb. Five pages at most.
 Freshness is visible: when something was added or last changed, when a source was last read and when the next check runs.
 Summaries come after the data: at most four metric cards, then a trend when numbers change over time.
 Plain words, sentence case, no jargon and no emoji in labels. Numbers carry their unit. Dates read as 27 Sep, times in the person's local time.

@@ -189,6 +189,12 @@ class ProgressBlock(ContractModel):
     hint: str | None = Field(default=None, max_length=200)
 
 
+# What may sit above the derived pages as the module's summary: numbers, not data entry.
+SummaryBlock = Annotated[
+    MetricsBlock | ProgressBlock | TrendBlock | TextBlock,
+    Field(discriminator="kind"),
+]
+
 Block = Annotated[
     QuickEntryBlock
     | TableBlock

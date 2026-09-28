@@ -355,6 +355,29 @@
           "pattern": "^[a-z][a-z0-9_]{0,47}$",
           "type": "string"
         },
+        "page": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title_field": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "unique": {
           "items": {
             "items": {
@@ -512,12 +535,16 @@
     "FieldKind": {
       "enum": [
         "text",
+        "long_text",
         "number",
         "integer",
         "boolean",
         "date",
         "datetime",
         "choice",
+        "status",
+        "multiselect",
+        "url",
         "reference",
         "json"
       ],
@@ -561,6 +588,23 @@
           "default": "",
           "maxLength": 500,
           "type": "string"
+        },
+        "done_choices": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "kind": {
           "$ref": "#/$defs/FieldKind"
@@ -1062,6 +1106,87 @@
       "title": "Not",
       "type": "object"
     },
+    "PageSpec": {
+      "additionalProperties": false,
+      "description": "How the collection's derived page opens. Every collection gets a page (table first,\nwith the other views a click away); this only sets the starting point and what to hide.",
+      "properties": {
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]{0,47}$",
+                "type": "string"
+              },
+              "maxItems": 24,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "date_field": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "group_field": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quick_entry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuickEntrySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SortKey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "view": {
+          "default": "table",
+          "enum": [
+            "table",
+            "board",
+            "list",
+            "calendar",
+            "chart"
+          ],
+          "type": "string"
+        }
+      },
+      "title": "PageSpec",
+      "type": "object"
+    },
     "ProgressBlock": {
       "additionalProperties": false,
       "description": "One wide bar: a metric against a goal (calories eaten today out of the day's limit,\napplications sent out of a weekly target), with what is left or over in words.",
@@ -1191,6 +1316,33 @@
         "placeholder"
       ],
       "title": "QuickEntryBlock",
+      "type": "object"
+    },
+    "QuickEntrySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "input": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "placeholder": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "input",
+        "placeholder"
+      ],
+      "title": "QuickEntrySpec",
       "type": "object"
     },
     "RetryClass": {
@@ -1940,6 +2092,35 @@
       "maxLength": 32,
       "minLength": 1,
       "type": "string"
+    },
+    "summary": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "metrics": "#/$defs/MetricsBlock",
+            "progress": "#/$defs/ProgressBlock",
+            "text": "#/$defs/TextBlock",
+            "trend": "#/$defs/TrendBlock"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/MetricsBlock"
+          },
+          {
+            "$ref": "#/$defs/ProgressBlock"
+          },
+          {
+            "$ref": "#/$defs/TrendBlock"
+          },
+          {
+            "$ref": "#/$defs/TextBlock"
+          }
+        ]
+      },
+      "maxItems": 8,
+      "type": "array"
     },
     "trigger_templates": {
       "items": {
