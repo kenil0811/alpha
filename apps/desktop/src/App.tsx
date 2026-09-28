@@ -44,6 +44,9 @@ type Runtime =
 
 export function App({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean } = {}) {
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
+  // Bumped to ask the host for the runtime again: on its own every few seconds while the
+  // runtime is unavailable (a first launch can wait on a macOS permission dialog), or by hand.
+  const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
   const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
   // The assistant panel is open on Home and closed on a module page unless the person opened
@@ -130,7 +133,12 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     return () => {
       cancelled = true;
     };
-  }, [injected]);
+  }, [injected, runtimeAttempt]);
+  useEffect(() => {
+    if (runtime.kind !== "unavailable" || injected) return;
+    const timer = setTimeout(() => setRuntimeAttempt((n) => n + 1), 5000);
+    return () => clearTimeout(timer);
+  }, [runtime, injected]);
 
   const client = runtime.kind === "connected" ? runtime.client : null;
   const nullClient = useMemo(() => new NullClient(), []);
@@ -190,9 +198,17 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
             {runtime.kind === "connecting" ? (
               <p className="panel__hint">Connecting to the local runtime…</p>
             ) : (
-              <p className="notice" role="alert">
-                {runtime.reason}
-              </p>
+              <>
+                <p className="notice" role="alert">
+                  {runtime.reason}
+                </p>
+                <p className="panel__hint">Alpha keeps trying on its own every few seconds.</p>
+                <div className="row">
+                  <button type="button" className="btn btn--sm" onClick={() => setRuntimeAttempt((n) => n + 1)}>
+                    Try again now
+                  </button>
+                </div>
+              </>
             )}
           </section>
         ) : surface.kind === "home" ? (
