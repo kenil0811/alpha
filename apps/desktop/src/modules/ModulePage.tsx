@@ -31,7 +31,19 @@ export function moduleTabs(detail: AppDetail): PageTab[] {
   if (detail.summary?.length) tabs.push({ id: "summary", title: "Summary", kind: "summary" });
   if (detail.ui?.entry) tabs.push({ id: "ui", title: "Screen", kind: "ui" });
   (detail.screen?.tabs ?? []).forEach((t, index) => tabs.push({ id: `screen:${t.id}`, title: t.title, kind: "screen", index }));
-  for (const c of detail.collections) tabs.push({ id: `page:${c.name}`, title: humanize(c.name), kind: "collection", name: c.name });
+  // A declared screen tab that already lists a table (a table, board or list over one of its
+  // views) covers that table; the derived page steps aside so nothing shows twice.
+  const viewCollection = new Map((detail.views ?? []).map((v) => [v.id, v.collection]));
+  const covered = new Set<string>();
+  for (const tab of detail.screen?.tabs ?? []) {
+    for (const block of tab.blocks) {
+      if (block.kind === "table" || block.kind === "board" || block.kind === "list") {
+        const collection = viewCollection.get(block.view);
+        if (collection) covered.add(collection);
+      }
+    }
+  }
+  for (const c of detail.collections) if (!covered.has(c.name)) tabs.push({ id: `page:${c.name}`, title: humanize(c.name), kind: "collection", name: c.name });
   // Actions a person runs by hand get a tab when no declared screen already offers them.
   const manual = detail.actions.some((a) => a.invocable_from.includes("manual"));
   if (manual && !detail.screen) tabs.push({ id: "actions", title: "Actions", kind: "actions" });

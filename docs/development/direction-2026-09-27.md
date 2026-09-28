@@ -229,7 +229,8 @@ hand-built:
   trend, text) as the Summary tab. A module's tabs are Summary, any custom Screen, declared
   screen tabs, one page per table, and Actions when nothing else offers manual actions; the
   Data section is gone. A module with tables counts as having a screen (no primary action
-  needed). Builder instructions, APP_CONTRACT.md, the template and the default conventions now
+  needed). A declared screen tab that already lists a table stands in for that table's page.
+  Any error that escapes the shell's rendering is shown in the window with a reload. Builder instructions, APP_CONTRACT.md, the template and the default conventions now
   say: declare tables well, do not design screens. Existing modules keep their screens and gain
   the pages.
 
