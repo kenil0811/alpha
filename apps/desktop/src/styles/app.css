@@ -547,3 +547,4 @@ body.avatar-window #root { height: 100vh; }
 .menu__arrows { display: inline-flex; gap: 2px; }
 .menu__arrows .iconbtn { width: 22px; height: 22px; font-size: 12px; }
 .menu__arrows .iconbtn:disabled { opacity: 0.3; }
+.skill__previous { display: flex; flex-direction: column; gap: 6px; }

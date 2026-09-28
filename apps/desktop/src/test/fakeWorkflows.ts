@@ -166,7 +166,7 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
       summary: "Found two people worth a call.",
       items: [
         { name: "Ada Example", role: "Head of Ops", company: "Acme", source: "https://example.com/ada" },
-        { name: "Ben Sample", role: "Founder", company: "Bolt", source: "https://example.com/ben" },
+        { name: "Ben Sample", role: "Founder", company: "Bolt", source: "https://example.com/ben (via https://example.com/roundup)" },
       ],
       evidence: [{ kind: "search", title: "Ada", url: "https://example.com/ada", snippet: "Head of Ops" }],
       started_at: "2026-09-28T10:00:00Z",

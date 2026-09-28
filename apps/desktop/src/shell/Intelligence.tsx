@@ -72,6 +72,16 @@ export function Intelligence({
   );
 }
 
+/** A link only when the text is one plain address; anything else stays text. */
+function asLink(value: unknown): { href: string; label: string } | null {
+  if (typeof value !== "string" || !/^https?:\/\/\S+$/.test(value.trim())) return null;
+  try {
+    return { href: value.trim(), label: new URL(value.trim()).hostname };
+  } catch {
+    return null;
+  }
+}
+
 function shown(value: unknown): string {
   if (Array.isArray(value)) return value.map(String).join(", ");
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -216,6 +226,7 @@ function Skills({ client }: { client: CoreClient & { listSkills: () => Promise<S
           key={s.id}
           skill={s}
           onRun={(inputs) => client.runSkill(s.id, inputs)}
+          lastRun={() => client.getSkill(s.id).then((page) => page.runs[0] ?? null)}
           onRetire={async () => {
             await client.retireSkill(s.id);
             load();
@@ -290,8 +301,22 @@ function SkillForm({ onSave, onCancel }: { onSave: (draft: SkillDraft) => Promis
   );
 }
 
-function SkillCard({ skill, onRun, onRetire }: { skill: SkillSpec; onRun: (inputs: Record<string, unknown>) => Promise<SkillRun>; onRetire: () => Promise<void> }) {
+function SkillCard({ skill, onRun, onRetire, lastRun }: { skill: SkillSpec; onRun: (inputs: Record<string, unknown>) => Promise<SkillRun>; onRetire: () => Promise<void>; lastRun: () => Promise<SkillRun | null> }) {
   const [open, setOpen] = useState(false);
+  const [previous, setPrevious] = useState<SkillRun | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    lastRun()
+      .then((run) => {
+        if (!cancelled) setPrevious(run);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the loader is stable per skill
+  }, [open, skill.id]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SkillRun | null>(null);
@@ -361,6 +386,12 @@ function SkillCard({ skill, onRun, onRetire }: { skill: SkillSpec; onRun: (input
             </p>
           ) : null}
           {result ? <RunResult run={result} /> : null}
+          {!result && previous ? (
+            <div className="skill__previous">
+              <div className="faint">Last time ({new Date(previous.started_at).toLocaleString()}{Object.keys(previous.inputs).length ? `, ${Object.values(previous.inputs).map(String).join(", ")}` : ""}):</div>
+              <RunResult run={previous} />
+            </div>
+          ) : null}
         </form>
       ) : null}
     </article>
@@ -391,13 +422,16 @@ function RunResult({ run }: { run: SkillRun }) {
                 <tr key={i}>
                   {columns.map((c) => (
                     <td key={c} title={shown(item[c])}>
-                      {c === "source" && typeof item[c] === "string" && /^https?:/.test(item[c] as string) ? (
-                        <a href={item[c] as string} target="_blank" rel="noreferrer">
-                          {new URL(item[c] as string).hostname}
-                        </a>
-                      ) : (
-                        shown(item[c])
-                      )}
+                      {(() => {
+                        const link = asLink(item[c]);
+                        return link ? (
+                          <a href={link.href} target="_blank" rel="noreferrer">
+                            {link.label}
+                          </a>
+                        ) : (
+                          shown(item[c])
+                        );
+                      })()}
                     </td>
                   ))}
                 </tr>
@@ -412,9 +446,13 @@ function RunResult({ run }: { run: SkillRun }) {
           <ul className="skill__evidence">
             {run.evidence.map((e, i) => (
               <li key={i}>
-                <a href={String(e.url)} target="_blank" rel="noreferrer">
-                  {String(e.title || e.url)}
-                </a>
+                {asLink(e.url) ? (
+                  <a href={String(e.url)} target="_blank" rel="noreferrer">
+                    {String(e.title || e.url)}
+                  </a>
+                ) : (
+                  <span>{String(e.title || e.url || "")}</span>
+                )}
                 {e.snippet ? <span className="faint"> — {String(e.snippet)}</span> : null}
               </li>
             ))}

@@ -32,6 +32,19 @@ describe("Intelligence", () => {
     expect(onOpenModule).toHaveBeenCalledWith("jobs");
   });
 
+  it("shows the last kept run when a skill's run panel opens", async () => {
+    const { client } = setup();
+    client.skillRows = [{ id: "s1", title: "Check a supplier", description: "Looks a supplier up.", kind: "procedure", instructions: "Search.", module: null, action: null, inputs: [], produces: "", sources: [], created_by: "person", state: "active", created_at: "2026-09-28T10:00:00Z", updated_at: "2026-09-28T10:00:00Z" }];
+    client.skillRuns = [{ run_id: "r1", skill_id: "s1", inputs: { supplier: "Acme" }, state: "done", summary: "Acme still ships.", items: [{ name: "Acme", source: "not a url" }], evidence: [], started_at: "2026-09-28T09:00:00Z", finished_at: "2026-09-28T09:00:30Z" }];
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Skills" }));
+    const card = await screen.findByRole("article", { name: "Check a supplier" });
+    await user.click(within(card).getByRole("button", { name: "Run" }));
+    expect(await within(card).findByText("Acme still ships.")).toBeInTheDocument();
+    expect(within(card).getByText(/Last time \(.*Acme\)/)).toBeInTheDocument();
+    expect(within(card).getByText("not a url")).toBeInTheDocument();
+  });
+
   it("makes a skill, runs it with its inputs and shows what it found", async () => {
     const { client } = setup();
     const user = userEvent.setup();
@@ -61,7 +74,8 @@ describe("Intelligence", () => {
     expect(await within(card).findByText("Found two people worth a call.")).toBeInTheDocument();
     const table = within(card).getByRole("table", { name: "What it found" });
     expect(within(table).getByText("Ada Example")).toBeInTheDocument();
-    expect(within(table).getAllByRole("link", { name: "example.com" })[0]).toHaveAttribute("href", "https://example.com/ada");
+    expect(within(table).getByRole("link", { name: "example.com" })).toHaveAttribute("href", "https://example.com/ada");
+    expect(within(table).getByText("https://example.com/ben (via https://example.com/roundup)")).toBeInTheDocument();
 
     await user.click(within(card).getByRole("button", { name: "Retire Find people to cold call" }));
     await waitFor(() => expect(screen.queryByRole("article", { name: "Find people to cold call" })).not.toBeInTheDocument());
