@@ -172,6 +172,9 @@ class BuildService:
         # checks, and the runs whose behaviour checks are still owed.
         self._fast_lane: set[str] = set()
         self._deferred: dict[str, Any] = {}
+        # Builds verified on the brief's own examples because the full plan could not be
+        # written; their full checks run later through `check_deferred(plan=...)`.
+        self._preliminary: set[str] = set()
         # The one-builder queue. The condition shares self._lock.
         self._waiting: deque[_QueuedBuild] = deque()
         self._wakeup = threading.Condition(self._lock)
@@ -283,7 +286,17 @@ class BuildService:
     def dependency_requests(self, build_id: str | None = None) -> list[dict[str, Any]]:
         return self._db.dependency_requests(build_id)
 
-    def cancel(self, build_id: str) -> BuildRecord:
+    def use_preliminary(self, build_id: str) -> None:
+        """The plan about to be handed over is the brief's own examples, not the planner's full
+        checks: a candidate that passes it is ready with its checks marked preliminary, and the
+        full checks follow after it is switched on."""
+        self._preliminary.add(build_id)
+
+    def cancel(
+        self, build_id: str, *, reason: str = "cancelled_by_user", cause: str | None = None
+    ) -> BuildRecord:
+        """Stop a build. `reason` says who stopped it: the person (the default) or Alpha itself
+        ("stopped_by_platform", with the `cause`)."""
         record = self.get(build_id)
         if record.state in TERMINAL_BUILD_STATES:
             raise ConflictError(f"build {build_id} already {record.state.value}")
@@ -301,8 +314,8 @@ class BuildService:
             build_id,
             new_state=BuildState.CANCELLED,
             event_kind="build.cancelled",
-            payload={"termination": termination},
-            terminal_reason="cancelled_by_user",
+            payload={"termination": termination, "cause": cause},
+            terminal_reason=reason,
             failure_category=FailureCategory.CANCELLED,
         )
         return self.get(build_id)
@@ -348,10 +361,13 @@ class BuildService:
         self._db.append(build_id, None, "build.activated", result)
         return result
 
-    def check_deferred(self, build_id: str) -> dict[str, Any]:
-        """The behaviour checks a fast-lane candidate still owes, run now on the full plan and
-        recorded on the build. Returns what the person is told: passed, failed (with what
-        failed), or not_run (with why)."""
+    def check_deferred(self, build_id: str, plan: ValidationPlan | None = None) -> dict[str, Any]:
+        """Behaviour checks a candidate still owes, run now and recorded on the build. Without
+        `plan`: a fast-lane candidate's, on the build's plan once it is here (the brief's
+        examples when that plan is preliminary; the run is then kept for the full checks).
+        With `plan`: the full checks for a candidate that was verified on a preliminary plan.
+        Returns what the person is told: passed, failed (with what failed), preliminary, or
+        not_run (with why)."""
         record = self.get(build_id)
         candidate = record.candidate or {}
         run = self._deferred.pop(build_id, None)
@@ -361,19 +377,29 @@ class BuildService:
             if checks.get("status") == "pending":
                 checks = {"status": "not_run", "reason": "lost"}
                 self._db.set_candidate_checks(build_id, checks)
+            elif checks.get("full") == "pending":
+                checks = {**checks, "full": "unavailable"}
+                self._db.set_candidate_checks(build_id, checks)
             return checks
-        plan_failed = False
-        if event is not None:
-            event.wait(float(record.budget.max_total_seconds))
-            plan_failed = build_id in self._plan_failed or not event.is_set()
-            self._plan_failed.discard(build_id)
-            record = self.get(build_id)
-        if plan_failed:
-            checks = {"status": "not_run", "reason": "plan_unavailable"}
-            self._db.set_candidate_checks(build_id, checks)
-            self._db.append(build_id, run.attempt_id, "build.behaviour_checked", checks)
-            return checks
-        outcome = self._pipeline.verifier.verify_behaviour(run, record.plan)
+        preliminary = False
+        if plan is not None:
+            self._preliminary.discard(build_id)
+            self._db.update_plan(build_id, plan)
+        else:
+            plan_failed = False
+            if event is not None:
+                event.wait(float(record.budget.max_total_seconds))
+                plan_failed = build_id in self._plan_failed or not event.is_set()
+                self._plan_failed.discard(build_id)
+                record = self.get(build_id)
+            if plan_failed:
+                checks = {"status": "not_run", "reason": "plan_unavailable"}
+                self._db.set_candidate_checks(build_id, checks)
+                self._db.append(build_id, run.attempt_id, "build.behaviour_checked", checks)
+                return checks
+            plan = record.plan
+            preliminary = build_id in self._preliminary
+        outcome = self._pipeline.verifier.verify_behaviour(run, plan)
         if outcome is None:  # cannot happen without a stop event; recorded honestly anyway
             checks = {"status": "not_run", "reason": "stopped"}
             self._db.set_candidate_checks(build_id, checks)
@@ -384,11 +410,17 @@ class BuildService:
         )
         required = [c for c in report.checks if c.required]
         failed = [c.summary for c in required if c.status is not CheckStatus.PASSED]
-        checks = {
-            "status": "passed" if report.passed else "failed",
-            "checks_passed": sum(1 for c in required if c.status is CheckStatus.PASSED),
-            "failed_checks": failed[:5],
-        }
+        passed = sum(1 for c in required if c.status is CheckStatus.PASSED)
+        if preliminary and report.passed:
+            checks = {"status": "preliminary", "full": "pending", "checks_passed": passed}
+            self._deferred[build_id] = run  # the full checks run on it once they are written
+        else:
+            self._preliminary.discard(build_id)
+            checks = {
+                "status": "passed" if report.passed else "failed",
+                "checks_passed": passed,
+                "failed_checks": failed[:5],
+            }
         self._db.set_candidate_checks(build_id, checks, validation=report.model_dump(mode="json"))
         self._db.append(
             build_id,
@@ -396,6 +428,18 @@ class BuildService:
             "build.behaviour_checked",
             {"status": checks["status"], "failed": _failed_ids(report)},
         )
+        return checks
+
+    def full_checks_unavailable(self, build_id: str) -> dict[str, Any]:
+        """The full checks for a candidate verified on a preliminary plan could not be written
+        (the planner's retry failed too): it stays switched on, checked on the examples only."""
+        self._deferred.pop(build_id, None)
+        self._preliminary.discard(build_id)
+        checks = dict((self.get(build_id).candidate or {}).get("checks") or {})
+        if checks.get("status") == "preliminary":
+            checks["full"] = "unavailable"
+            self._db.set_candidate_checks(build_id, checks)
+            self._db.append(build_id, None, "build.behaviour_checked", checks)
         return checks
 
     def evidence_path(self, build_id: str, attempt: int, name: str) -> Path | None:
@@ -467,9 +511,13 @@ class BuildService:
             report.append(entry)
         # Behaviour checks a fast-lane module still owed do not survive either: the module
         # stays switched on and is told its checks did not run.
-        for build_id in self._db.builds_with_pending_checks():
-            self._db.set_candidate_checks(build_id, {"status": "not_run", "reason": "restarted"})
-            self._db.append(build_id, None, "build.behaviour_checked", {"status": "not_run"})
+        for build_id, owed in self._db.builds_with_pending_checks().items():
+            if owed.get("status") == "preliminary":
+                checks = {**owed, "full": "unavailable"}
+            else:
+                checks = {"status": "not_run", "reason": "restarted"}
+            self._db.set_candidate_checks(build_id, checks)
+            self._db.append(build_id, None, "build.behaviour_checked", {"status": checks["status"]})
             report.append({"build_id": build_id, "reason": "core_restarted_checks_not_run"})
         # Nothing else survives a restart: a build that was waiting for the builder, or was
         # being verified or repaired, cannot continue and is not started again.
@@ -1046,6 +1094,7 @@ class BuildService:
         # The harness claims a candidate, or reports failure. Either way the package is
         # verified, so a report exists; only a claimed candidate can become ready.
         outcome: VerificationOutcome | None
+        pending: Any | None = None  # the verified run, kept when the plan was preliminary
         report_ref = str((attempt.directory / "verification.report.json").relative_to(self._root))
         if built.status == "candidate" and build_id in self._fast_lane:
             # The fast lane: the structural checks first, without waiting for the plan. A
@@ -1071,7 +1120,7 @@ class BuildService:
                         attempt.directory,
                         outcome,
                         report_ref,
-                        deferred=True,
+                        checks={"status": "pending"},
                     )
                     return None
                 planned = with_plan()
@@ -1099,6 +1148,7 @@ class BuildService:
             if outcome is None:
                 finish("cancelled", FailureCategory.CANCELLED)
                 return None
+            pending = outcome.pending
         report = outcome.report
         self._db.set_report_ref(attempt_id, report_ref)
         if built.status == "failed":
@@ -1119,7 +1169,23 @@ class BuildService:
             return None
         if report.passed and outcome.sealed is not None:
             finish("candidate", None)
-            self._ready(record, attempt_id, attempt.number, attempt.directory, outcome, report_ref)
+            checks = None
+            if build_id in self._preliminary and pending is not None:
+                # Checked on the brief's examples only: ready, and the full checks follow.
+                self._deferred[build_id] = pending
+                passed = sum(
+                    1 for c in report.checks if c.required and c.status is CheckStatus.PASSED
+                )
+                checks = {"status": "preliminary", "full": "pending", "checks_passed": passed}
+            self._ready(
+                record,
+                attempt_id,
+                attempt.number,
+                attempt.directory,
+                outcome,
+                report_ref,
+                checks=checks,
+            )
             return None
         finish("failed", self._category_of(report))
         return outcome, attempt.directory, built.usage, False
@@ -1220,7 +1286,7 @@ class BuildService:
         attempt_dir: Path,
         outcome: VerificationOutcome,
         report_ref: str,
-        deferred: bool = False,
+        checks: dict[str, Any] | None = None,
     ) -> None:
         sealed = outcome.sealed
         assert sealed is not None
@@ -1243,8 +1309,8 @@ class BuildService:
             "attempt_number": number,
             "activated": False,
         }
-        if deferred:
-            candidate["checks"] = {"status": "pending"}
+        if checks is not None:
+            candidate["checks"] = checks
         self._db.transition(
             record.build_id,
             new_state=BuildState.READY,

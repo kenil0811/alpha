@@ -494,16 +494,19 @@ class BuildStore:
             params.append(build_id)
             conn.execute(f"UPDATE builds SET {', '.join(sets)} WHERE build_id = ?", params)
 
-    def builds_with_pending_checks(self) -> list[str]:
+    def builds_with_pending_checks(self) -> dict[str, dict[str, Any]]:
+        """Ready builds that still owe behaviour checks (the fast lane's, or the full checks
+        after a preliminary plan), with their checks as recorded."""
         rows = self._db.query(
             "SELECT build_id, candidate_json FROM builds WHERE state = 'ready'"
             " AND candidate_json LIKE '%pending%'"
         )
-        return [
-            r["build_id"]
-            for r in rows
-            if (json.loads(r["candidate_json"]).get("checks") or {}).get("status") == "pending"
-        ]
+        owed: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            checks = json.loads(r["candidate_json"]).get("checks") or {}
+            if checks.get("status") == "pending" or checks.get("full") == "pending":
+                owed[r["build_id"]] = checks
+        return owed
 
     def update_plan(self, build_id: str, plan: ValidationPlan) -> None:
         """The full checks, written while the builder was already working."""

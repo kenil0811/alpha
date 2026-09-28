@@ -6,7 +6,7 @@
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+import { checksOwed, type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ScheduleStatus } from "../core/client";
 import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -60,7 +60,7 @@ function ChecksBanner({ client, appId, releaseId, onReverted, onRemoved }: { cli
         .then((next) => {
           if (cancelled) return;
           setChecks(next);
-          if (next?.status === "pending") timer = setTimeout(load, 3000);
+          if (checksOwed(next)) timer = setTimeout(load, 3000);
         })
         .catch(() => undefined);
     };

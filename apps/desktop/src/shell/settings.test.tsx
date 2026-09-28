@@ -18,6 +18,12 @@ describe("settings the person can change", () => {
     await waitFor(() => expect(client.settingsUpdates).toEqual([{ "models.builder_new": "sonnet" }]));
     expect(await screen.findByText(/^Saved\. Model for building a new module/)).toBeInTheDocument();
 
+    // How long the checks' model thinks sits with the models; low by default.
+    const effort = within(models).getByLabelText("Thinking for the checks");
+    expect(effort).toHaveValue("low");
+    await user.selectOptions(effort, "medium");
+    await waitFor(() => expect(client.settingsUpdates.at(-1)).toEqual({ "effort.planner": "medium" }));
+
     const limits = screen.getByLabelText("Building limits");
     const minutes = within(limits).getByLabelText("Minutes per attempt");
     await user.clear(minutes);

@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS creations (
 """
 
 TERMINAL = {"active", "failed", "cancelled"}
+# The planner's second try after its first failed (found 28 September: the first ran past the
+# 300 s limit on a job-search brief). The module is already built by then, so it can wait.
+PLAN_RETRY_SECONDS = 600
 
 # Plain-language stage for each build state (UX §4: understanding, building, checking, ready,
 # or needs your input).
@@ -305,16 +308,36 @@ class CreationService:
         prefs = getattr(self._gateway, "preferences", None)
         return prefs is None or prefs.get("build.fast_lane") != "off"
 
-    def _follow_checks(self, creation_id: str, build: BuildRecord) -> None:
-        """A fast-lane module is in use before its behaviour checks ran: run them now, in the
-        background; the creation's result reports them as they land."""
+    def _follow_checks(
+        self,
+        creation_id: str,
+        build: BuildRecord,
+        plan_settled: threading.Event | None = None,
+        box: dict[str, Any] | None = None,
+    ) -> None:
+        """Checks a module still owes once it is switched on, run in the background; the
+        creation's result reports them as they land. A fast-lane module's behaviour checks run
+        on the plan (waited for); a module verified on the brief's examples because the planner
+        failed (`box["retry"]`) then gets the full checks from the planner's retry."""
         checks = (build.candidate or {}).get("checks") or {}
-        if checks.get("status") != "pending":
+        if checks.get("status") != "pending" and plan_settled is None:
             return
 
         def run() -> None:
             try:
-                self._builds.check_deferred(build.build_id)
+                if plan_settled is not None:
+                    plan_settled.wait(PLAN_RETRY_SECONDS * 2 + 60)
+                if checks.get("status") == "pending":
+                    self._builds.check_deferred(build.build_id)
+                retried = (box or {}).get("retry")
+                if retried is None:
+                    return
+                retried.wait(PLAN_RETRY_SECONDS * 2 + 60)
+                full = (box or {}).get("full")
+                if full is not None:
+                    self._builds.check_deferred(build.build_id, plan=full)
+                else:
+                    self._builds.full_checks_unavailable(build.build_id)
             except Exception:
                 log.exception("behaviour checks after activation failed for %s", creation_id)
 
@@ -862,33 +885,66 @@ class CreationService:
                 pass
             return
 
-        def run_planner() -> None:
-            try:
-                planned = self._planner.plan(
-                    brief, self._gateway.route(self._routes.planner, stage="planner"), creation_id
+        def save_plan(plan: ValidationPlan, source: str) -> None:
+            with self._store.transaction() as conn:
+                conn.execute(
+                    """UPDATE creations SET plan_json = ?, plan_source = ?, updated_at = ?
+                       WHERE creation_id = ?""",
+                    (plan.model_dump_json(), source, _now(), creation_id),
                 )
+
+        def run_planner() -> None:
+            route = self._gateway.route(self._routes.planner, stage="planner")
+            try:
+                planned = self._planner.plan(brief, route, creation_id)
                 box["plan"] = planned.plan
-                with self._store.transaction() as conn:
-                    conn.execute(
-                        """UPDATE creations SET plan_json = ?, plan_source = ?, updated_at = ?
-                           WHERE creation_id = ?""",
-                        (planned.plan.model_dump_json(), planned.source, _now(), creation_id),
-                    )
+                save_plan(planned.plan, planned.source)
             except PlanningFailed as exc:
+                if preliminary.scenarios:
+                    # The build is not thrown away: it is checked on the brief's own examples,
+                    # and the full checks are written again and run once it is switched on.
+                    log.warning(
+                        "planning %s failed (%s); checking on the examples", creation_id, exc
+                    )
+                    self._builds.use_preliminary(build.build_id)
+                    box["plan"] = preliminary
+                    box["retry"] = threading.Event()
+                    save_plan(preliminary, "preliminary")
+                    ready.set()
+                    try:
+                        full = self._planner.plan(
+                            brief, route, creation_id, timeout_seconds=PLAN_RETRY_SECONDS
+                        )
+                        box["full"] = full.plan
+                        save_plan(full.plan, full.source)
+                    except PlanningFailed as again:
+                        log.warning(
+                            "the planner's retry for %s failed too (%s)", creation_id, again
+                        )
+                    finally:
+                        box["retry"].set()
+                    return
+                why = (
+                    "ran out of time writing the checks for this request"
+                    if exc.code == "timeout"
+                    else "couldn't write the checks for this request"
+                )
                 self._finish(
                     creation_id,
                     "failed",
                     None,
                     {
                         "reason": "plan_unavailable",
-                        "message": "Alpha couldn't work out how to check this request, so "
-                        "nothing was switched on.",
+                        "message": f"Alpha {why}, and the request has no worked examples it "
+                        "could check instead, so nothing was switched on. Try again.",
                         "failed_checks": exc.problems or [str(exc)],
                         "next_step": "retry",
                     },
                 )
                 try:
-                    self._builds.cancel(build.build_id)
+                    self._builds.cancel(
+                        build.build_id, reason="stopped_by_platform", cause="plan_unavailable"
+                    )
                 except Exception:
                     pass
             except Exception:
@@ -926,7 +982,7 @@ class CreationService:
             )
             return
         self._finish(creation_id, "active", activated, None)
-        self._follow_checks(creation_id, final)
+        self._follow_checks(creation_id, final, ready, box)
 
     def _wait_for_build(self, creation_id: str, build_id: str) -> BuildRecord | None:
         last_state: BuildState | None = None
@@ -978,6 +1034,12 @@ class CreationService:
                 f"It was built {tries} but didn't pass its checks, so nothing was switched on."
             )
             next_step = "revise"
+        elif reason == "stopped_by_platform":
+            message = (
+                "Alpha stopped this build itself (you didn't), so nothing was switched on. "
+                "Try again."
+            )
+            next_step = "retry"
         elif build.state is BuildState.CANCELLED:
             message = "The build was cancelled."
             next_step = "retry"

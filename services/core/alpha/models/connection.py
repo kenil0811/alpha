@@ -30,6 +30,7 @@ ROUTE_ID = "claude-code-cli"
 # keeps it in step with the call sites.
 REQUIRED_FLAGS: tuple[str, ...] = (
     "--allowedTools",
+    "--effort",
     "--json-schema",
     "--max-budget-usd",
     "--model",
@@ -47,7 +48,7 @@ REQUIRED_FLAGS: tuple[str, ...] = (
 # Passed too, but not listed by `--help`.
 UNLISTED_FLAGS: tuple[str, ...] = ("--max-turns", "--version")
 # The oldest version known to take every flag above (2.1.223 lacks --permission-prompts and
-# --restricted; measured 27 September 2026).
+# --restricted; measured 27 September 2026; 2.1.283 also lists --effort).
 MIN_SUPPORTED_VERSION = "2.1.283"
 PROBE_SECONDS = 20
 CHECK_SECONDS = 60

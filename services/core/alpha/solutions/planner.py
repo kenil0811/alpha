@@ -31,6 +31,7 @@ from alpha_contracts.verification import (
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from alpha.models.gateway import ModelRoute
+from alpha.models.preferences import stage_effort
 from alpha.models.structured import InferenceError, StructuredInference
 
 SYSTEM = """You write the acceptance checks for a small App before it is built. Alpha's builder will implement the App to satisfy your checks, and Alpha runs them itself against the built App: it calls the App's actions for real and reads what was stored, and it drives the App's screen in a real browser. You never see the App's code; you define what counts as working.
@@ -72,9 +73,12 @@ class AcceptancePlan:
 
 
 class PlanningFailed(Exception):
-    def __init__(self, message: str, problems: list[str] | None = None) -> None:
+    def __init__(
+        self, message: str, problems: list[str] | None = None, *, code: str | None = None
+    ) -> None:
         super().__init__(message)
         self.problems = problems or []
+        self.code = code  # the model call's failure code ("timeout", ...) when that was it
 
 
 def wants_ui(brief: SolutionBrief) -> bool:
@@ -312,10 +316,18 @@ def _fake_notes_ui() -> UiPlan:
 
 
 class AcceptancePlanner:
-    def __init__(self, inference: StructuredInference) -> None:
+    def __init__(self, inference: StructuredInference, preferences: Any | None = None) -> None:
         self._inference = inference
+        self._preferences = preferences  # effort.planner from Settings; None in tests
 
-    def plan(self, brief: SolutionBrief, route: ModelRoute, scope_ref: str) -> AcceptancePlan:
+    def plan(
+        self,
+        brief: SolutionBrief,
+        route: ModelRoute,
+        scope_ref: str,
+        *,
+        timeout_seconds: int | None = None,
+    ) -> AcceptancePlan:
         if route.route_id == "fake":
             return self._fake(brief)
         prompt = plan_prompt(brief)
@@ -330,9 +342,13 @@ class AcceptancePlanner:
                     schema=PlanDraft.model_json_schema(),
                     scope_kind="acceptance_plan",
                     scope_ref=scope_ref,
+                    timeout_seconds=timeout_seconds,
+                    effort=stage_effort(self._preferences, "planner"),
                 )
             except InferenceError as exc:
-                raise PlanningFailed(f"the checks could not be written: {str(exc)[:300]}") from None
+                raise PlanningFailed(
+                    f"the checks could not be written: {str(exc)[:300]}", code=exc.code
+                ) from None
             try:
                 draft = PlanDraft.model_validate(result.output)
             except ValidationError as exc:

@@ -15,7 +15,7 @@ from tests.integration.conftest import CoreProcess, start_core
 pytestmark = pytest.mark.integration
 
 FLAGS = (
-    "--allowedTools --json-schema --max-budget-usd --model --no-session-persistence "
+    "--allowedTools --effort --json-schema --max-budget-usd --model --no-session-persistence "
     "--output-format --permission-mode --permission-prompts --restricted --setting-sources "
     "--strict-mcp-config --system-prompt --tools --verbose"
 )

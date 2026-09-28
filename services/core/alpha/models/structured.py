@@ -152,7 +152,10 @@ class StructuredInference:
         scope_ref: str,
         fake: Any | None = None,
         timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
+        """`effort` is the CLI's reasoning effort (low, medium, high); None or "default" leaves
+        it to the CLI."""
         if route.route_id == "fake":
             if fake is None:
                 raise InferenceError("route_unavailable", "fake route needs a fake responder")
@@ -169,7 +172,7 @@ class StructuredInference:
             )
         try:
             result = self._claude_cli(
-                route, system, prompt, schema, scope_kind, scope_ref, timeout_seconds
+                route, system, prompt, schema, scope_kind, scope_ref, timeout_seconds, effort
             )
         except InferenceError as exc:
             if exc.code != "cancelled":
@@ -189,6 +192,7 @@ class StructuredInference:
         scope_kind: str,
         scope_ref: str,
         timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
         env = self.cli_env()
         timeout = timeout_seconds or self._timeout
@@ -215,6 +219,8 @@ class StructuredInference:
         ]
         if route.model != "default":
             argv += ["--model", route.model]
+        if effort and effort != "default":
+            argv += ["--effort", effort]
         started = time.monotonic()
         try:
             proc = subprocess.Popen(

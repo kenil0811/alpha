@@ -30,6 +30,7 @@ from alpha.assistant.prompts import (
 from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
 from alpha.models.disclosure import data_notice, ground_output, is_remote
 from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models.preferences import stage_effort
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, NotFoundError, new_id, utc_now
 
@@ -382,6 +383,7 @@ class AssistantService:
                 schema=triage_schema(),
                 scope_kind="change_triage",
                 scope_ref=conversation_id,
+                effort=stage_effort(getattr(self._gateway, "preferences", None), "triage"),
                 fake=fake_triage if route.route_id == "fake" else None,
             )
         except InferenceError as exc:

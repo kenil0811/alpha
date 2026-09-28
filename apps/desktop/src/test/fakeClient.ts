@@ -145,6 +145,7 @@ export class FakeCoreClient implements CoreClient {
   settingsFields: SettingField[] = [
     { id: "models.assistant", group: "Models", title: "Model for the assistant", description: "Understands your request.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
     { id: "models.builder_new", group: "Models", title: "Model for building a new module", description: "Writes the module.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "effort.planner", group: "Models", title: "Thinking for the checks", description: "How long the model thinks.", kind: "choice", options: [{ value: "low", label: "Low (fastest)" }, { value: "medium", label: "Medium" }, { value: "high", label: "High (slowest)" }, { value: "default", label: "Claude Code's default" }], minimum: null, maximum: null, unit: null, default: "low", value: "low" },
     { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
   ];
   settingsUpdates: Record<string, unknown>[] = [];

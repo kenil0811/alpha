@@ -178,7 +178,7 @@ export function applyDensity(density: string): void {
 }
 
 const GROUP_WORDS: Record<string, string> = {
-  Models: "Which Claude model each stage uses. Changes apply to the next request or build.",
+  Models: "Which Claude model each stage uses and how long it thinks. Changes apply to the next request or build.",
   Look: "How every module is drawn, the assistant's avatar, and rules Alpha follows when it builds or changes one.",
   "Building limits": "How a build runs, and how much it may spend before it is stopped.",
   "Signed-in browser": "How gently modules read sites through your signed-in browser.",
