@@ -83,6 +83,8 @@ export function AssistantPanel({
   const label = scope.moduleName ?? scope.projectName ?? "Home";
   const thinking = session?.state === "thinking";
   const cards = latestCardPerConversation(session?.turns ?? []);
+  // An offer (a one-click yes) stands only on Alpha's newest turn; older ones are history.
+  const lastAlpha = [...(session?.turns ?? [])].reverse().find((t) => t.role === "alpha")?.turn_id ?? null;
 
   return (
     <aside className="assist" aria-label="Assistant">
@@ -177,6 +179,13 @@ export function AssistantPanel({
                     </div>
                   ) : null}
                   {turn.outcome && turn.kind === "work" ? <div className="faint" style={{ marginTop: 4 }}>{turn.outcome}</div> : null}
+                  {turn.turn_id === lastAlpha && offerOf(turn) ? (
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button type="button" className="btn btn--sm btn--primary" disabled={busy || thinking} onClick={() => void send(offerOf(turn)!.say)}>
+                        {offerOf(turn)!.label}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ),
             )}
@@ -224,6 +233,12 @@ export function AssistantPanel({
       </form>
     </aside>
   );
+}
+
+/** What Alpha offers to do on the person's yes (for example, letting a module use a sign-in). */
+function offerOf(turn: SessionTurn): { label: string; say: string } | null {
+  const offer = turn.detail?.offer as { label?: unknown; say?: unknown } | undefined;
+  return offer && typeof offer.label === "string" && typeof offer.say === "string" ? { label: offer.label, say: offer.say } : null;
 }
 
 /** Where a scope's sessions live: a project's, a module's own (outside any project), or global. */

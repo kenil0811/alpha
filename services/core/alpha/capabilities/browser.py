@@ -250,6 +250,36 @@ class BrowserService:
                 )
         return sorted(wanted)
 
+    def allow(self, app_id: str, site: str) -> list[str]:
+        """Let one more connected site be read by this module through the person's sign-in."""
+        return self.set_grants(app_id, [*self.grants(app_id), site])
+
+    def access(self, app_id: str, name: str) -> list[dict[str, Any]]:
+        """Where this module stands with each site it lately tried to read: whether the person
+        is signed in there, whether the module may use that sign-in, and how its reads went.
+        This is what lets Alpha say why a page came back as a sign-in wall."""
+        connected = self.connected_sites()
+        allowed = set(self.grants(app_id))
+        by_site: dict[str, dict[str, Any]] = {}
+        for visit in self.visits(app_id, limit_rows=12):
+            entry = by_site.setdefault(
+                visit["site"],
+                {
+                    "app_id": app_id,
+                    "name": name,
+                    "site": visit["site"],
+                    "connected": visit["site"] in connected,
+                    "allowed": visit["site"] in allowed,
+                    "reads": 0,
+                    "walled": 0,
+                    "last_walled": bool(visit["blocked"]),  # the newest read, seen first
+                    "last_at": visit["at"],
+                },
+            )
+            entry["reads"] += 1
+            entry["walled"] += 1 if visit["blocked"] else 0
+        return [e for e in by_site.values() if e["walled"]]
+
     def allowed_site(self, app_id: str, url: str) -> str | None:
         """The connected site this module may read `url` through, or None."""
         try:

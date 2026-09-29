@@ -256,6 +256,7 @@ def build(
         skills=skills,
         projects=projects,
         repair=repair,
+        browser=platform.browser,
     )
     app = create_app(
         settings,

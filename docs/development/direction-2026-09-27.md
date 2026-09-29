@@ -405,6 +405,18 @@ hand-built:
   for modules the person has now. Tests: `test_purge.py` (5), the integration removal test,
   shell `removed.test.tsx`.
 
+- 29 September, evening: why a page came back as a sign-in wall. Kenil rebuilt the
+  connections module; its sync read LinkedIn four times as a visitor and the assistant told him
+  twice to "log in", although he was signed in (Connections, 15:51). Cause: a new module has no
+  access to a signed-in site until allowed in its Settings, and neither he nor the loop knew.
+  Now `BrowserService.access` says, per module and site, whether the person is signed in,
+  whether the module may use that sign-in and how its reads went; the loop gets it as FACTS
+  (signed in but not allowed; not signed in, with where to sign in; allowed but lapsed); an
+  `allow` step grants the site on the person's yes and the action runs again; Alpha's reply
+  carries a one-click yes ("Allow linkedin.com and try again") that sends the yes as the
+  person's own message. Consent stays explicit, in the place where the person is. Tests:
+  `test_access.py` (3), shell `offer.test.tsx`.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research
