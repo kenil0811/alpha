@@ -15,7 +15,7 @@ import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
 import { ToastProvider } from "./ui/toast";
-import { usePanelControl } from "./ui/panel";
+import { CollapseToggleButton, usePanelControl } from "./ui/panel";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -358,7 +358,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
 
   const assistantContent =
     runtime.kind === "connected" && (assistantOpen || isNarrow) && !assistantPanel.collapsed ? (
-      <div ref={assistRef} className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow ? undefined : { width: assistantWidth }}>
+      <div ref={assistRef} id="panel-right" className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow ? undefined : { width: assistantWidth }}>
         <AssistantPanel
           client={runtime.client}
           conversationId={conversationId}
@@ -369,7 +369,14 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
             setSurface({ kind: "module", appId });
           }}
           context={{ moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
-          onHide={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
+          headerStart={
+            <CollapseToggleButton
+              side="right"
+              collapsed={false}
+              controls="panel-right"
+              onClick={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
+            />
+          }
           draft={draft}
         />
       </div>
