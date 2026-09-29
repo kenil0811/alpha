@@ -29,6 +29,7 @@ from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.connection_routes import register as register_connection_routes
 from alpha.api.creation_routes import register as register_creation_routes
 from alpha.api.profile_routes import register as register_profile_routes
+from alpha.api.session_routes import register as register_session_routes
 from alpha.api.skill_routes import register as register_skill_routes
 from alpha.assistant.acting import ActService, ActTurn
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
@@ -200,6 +201,8 @@ def create_app(
     onboarding: OnboardingService | None = None,
     review: ReviewService | None = None,
     skills: SkillService | None = None,
+    projects: Any | None = None,
+    sessions: Any | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -291,6 +294,8 @@ def create_app(
         register_creation_routes(app, creations)
     if acting is not None:
         register_act_routes(app, acting)
+    if acting is not None and projects is not None and sessions is not None:
+        register_session_routes(app, projects, sessions, acting, profile)
     if profile is not None:
         register_profile_routes(app, profile, onboarding, review)
     if connections is not None:

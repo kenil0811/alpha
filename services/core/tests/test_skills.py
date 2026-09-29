@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from alpha.assistant.acting import ActService
+from alpha.assistant.sessions import SessionService
 from alpha.capabilities.errors import OperationFailed
 from alpha.context.skills import SkillService
 from alpha.models.gateway import ModelGateway
@@ -171,6 +172,7 @@ def test_the_avatar_can_use_a_skill_as_a_step(tmp_path: Path) -> None:
         runs=None,
         records=None,
         assistant=None,
+        sessions=SessionService(store),
         default_route="fake",
         skills=skills,
         today=lambda: "2026-09-28",

@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS profile_facts (
 CREATE INDEX IF NOT EXISTS profile_facts_field ON profile_facts(field, recorded_at);
 """
 
+# A fact's scope: about the person in general, or only within one project.
+PERSON = "person"
+
+
+def project_scope(project_id: str) -> str:
+    return f"project:{project_id}"
+
+
 MAX_FACTS_PER_FIELD_HISTORY = 50
 
 
@@ -45,16 +53,19 @@ class ProfileService:
         self._store = store
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("profile_facts", {"scope": "TEXT NOT NULL DEFAULT 'person'"})
 
     # ----- reading -----------------------------------------------------------------------
 
-    def view(self) -> ProfileView:
-        return ProfileView(facts=self.current(), suggestions=self.suggestions())
+    def view(self, scope: str = PERSON) -> ProfileView:
+        return ProfileView(facts=self.current(scope), suggestions=self.suggestions(scope))
 
-    def current(self) -> list[ProfileFact]:
-        """The newest accepted fact per field, oldest field first."""
+    def current(self, scope: str = PERSON) -> list[ProfileFact]:
+        """The newest accepted fact per field in `scope`, oldest field first."""
         rows = self._store.query(
-            "SELECT * FROM profile_facts WHERE state = 'accepted' ORDER BY recorded_at"
+            "SELECT * FROM profile_facts WHERE state = 'accepted' AND scope = ?"
+            " ORDER BY recorded_at",
+            (scope,),
         )
         latest: dict[str, ProfileFact] = {}
         for row in rows:
@@ -62,12 +73,14 @@ class ProfileService:
             latest[fact.field] = fact
         return list(latest.values())
 
-    def get(self, field: str) -> ProfileFact | None:
-        return next((f for f in self.current() if f.field == field), None)
+    def get(self, field: str, scope: str = PERSON) -> ProfileFact | None:
+        return next((f for f in self.current(scope) if f.field == field), None)
 
-    def suggestions(self) -> list[ProfileFact]:
+    def suggestions(self, scope: str = PERSON) -> list[ProfileFact]:
         rows = self._store.query(
-            "SELECT * FROM profile_facts WHERE state = 'suggested' ORDER BY recorded_at"
+            "SELECT * FROM profile_facts WHERE state = 'suggested' AND scope = ?"
+            " ORDER BY recorded_at",
+            (scope,),
         )
         return [self._fact(r) for r in rows]
 
@@ -78,9 +91,9 @@ class ProfileService:
         )
         return [self._fact(r) for r in rows]
 
-    def as_text(self) -> str:
+    def as_text(self, scope: str = PERSON) -> str:
         """The living profile in plain lines for a prompt, with where each fact came from."""
-        facts = self.current()
+        facts = self.current(scope)
         if not facts:
             return ""
         lines = []
@@ -107,9 +120,11 @@ class ProfileService:
         why: str | None = None,
         confidence: float = 1.0,
         accepted: bool,
+        scope: str = PERSON,
     ) -> ProfileFact:
-        """Record a claim. Accepted claims supersede the field's current accepted fact; a
-        suggestion waits. A claim identical to the current fact records nothing new."""
+        """Record a claim. Accepted claims supersede the field's current accepted fact in the
+        same scope; a suggestion waits. A claim identical to the current fact records nothing
+        new."""
         if value is None or value == "" or value == []:
             raise invalid("a fact needs a value", field=field)
         encoded = json.dumps(value, sort_keys=True, default=str)
@@ -117,17 +132,17 @@ class ProfileService:
             raise invalid("a fact is at most 4000 characters", field=field)
         with self._lock, self._store.transaction() as conn:
             current = conn.execute(
-                "SELECT * FROM profile_facts WHERE field = ? AND state = 'accepted'"
+                "SELECT * FROM profile_facts WHERE field = ? AND state = 'accepted' AND scope = ?"
                 " ORDER BY recorded_at DESC LIMIT 1",
-                (field,),
+                (field, scope),
             ).fetchone()
             if current is not None and current["value_json"] == encoded and accepted:
                 return self._fact(current)
             if not accepted:
                 pending = conn.execute(
                     "SELECT * FROM profile_facts WHERE field = ? AND state = 'suggested'"
-                    " AND value_json = ? LIMIT 1",
-                    (field, encoded),
+                    " AND value_json = ? AND scope = ? LIMIT 1",
+                    (field, encoded, scope),
                 ).fetchone()
                 if pending is not None:
                     return self._fact(pending)
@@ -135,7 +150,8 @@ class ProfileService:
             supersedes = current["fact_id"] if (current is not None and accepted) else None
             conn.execute(
                 """INSERT INTO profile_facts(fact_id, field, value_json, provenance, source, why,
-                   confidence, state, supersedes, recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   confidence, state, supersedes, recorded_at, scope)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     fact_id,
                     field,
@@ -147,6 +163,7 @@ class ProfileService:
                     "accepted" if accepted else "suggested",
                     supersedes,
                     _now(),
+                    scope,
                 ),
             )
             row = conn.execute(
@@ -166,8 +183,8 @@ class ProfileService:
                 return self._fact(row)
             current = conn.execute(
                 "SELECT fact_id FROM profile_facts WHERE field = ? AND state = 'accepted'"
-                " ORDER BY recorded_at DESC LIMIT 1",
-                (row["field"],),
+                " AND scope = ? ORDER BY recorded_at DESC LIMIT 1",
+                (row["field"], row["scope"]),
             ).fetchone()
             conn.execute(
                 "UPDATE profile_facts SET state = 'accepted', supersedes = ?, recorded_at = ?"
@@ -210,4 +227,5 @@ class ProfileService:
             state=row["state"],
             supersedes=row["supersedes"],
             recorded_at=row["recorded_at"],
+            scope=row["scope"] if "scope" in row.keys() else PERSON,
         )

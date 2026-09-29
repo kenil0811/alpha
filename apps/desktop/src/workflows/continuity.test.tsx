@@ -80,16 +80,15 @@ describe("a request and its creation stay reachable", () => {
     expect(screen.queryByRole("button", { name: "Create it" })).not.toBeInTheDocument();
   });
 
-  it("reopens an earlier request from Recent requests", async () => {
+  it("reopens an earlier session from Earlier sessions", async () => {
     const client = briefedClient();
     const user = userEvent.setup();
     render(<App client={client} />);
     await askAndCreate(user);
-    await user.click(screen.getByRole("button", { name: "New request" }));
+    await user.click(screen.getByRole("button", { name: "New session" }));
 
-    const recent = await screen.findByRole("navigation", { name: "Recent requests" });
+    const recent = await screen.findByRole("navigation", { name: "Earlier sessions" });
     const item = within(recent).getByRole("button", { name: /Keep a notes list for me/ });
-    expect(item).toHaveTextContent("Being made");
     await user.click(item);
     expect(await screen.findByLabelText("Creating it")).toBeInTheDocument();
   });
@@ -125,9 +124,9 @@ describe("temporary failures do not strand the person", () => {
     await user.click(within(failure).getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Here is a plan for your week.")).toBeInTheDocument();
     expect(client.retries).toBe(1);
-
-    await user.click(screen.getByRole("button", { name: "Start over" }));
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("Plan my week");
+    // The request stays in the session; the composer is ready for the next message.
+    expect(screen.getByText("Plan my week")).toBeInTheDocument();
+    expect(screen.getByLabelText("What do you want done?")).toHaveValue("");
     await act(async () => undefined);
   });
 
@@ -160,9 +159,8 @@ describe("changing a request after its App was made (review finding F07)", () =>
     expect(after).toHaveTextContent("Notes list is in the sidebar");
     expect(after).toHaveTextContent("To change it later, open it and describe the change here");
     expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
-
-    await user.click(within(after).getByRole("button", { name: "Describe another" }));
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("Keep a notes list for me");
+    // The session goes on; nothing was made twice.
+    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
     expect(client.creations.size).toBe(1);
   });
 
@@ -223,7 +221,8 @@ describe("changing a request after its App was made (review finding F07)", () =>
     await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list for me");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("button", { name: "Create it" });
-    expect(screen.getByLabelText("Change or add something")).toBeInTheDocument();
+    expect(screen.getByText(/To change or add something before it is made, just say so below/)).toBeInTheDocument();
+    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
   });
 });
 

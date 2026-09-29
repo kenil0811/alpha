@@ -548,3 +548,19 @@ body.avatar-window #root { height: 100vh; }
 .menu__arrows .iconbtn { width: 22px; height: 22px; font-size: 12px; }
 .menu__arrows .iconbtn:disabled { opacity: 0.3; }
 .skill__previous { display: flex; flex-direction: column; gap: 6px; }
+
+/* Sessions and projects */
+.navbtn--nested { padding-left: 26px; font-size: 13px; }
+.navbtn--quiet { color: var(--text-3); }
+.rail__project { display: flex; flex-direction: column; }
+.switcher { position: relative; display: flex; gap: 4px; }
+.switcher__menu { position: absolute; right: 0; top: 36px; z-index: 6; min-width: 260px; max-height: 320px; overflow: auto; box-shadow: var(--shadow); padding: 6px; }
+.switcher__menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.recent__item--current { border-color: var(--primary); }
+.convo { display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--primary-soft); padding-left: 10px; }
+.convo__label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.notes { font-size: 13px; border: 1px dashed var(--border); border-radius: 10px; padding: 8px 12px; }
+.notes p { margin: 8px 0 0; white-space: pre-wrap; color: var(--text-2); }
+.linkbtn { background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.linkbtn:hover b { text-decoration: underline; }
+.editable { cursor: text; }

@@ -535,17 +535,97 @@ export const CREATION_DONE = new Set(["active", "failed", "cancelled"]);
 /** One sentence the desktop assistant acted on, and what happened. */
 export interface ActTurn {
   turn_id: string;
+  session_id?: string | null;
   text: string;
-  kind: "run" | "query" | "open" | "build" | "change" | "answer";
+  kind: "run" | "query" | "skill" | "open" | "build" | "change" | "continue" | "answer";
   app_id: string | null;
   app_name?: string | null;
   action_id: string | null;
   run_id: string | null;
   conversation_id: string | null;
-  /** Where the main window should go: a module (and tab) or a conversation. */
-  open: { app_id?: string | null; tab_id?: string | null; conversation_id?: string | null } | null;
+  /** Where the main window should go: a module (and tab), or a session and its conversation. */
+  open: { app_id?: string | null; tab_id?: string | null; conversation_id?: string | null; session_id?: string | null } | null;
   reply: string;
   created_at: string;
+  outcome?: string | null;
+}
+
+/** A goal in the person's life that groups modules and the sessions about them. Optional. */
+export interface Project {
+  project_id: string;
+  name: string;
+  goal: string | null;
+  /** Alpha's own notes on the project, kept from its sessions; the person may edit or clear them. */
+  summary: string | null;
+  modules: string[];
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+/** One turn of a session: what the person said, or what Alpha said and did. */
+export interface SessionTurn {
+  turn_id: string;
+  sequence: number;
+  role: "user" | "alpha";
+  /** "work": Alpha did something (a card): started a conversation, ran actions, opened a module. */
+  kind: "text" | "work";
+  text: string;
+  conversation_id?: string | null;
+  open?: { app_id?: string | null; tab_id?: string | null; conversation_id?: string | null; session_id?: string | null } | null;
+  /** One line of truth about what the turn led to, current when read. */
+  outcome?: string | null;
+  detail?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/** A durable chat with Alpha: in a project, or global. */
+export interface Session {
+  session_id: string;
+  project_id: string | null;
+  title: string | null;
+  focus_app_id: string | null;
+  origin: "shell" | "avatar";
+  state: "idle" | "thinking";
+  /** Alpha's notes on the turns folded away; the rest are in `turns`. */
+  summary: string | null;
+  turns: SessionTurn[];
+  turn_count: number;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+export interface SessionSummary {
+  session_id: string;
+  project_id: string | null;
+  title: string | null;
+  focus_app_id: string | null;
+  origin: "shell" | "avatar";
+  state: "idle" | "thinking";
+  turn_count: number;
+  last_text: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionsClient {
+  listProjects(): Promise<Project[]>;
+  createProject(name: string, goal?: string | null): Promise<Project>;
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project>;
+  /** Put a module in a project, or (null) take it out of every project. */
+  fileModule(appId: string, projectId: string | null): Promise<void>;
+  project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }>;
+  listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]>;
+  createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
+  getSession(sessionId: string): Promise<Session>;
+  /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
+  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session>;
+  updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session>;
+}
+
+export function isSessionsClient(client: unknown): client is SessionsClient {
+  return typeof (client as Partial<SessionsClient>)?.sendSession === "function";
 }
 
 /** One fact Alpha knows about the person, with where it came from. */
@@ -793,7 +873,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -1175,6 +1255,50 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async capabilities(): Promise<CapabilityEntry[]> {
     const page = await this.request<{ capabilities: CapabilityEntry[] }>("/api/capabilities");
     return page.capabilities;
+  }
+
+  async listProjects(): Promise<Project[]> {
+    const page = await this.request<{ projects: Project[] }>("/api/projects");
+    return page.projects;
+  }
+
+  createProject(name: string, goal?: string | null): Promise<Project> {
+    return this.request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name, goal: goal ?? null }) });
+  }
+
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+    return this.request<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { method: "POST", body: JSON.stringify(patch) });
+  }
+
+  async fileModule(appId: string, projectId: string | null): Promise<void> {
+    await this.request(`/api/apps/${encodeURIComponent(appId)}/project`, { method: "POST", body: JSON.stringify({ project_id: projectId }) });
+  }
+
+  project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  async listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]> {
+    const query = new URLSearchParams({ scope });
+    if (projectId) query.set("project_id", projectId);
+    const page = await this.request<{ sessions: SessionSummary[] }>(`/api/sessions?${query.toString()}`);
+    return page.sessions;
+  }
+
+  createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session> {
+    return this.request<Session>("/api/sessions", { method: "POST", body: JSON.stringify(draft) });
+  }
+
+  getSession(sessionId: string): Promise<Session> {
+    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
+    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }) });
+  }
+
+  updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session> {
+    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: "POST", body: JSON.stringify(patch) });
   }
 
   async stream(after: number, onItem: (item: StreamItem) => void, signal: AbortSignal): Promise<void> {

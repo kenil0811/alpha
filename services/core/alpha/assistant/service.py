@@ -129,6 +129,8 @@ class ConversationRecord(BaseModel):
     # True when the change is small enough for Alpha to edit the App's files directly (no
     # brief, no plan): the creation starts on its own and the panel follows it.
     quick_change: bool = False
+    # The session this conversation was started from (a card in that session), if any.
+    session_id: str | None = None
 
 
 class AssistantService:
@@ -165,6 +167,7 @@ class AssistantService:
                 "quick_change": "INTEGER NOT NULL DEFAULT 0",
                 "proposal_json": "TEXT",
                 "researched": "INTEGER NOT NULL DEFAULT 0",
+                "session_id": "TEXT",
             },
         )
         # Set by main once the creation service exists: starts a quick change for a conversation.
@@ -174,10 +177,16 @@ class AssistantService:
     # ----- public ------------------------------------------------------------------------
 
     def start(
-        self, text: str, route_id: str | None = None, *, change_of: str | None = None
+        self,
+        text: str,
+        route_id: str | None = None,
+        *,
+        change_of: str | None = None,
+        session_id: str | None = None,
     ) -> ConversationRecord:
         """Begin a conversation: about something new, or (`change_of`) about changing an App
-        that already exists, which the brief then describes in full."""
+        that already exists, which the brief then describes in full. `session_id` is the
+        session it is a card in."""
         route = self._gateway.route(route_id or self._default_route, stage="assistant")
         if change_of is not None and self._describe_app(change_of) is None:
             raise UnknownApp(f"there is no module {change_of!r} to change")
@@ -186,8 +195,8 @@ class AssistantService:
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO conversations(conversation_id, state, route_id, created_at,
-                   updated_at, latest_sequence, change_of) VALUES (?,?,?,?,?,0,?)""",
-                (conversation_id, "thinking", route.route_id, now, now, change_of),
+                   updated_at, latest_sequence, change_of, session_id) VALUES (?,?,?,?,?,0,?,?)""",
+                (conversation_id, "thinking", route.route_id, now, now, change_of, session_id),
             )
             self._append_turn_locked(conn, conversation_id, "user", "request", {"text": text})
         self._spawn_turn(conversation_id, route, {"text": text})
@@ -775,6 +784,7 @@ class AssistantService:
         return ConversationRecord(
             conversation_id=row["conversation_id"],
             change_of=row["change_of"],
+            session_id=row["session_id"] if "session_id" in row.keys() else None,
             quick_change=bool(row["quick_change"]),
             proposal=json.loads(row["proposal_json"])
             if "proposal_json" in row.keys() and row["proposal_json"]

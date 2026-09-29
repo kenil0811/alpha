@@ -31,6 +31,7 @@ from alpha.artifacts.service import ArtifactService
 from alpha.assistant.acting import ActService
 from alpha.assistant.research import Researcher
 from alpha.assistant.service import AssistantService
+from alpha.assistant.sessions import SessionService
 from alpha.builds.preview import PreviewDeps
 from alpha.builds.service import BuildPipeline, BuildService
 from alpha.builds.toolchain import PlatformResources, UiToolchain
@@ -44,6 +45,7 @@ from alpha.context.connections import ConnectionService
 from alpha.context.onboarding import OnboardingService
 from alpha.context.pack import ContextPacker
 from alpha.context.profile import ProfileService
+from alpha.context.projects import ProjectService
 from alpha.context.review import ReviewService
 from alpha.context.skills import SkillService
 from alpha.data.store import RecordService
@@ -128,7 +130,8 @@ def build(
     assert connections is not None
     platform.registry.on_current_changed = connections.sync
     connections.sync_all()
-    packer = ContextPacker(profile, platform.registry, platform.records, store)
+    projects = ProjectService(store)
+    packer = ContextPacker(profile, platform.registry, platform.records, store, projects=projects)
     review = ReviewService(
         store, gateway, inference, default_route=settings.assistant_route, context=packer.build
     )
@@ -189,6 +192,31 @@ def build(
         context=packer.build,
     )
     platform.broker.bind_skills(skills)
+    sessions = SessionService(
+        store,
+        gateway=gateway,
+        inference=inference,
+        default_route=settings.assistant_route,
+        profile=profile,
+        projects=projects,
+    )
+
+    def file_made_module(app_id: str, conversation_id: str) -> None:
+        """A module asked for in a project's session belongs to that project."""
+        if projects.project_of(app_id) is not None:
+            return
+        session_id = assistant.get(conversation_id).session_id
+        if not session_id:
+            return
+        project_id = sessions.get(session_id, window=0).project_id
+        if project_id:
+            projects.file_module(app_id, project_id)
+            log.info("filed %s under project %s", app_id, project_id)
+
+    creations.on_made = file_made_module
+    idle = sessions.reconcile_on_startup()
+    if idle:
+        log.warning("marked %d session turn(s) interrupted by restart: %s", len(idle), idle)
     acting = ActService(
         store,
         gateway,
@@ -197,11 +225,13 @@ def build(
         runs=platform.runs,
         records=platform.records,
         assistant=assistant,
+        sessions=sessions,
         default_route=settings.assistant_route,
         timezone=platform.runs.timezone,
         creations=creations,
         context=packer.build,
         skills=skills,
+        projects=projects,
     )
     app = create_app(
         settings,
@@ -225,6 +255,8 @@ def build(
         ),
         review,
         skills,
+        projects=projects,
+        sessions=sessions,
     )
     review.start_if_due()
     return app, store, coordinator, builds

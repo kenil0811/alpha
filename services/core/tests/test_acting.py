@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 from alpha.assistant.acting import ActService, catalogue_text, outcome_line, summary_reply
+from alpha.assistant.sessions import SessionService
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
 from alpha.models.structured import StructuredInference
@@ -65,8 +66,11 @@ class Assistant:
     def __init__(self) -> None:
         self.started: list[tuple[str, str | None]] = []
 
-    def start(self, text: str, *, change_of: str | None = None) -> Any:
+    def start(
+        self, text: str, *, change_of: str | None = None, session_id: str | None = None
+    ) -> Any:
         self.started.append((text, change_of))
+        self.session_id = session_id
         return SimpleNamespace(conversation_id="conv_9")
 
     def get(self, conversation_id: str) -> Any:
@@ -84,6 +88,7 @@ def service(tmp_path: Path, runs: Runs, assistant: Assistant) -> ActService:
         runs=runs,
         records=Records(),
         assistant=assistant,
+        sessions=SessionService(store),
         default_route="fake",
         run_lookup=runs.lookup,
         today=lambda: "2026-09-28",
@@ -108,6 +113,7 @@ def test_a_sentence_runs_the_action_at_once_and_says_what_happened(tmp_path: Pat
     assert turn.reply == "Done: 1 succeeded, 0 failed, 0 read.", "written after the outcome"
     assert turn.outcome == "ran add_note 1 time(s) in Notes (fixture): 1 succeeded, 0 failed"
     assert [t.turn_id for t in svc.recent()] == [turn.turn_id]
+    assert turn.session_id is not None, "the avatar talks to the Quick asks session"
 
 
 def test_several_entries_go_in_one_step(tmp_path: Path) -> None:
@@ -135,7 +141,9 @@ def test_open_change_and_build_route_to_the_right_place(tmp_path: Path) -> None:
     change = svc.act("fake:change notes make the notes bigger")
     assert change.kind == "change" and change.conversation_id == "conv_9"
     build = svc.act("fake:build a reading list")
-    assert build.kind == "build" and build.open == {"conversation_id": "conv_9"}
+    assert build.kind == "build"
+    assert build.open == {"conversation_id": "conv_9", "session_id": build.session_id}
+    assert assistant.session_id == build.session_id, "the conversation is a card in the session"
     assert assistant.started == [
         ("fake:change notes make the notes bigger", "notes"),
         ("fake:build a reading list", None),
@@ -149,12 +157,19 @@ def test_the_facts_say_what_earlier_sentences_led_to(tmp_path: Path) -> None:
     """A later "are you still on it?" is answered from these, never from the story."""
     runs, assistant = Runs(), Assistant()
     svc = service(tmp_path, runs, assistant)
-    svc.act("fake:build fill ten days of data")
-    facts = svc._facts({"notes": "Notes (fixture)"})
+    turn = svc.act("fake:build fill ten days of data")
+    facts = svc._facts({"notes": "Notes (fixture)"}, turn.session_id)
     assert facts == [
-        'the conversation started for "fake:build fill ten days of data" is now: '
-        "answered in Alpha's window; nothing is being built"
+        "the request started earlier in this session is now: answered; nothing is being built"
     ]
+    assert (
+        turn.outcome
+        == ("started a request to make something new; it is now: answered; nothing is being built")
+        or turn.outcome == "started a request to make something new"
+    )
+    memory = svc._sessions.memory_text(turn.session_id, "still on it?")
+    assert "person: fake:build fill ten days of data" in memory
+    assert "outcome: started a request to make something new; it is now: answered" in memory
 
 
 def test_an_unknown_module_or_action_is_answered_plainly(tmp_path: Path) -> None:

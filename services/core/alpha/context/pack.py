@@ -53,29 +53,43 @@ class ContextPacker:
         store: Any,
         *,
         names: Any | None = None,
+        projects: Any | None = None,
     ) -> None:
         self._profile = profile
         self._registry = registry
         self._records = records
         self._store = store
+        self._projects = projects
 
-    def build(self, text: str, *, app_id: str | None = None) -> str:
-        """The pack for one sentence. Cheap enough for every turn: a handful of indexed reads."""
+    def build(self, text: str, *, app_id: str | None = None, project_id: str | None = None) -> str:
+        """The pack for one sentence. Cheap enough for every turn: a handful of indexed reads.
+        With a project, its own facts and modules come first."""
         sections: list[str] = []
         profile = self._profile.as_text()
         sections.append(
             "ABOUT THE PERSON (accepted profile facts, with their source):\n"
             + (profile or "- nothing recorded yet")
         )
+        mine: set[str] = set()
+        if project_id and self._projects is not None:
+            try:
+                mine = set(self._projects.modules_in(project_id))
+            except Exception:
+                mine = set()
+            project_facts = self._profile.as_text(f"project:{project_id}")
+            if project_facts:
+                sections.append("ABOUT THIS PROJECT (accepted facts):\n" + project_facts)
         sources = self._sources()
+        if mine:
+            sources.sort(key=lambda item: item[0] not in mine)
         if sources:
             lines = []
             for app, source in sources:
                 counts = self._counts(app)
                 kept = ", ".join(f"{c.name} ({counts.get(c.name, 0)})" for c in source.collections)
                 lines.append(
-                    f"- {source.name} [{app}]: {source.description}"
-                    + (f" Keeps: {kept}." if kept else "")
+                    f"- {source.name} [{app}]{' (in this project)' if app in mine else ''}: "
+                    f"{source.description}" + (f" Keeps: {kept}." if kept else "")
                 )
             sections.append("THEIR MODULES:\n" + "\n".join(lines))
         relevant = self._relevant(text, sources, app_id)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
-import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
+import type { AppSummary, CoreClient, HealthInfo, Project } from "./core/client";
+import { HttpCoreClient, isAppsClient, isSessionsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
 import { HANDOFF_KEY } from "./avatar/AvatarWindow";
 import { AboutYou } from "./shell/AboutYou";
@@ -12,6 +12,7 @@ import { Home } from "./shell/Home";
 import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
 import { Intelligence } from "./shell/Intelligence";
 import { ModulePage } from "./modules/ModulePage";
+import { ProjectPage } from "./shell/ProjectPage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 
@@ -21,6 +22,7 @@ function devTools(): boolean {
 }
 
 const SELECTED_KEY = "alpha.selectedConversation";
+const SESSIONS_KEY = "alpha.sessions";
 const SURFACE_KEY = "alpha.surface";
 
 function remembered<T>(key: string, fallback: T): T {
@@ -53,6 +55,9 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
   const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
+  // The session open in each place (global, or a project), remembered on this Mac.
+  const [sessionByScope, setSessionByScope] = useState<Record<string, string | null>>(() => remembered<Record<string, string | null>>(SESSIONS_KEY, {}));
+  const [projects, setProjects] = useState<Project[]>([]);
   // The assistant panel is open on Home and closed on a module page unless the person opened
   // it there; both choices are remembered on this Mac. The rail can fold to icons.
   const [openByKind, setOpenByKind] = useState<{ home: boolean; module: boolean }>(() => readPanelState());
@@ -114,14 +119,26 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     setConversationId(id);
     remember(SELECTED_KEY, id);
   }, []);
+  const rememberSession = useCallback((scopeKey: string, id: string | null) => {
+    setSessionByScope((current) => {
+      const next = { ...current, [scopeKey]: id };
+      remember(SESSIONS_KEY, next);
+      return next;
+    });
+  }, []);
   // The desktop avatar hands over a module or a conversation through shared storage (the two
   // windows share an origin); this window goes there and comes forward.
   useEffect(() => {
     const follow = (raw: string | null) => {
       if (!raw) return;
       try {
-        const handoff = JSON.parse(raw) as { app_id?: string | null; conversation_id?: string | null };
-        if (handoff.conversation_id) {
+        const handoff = JSON.parse(raw) as { app_id?: string | null; conversation_id?: string | null; session_id?: string | null };
+        if (handoff.session_id) {
+          rememberSession("global", handoff.session_id);
+          selectConversation(null);
+          setSurface({ kind: "home" });
+          setAssistantOpen(true);
+        } else if (handoff.conversation_id) {
           selectConversation(handoff.conversation_id);
           setSurface({ kind: "home" });
           setAssistantOpen(true);
@@ -138,7 +155,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [selectConversation, setSurface]);
+  }, [rememberSession, selectConversation, setSurface]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +204,14 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
         setModulesLoaded(true);
       })
       .catch(() => undefined);
+    if (isSessionsClient(client)) {
+      client
+        .listProjects()
+        .then((all) => {
+          if (!cancelled) setProjects(all);
+        })
+        .catch(() => undefined);
+    }
     return () => {
       cancelled = true;
     };
@@ -205,6 +230,15 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   }, [modulesLoaded, modules, surface, setSurface]);
   const icons = useMemo(() => Object.fromEntries(modules.map((m) => [m.app_id, moduleIcon(m)])), [modules]);
   const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
+  // Where the assistant is: the project of the page (or of the module on it), else global.
+  const currentProject = surface.kind === "project" ? projects.find((p) => p.project_id === surface.projectId) ?? null : surface.kind === "module" ? projects.find((p) => p.modules.includes(surface.appId)) ?? null : null;
+  const scopeKey = currentProject ? `project:${currentProject.project_id}` : "global";
+  const sessionId = sessionByScope[scopeKey] ?? null;
+  const selectSession = useCallback((id: string | null) => rememberSession(scopeKey, id), [rememberSession, scopeKey]);
+  // A remembered project that no longer exists (archived, another data directory) goes Home.
+  useEffect(() => {
+    if (surface.kind === "project" && projects.length && !projects.some((p) => p.project_id === surface.projectId)) setSurface({ kind: "home" });
+  }, [projects, surface, setSurface]);
 
   const openAssistant = useCallback((text?: string) => {
     setAssistantOpen(true);
@@ -213,13 +247,24 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   // "New" always means a new module: leave the module page, or the request would change it.
   const startNew = useCallback(() => {
     selectConversation(null);
+    rememberSession("global", null);
     setSurface({ kind: "home" });
     openAssistant("");
-  }, [openAssistant, selectConversation, setSurface]);
+  }, [openAssistant, rememberSession, selectConversation, setSurface]);
+  const newProject = useCallback(async () => {
+    if (!client || !isSessionsClient(client)) return;
+    try {
+      const made = await client.createProject("New project");
+      setModulesTick((n) => n + 1);
+      setSurface({ kind: "project", projectId: made.project_id });
+    } catch {
+      /* the page will say */
+    }
+  }, [client, setSurface]);
 
   return (
     <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
-      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
+      <Rail surface={surface} modules={modules} projects={projects} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} onNewProject={client && isSessionsClient(client) ? () => void newProject() : undefined} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
       <main className="main">
         {runtime.kind !== "connected" ? (
           <section className="page">
@@ -251,6 +296,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
             client={isProfileClient(runtime.client) ? runtime.client : undefined}
             onStart={(request) => {
               selectConversation(null);
+              rememberSession("global", null);
               openAssistant(request);
             }}
           />
@@ -264,6 +310,25 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
           <Connections client={runtime.client} />
         ) : surface.kind === "settings" ? (
           <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
+        ) : surface.kind === "project" ? (
+          isSessionsClient(runtime.client) ? (
+            <ProjectPage
+              key={`${surface.projectId}:${modulesTick}`}
+              client={runtime.client}
+              projectId={surface.projectId}
+              modules={modules}
+              icons={icons}
+              onOpenModule={(appId) => setSurface({ kind: "module", appId })}
+              onOpenSession={(id) => {
+                selectConversation(null);
+                rememberSession(`project:${surface.projectId}`, id);
+                setAssistantOpen(true);
+              }}
+              onChanged={() => setModulesTick((n) => n + 1)}
+              onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }}
+              facts={isProfileClient(runtime.client) ? { accept: runtime.client.acceptFact.bind(runtime.client), reject: runtime.client.rejectFact.bind(runtime.client), forget: runtime.client.forgetFact.bind(runtime.client) } : undefined}
+            />
+          ) : null
         ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
           <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }} />
         ) : null}
@@ -276,14 +341,16 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
       {runtime.kind === "connected" && assistantOpen ? (
         <AssistantPanel
           client={runtime.client}
+          scope={{ projectId: currentProject?.project_id ?? null, projectName: currentProject?.name ?? null, moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
+          sessionId={sessionId}
+          onSelectSession={selectSession}
           conversationId={conversationId}
-          onSelect={selectConversation}
+          onSelectConversation={selectConversation}
           onOpenApp={(appId) => {
             pendingOpen.current = appId;
             setModulesTick((n) => n + 1);
             setSurface({ kind: "module", appId });
           }}
-          context={{ moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
           onHide={() => setAssistantOpen(false)}
           draft={draft}
         />

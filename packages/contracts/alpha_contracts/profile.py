@@ -34,6 +34,9 @@ class ProfileFact(ContractModel):
     state: FactState
     supersedes: str | None = None
     recorded_at: str
+    # "person" for a fact about them in general; "project:<id>" for one that only holds
+    # inside that project.
+    scope: str = Field(default="person", max_length=80)
 
 
 class ProfileView(ContractModel):

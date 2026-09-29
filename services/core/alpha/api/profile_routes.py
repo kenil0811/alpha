@@ -37,15 +37,18 @@ def register(
         register_review(app, review)
 
     @app.get("/api/profile", response_model=ProfileView)
-    def get_profile() -> ProfileView:
-        return profile.view()
+    def get_profile(scope: str = Query(default="person", max_length=80)) -> ProfileView:
+        """The person's facts, or (scope=project:<id>) the ones that hold in one project."""
+        return profile.view(scope)
 
     @app.get("/api/profile/history")
     def fact_history(field: str = Query(min_length=1, max_length=64)) -> dict[str, Any]:
         return {"facts": profile.history(field)}
 
     @app.post("/api/profile/facts", response_model=ProfileFact, status_code=201)
-    def add_fact(body: FactClaim) -> ProfileFact:
+    def add_fact(
+        body: FactClaim, scope: str = Query(default="person", max_length=80)
+    ) -> ProfileFact:
         """The person states a fact (or corrects one): accepted at once, superseding the old."""
         try:
             return profile.claim(
@@ -56,6 +59,7 @@ def register(
                 why=body.why,
                 confidence=1.0,
                 accepted=True,
+                scope=scope,
             )
         except OperationFailed as exc:
             raise _fail(exc) from exc

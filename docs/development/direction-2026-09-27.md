@@ -323,6 +323,47 @@ hand-built:
   `summary:`), do not design a screen; `screen:` only for what a page cannot give. The
   contract document's screen section and the notes_screen fixture follow.
 
+- 29 September, afternoon: projects and sessions, after Kenil's "refresh the job applications"
+  turned into a rebuild (the panel could only start build conversations) and his question about
+  threads and projects ("this can make or break my whole system"). Researched first: Hindsight,
+  mem0, Zep/Graphiti, Letta, LangGraph, Claude Code's memory, the Claude Projects redesign of
+  17 September, ChatGPT Projects, OpenClaw, three 2026 papers and an independent benchmark
+  (sources in the memory note "Sessions and memory design"). Findings that decided the shape:
+  every memory library needs an embeddings model plus an API LLM plus a database, and Alpha
+  has neither embeddings nor an API key (its route is the Claude Code CLI); verbatim retrieval
+  beats fact extraction (arXiv 2601.00821); a simple baseline matches mem0 and Zep (arXiv
+  2511.17208); mem0's open-source edition scored 32–49% on LongMemEval independently against
+  93% claimed; the two big products both landed on projects with a shared memory and many
+  threads. So: no library, no embeddings, no knowledge graph.
+  Built: **projects** (`alpha/context/projects.py`: name, goal, Alpha's notes, at most one
+  project per module, never required); **sessions** (`alpha/assistant/sessions.py`: a durable
+  chat in a project or global, an optional focus module, every turn kept verbatim in SQLite
+  with an FTS5 index, a rolling summary, and compaction in one call that folds the oldest turns
+  into notes, refreshes the project's notes and *suggests* facts the person accepts on About
+  you or the project page); **the one loop** (`alpha/assistant/acting.py` is now the turn
+  handler for every message: run, read, use a skill, open, change, build, or answer; a build or
+  change is a conversation that becomes a card in the session; typed text goes to a
+  conversation waiting on the person, or to a brief nothing has been made from yet); **scoped
+  facts** (`profile_facts.scope`: `person` or `project:<id>`); the context pack leads with the
+  project's facts and modules; a module made in a project's session is filed under that
+  project (`CreationService.on_made`). The avatar's flat `act_turns` became the global "Quick
+  asks" session (imported once); `/api/act` still answers it. Routes: `/api/projects…`,
+  `/api/sessions…` (`/messages` with `wait`, `/search`, `/compact`), `/api/apps/{id}/project`,
+  `?scope=` on `/api/profile`. Shell: the rail groups modules under their projects; a project
+  page (goal, Alpha's notes, modules, sessions, project facts); the panel is a session with a
+  switcher and "New session", opens on the scope's latest session (remembered per place), draws
+  conversations as cards (`assistant/ConversationCard.tsx`), and keeps a module's earlier
+  requests reachable. Verified in the browser shell against a scratch Core on the fake route:
+  a global session answered; a build card opened from a message; a project made, renamed in
+  place, a module filed and nested in the rail; a project session ran "open" with the outcome
+  line; the module page's panel picked the project's session; the avatar route, listing and
+  search over the API. Tests: `test_sessions.py` (9), acting and skills updated, 155 core, 91
+  shell, assistant/creations/shell-journey integration suites green.
+  Still to do from the design: an idle-time consolidation pass (today compaction runs by
+  size only); Alpha proposing a project when a module is made from a global session; "Quick
+  asks" pointable at a project; session-level Stop; embeddings later behind the same search
+  interface. Then the failure-ownership design (recorded calls, undo on failure, repair cases).
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

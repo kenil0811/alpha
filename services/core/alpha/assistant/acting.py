@@ -1,14 +1,17 @@
 # ruff: noqa: E501
-"""The third verb: do.
+"""The one loop every message goes through.
 
-Besides building a module and changing one, a person tells Alpha in a sentence to do something
-with a module they already have ("log two eggs", "how many calories today", "fill in ten days
-of sample meals") and it happens at once. Alpha works in short steps: each step one model call
-sees the modules, the facts (what is running, what earlier sentences led to) and what this
-request has done so far, then either runs a batch of actions, reads a view, opens something,
-starts a change or a build, or finishes with a reply written from the observed outcomes. So
-the reply can only describe what actually happened, and "are you still on it?" is answered
-from the facts, never from the story so far.
+A person says something in a session (the assistant panel, or the desktop avatar's Quick asks)
+and Alpha works it through in short steps: each step one model call sees the modules, the
+session's memory (its notes and recent turns, matching turns from other sessions), the project
+the session belongs to, the facts (what is running, what earlier turns led to) and what this
+message has done so far, then either runs a batch of actions, reads a view, uses a skill, opens
+something, starts a change or a build (a conversation that becomes a card in the session), or
+finishes with a reply written from the observed outcomes. So the reply can only describe what
+actually happened, and "are you still on it?" is answered from the facts, never from the story.
+
+When the session's latest card is a conversation waiting for the person (questions, or a
+proposal to choose from), plain text goes to that conversation instead of starting anew.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from alpha_contracts.apps import AppSource, Invocable
 from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 from pydantic import BaseModel
 
+from alpha.assistant.sessions import SessionService, SessionTurn
 from alpha.capabilities.errors import OperationFailed
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.models.structured import InferenceError, StructuredInference
@@ -33,20 +37,9 @@ from alpha.storage.control_store import ControlStore, new_id, utc_now
 
 log = logging.getLogger("alpha.acting")
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS act_turns (
-    turn_id TEXT PRIMARY KEY,
-    text TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    app_id TEXT,
-    action_id TEXT,
-    run_id TEXT,
-    conversation_id TEXT,
-    reply TEXT NOT NULL,
-    detail_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-"""
+# Conversation states in which typed text belongs to that conversation, not to a new step.
+CONVERSATION_WAITING = {"waiting_for_user", "proposed"}
+WAIT_GRACE_SECONDS = 30.0
 
 KINDS = ("run", "query", "skill", "open", "build", "change", "answer", "done")
 MAX_STEPS = 8
@@ -62,7 +55,7 @@ ACTIVE_RUN_STATES = {
     RunState.WAITING_CONNECTION,
 }
 
-STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one sentence. You work in short steps; each answer is one step, using only the modules listed.
+STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one thing in an ongoing session. You work in short steps; each answer is one step, using only the modules listed. THIS SESSION SO FAR and the notes are your memory of this session: build on them, never ask again for what is there, and treat "it", "that one", "the same" as referring to what was just discussed.
 
 Step kinds:
 - "run": do something with a module through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
@@ -79,6 +72,7 @@ reply is what the person hears: at most 40 words, warm, specific, no technical w
 
 class ActTurn(BaseModel):
     turn_id: str
+    session_id: str | None = None
     text: str
     kind: str
     app_id: str | None = None
@@ -159,16 +153,19 @@ def step_prompt(
     text: str,
     catalogue: str,
     facts: list[str],
-    recent: list[ActTurn],
+    memory: str,
     observations: list[dict[str, Any]],
     today: str,
     context_app: str | None,
     known: str = "",
     skills: str = "",
+    project: str = "",
 ) -> str:
     parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
     if skills:
         parts += ["SKILLS (usable with a skill step):", skills, ""]
+    if project:
+        parts += ["THIS SESSION IS ABOUT THE PROJECT:", project, ""]
     if known:
         parts += [
             "WHAT ALPHA KNOWS (profile facts and records; use them, never ask for what is here):",
@@ -178,13 +175,8 @@ def step_prompt(
     parts.append("FACTS (what is true right now; the only source for claims about progress):")
     parts += [f"- {f}" for f in facts] or ["- nothing is running or being made right now"]
     parts.append("")
-    if recent:
-        parts.append("EARLIER SENTENCES (oldest first) and what each actually led to:")
-        for turn in recent:
-            parts.append(f"- person: {turn.text}")
-            parts.append(f"  outcome: {turn.outcome or 'nothing was done'}")
-            parts.append(f"  alpha said: {turn.reply}")
-        parts.append("")
+    if memory:
+        parts += [memory, ""]
     if context_app:
         parts += [f"THE PERSON IS LOOKING AT: {context_app}", ""]
     parts.append(f"THE PERSON SAID: {text}")
@@ -280,15 +272,18 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
     if kind == "open":
         return f"opened {app_name or 'a module'} in Alpha's window"
     if kind in ("build", "change"):
-        return f"started a conversation to {'change ' + app_name if kind == 'change' and app_name else 'make something new'}"
+        return f"started a request to {'change ' + app_name if kind == 'change' and app_name else 'make something new'}"
+    if kind == "continue":
+        return "answered the open request above"
     return "nothing was done; Alpha only replied"
 
 
 @dataclass
 class _Work:
-    """One sentence being worked through: what the steps decided so far and what they saw."""
+    """One message being worked through: what the steps decided so far and what they saw."""
 
     turn_id: str
+    session_id: str
     text: str
     names: dict[str, str]
     deadline: float
@@ -324,11 +319,13 @@ class ActService:
         runs: Any,
         records: Any,
         assistant: Any,
+        sessions: SessionService,
         default_route: str,
         timezone: str = "UTC",
         creations: Any | None = None,
-        context: Callable[[str], str] | None = None,
+        context: Callable[..., str] | None = None,
         skills: Any | None = None,
+        projects: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
     ) -> None:
@@ -339,43 +336,149 @@ class ActService:
         self._runs = runs
         self._records = records
         self._assistant = assistant
+        self._sessions = sessions
         self._creations = creations
         self._context = context
         self._skills = skills
+        self._projects = projects
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
         self._today = today or (lambda: utc_now().date().isoformat())
+        self._threads: dict[str, threading.Thread] = {}
+        self._results: dict[str, ActTurn] = {}
         self._lock = threading.Lock()
-        store.execute_script(_SCHEMA)
+        sessions.bind_outcome(self.outcome_for)
 
     # ----- public ------------------------------------------------------------------------
 
-    def recent(self, limit: int = 10) -> list[ActTurn]:
-        rows = self._store.query(
-            "SELECT * FROM act_turns ORDER BY created_at DESC LIMIT ?", (limit,)
-        )
-        return [self._turn(r) for r in reversed(rows)]
+    def recent(self, limit: int = 10, *, session_id: str | None = None) -> list[ActTurn]:
+        """The last turns of a session (the avatar's Quick asks by default), as the avatar
+        shows them: each person's message with what Alpha did and said."""
+        session_id = session_id or self._sessions.quick_asks().session_id
+        turns = self._sessions.get(session_id, window=limit * 2).turns
+        found: list[ActTurn] = []
+        pending: SessionTurn | None = None
+        for turn in turns:
+            if turn.role == "user":
+                pending = turn
+                continue
+            found.append(self._as_act_turn(session_id, pending, turn))
+            pending = None
+        return found[-limit:]
 
     def act(self, text: str, *, context_app_id: str | None = None) -> ActTurn:
-        """Work the sentence through in steps, then say what happened. Blocks (bounded)."""
-        route = self._gateway.route(self._default_route, stage="assistant")
-        sources = self._sources()
+        """The avatar's way in: one message to the Quick asks session, answered when done."""
+        session = self._sessions.quick_asks()
+        turn = self.send(session.session_id, text, wait=True, context_app_id=context_app_id)
+        if turn is None:  # the budget ran out before the loop finished; the session has the rest
+            raise OperationFailed(
+                "timed_out", "Alpha is still working on that; see the session", {}
+            )
+        return turn
+
+    def send(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        wait: bool = False,
+        context_app_id: str | None = None,
+    ) -> ActTurn | None:
+        """Record the person's message and work it through in a thread. With `wait`, block
+        (bounded) and return the outcome; otherwise return None at once and let the session
+        be polled (its state is `thinking` meanwhile)."""
+        clean = text.strip()
+        if not clean:
+            raise OperationFailed("invalid_input", "say something first", {})
+        self._sessions.begin_turn(session_id)
+        try:
+            user_turn = self._sessions.append(session_id, "user", clean)
+        except Exception:
+            self._sessions.set_state(session_id, "idle")
+            raise
+        thread = threading.Thread(
+            target=self._work_quietly,
+            args=(session_id, user_turn, context_app_id),
+            name=f"session-turn-{session_id[-6:]}",
+            daemon=True,
+        )
+        with self._lock:
+            self._threads[session_id] = thread
+        thread.start()
+        if not wait:
+            return None
+        thread.join(TIME_BUDGET_SECONDS + WAIT_GRACE_SECONDS)
+        with self._lock:
+            return self._results.pop(session_id, None)
+
+    def outcome_for(self, turn: SessionTurn) -> str | None:
+        """One line of truth about a past turn of Alpha's, computed when read so a card's
+        state (a conversation that has since been built) is current."""
+        detail = turn.detail or {}
+        if turn.kind != "work":
+            return None if turn.role != "alpha" else "nothing was done; Alpha only replied"
+        kind = str(detail.get("kind") or "answer")
+        app_name = self._app_name(detail.get("app_id"))
+        line = outcome_line(kind, detail, app_name)
+        if turn.conversation_id and kind in ("build", "change", "continue"):
+            line += f"; it is now: {self._conversation_state(turn.conversation_id)}"
+        return line
+
+    # ----- one message ---------------------------------------------------------------------
+
+    def _work_quietly(
+        self, session_id: str, user_turn: SessionTurn, context_app_id: str | None
+    ) -> None:
+        try:
+            result = self._work(session_id, user_turn, context_app_id)
+        except Exception:  # never leave a session stuck in thinking
+            log.exception("session turn crashed for %s", session_id)
+            result = self._finish(
+                _Work(
+                    turn_id=new_id("turn"),
+                    session_id=session_id,
+                    text=user_turn.text,
+                    names={},
+                    deadline=0,
+                    reply="Something went wrong inside Alpha while working on that. Try again?",
+                )
+            )
+        finally:
+            self._sessions.set_state(session_id, "idle")
+        with self._lock:
+            self._results[session_id] = result
+            self._threads.pop(session_id, None)
+        try:
+            self._sessions.after_turn(session_id)
+        except Exception:
+            log.exception("could not start compaction for %s", session_id)
+
+    def _work(self, session_id: str, user_turn: SessionTurn, context_app_id: str | None) -> ActTurn:
+        session = self._sessions.get(session_id, window=1)
+        sources = self._sources(session.project_id)
         names = {app_id: source.name for app_id, source in sources}
         work = _Work(
-            turn_id=new_id("act"),
-            text=text,
+            turn_id=new_id("turn"),
+            session_id=session_id,
+            text=user_turn.text,
             names=names,
             deadline=time.monotonic() + TIME_BUDGET_SECONDS,
         )
+        waiting = self._waiting_conversation(session_id)
+        if waiting is not None:
+            return self._continue_conversation(work, waiting)
+        focus = context_app_id or session.focus_app_id
         prompt_parts = dict(
             catalogue=catalogue_text(sources),
-            facts=self._facts(names),
-            recent=self.recent(5),
-            context_app=names.get(context_app_id or "") if context_app_id else None,
-            known=self._known(text),
+            facts=self._facts(names, session_id),
+            memory=self._memory(session_id, work.text),
+            context_app=names.get(focus or "") if focus else None,
+            known=self._known(work.text, focus, session.project_id),
             skills=self._skills.catalogue_text() if self._skills is not None else "",
+            project=self._project_text(session.project_id),
         )
+        route = self._gateway.route(self._default_route, stage="assistant")
         for _step in range(MAX_STEPS):
             output = self._decide(route, work, prompt_parts)
             if not self._apply(work, output):
@@ -386,15 +489,62 @@ class ActService:
                 if work.observations
                 else "I couldn't work that out just now. Try again?"
             )
-        return self._record(work)
+        return self._finish(work)
 
-    # ----- one step ------------------------------------------------------------------------
+    def _waiting_conversation(self, session_id: str) -> str | None:
+        """The session's latest card, when it is a conversation waiting for the person."""
+        latest = self._sessions.latest_work(session_id)
+        if latest is None or not latest.conversation_id:
+            return None
+        try:
+            record = self._assistant.get(latest.conversation_id)
+        except Exception:
+            return None
+        return (
+            latest.conversation_id if getattr(record, "state", "") in CONVERSATION_WAITING else None
+        )
 
-    def _known(self, text: str) -> str:
+    def _continue_conversation(self, work: _Work, conversation_id: str) -> ActTurn:
+        work.kind, work.conversation_id = "continue", conversation_id
+        try:
+            self._assistant.reply(conversation_id, text=work.text)
+            work.reply = "Passed on to the request above."
+        except Exception as exc:
+            log.warning("could not continue %s: %s", conversation_id, exc)
+            work.reply = f"I couldn't pass that on: {exc}"
+            work.kind = "answer"
+        work.opened = {"conversation_id": conversation_id, "session_id": work.session_id}
+        return self._finish(work)
+
+    def _memory(self, session_id: str, text: str) -> str:
+        try:
+            return self._sessions.memory_text(session_id, text)
+        except Exception:
+            log.exception("session memory failed; the turn goes on without it")
+            return ""
+
+    def _project_text(self, project_id: str | None) -> str:
+        if not project_id or self._projects is None:
+            return ""
+        try:
+            project = self._projects.get(project_id)
+        except Exception:
+            return ""
+        lines = [f"{project.name}" + (f": {project.goal}" if project.goal else "")]
+        if project.summary:
+            lines.append(f"Alpha's notes on it: {project.summary}")
+        return "\n".join(lines)
+
+    def _known(self, text: str, app_id: str | None, project_id: str | None) -> str:
         if self._context is None:
             return ""
         try:
-            return self._context(text)
+            return self._context(text, app_id=app_id, project_id=project_id)
+        except TypeError:
+            try:
+                return self._context(text)
+            except Exception:
+                return ""
         except Exception:
             log.exception("context pack failed; the sentence goes on without it")
             return ""
@@ -409,12 +559,13 @@ class ActService:
                     work.text,
                     parts["catalogue"],
                     parts["facts"],
-                    parts["recent"],
+                    parts["memory"],
                     work.observations,
                     self._today(),
                     parts["context_app"],
                     known=parts["known"],
                     skills=parts["skills"],
+                    project=parts["project"],
                 ),
                 schema=step_schema(),
                 scope_kind="act",
@@ -427,7 +578,7 @@ class ActService:
             return {"kind": "done" if work.observations else "answer", "reply": ""}
 
     def _apply(self, work: _Work, output: dict[str, Any]) -> bool:
-        """Carry out the decided step. True to decide again; False when the sentence is done."""
+        """Carry out the decided step. True to decide again; False when the message is done."""
         step_kind = str(output.get("kind") or "answer")
         step_app = output.get("app_id") if output.get("app_id") in work.names else None
         step_reply = str(output.get("reply") or "").strip()
@@ -468,45 +619,48 @@ class ActService:
         return work.within_time()
 
     def _step_start(self, work: _Work, step_kind: str, app_id: str | None) -> None:
-        """Hand the sentence to the assistant as something new to make, or a change."""
+        """Hand the message to the assistant as something new to make, or a change; the
+        conversation becomes a card in this session."""
         work.kind = step_kind
         work.app_id = app_id if step_kind == "change" else None
         try:
-            record = self._assistant.start(work.text, change_of=work.app_id)
+            record = self._assistant.start(
+                work.text, change_of=work.app_id, session_id=work.session_id
+            )
             work.conversation_id = record.conversation_id
-            work.opened = {"conversation_id": work.conversation_id}
+            work.opened = {"conversation_id": work.conversation_id, "session_id": work.session_id}
             work.reply = (
-                f"I've asked Alpha to change {work.names[work.app_id]}; its window shows the details."
+                f"I've started a change to {work.names[work.app_id]}; the card here shows what happens next."
                 if work.app_id
-                else "I've handed that to Alpha as something new to make; its window shows what happens next."
+                else "I've started making that; the card here shows what happens next."
             )
         except Exception as exc:  # the conversation could not start; say so
             log.exception("act could not start a conversation")
             work.reply, work.kind = f"I couldn't start that: {exc}", "answer"
 
-    def _record(self, work: _Work) -> ActTurn:
-        detail = {"observations": work.observations, "open": work.opened}
-        now = utc_now().isoformat().replace("+00:00", "Z")
-        with self._store.transaction() as conn:
-            conn.execute(
-                """INSERT INTO act_turns(turn_id, text, kind, app_id, action_id, run_id,
-                   conversation_id, reply, detail_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    work.turn_id,
-                    work.text,
-                    work.kind,
-                    work.app_id,
-                    work.action_id,
-                    work.run_id,
-                    work.conversation_id,
-                    work.reply,
-                    json.dumps(detail, default=str),
-                    now,
-                ),
-            )
+    def _finish(self, work: _Work) -> ActTurn:
+        """Record Alpha's turn in the session and shape it for the avatar."""
+        detail = {
+            "kind": work.kind,
+            "app_id": work.app_id,
+            "action_id": work.action_id,
+            "run_id": work.run_id,
+            "conversation_id": work.conversation_id,
+            "open": work.opened,
+            "observations": work.observations,
+        }
+        turn = self._sessions.append(
+            work.session_id,
+            "alpha",
+            work.reply or "(no reply)",
+            kind="work" if work.kind != "answer" else "text",
+            detail=detail,
+            turn_id=work.turn_id,
+        )
         app_name = work.names.get(work.app_id or "")
         return ActTurn(
-            turn_id=work.turn_id,
+            turn_id=turn.turn_id,
+            session_id=work.session_id,
             text=work.text,
             kind=work.kind,
             app_id=work.app_id,
@@ -516,13 +670,32 @@ class ActService:
             conversation_id=work.conversation_id,
             open=work.opened,
             reply=work.reply,
-            created_at=now,
+            created_at=turn.created_at,
             outcome=outcome_line(work.kind, detail, app_name),
+        )
+
+    def _as_act_turn(self, session_id: str, said: SessionTurn | None, turn: SessionTurn) -> ActTurn:
+        detail = turn.detail or {}
+        return ActTurn(
+            turn_id=turn.turn_id,
+            session_id=session_id,
+            text=said.text if said else "",
+            kind=str(detail.get("kind") or "answer"),
+            app_id=detail.get("app_id"),
+            app_name=self._app_name(detail.get("app_id")),
+            action_id=detail.get("action_id"),
+            run_id=detail.get("run_id"),
+            conversation_id=turn.conversation_id,
+            open=turn.open,
+            reply=turn.text,
+            created_at=turn.created_at,
+            outcome=turn.outcome,
         )
 
     # ----- steps --------------------------------------------------------------------------
 
-    def _sources(self) -> list[tuple[str, AppSource]]:
+    def _sources(self, project_id: str | None = None) -> list[tuple[str, AppSource]]:
+        """Active modules, the project's own first so the catalogue leads with them."""
         found: list[tuple[str, AppSource]] = []
         for entry in self._registry.list_apps():
             if entry.get("state") != "active":
@@ -531,9 +704,23 @@ class ActService:
                 found.append((entry["app_id"], self._registry.current(entry["app_id"]).source))
             except OperationFailed:
                 continue
+        if project_id and self._projects is not None:
+            try:
+                mine = set(self._projects.modules_in(project_id))
+            except Exception:
+                mine = set()
+            found.sort(key=lambda item: item[0] not in mine)
         return found
 
-    def _facts(self, names: dict[str, str]) -> list[str]:
+    def _app_name(self, app_id: Any) -> str | None:
+        if not app_id:
+            return None
+        try:
+            return str(self._registry.current(str(app_id)).source.name)
+        except Exception:
+            return None
+
+    def _facts(self, names: dict[str, str], session_id: str | None = None) -> list[str]:
         """What is happening right now, from Core's own records."""
         facts: list[str] = []
         try:
@@ -552,10 +739,12 @@ class ActService:
                     facts.append(f"being made right now: {what} ({creation.label.lower()})")
             except Exception:
                 log.debug("could not list creations", exc_info=True)
-        for turn in self.recent(5):
-            if turn.conversation_id and turn.kind in ("build", "change"):
-                state = self._conversation_state(turn.conversation_id)
-                facts.append(f'the conversation started for "{turn.text[:60]}" is now: {state}')
+        if session_id:
+            for turn in self._sessions.window(session_id, 8):
+                detail = turn.detail or {}
+                if turn.conversation_id and detail.get("kind") in ("build", "change"):
+                    state = self._conversation_state(turn.conversation_id)
+                    facts.append(f"the request started earlier in this session is now: {state}")
         return facts
 
     def _conversation_state(self, conversation_id: str) -> str:
@@ -566,9 +755,12 @@ class ActService:
         state = str(getattr(record, "state", "unknown"))
         words = {
             "thinking": "Alpha is still reading it",
-            "briefed": "planned; a build or change follows in Alpha's window",
-            "answered": "answered in Alpha's window; nothing is being built",
-            "needs_input": "waiting for the person's answers in Alpha's window",
+            "researching": "Alpha is looking around before proposing a shape",
+            "proposed": "waiting for the person to pick one of the proposed shapes",
+            "waiting_for_user": "waiting for the person's answers",
+            "briefed": "planned; a build or change follows",
+            "answered": "answered; nothing is being built",
+            "failed": "it failed; the person can try again",
         }
         return words.get(state, state)
 
@@ -662,29 +854,6 @@ class ActService:
                 payload = event.payload or {}
                 return str(payload.get("message") or payload.get("error") or "")[:200] or None
         return None
-
-    def _turn(self, row: Any) -> ActTurn:
-        detail = json.loads(row["detail_json"]) if row["detail_json"] else {}
-        app_name = None
-        if row["app_id"]:
-            try:
-                app_name = self._registry.current(row["app_id"]).source.name
-            except Exception:
-                app_name = None
-        return ActTurn(
-            turn_id=row["turn_id"],
-            text=row["text"],
-            kind=row["kind"],
-            app_id=row["app_id"],
-            app_name=app_name,
-            action_id=row["action_id"],
-            run_id=row["run_id"],
-            conversation_id=row["conversation_id"],
-            open=detail.get("open"),
-            reply=row["reply"],
-            created_at=row["created_at"],
-            outcome=outcome_line(row["kind"], detail, app_name),
-        )
 
 
 def _compact(output: dict[str, Any]) -> dict[str, Any]:

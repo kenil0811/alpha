@@ -90,7 +90,8 @@ describe("assistant surface", () => {
     await screen.findByRole("form", { name: "A few questions" });
     await user.click(screen.getByRole("button", { name: "Use these defaults for now" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 2"));
-    await user.type(screen.getByLabelText("Change or add something"), "also track protein");
+    // The brief is shown and nothing is made yet: what the person types next refines it.
+    await user.type(screen.getByLabelText("What do you want done?"), "also track protein");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 3"));
     expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("you corrected");

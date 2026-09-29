@@ -24,6 +24,7 @@ import stat
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -296,6 +297,9 @@ class CreationService:
         self._sdk_reference = sdk_reference
         self._lock = threading.Lock()
         self._cancelled: set[str] = set()
+        # Called when a module is made (app_id, conversation_id): main files it under the
+        # project of the session it was asked for in.
+        self.on_made: Callable[[str, str], None] | None = None
         store.execute_script(_SCHEMA)
         store.add_missing_columns("creations", {"change_of": "TEXT", "result_json": "TEXT"})
 
@@ -1103,6 +1107,16 @@ class CreationService:
                     "UPDATE creations SET result_json = ? WHERE creation_id = ?",
                     (json.dumps(result), creation_id),
                 )
+        if state == "active" and self.on_made is not None:
+            rows = self._store.query(
+                "SELECT app_id, conversation_id FROM creations WHERE creation_id = ?",
+                (creation_id,),
+            )
+            if rows and rows[0]["app_id"]:
+                try:
+                    self.on_made(str(rows[0]["app_id"]), str(rows[0]["conversation_id"]))
+                except Exception:
+                    log.exception("on_made failed for %s", creation_id)
 
     def _finish_locked(
         self,

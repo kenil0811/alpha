@@ -1,15 +1,15 @@
 /**
- * The assistant panel: the front door for new modules (request → questions → plan → build) and
- * the place to ask about, or change, the module on screen. Core owns every conversation and
- * creation, so leaving and coming back finds the same request.
+ * The assistant panel: a session with Alpha. Every message goes through the one loop in Core
+ * (run, read, open, use a skill, change or make a module, or answer); a build or change comes
+ * back as a card in the thread. Sessions belong to the project on screen or are global, and
+ * the panel opens on the scope's latest one. Core owns every session, so leaving and coming
+ * back finds the same thread.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation, type Proposal } from "../core/client";
-import { CreationCard } from "../workflows/CreationCard";
+import { isSessionsClient, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
+import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
-import { BriefCard } from "./BriefCard";
-import { QuestionsForm } from "./QuestionsForm";
-import { useConversation } from "./useConversation";
+import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
 
 const EXAMPLES = [
   "Track what I eat and how much, with calories, history and trends",
@@ -17,103 +17,72 @@ const EXAMPLES = [
   "Keep a list of job openings I find and what I did about each",
 ];
 
-const STATE_WORDS: Record<Conversation["state"], string> = {
-  thinking: "Thinking",
-  researching: "Looking around",
-  proposed: "Options to choose from",
-  waiting_for_user: "Waiting for your answers",
-  briefed: "Planned",
-  answered: "Answered",
-  failed: "Didn't work out",
-};
-
-const CREATION_WORDS: Record<string, string> = {
-  planning: "Being made",
-  building: "Being made",
-  checking: "Being made",
-  activating: "Being made",
-  active: "Ready",
-  failed: "Not made",
-  cancelled: "Stopped",
-};
-
-function requestText(conversation: Conversation): string {
-  const first = conversation.turns.find((t) => t.role === "user");
-  return String(first?.content.text ?? "");
-}
-
-export interface AssistantContext {
-  /** What the panel is looking at: the module name, or null on general surfaces. */
-  moduleName: string | null;
-  /** The module's id: a request typed here changes that module instead of making a new one. */
+/** Where the panel is: the project (or none) its sessions belong to, and the module in view. */
+export interface AssistantScope {
+  projectId: string | null;
+  projectName?: string | null;
+  /** The module on screen: a hint for the loop, and what a change request is about. */
   appId?: string | null;
+  moduleName?: string | null;
   moduleHint?: string | null;
 }
 
 export function AssistantPanel({
   client,
+  scope = { projectId: null },
+  sessionId = null,
+  onSelectSession,
   conversationId = null,
-  onSelect,
+  onSelectConversation,
   onOpenApp,
-  context = { moduleName: null },
   onHide,
   draft,
 }: {
   client: CoreClient;
+  scope?: AssistantScope;
+  /** The session shown, chosen outside the panel so it survives navigation and reopening. */
+  sessionId?: string | null;
+  onSelectSession?: (id: string | null) => void;
+  /** A conversation opened on its own (an earlier request of a module), outside any session. */
   conversationId?: string | null;
-  onSelect?: (id: string | null) => void;
+  onSelectConversation?: (id: string | null) => void;
   onOpenApp?: (appId: string) => void;
-  context?: AssistantContext;
   onHide?: () => void;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
 }) {
-  const [ownSelection, setOwnSelection] = useState<string | null>(null);
-  const selected = onSelect ? conversationId : ownSelection;
-  const select = onSelect ?? setOwnSelection;
-  const { conversation, loading, error, busy, reconnecting, start, reply, retry, cancel, reset } = useConversation(client, selected, select);
+  const sessions = isSessionsClient(client) ? client : null;
+  const [ownSession, setOwnSession] = useState<string | null>(null);
+  const selected = onSelectSession ? sessionId : ownSession;
+  const select = onSelectSession ?? setOwnSession;
+  const { session, loading, error, busy, reconnecting, send, refresh } = useSession(sessions, selected, select, scope);
   const [text, setText] = useState("");
-  const [correction, setCorrection] = useState("");
   const typedBefore = useRef("");
   const speech = useSpeech((final, interim) => setText(`${typedBefore.current} ${final} ${interim}`.replace(/\s+/g, " ").trim()));
   function toggleMic() {
     if (!speech.listening) typedBefore.current = text;
     speech.toggle();
   }
-  // Opened from a module, the panel is that module's thread: a conversation about something
-  // else (or a new module made from Home) gives way to the module's own history.
-  const appId = context.appId ?? null;
-  useEffect(() => {
-    if (!appId || !conversation || loading) return;
-    if (conversation.change_of !== appId && creation?.app_id !== appId) select(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId]);
-  const [creation, setCreation] = useState<Creation | null>(null);
-  const onCreation = useCallback((c: Creation | null) => setCreation(c), []);
-  useEffect(() => setCreation(null), [conversation?.conversation_id]);
   useEffect(() => {
     if (draft) setText(draft);
   }, [draft]);
-  const made = creation?.state === "active";
-  const making = creation !== null && !CREATION_DONE.has(creation.state);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bodyRef.current?.scrollTo?.({ top: bodyRef.current.scrollHeight });
+  }, [session?.turns.length, session?.state]);
 
   async function submit(event?: FormEvent) {
     event?.preventDefault();
-    if (!text.trim()) return;
-    await start(text.trim(), context.appId ?? null);
+    const clean = text.trim();
+    if (!clean || busy) return;
+    onSelectConversation?.(null);
     setText("");
+    await send(clean);
   }
 
-  function startOver() {
-    if (conversation) setText(requestText(conversation));
-    reset();
-  }
-
-  const thinking = conversation?.state === "thinking" || conversation?.state === "researching";
-  const researching = conversation?.state === "researching";
-  const userTurns = conversation?.turns.filter((t) => t.role === "user") ?? [];
-  const changing = conversation ? Boolean(conversation.change_of) : Boolean(context.appId);
-  const contextLabel = conversation ? (changing ? "Changing a module" : "New module") : context.moduleName ?? "Home";
+  const label = scope.moduleName ?? scope.projectName ?? "Home";
+  const thinking = session?.state === "thinking";
+  const cards = latestCardPerConversation(session?.turns ?? []);
 
   return (
     <aside className="assist" aria-label="Assistant">
@@ -123,14 +92,10 @@ export function AssistantPanel({
         </div>
         <div style={{ minWidth: 0 }}>
           <b>Assistant</b>
-          <div className="assist__ctx">{contextLabel}</div>
+          <div className="assist__ctx">{label}</div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          {conversation ? (
-            <button type="button" className="btn btn--sm" onClick={reset}>
-              New request
-            </button>
-          ) : null}
+          {sessions ? <SessionSwitcher client={sessions} scope={scope} selected={selected} onSelect={(id) => { onSelectConversation?.(null); select(id); }} /> : null}
           {onHide ? (
             <button type="button" className="iconbtn" onClick={onHide} aria-label="Hide assistant">
               ›
@@ -138,26 +103,36 @@ export function AssistantPanel({
           ) : null}
         </div>
       </div>
-      <div className="assist__body">
-        {!conversation ? (
+      <div className="assist__body" ref={bodyRef}>
+        {conversationId ? (
+          <>
+            <button type="button" className="btn btn--sm btn--ghost" style={{ alignSelf: "flex-start" }} onClick={() => onSelectConversation?.(null)}>
+              ‹ Back to the session
+            </button>
+            <ConversationCard client={client} conversationId={conversationId} onOpenApp={onOpenApp} showRequest onStartOver={(t) => { setText(t); onSelectConversation?.(null); }} />
+          </>
+        ) : !session ? (
           selected && loading ? (
             <p className="panel__hint" role="status">
-              Opening your request…
+              Opening the session…
             </p>
           ) : (
             <>
               <div className="msg msg--ai">
-                {context.moduleName ? (
+                {scope.moduleName ? (
                   <>
-                    I'm looking at <b>{context.moduleName}</b>. Describe what to change or add and Alpha rebuilds it in place. Everything already
-                    saved in it is kept.
-                    {context.moduleHint ? <div className="faint" style={{ marginTop: 6 }}>{context.moduleHint}</div> : null}
+                    I'm looking at <b>{scope.moduleName}</b>. Ask about it, tell me to run something, or describe what to change or add and Alpha rebuilds it in place. Everything already saved in it is kept.
+                    {scope.moduleHint ? <div className="faint" style={{ marginTop: 6 }}>{scope.moduleHint}</div> : null}
+                  </>
+                ) : scope.projectName ? (
+                  <>
+                    This session is about <b>{scope.projectName}</b>. Ask anything about it, tell me to do something with its modules, or describe something new to make for it.
                   </>
                 ) : (
                   <>Tell me what you want to keep track of, automate or get done. I'll ask at most a couple of questions, then build it.</>
                 )}
               </div>
-              {!context.moduleName ? (
+              {!scope.moduleName && !scope.projectName ? (
                 <div className="examples" aria-label="Examples">
                   {EXAMPLES.map((example) => (
                     <button key={example} type="button" className="example" onClick={() => setText(example)}>
@@ -166,99 +141,50 @@ export function AssistantPanel({
                   ))}
                 </div>
               ) : null}
-              {context.appId ? <ModuleThread client={client} appId={context.appId} onOpen={select} /> : <RecentRequests client={client} onOpen={select} />}
+              {scope.appId ? <ModuleThread client={client} appId={scope.appId} onOpen={(id) => onSelectConversation?.(id)} /> : null}
+              {sessions ? <EarlierSessions client={sessions} scope={scope} onOpen={select} /> : null}
             </>
           )
         ) : (
           <>
-            {userTurns.length ? <div className="msg msg--user">{String(userTurns[0].content.text ?? "")}</div> : null}
-            {conversation.interpretation ? (
-              <div className="interpretation" aria-label="How Alpha understood it">
-                <div className="msg__label">How Alpha understood it</div>
-                <dl>
-                  <dt>Outcome</dt>
-                  <dd>{conversation.interpretation.outcome}</dd>
-                  <dt>Main input</dt>
-                  <dd>{conversation.interpretation.main_input}</dd>
-                  <dt>Useful result</dt>
-                  <dd>{conversation.interpretation.useful_result}</dd>
-                </dl>
-              </div>
+            {session.summary ? (
+              <details className="notes">
+                <summary className="faint">Earlier in this session (Alpha's notes)</summary>
+                <p>{session.summary}</p>
+              </details>
             ) : null}
-            {conversation.reply ? <div className="msg msg--ai">{conversation.reply}</div> : null}
-            {thinking ? <Thinking since={conversation.updated_at} busy={busy} onStop={() => void cancel()} label={researching ? "Looking around before proposing a shape…" : undefined} /> : null}
+            {session.turns.map((turn) =>
+              turn.role === "user" ? (
+                <div key={turn.turn_id} className="msg msg--user">
+                  {turn.text}
+                </div>
+              ) : turn.kind === "work" && turn.conversation_id ? (
+                cards.get(turn.conversation_id) === turn.turn_id ? (
+                  <ConversationCard key={turn.turn_id} client={client} conversationId={turn.conversation_id} onOpenApp={onOpenApp} onStartOver={setText} />
+                ) : (
+                  <div key={turn.turn_id} className="msg msg--ai faint">
+                    {turn.text}
+                  </div>
+                )
+              ) : (
+                <div key={turn.turn_id} className="msg msg--ai">
+                  {turn.text}
+                  {turn.open?.app_id && onOpenApp ? (
+                    <div className="row" style={{ marginTop: 6 }}>
+                      <button type="button" className="btn btn--sm" onClick={() => onOpenApp(turn.open!.app_id!)}>
+                        Open it
+                      </button>
+                    </div>
+                  ) : null}
+                  {turn.outcome && turn.kind === "work" ? <div className="faint" style={{ marginTop: 4 }}>{turn.outcome}</div> : null}
+                </div>
+              ),
+            )}
+            {thinking ? <Thinking since={session.updated_at} label="Working on it…" /> : null}
             {reconnecting ? (
               <p className="notice notice--quiet" role="status">
                 Lost contact with Alpha's runtime for a moment. Reconnecting…
               </p>
-            ) : null}
-            {conversation.state === "failed" ? (
-              <div className="failure" role="alert" aria-label="Alpha could not work this out">
-                <p className="notice">Alpha could not work this out: {conversation.error ?? "something went wrong"}.</p>
-                <div className="row">
-                  <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void retry()}>
-                    Try again
-                  </button>
-                  <button type="button" className="btn" onClick={startOver}>
-                    Start over
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {conversation.state === "waiting_for_user" && conversation.questions.length ? (
-              <QuestionsForm questions={conversation.questions} busy={busy} onAnswer={(answers) => reply({ answers })} onDefaults={() => reply({ use_defaults: true })} />
-            ) : null}
-            {conversation.state === "proposed" && conversation.proposal ? <ProposalCard proposal={conversation.proposal} busy={busy} onChoose={(option) => reply({ text: `Go with "${option.title}": ${option.summary}` })} /> : null}
-            {conversation.current_brief && !thinking && conversation.state !== "proposed" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
-            {conversation.state === "briefed" && conversation.delivery === "app" && (conversation.current_brief || conversation.quick_change) && isWorkflowsClient(client) ? (
-              <CreationCard
-                client={client}
-                conversationId={conversation.conversation_id}
-                briefRevision={conversation.quick_change ? 0 : (conversation.current_brief?.revision ?? 0)}
-                unavailable={conversation.current_brief?.unavailable_capabilities ?? []}
-                auto={Boolean(conversation.change_of)}
-                onOpen={(appId) => onOpenApp?.(appId)}
-                onChange={onCreation}
-              />
-            ) : null}
-            {made ? (
-              <div className="after-made" aria-label="After it was made">
-                <p className="panel__hint">
-                  {creation?.change_of
-                    ? `${creation?.result?.name ?? creation?.app_name ?? "Your module"} is updated and its data is kept. To change it again, open it and ask there.`
-                    : `${creation?.result?.name ?? creation?.app_name ?? "Your module"} is in the sidebar. To change it later, open it and describe the change here.`}
-                </p>
-                <div className="row">
-                  <button type="button" className="btn" onClick={startOver}>
-                    Describe another
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {making ? <p className="panel__hint">You can change the request once this attempt finishes, or after you stop it.</p> : null}
-            {!made && !making && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user" || conversation.state === "proposed") ? (
-              <form
-                className="correction"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!correction.trim()) return;
-                  reply({ text: correction.trim() });
-                  setCorrection("");
-                }}
-              >
-                <div className="field">
-                  <label htmlFor="correction">Change or add something</label>
-                  <input id="correction" value={correction} onChange={(e) => setCorrection(e.target.value)} placeholder="e.g. also track protein" />
-                </div>
-                <div className="row">
-                  <button type="submit" className="btn" disabled={busy || !correction.trim()}>
-                    Send
-                  </button>
-                  <button type="button" className="btn" onClick={startOver}>
-                    Start over
-                  </button>
-                </div>
-              </form>
             ) : null}
           </>
         )}
@@ -268,102 +194,195 @@ export function AssistantPanel({
           </p>
         ) : null}
       </div>
-      {!conversation ? (
-        <form className="composer" onSubmit={submit}>
-          <div className="composer__box">
-            <textarea
-              id="goal"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Describe what you want done…"
-              aria-label="What do you want done?"
-              rows={2}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
-              }}
-            />
-            <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-            <button type="submit" className="btn btn--primary btn--sm" disabled={busy || !text.trim()}>
-              Send
+      <form className="composer" onSubmit={submit}>
+        <div className="composer__box">
+          <textarea
+            id="goal"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={session ? "Say what to do, ask, or describe a change…" : "Describe what you want done…"}
+            aria-label="What do you want done?"
+            rows={2}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
+            }}
+          />
+          <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
+          <button type="submit" className="btn btn--primary btn--sm" disabled={busy || thinking || !text.trim()}>
+            Send
+          </button>
+        </div>
+        <div className="composer__row">
+          <span>{speech.error ?? "Uses your Claude subscription"}</span>
+          {session ? (
+            <button type="button" className="btn btn--sm btn--ghost" style={{ marginLeft: "auto" }} onClick={() => refresh()} aria-label="Refresh the session" title="Refresh">
+              ↻
             </button>
-          </div>
-          <div className="composer__row">
-            <span>{speech.error ?? "Uses your Claude subscription"}</span>
-            <span style={{ marginLeft: "auto" }}>⌘↩ to send</span>
-          </div>
-        </form>
-      ) : null}
+          ) : null}
+          <span style={{ marginLeft: session ? 0 : "auto" }}>⌘↩ to send</span>
+        </div>
+      </form>
     </aside>
   );
 }
 
-/** The wait, made visible: how long it has been, a word when it is longer than usual, and Stop. */
-/** Two or three shapes Alpha proposes after looking around; the person picks one. */
-function ProposalCard({ proposal, busy, onChoose }: { proposal: Proposal; busy: boolean; onChoose: (option: Proposal["options"][number]) => void }) {
-  const [showEvidence, setShowEvidence] = useState(false);
+/** Only the newest turn about a conversation draws its full card; earlier ones are one line. */
+function latestCardPerConversation(turns: SessionTurn[]): Map<string, string> {
+  const latest = new Map<string, string>();
+  for (const turn of turns) if (turn.kind === "work" && turn.conversation_id) latest.set(turn.conversation_id, turn.turn_id);
+  return latest;
+}
+
+/**
+ * The selected session, loaded from Core and polled while Alpha is working on it. Sending
+ * with no session yet makes one in the panel's scope first.
+ */
+function useSession(client: SessionsClient | null, selectedId: string | null, onSelect: (id: string | null) => void, scope: AssistantScope) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!client || !selectedId) {
+      setSession(null);
+      return;
+    }
+    if (session?.session_id === selectedId) return;
+    let cancelled = false;
+    setLoading(true);
+    client
+      .getSession(selectedId)
+      .then((found) => {
+        if (!cancelled) setSession(found);
+      })
+      .catch(() => {
+        if (!cancelled) onSelect(null); // gone (another data directory, or archived elsewhere)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, selectedId, session?.session_id, onSelect]);
+
+  const thinking = client && session?.state === "thinking" ? session.session_id : null;
+  const { reconnecting } = usePoll(thinking, () => client!.getSession(thinking!), setSession);
+
+  const refresh = useCallback(async () => {
+    if (!client || !session) return;
+    try {
+      setSession(await client.getSession(session.session_id));
+    } catch {
+      /* the next poll or send will say */
+    }
+  }, [client, session]);
+
+  const send = useCallback(
+    async (text: string) => {
+      if (!client) {
+        setError("This runtime cannot hold sessions yet.");
+        return;
+      }
+      setError(null);
+      setBusy(true);
+      try {
+        let id = session?.session_id ?? selectedId;
+        if (!id) {
+          const made = await client.createSession({ project_id: scope.projectId, focus_app_id: scope.appId ?? null });
+          id = made.session_id;
+          onSelect(id);
+        }
+        setSession(await client.sendSession(id, text, scope.appId ?? null));
+      } catch (e) {
+        setError(`Could not send: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client, onSelect, scope.appId, scope.projectId, selectedId, session],
+  );
+
+  return { session, loading, error, busy, reconnecting, send, refresh };
+}
+
+/** The sessions of this scope, to switch between, and a new one. */
+function SessionSwitcher({ client, scope, selected, onSelect }: { client: SessionsClient; scope: AssistantScope; selected: string | null; onSelect: (id: string | null) => void }) {
+  const [items, setItems] = useState<SessionSummary[]>([]);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    client
+      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .then((all) => {
+        if (!cancelled) setItems(all.filter((s) => s.origin === "shell"));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, open, scope.projectId]);
   return (
-    <div className="card card--pad proposal" aria-label="Options">
-      <p style={{ marginTop: 0 }}>{proposal.intro}</p>
-      <div className="proposal__options">
-        {proposal.options.map((option) => (
-          <div key={option.id} className={`proposal__option${option.id === proposal.default ? " proposal__option--default" : ""}`}>
-            <b>
-              {option.title}
-              {option.id === proposal.default ? <span className="pill pill--info" style={{ marginLeft: 8 }}>Alpha's pick</span> : null}
-            </b>
-            <p>{option.summary}</p>
-            <p className="faint">{option.why}</p>
-            <button type="button" className={`btn btn--sm${option.id === proposal.default ? " btn--primary" : ""}`} disabled={busy} onClick={() => onChoose(option)}>
-              {option.id === proposal.default ? "Go with this" : "Go with this instead"}
-            </button>
-          </div>
-        ))}
-      </div>
-      {proposal.evidence.length ? (
-        <p className="faint" style={{ marginBottom: 0 }}>
-          <button type="button" className="btn btn--sm btn--ghost" onClick={() => setShowEvidence((v) => !v)} aria-expanded={showEvidence}>
-            {showEvidence ? "Hide what Alpha looked at" : `What Alpha looked at (${proposal.evidence.length})`}
-          </button>
-        </p>
-      ) : null}
-      {showEvidence ? (
-        <ul className="proposal__evidence">
-          {proposal.evidence.map((e, i) => (
-            <li key={i}>
-              <a href={e.url} target="_blank" rel="noreferrer">
-                {e.title}
-              </a>
-              <span className="faint"> · {e.note}</span>
-            </li>
-          ))}
-        </ul>
+    <div className="switcher">
+      <button type="button" className="btn btn--sm" onClick={() => onSelect(null)} title="Start a new session in this place">
+        New session
+      </button>
+      <button type="button" className="btn btn--sm" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
+        ☰
+      </button>
+      {open ? (
+        <nav className="switcher__menu card" aria-label="Sessions">
+          {items.length === 0 ? <p className="panel__hint" style={{ padding: 10 }}>No sessions here yet.</p> : null}
+          <ul>
+            {items.map((s) => (
+              <li key={s.session_id}>
+                <button type="button" className={`recent__item${s.session_id === selected ? " recent__item--current" : ""}`} onClick={() => { setOpen(false); onSelect(s.session_id); }}>
+                  <span className="recent__text">{s.title ?? "Untitled session"}</span>
+                  <span className="recent__state">{when(s.updated_at)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
       ) : null}
     </div>
   );
 }
 
-function Thinking({ since, busy, onStop, label }: { since: string; busy: boolean; onStop: () => void; label?: string }) {
-  const [seconds, setSeconds] = useState(0);
+/** Earlier sessions in this scope, newest first, for the empty state. */
+function EarlierSessions({ client, scope, onOpen }: { client: SessionsClient; scope: AssistantScope; onOpen: (id: string) => void }) {
+  const [items, setItems] = useState<SessionSummary[] | null>(null);
   useEffect(() => {
-    const started = new Date(since).getTime();
-    const tick = () => setSeconds(Math.max(0, Math.round((Date.now() - started) / 1000)));
-    tick();
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, [since]);
-  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    let cancelled = false;
+    client
+      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .then((all) => {
+        if (!cancelled) setItems(all.filter((s) => s.origin === "shell").slice(0, 8));
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, scope.projectId]);
+  if (!items?.length) return null;
   return (
-    <div className="msg msg--ai" role="status">
-      <div>
-        {label ?? "Thinking about your request…"} <span className="faint">{clock}</span>
-      </div>
-      {seconds >= 90 ? <div className="faint" style={{ marginTop: 4 }}>Longer than usual. A large request or a busy model service can take a few minutes; you can stop and try again.</div> : null}
-      <div className="row" style={{ marginTop: 8 }}>
-        <button type="button" className="btn btn--sm" disabled={busy} onClick={onStop}>
-          Stop
-        </button>
-      </div>
-    </div>
+    <nav aria-label="Earlier sessions" className="recent">
+      <h3 className="recent__title">Earlier sessions</h3>
+      <ul>
+        {items.map((s) => (
+          <li key={s.session_id}>
+            <button type="button" className="recent__item" onClick={() => onOpen(s.session_id)}>
+              <span className="recent__text">{s.title ?? "Untitled session"}</span>
+              <span className={s.state === "thinking" ? "recent__state recent__state--busy" : "recent__state"}>{s.state === "thinking" ? "Working" : when(s.updated_at)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
@@ -402,56 +421,9 @@ function ModuleThread({ client, appId, onOpen }: { client: CoreClient; appId: st
   );
 }
 
-/** Earlier requests, newest first, with where each one got to. */
-function RecentRequests({ client, onOpen }: { client: CoreClient; onOpen: (id: string) => void }) {
-  const [items, setItems] = useState<Conversation[] | null>(null);
-  const [creations, setCreations] = useState<Map<string, Creation>>(new Map());
-
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .listConversations()
-      .then((all) => {
-        if (!cancelled) setItems(all.slice(0, 8));
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
-    if (isWorkflowsClient(client)) {
-      client
-        .recentCreations()
-        .then((all) => {
-          if (cancelled) return;
-          const latest = new Map<string, Creation>();
-          for (const c of [...all].reverse()) latest.set(c.conversation_id, c);
-          setCreations(latest);
-        })
-        .catch(() => undefined);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
-
-  if (!items?.length) return null;
-  return (
-    <nav aria-label="Recent requests" className="recent">
-      <h3 className="recent__title">Recent requests</h3>
-      <ul>
-        {items.map((c) => {
-          const creation = creations.get(c.conversation_id);
-          const where = creation ? CREATION_WORDS[creation.state] ?? creation.label : STATE_WORDS[c.state];
-          const inProgress = creation ? !CREATION_DONE.has(creation.state) : c.state === "thinking";
-          return (
-            <li key={c.conversation_id}>
-              <button type="button" className="recent__item" onClick={() => onOpen(c.conversation_id)}>
-                <span className="recent__text">{requestText(c) || "Untitled request"}</span>
-                <span className={inProgress ? "recent__state recent__state--busy" : "recent__state"}>{where}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+function when(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }

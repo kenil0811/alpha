@@ -5,6 +5,11 @@ import type {
   ConversationReply,
   CoreClient,
   HealthInfo,
+  Project,
+  Session,
+  SessionsClient,
+  SessionSummary,
+  SessionTurn,
   SettingField,
   BrowserSite,
   BrowserAccess,
@@ -14,7 +19,7 @@ import type {
 } from "../core/client";
 
 /** In-memory CoreClient that reproduces Core's observable state machine for shell tests. */
-export class FakeCoreClient implements CoreClient {
+export class FakeCoreClient implements CoreClient, SessionsClient {
   runs = new Map<string, Run>();
   items: StreamItem[] = [];
   listeners: ((item: StreamItem) => void)[] = [];
@@ -209,6 +214,102 @@ export class FakeCoreClient implements CoreClient {
 
   async capabilities(): Promise<CapabilityEntry[]> {
     return [{ family: "compute", description: "calculations", available: true, unavailable_reason: null, arrives_with: null }];
+  }
+
+  // --- projects and sessions -------------------------------------------------------------
+
+  projects = new Map<string, Project>();
+  sessions = new Map<string, Session>();
+  /** Scripted loop: what Alpha does with a message that starts no conversation (default: it
+   *  always starts one, a change when the session focuses on a module). */
+  sessionScript: ((session: Session, text: string) => SessionTurn | null) | null = null;
+
+  async listProjects(): Promise<Project[]> {
+    return [...this.projects.values()].filter((p) => !p.archived_at);
+  }
+
+  async createProject(name: string, goal?: string | null): Promise<Project> {
+    const now = new Date().toISOString();
+    const project: Project = { project_id: `proj_${this.projects.size + 1}`, name, goal: goal ?? null, summary: null, modules: [], created_at: now, updated_at: now, archived_at: null };
+    this.projects.set(project.project_id, project);
+    return project;
+  }
+
+  async updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error("project_not_found");
+    const next: Project = { ...project, ...("name" in patch ? { name: patch.name! } : {}), ...("goal" in patch ? { goal: patch.goal ?? null } : {}), ...("summary" in patch ? { summary: patch.summary ?? null } : {}), archived_at: patch.archived === undefined ? project.archived_at : patch.archived ? new Date().toISOString() : null };
+    this.projects.set(projectId, next);
+    return next;
+  }
+
+  async fileModule(appId: string, projectId: string | null): Promise<void> {
+    for (const [id, p] of this.projects) this.projects.set(id, { ...p, modules: p.modules.filter((m) => m !== appId) });
+    if (projectId) {
+      const p = this.projects.get(projectId);
+      if (!p) throw new Error("project_not_found");
+      this.projects.set(projectId, { ...p, modules: [...p.modules, appId] });
+    }
+  }
+
+  async project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[] }> {
+    const project = this.projects.get(projectId);
+    if (!project) throw new Error("project_not_found");
+    return { project, sessions: await this.listSessions("project", projectId) };
+  }
+
+  async listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]> {
+    return [...this.sessions.values()]
+      .filter((s) => !s.archived_at && (scope === "all" || (scope === "global" ? s.project_id === null : s.project_id === projectId)))
+      .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+      .map((s) => ({ session_id: s.session_id, project_id: s.project_id, title: s.title, focus_app_id: s.focus_app_id, origin: s.origin, state: s.state, turn_count: s.turn_count, last_text: [...s.turns].reverse().find((t) => t.role === "user")?.text ?? null, created_at: s.created_at, updated_at: s.updated_at }));
+  }
+
+  async createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session> {
+    const now = new Date().toISOString();
+    const session: Session = { session_id: `sess_${this.sessions.size + 1}`, project_id: draft.project_id ?? null, title: draft.title ?? null, focus_app_id: draft.focus_app_id ?? null, origin: "shell", state: "idle", summary: null, turns: [], turn_count: 0, created_at: now, updated_at: now, archived_at: null };
+    this.sessions.set(session.session_id, session);
+    return session;
+  }
+
+  async getSession(sessionId: string): Promise<Session> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("session_not_found");
+    return session;
+  }
+
+  async updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session> {
+    const session = await this.getSession(sessionId);
+    const next: Session = { ...session, title: patch.title ?? session.title, archived_at: patch.archived === undefined ? session.archived_at : patch.archived ? new Date().toISOString() : null };
+    this.sessions.set(sessionId, next);
+    return next;
+  }
+
+  /** Mirrors Core's loop: text answers a waiting conversation, else Alpha starts one. */
+  async sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
+    let session = await this.getSession(sessionId);
+    const now = new Date().toISOString();
+    const turn = (role: "user" | "alpha", body: string, extra: Partial<SessionTurn> = {}): SessionTurn => ({ turn_id: `st_${session.turn_count + 1}`, sequence: session.turn_count + 1, role, kind: "text", text: body, created_at: now, ...extra });
+    const add = (t: SessionTurn) => {
+      session = { ...session, turns: [...session.turns, t], turn_count: session.turn_count + 1, updated_at: now, title: session.title ?? (t.role === "user" ? t.text : null) };
+    };
+    add(turn("user", text));
+    const latest = [...session.turns].reverse().find((t) => t.kind === "work" && t.conversation_id);
+    const waiting = latest?.conversation_id ? this.conversations.get(latest.conversation_id) : null;
+    if (waiting && (waiting.state === "waiting_for_user" || waiting.state === "proposed" || waiting.state === "briefed")) {
+      await this.replyConversation(waiting.conversation_id, { text });
+      add(turn("alpha", "Passed on to the request above.", { kind: "work", conversation_id: waiting.conversation_id, detail: { kind: "continue" } }));
+    } else {
+      const scripted = this.sessionScript ? this.sessionScript(session, text) : null;
+      if (scripted) add(scripted);
+      else {
+        const changeOf = appId ?? session.focus_app_id ?? null;
+        const started = await this.startConversation(text, changeOf);
+        add(turn("alpha", changeOf ? "I've started a change; the card here shows what happens next." : "I've started making that; the card here shows what happens next.", { kind: "work", conversation_id: started.conversation_id, detail: { kind: changeOf ? "change" : "build" } }));
+      }
+    }
+    this.sessions.set(sessionId, session);
+    return session;
   }
 
   // --- test controls -------------------------------------------------------------------

@@ -21,6 +21,7 @@ export interface Handoff {
   app_id?: string | null;
   tab_id?: string | null;
   conversation_id?: string | null;
+  session_id?: string | null;
   at: number;
 }
 
@@ -79,7 +80,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
         const turn = await client.act(clean);
         setTurns((all) => [...all, turn].slice(-30));
         say(turn.reply, turn.kind === "answer" && /can't|couldn't|didn't/i.test(turn.reply) ? "sorry" : "talking");
-        if (turn.open && (turn.open.app_id || turn.open.conversation_id)) {
+        if (turn.open && (turn.open.app_id || turn.open.conversation_id || turn.open.session_id)) {
           const handoff: Handoff = { ...turn.open, at: Date.now() };
           try {
             localStorage.setItem(HANDOFF_KEY, JSON.stringify(handoff));
