@@ -7,13 +7,13 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { Filter as FilterIcon, MoreHorizontal, Search, X } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
-import { Tooltip } from "../../ui/Tooltip";
+import { Tooltip, TooltipProvider } from "../../ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "../../ui/Popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../ui/DropdownMenu";
 import { StandardDropdown } from "../../ui/StandardDropdown";
 import type { ActionBinding, DetailSpec, RecordPageResult, RecordRow, ScreenBlock, ScreenColumn } from "../../core/client";
 import { cell, coerce, resolveDates, Status, subtitle } from "../blocks";
-import { humanize, outcomeWords, useModule, useViewQuery, type ViewQueryBody } from "../useModule";
+import { formatNumber, humanize, outcomeWords, useModule, useViewQuery, type ViewQueryBody } from "../useModule";
 import { useLists } from "./useLists";
 import { opsFor, type FilterRule, type UserList, type ViewKind } from "./types";
 import "./views.css";
@@ -56,7 +56,7 @@ export function DataView({ block }: { block: TableBlock }) {
   const blockId = block.title ?? block.view;
   const { lists: userLists, upsert, remove: removeList } = useLists(detail.app_id, blockId);
 
-  const [listId, setListId] = useState<string>("all");
+  const [listId, setListId] = useState<string>(block.lists[0]?.id ?? "all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ field: string; direction: "asc" | "desc" } | null>(null);
   const [filters, setFilters] = useState<FilterRule[]>([]);
@@ -174,6 +174,7 @@ export function DataView({ block }: { block: TableBlock }) {
   ];
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="card dv">
       {block.title ? (
         <div className="section__head" style={{ padding: "12px 12px 0", marginBottom: 0 }}>
@@ -335,6 +336,7 @@ export function DataView({ block }: { block: TableBlock }) {
         </button>
       </div>
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -557,6 +559,24 @@ function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasAc
             <RowMenuRow key={row.id} row={row} ri={ri} columns={columns} kinds={kinds} block={block} titleField={block.detail?.title_field ?? columns[0]?.field} onOpen={onOpen} onRemove={onRemove} onRowAction={onRowAction} onCommit={onCommit} selected={selected} setSelected={setSelected} focused={focused} setFocused={setFocused} />
           ))}
         </tbody>
+        {block.totals?.length && rows.length ? (
+          <tfoot>
+            <tr>
+              {hasActions || onOpen ? <td className="dv-td-check" /> : null}
+              <td className="dv-td-check" />
+              {columns.map((c, i) => {
+                const t = block.totals!.includes(c.field)
+                  ? rows.reduce((sum, r) => sum + (typeof r.values[c.field] === "number" ? (r.values[c.field] as number) : 0), 0)
+                  : null;
+                return (
+                  <td key={c.field} className={t !== null ? "r num" : undefined}>
+                    {t !== null ? formatNumber(t, c.unit) : i === 0 ? "Total" : ""}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );
@@ -624,6 +644,7 @@ function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocu
   const [text, setText] = useState("");
   const value = row.values[column.field];
   const numeric = kind === "number" || kind === "integer";
+  const estimate = row.provenance?.[column.field]?.source === "model_estimate";
   function begin(e?: { stopPropagation: () => void }) {
     if (!editable) return;
     e?.stopPropagation();
@@ -666,6 +687,11 @@ function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocu
       onKeyDown={(e) => e.key === "Enter" && begin(e)}
     >
       {cell(value, column.format ?? undefined, column.unit, kind)}
+      {estimate ? (
+        <span className="est" title="An estimate. Click the cell to correct it." aria-label="estimate">
+          ≈
+        </span>
+      ) : null}
     </td>
   );
   if (!editable) return <Tooltip content="Can't edit here yet">{body}</Tooltip>;
@@ -825,6 +851,7 @@ function Peek({ row, spec, columns, kinds, onClose, onAction, onRemove }: { row:
   const shown = all.filter((f) => f !== titleField && !long.has(f));
   const format = (field: string) => columns.find((c) => c.field === field)?.format ?? undefined;
   const unit = (field: string) => columns.find((c) => c.field === field)?.unit;
+  const when = (iso: string) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
   return (
     <>
       <div className="dv-peek__scrim" onClick={onClose} />
@@ -860,6 +887,18 @@ function Peek({ row, spec, columns, kinds, onClose, onAction, onRemove }: { row:
               <dd>{cell(row.values[field], format(field), unit(field), kinds.get(field)?.kind ?? "text")}</dd>
             </div>
           ))}
+          {row.created_at ? (
+            <div className="kv__row">
+              <dt>Added</dt>
+              <dd>{when(row.created_at)}</dd>
+            </div>
+          ) : null}
+          {row.updated_at && row.updated_at !== row.created_at ? (
+            <div className="kv__row">
+              <dt>Last changed</dt>
+              <dd>{when(row.updated_at)}</dd>
+            </div>
+          ) : null}
         </dl>
         {spec.long_fields.map((field) => (
           <div key={field} className="drawer__long">
