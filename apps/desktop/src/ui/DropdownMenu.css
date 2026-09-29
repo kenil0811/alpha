@@ -1,0 +1,12 @@
+.ui-menu {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+  box-shadow: var(--shadow-2); padding: 6px; min-width: 160px; z-index: 50;
+}
+.ui-menu__item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--radius-sm);
+  font-size: var(--text-sm); color: var(--text); cursor: pointer; outline: none;
+}
+.ui-menu__item[data-highlighted] { background: var(--hover); }
+.ui-menu__item[data-disabled] { opacity: 0.5; cursor: not-allowed; }
+.ui-menu__label { padding: 6px 10px 2px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+.ui-menu__sep { height: 1px; background: var(--border); margin: 4px 0; }

@@ -219,7 +219,6 @@ describe("an App with its own compiled screen", () => {
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Actions" })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(screen.getByText(/Its records stay on this Mac\./)).toBeInTheDocument();
     expect(screen.queryByText(/pyprof/)).not.toBeInTheDocument();
   });
@@ -285,7 +284,6 @@ describe("where the data goes", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(await screen.findByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
   });
 });

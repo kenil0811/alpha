@@ -18,6 +18,7 @@ describe("settings the person can change", () => {
     await waitFor(() => expect(client.settingsUpdates).toEqual([{ "models.builder_new": "sonnet" }]));
     expect(await screen.findByText(/^Saved\. Model for building a new module/)).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Builds" }));
     const limits = screen.getByLabelText("Building limits");
     const minutes = within(limits).getByLabelText("Minutes per attempt");
     await user.clear(minutes);

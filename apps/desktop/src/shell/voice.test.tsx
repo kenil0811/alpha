@@ -47,15 +47,15 @@ describe("speaking instead of typing", () => {
     act(() => {
       FakeRecognition.live?.onresult?.({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: "track my" } }] });
     });
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("track my");
+    expect(screen.getByLabelText("Message")).toHaveValue("track my");
     act(() => {
       FakeRecognition.live?.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "track my reading" } }] });
     });
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("track my reading");
+    expect(screen.getByLabelText("Message")).toHaveValue("track my reading");
     await user.click(live);
     expect(FakeRecognition.live?.stopped).toBe(true);
     expect(screen.getByRole("button", { name: "Speak" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("track my reading");
+    expect(screen.getByLabelText("Message")).toHaveValue("track my reading");
   });
 
   it("is greyed out with a hint when the window cannot listen", async () => {

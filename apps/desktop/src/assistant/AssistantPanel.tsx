@@ -5,11 +5,16 @@
  * the panel opens on the scope's latest one. Core owns every session, so leaving and coming
  * back finds the same thread.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
 import { isSessionsClient, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
 import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
+import { ZazooIcon } from "../ui/ZazooIcon";
+import { Button, IconButton } from "../ui";
+import { Markdown } from "./markdown";
+import "./assistant.css";
 
 const EXAMPLES = [
   "Track what I eat and how much, with calories, history and trends",
@@ -35,7 +40,8 @@ export function AssistantPanel({
   conversationId = null,
   onSelectConversation,
   onOpenApp,
-  onHide,
+  headerStart,
+  headerEnd,
   draft,
 }: {
   client: CoreClient;
@@ -47,7 +53,10 @@ export function AssistantPanel({
   conversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
   onOpenApp?: (appId: string) => void;
-  onHide?: () => void;
+  /** Left slot of the header (the shell's collapse toggle). */
+  headerStart?: ReactNode;
+  /** Right slot of the header (the shell's Activity bell). */
+  headerEnd?: ReactNode;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
 }) {
@@ -85,30 +94,29 @@ export function AssistantPanel({
   const cards = latestCardPerConversation(session?.turns ?? []);
 
   return (
-    <aside className="assist" aria-label="Assistant">
+    <aside className="assist" aria-label="Chief of Staff">
       <div className="assist__head">
-        <div className="assist__mark" aria-hidden="true">
-          A
+        {headerStart}
+        <div className="assist__title">
+          <ZazooIcon size={32} />
+          <div className="assist__titletext">
+            <b>Chief of Staff</b>
+            <div className="assist__ctx">{label}</div>
+          </div>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <b>Assistant</b>
-          <div className="assist__ctx">{label}</div>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          {sessions ? <SessionSwitcher client={sessions} scope={scope} selected={selected} onSelect={(id) => { onSelectConversation?.(null); select(id); }} /> : null}
-          {onHide ? (
-            <button type="button" className="iconbtn" onClick={onHide} aria-label="Hide assistant">
-              ›
-            </button>
-          ) : null}
-        </div>
+        {headerEnd ? <div className="assist__headend">{headerEnd}</div> : null}
       </div>
+      {sessions ? (
+        <div className="assist__toolbar">
+          <SessionSwitcher client={sessions} scope={scope} selected={selected} onSelect={(id) => { onSelectConversation?.(null); select(id); }} />
+        </div>
+      ) : null}
       <div className="assist__body" ref={bodyRef}>
         {conversationId ? (
           <>
-            <button type="button" className="btn btn--sm btn--ghost" style={{ alignSelf: "flex-start" }} onClick={() => onSelectConversation?.(null)}>
-              ‹ Back to the session
-            </button>
+            <Button size="sm" variant="ghost" style={{ alignSelf: "flex-start" }} onClick={() => onSelectConversation?.(null)}>
+              <ChevronLeft size={14} aria-hidden="true" /> Back to the session
+            </Button>
             <ConversationCard client={client} conversationId={conversationId} onOpenApp={onOpenApp} showRequest onStartOver={(t) => { setText(t); onSelectConversation?.(null); }} />
           </>
         ) : !session ? (
@@ -133,11 +141,11 @@ export function AssistantPanel({
                 )}
               </div>
               {!scope.moduleName && !scope.projectName ? (
-                <div className="examples" aria-label="Examples">
+                <div className="assist-empty__chips" aria-label="Examples">
                   {EXAMPLES.map((example) => (
-                    <button key={example} type="button" className="example" onClick={() => setText(example)}>
+                    <Button key={example} variant="outline" className="assist-empty__chip" onClick={() => setText(example)}>
                       {example}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : null}
@@ -168,7 +176,7 @@ export function AssistantPanel({
                 )
               ) : (
                 <div key={turn.turn_id} className="msg msg--ai">
-                  {turn.text}
+                  <Markdown text={turn.text} />
                   {turn.open?.app_id && onOpenApp ? (
                     <div className="row" style={{ marginTop: 6 }}>
                       <button type="button" className="btn btn--sm" onClick={() => onOpenApp(turn.open!.app_id!)}>
@@ -200,26 +208,29 @@ export function AssistantPanel({
             id="goal"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={session ? "Say what to do, ask, or describe a change…" : "Describe what you want done…"}
-            aria-label="What do you want done?"
+            placeholder={session ? "Ask Chief of Staff… say what to do, ask, or describe a change" : "Ask Chief of Staff… describe what you want done"}
+            aria-label="Message"
             rows={2}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void submit();
+              }
             }}
           />
           <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-          <button type="submit" className="btn btn--primary btn--sm" disabled={busy || thinking || !text.trim()}>
-            Send
-          </button>
+          <IconButton aria-label="Send" type="submit" disabled={busy || thinking || !text.trim()}>
+            <ArrowUp size={16} />
+          </IconButton>
         </div>
         <div className="composer__row">
           <span>{speech.error ?? "Uses your Claude subscription"}</span>
           {session ? (
-            <button type="button" className="btn btn--sm btn--ghost" style={{ marginLeft: "auto" }} onClick={() => refresh()} aria-label="Refresh the session" title="Refresh">
-              ↻
-            </button>
+            <IconButton aria-label="Refresh the session" size="sm" style={{ marginLeft: "auto" }} onClick={() => refresh()}>
+              <RotateCw size={12} />
+            </IconButton>
           ) : null}
-          <span style={{ marginLeft: session ? 0 : "auto" }}>⌘↩ to send</span>
+          <span style={{ marginLeft: session ? 0 : "auto" }}>Enter to send · Shift+Enter for a new line</span>
         </div>
       </form>
     </aside>
@@ -326,12 +337,12 @@ function SessionSwitcher({ client, scope, selected, onSelect }: { client: Sessio
   }, [client, open, scope.projectId]);
   return (
     <div className="switcher">
-      <button type="button" className="btn btn--sm" onClick={() => onSelect(null)} title="Start a new session in this place">
-        New session
-      </button>
-      <button type="button" className="btn btn--sm" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
-        ☰
-      </button>
+      <Button size="sm" variant="outline" className="switcher__history" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
+        <History size={14} aria-hidden="true" /> Chat history
+      </Button>
+      <IconButton aria-label="New session" onClick={() => onSelect(null)}>
+        <Plus size={16} />
+      </IconButton>
       {open ? (
         <nav className="switcher__menu card" aria-label="Sessions">
           {items.length === 0 ? <p className="panel__hint" style={{ padding: 10 }}>No sessions here yet.</p> : null}

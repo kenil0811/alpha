@@ -1,8 +1,10 @@
+import type { LucideIcon } from "lucide-react";
+import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Automations: every schedule across the modules, switchable in place. */
 import { useEffect, useState } from "react";
 import type { AppSummary, CoreClient, SchedulesClient, ScheduleStatus } from "../../core/client";
 
-export function Automations({ client: core, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, string>; onOpenModule: (appId: string) => void }) {
+export function Automations({ client: core, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void }) {
   const client = core as CoreClient & SchedulesClient;
   const [rows, setRows] = useState<{ module: AppSummary; schedule: ScheduleStatus }[] | null>(null);
   const [version, setVersion] = useState(0);
@@ -42,7 +44,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
             <tr key={`${module.app_id}:${schedule.id}`}>
               <td>
                 <button type="button" className="linklike" onClick={() => onOpenModule(module.app_id)}>
-                  <span aria-hidden="true">{icons[module.app_id] ?? "▦"}</span> {module.name}
+                  <ModuleIcon icon={icons[module.app_id]} /> {module.name}
                 </button>
               </td>
               <td title={schedule.title}>{schedule.title}</td>

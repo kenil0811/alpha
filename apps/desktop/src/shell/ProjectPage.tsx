@@ -1,3 +1,6 @@
+import { Folder } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ModuleIcon } from "../ui/ModuleIcon";
 /**
  * A project's page: its goal in the person's words, Alpha's own notes on it (editable, never
  * silently used to change anything), the modules filed under it, its sessions, and the facts
@@ -34,7 +37,7 @@ export function ProjectPage({
   client: SessionsClient;
   projectId: string;
   modules: AppSummary[];
-  icons: Record<string, string>;
+  icons: Record<string, LucideIcon>;
   onOpenModule: (appId: string) => void;
   onOpenSession: (sessionId: string | null) => void;
   /** The project's name, modules or notes changed; the rail reloads. */
@@ -96,7 +99,7 @@ export function ProjectPage({
       <div className="modhead">
         <div className="modhead__title">
           <div className="modhead__ico" aria-hidden="true">
-            ◇
+            <Folder size={18} strokeWidth={1.75} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             {editing === "name" ? (
@@ -174,7 +177,7 @@ export function ProjectPage({
         <div className="card list" aria-label="Modules in this project">
           {inProject.map((m) => (
             <div className="item" key={m.app_id}>
-              <span aria-hidden="true">{icons[m.app_id] ?? "▦"}</span>
+              <ModuleIcon icon={icons[m.app_id]} />
               <div className="item__body">
                 <button type="button" className="linkbtn" onClick={() => onOpenModule(m.app_id)}>
                   <b>{m.name}</b>

@@ -1,11 +1,14 @@
 /**
- * A module's working surface, in three fixed sections above the module's own tabs:
- *   App       the declared screen (drawn by the shell), a custom sealed screen, or action forms;
- *   Activity  what ran and what it produced, the module's automations, and what it can reach;
- *   Settings  its data, version and how it works.
- * Trusted chrome stays outside anything the module produced.
+ * A module's working surface, Bridge anatomy: a 56px header carrying the module's own page tabs,
+ * the page itself, then below the fold Intelligence (automations and what ran), Governance (what
+ * it can reach, its connections and sign-ins) and the module's settings (how it works, version,
+ * remove). Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlarmClock, ArrowLeftRight, Ban, Boxes, Check, Cog, History, icons as lucideIcons, MessageSquare, Settings2, ShieldCheck, Sparkles, Trash2, type LucideIcon } from "lucide-react";
+import { Badge, Tabs } from "../ui";
+import { ZazooIcon } from "../ui/ZazooIcon";
+import "./module.css";
 import { type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ModuleConnection, type ScheduleStatus, isConnectionsClient } from "../core/client";
 import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
@@ -16,7 +19,15 @@ import { Block } from "./blocks";
 import { DataPage } from "./DataPage";
 import { ModuleContext, humanize, makeModuleContext, type ModuleClient } from "./useModule";
 
-type Section = "app" | "activity" | "settings";
+export type Section = "app" | "activity" | "settings";
+/** id of the below-the-fold section each route `section` value scrolls to; "app" scrolls to top. */
+const SECTION_ANCHOR: Record<Section, string | null> = { app: null, activity: "mod-intelligence", settings: "mod-governance" };
+
+function resolveIcon(name?: string | null): LucideIcon {
+  if (!name) return Boxes;
+  const pascal = name.replace(/(^\w|-\w)/g, (t) => t.replace("-", "").toUpperCase());
+  return (lucideIcons as Record<string, LucideIcon>)[pascal] ?? Boxes;
+}
 
 /** The tabs a module shows: its summary, any declared screen tabs, then one page per table. */
 type PageTab =
@@ -122,7 +133,7 @@ function ConnectionSwitches({ client, appId }: { client: ModuleClient; appId: st
         {rows.map((row) => (
           <div className="item" key={row.module}>
             <div className="item__ico" aria-hidden="true">
-              ⇄
+              <ArrowLeftRight size={16} />
             </div>
             <div className="item__body">
               <b>{row.name}</b>
@@ -294,7 +305,7 @@ function Automations({ client, appId, version, onChanged }: { client: ModuleClie
         {(items ?? []).map((s) => (
           <div className="item" key={s.id}>
             <div className="item__ico" aria-hidden="true">
-              ⏰
+              <AlarmClock size={16} />
             </div>
             <div className="item__body">
               <b>{s.title}</b>
@@ -332,16 +343,20 @@ export function ModulePage({
   runs = [],
   onCancelRun,
   onRemoved,
+  section: routedSection,
 }: {
   client: ModuleClient;
   appId: string;
-  icon?: string;
+  icon?: LucideIcon;
   onAsk: () => void;
   /** Every run Alpha knows about; the page keeps the ones that belong to this module. */
   runs?: RunView[];
   onCancelRun?: (runId: string) => Promise<void>;
   /** The module was taken out of use from this page; the shell leaves it. */
   onRemoved?: () => void;
+  /** Section from the route (#/m/:id/:section): the page scrolls to it. */
+  section?: Section;
+  onSectionChange?: (section: Section) => void;
 }) {
   const [goingBack, setGoingBack] = useState<"ask" | "busy" | string | null>(null);
   const [removing, setRemoving] = useState<"ask" | "busy" | string | null>(null);
@@ -368,7 +383,8 @@ export function ModulePage({
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<string | null>(null);
-  const [section, setSection] = useState<Section>("app");
+  const [intelTab, setIntelTab] = useState<"runs" | "automations">("runs");
+  const section = routedSection ?? "app";
   const changed = useCallback(() => setVersion((n) => n + 1), []);
 
   useEffect(() => {
@@ -381,8 +397,13 @@ export function ModulePage({
   useEffect(() => {
     setDetail(null);
     setTab(null);
-    setSection("app");
   }, [appId]);
+  useEffect(() => {
+    if (!detail) return;
+    if (section === "activity") setIntelTab("runs");
+    const anchor = SECTION_ANCHOR[section];
+    if (anchor) document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+  }, [section, detail]);
 
   const context = useMemo(() => (detail ? makeModuleContext(client, detail, version, changed) : null), [client, detail, version, changed]);
   const screen = detail?.screen ?? null;
@@ -391,40 +412,27 @@ export function ModulePage({
   const screenTab = currentTab?.kind === "screen" && screen ? screen.tabs[currentTab.index] : null;
   const pageCollection = currentTab?.kind === "collection" && detail ? detail.collections.find((c) => c.name === currentTab.name) : null;
   const mine = useMemo(() => runs.filter((r) => (r.run.owner as { app_id?: string }).app_id === appId), [runs, appId]);
+  const HeadIcon = screen?.icon ? resolveIcon(screen.icon) : icon ?? Boxes;
   const attention = mine.filter((r) => ["failed", "waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation"].includes(r.run.state)).length;
 
-  const sectionTab = (key: Section, label: string, badge?: number) => (
-    <button key={key} type="button" role="tab" aria-selected={section === key} onClick={() => setSection(key)}>
-      {label}
-      {badge ? (
-        <span className="pill pill--warn" style={{ marginLeft: 6 }}>
-          {badge}
-        </span>
-      ) : null}
-    </button>
-  );
-
   return (
-    <section className="page" aria-labelledby="module-heading">
-      <div className="modhead">
+    <section className="page mod-page" aria-labelledby="module-heading">
+      <header className="modhead">
         <div className="modhead__title">
           <div className="modhead__ico" aria-hidden="true">
-            {screen?.icon ?? icon ?? "▦"}
+            <HeadIcon size={18} strokeWidth={1.75} />
           </div>
-          <div style={{ minWidth: 0 }}>
-            <h2 id="module-heading">{detail?.name ?? "Opening…"}</h2>
-            {detail ? <div className="faint">{detail.description}</div> : null}
-          </div>
+          <h2 id="module-heading">{detail?.name ?? "Opening…"}</h2>
         </div>
-        <div className="toggle toggle--sections" role="tablist" aria-label="Module sections">
-          {sectionTab("app", "App")}
-          {sectionTab("activity", "Activity", attention)}
-          {sectionTab("settings", "Settings")}
-        </div>
-        <button type="button" className="btn btn--sm" onClick={onAsk}>
-          Assistant
+        {tabs.length > 1 ? (
+          <Tabs className="modhead__tabs" items={tabs.map((t) => ({ value: t.id, label: t.title }))} value={currentTab?.id ?? tabs[0].id} onChange={setTab} aria-label={`${detail?.name ?? "Module"} tabs`} />
+        ) : null}
+        <button type="button" className="btn btn--sm modhead__assist" onClick={onAsk}>
+          <ZazooIcon size={18} label="" />
+          Chief of Staff
         </button>
-      </div>
+      </header>
+      {detail?.description ? <p className="modhead__desc">{detail.description}</p> : null}
       {error ? (
         <p className="notice" role="alert">
           {error}
@@ -432,19 +440,11 @@ export function ModulePage({
       ) : null}
       {detail && context ? (
         <ModuleContext.Provider value={context}>
-          {section === "app" ? <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} /> : null}
-          {section === "app" ? (
+          <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} />
+          <div className="mod-app" id="mod-app">
+          {(
             tabs.length ? (
               <>
-                {tabs.length > 1 ? (
-                  <div className="subtabs" role="tablist" aria-label={`${detail.name} tabs`}>
-                    {tabs.map((t) => (
-                      <button key={t.id} type="button" role="tab" aria-selected={currentTab?.id === t.id} onClick={() => setTab(t.id)}>
-                        {t.title}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
                 {currentTab?.kind === "summary" ? (
                   <div className="blocks" key="summary">
                     {groupBlocks(detail.summary ?? []).map((group, i) =>
@@ -482,20 +482,38 @@ export function ModulePage({
             ) : (
               <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
             )
-          ) : null}
+          )}
+          </div>
 
-          {section === "activity" ? (
-            <>
-              <div className="section" style={{ marginTop: 0 }}>
-                <div className="section__head">
-                  <h2>What ran</h2>
-                  <span className="faint">Every action of this module, newest first, with its outcome</span>
+          <div className="mod-sections">
+            <section className="mod-section" id="mod-intelligence" aria-labelledby="mod-intelligence-title">
+              <h2 className="mod-section__title" id="mod-intelligence-title">
+                <Sparkles size={16} aria-hidden="true" /> Intelligence
+              </h2>
+              <Tabs
+                aria-label="Intelligence"
+                value={intelTab}
+                onChange={(v) => setIntelTab(v as typeof intelTab)}
+                items={[
+                  { value: "runs", label: <>What ran {mine.length ? <Badge variant={attention ? "warning" : "neutral"}>{attention || mine.length}</Badge> : null}</> },
+                  { value: "automations", label: "Automations" },
+                ]}
+              />
+              {intelTab === "runs" ? (
+                <div style={{ marginTop: 12 }}>
+                  {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">Nothing has run yet.</p>}
+                  {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
                 </div>
-                {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">Nothing has run yet.</p>}
-              </div>
-              <Automations client={client} appId={appId} version={version} onChanged={changed} />
-              {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
-              <div className="section">
+              ) : (
+                <Automations client={client} appId={appId} version={version} onChanged={changed} />
+              )}
+            </section>
+
+            <section className="mod-section" id="mod-governance" aria-labelledby="mod-governance-title">
+              <h2 className="mod-section__title" id="mod-governance-title">
+                <ShieldCheck size={16} aria-hidden="true" /> Governance
+              </h2>
+              <div className="section" style={{ marginTop: 0 }}>
                 <div className="section__head">
                   <h2>What it can reach</h2>
                 </div>
@@ -505,7 +523,7 @@ export function ModulePage({
                     return (
                       <div className="item" key={family}>
                         <div className="item__ico" aria-hidden="true">
-                          ●
+                          <Check size={16} />
                         </div>
                         <div className="item__body">
                           <b>{words.title}</b>
@@ -516,7 +534,7 @@ export function ModulePage({
                   })}
                   <div className="item">
                     <div className="item__ico" aria-hidden="true">
-                      ○
+                      <Ban size={16} />
                     </div>
                     <div className="item__body">
                       <b>Nothing else</b>
@@ -525,21 +543,23 @@ export function ModulePage({
                   </div>
                 </div>
               </div>
-            </>
-          ) : null}
-
-          {section === "settings" ? (
-            <>
               {(detail.uses ?? []).length ? <ConnectionSwitches client={client} appId={appId} /> : null}
               {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
-              <div className="section" style={{ marginTop: (detail.capabilities ?? []).includes("browser") ? undefined : 0 }}>
+              <p className="faint">Changes to what it can reach happen through the Chief of Staff.</p>
+            </section>
+
+            <section className="mod-section" id="mod-settings" aria-labelledby="mod-settings-title">
+              <h2 className="mod-section__title" id="mod-settings-title">
+                <Settings2 size={16} aria-hidden="true" /> Settings
+              </h2>
+              <div className="section" style={{ marginTop: 0 }}>
                 <div className="section__head">
                   <h2>How it works</h2>
                 </div>
                 <div className="card list">
                   <div className="item">
                     <div className="item__ico" aria-hidden="true">
-                      ⚙
+                      <Cog size={16} />
                     </div>
                     <div className="item__body">
                       <b>What it can do</b>
@@ -549,7 +569,7 @@ export function ModulePage({
                   {screen?.assistant_hint ? (
                     <div className="item">
                       <div className="item__ico" aria-hidden="true">
-                        💬
+                        <MessageSquare size={16} />
                       </div>
                       <div className="item__body">
                         <b>What the assistant knows about it</b>
@@ -559,7 +579,7 @@ export function ModulePage({
                   ) : null}
                   <div className="item">
                     <div className="item__ico" aria-hidden="true">
-                      🕘
+                      <History size={16} />
                     </div>
                     <div className="item__body">
                       <b>Version</b>
@@ -597,7 +617,7 @@ export function ModulePage({
                 <div className="card list">
                   <div className="item">
                     <div className="item__ico" aria-hidden="true">
-                      ✕
+                      <Trash2 size={16} />
                     </div>
                     <div className="item__body">
                       <b>Remove this module</b>
@@ -626,8 +646,8 @@ export function ModulePage({
                   </div>
                 </div>
               </div>
-            </>
-          ) : null}
+            </section>
+          </div>
         </ModuleContext.Provider>
       ) : null}
     </section>

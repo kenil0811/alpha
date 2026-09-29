@@ -1,10 +1,12 @@
+import type { LucideIcon } from "lucide-react";
+import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Second brain: the facts Alpha holds about the person and what each module keeps. */
 import { useEffect, useState } from "react";
 import { type AppSummary, type CoreClient, type ProfileFact, isProfileClient } from "../../core/client";
 import { humanize } from "../../modules/useModule";
 import { shown } from "./shared";
 
-export function SecondBrain({ client, modules, icons, onOpenModule, onOpenAbout }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, string>; onOpenModule: (appId: string) => void; onOpenAbout: () => void }) {
+export function SecondBrain({ client, modules, icons, onOpenModule, onOpenAbout }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void; onOpenAbout: () => void }) {
   const [facts, setFacts] = useState<ProfileFact[] | null>(null);
   const [pending, setPending] = useState(0);
   useEffect(() => {
@@ -60,7 +62,7 @@ export function SecondBrain({ client, modules, icons, onOpenModule, onOpenAbout 
             {modules.map((m) => (
               <li key={m.app_id}>
                 <button type="button" className="linklike" onClick={() => onOpenModule(m.app_id)}>
-                  <span aria-hidden="true">{icons[m.app_id] ?? "▦"}</span> {m.name}
+                  <ModuleIcon icon={icons[m.app_id]} /> {m.name}
                 </button>
                 <span className="faint">{m.description}</span>
               </li>

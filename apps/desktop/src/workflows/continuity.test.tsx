@@ -37,7 +37,7 @@ function ready(c: Creation): Creation {
 
 async function askAndCreate(user: ReturnType<typeof userEvent.setup>, text = "Keep a notes list for me") {
   expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-  await user.type(screen.getByLabelText("What do you want done?"), text);
+  await user.type(screen.getByLabelText("Message"), text);
   await user.click(screen.getByRole("button", { name: "Send" }));
   await user.click(await screen.findByRole("button", { name: "Create it" }));
   return screen.findByLabelText("Creating it");
@@ -56,9 +56,9 @@ describe("a request and its creation stay reachable", () => {
     const creationId = [...client.creations.keys()][0];
 
     const rail = screen.getByRole("navigation", { name: "Alpha" });
-    await user.click(within(rail).getByRole("button", { name: "Activity" }));
-    await user.click(within(rail).getByRole("button", { name: "Connections" }));
+    await user.click(screen.getByRole("button", { name: /^Activity/ }));
     await user.click(within(rail).getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "Connections" }));
     await user.click(within(rail).getByRole("button", { name: "Home" }));
 
     expect(await screen.findByText("Keep a notes list for me")).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe("temporary failures do not strand the person", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     const failure = await screen.findByRole("alert", { name: "Alpha could not work this out" });
@@ -126,7 +126,7 @@ describe("temporary failures do not strand the person", () => {
     expect(client.retries).toBe(1);
     // The request stays in the session; the composer is ready for the next message.
     expect(screen.getByText("Plan my week")).toBeInTheDocument();
-    expect(screen.getByLabelText("What do you want done?")).toHaveValue("");
+    expect(screen.getByLabelText("Message")).toHaveValue("");
     await act(async () => undefined);
   });
 
@@ -136,11 +136,11 @@ describe("temporary failures do not strand the person", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("What do you want done?"), "Sort my receipts");
+    await user.type(screen.getByLabelText("Message"), "Sort my receipts");
     await user.click(screen.getByRole("button", { name: "Send" }));
     const failure = await screen.findByRole("alert", { name: "Alpha could not work this out" });
     await user.click(within(failure).getByRole("button", { name: "Start over" }));
-    await waitFor(() => expect(screen.getByLabelText("What do you want done?")).toHaveValue("Sort my receipts"));
+    await waitFor(() => expect(screen.getByLabelText("Message")).toHaveValue("Sort my receipts"));
   });
 });
 
@@ -160,7 +160,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     expect(after).toHaveTextContent("To change it later, open it and describe the change here");
     expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
     // The session goes on; nothing was made twice.
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
     expect(client.creations.size).toBe(1);
   });
 
@@ -174,13 +174,13 @@ describe("changing a request after its App was made (review finding F07)", () =>
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
     // On a module page the assistant stays out of the way until asked for.
-    expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Assistant" })[0]);
-    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(screen.queryByRole("complementary", { name: "Chief of Staff" })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Chief of Staff" })[0]);
+    const panel = await screen.findByRole("complementary", { name: "Chief of Staff" });
     expect(panel).toHaveTextContent("I'm looking at Notes list");
     expect(panel).toHaveTextContent("Everything already saved in it is kept");
 
-    await user.type(within(panel).getByLabelText("What do you want done?"), "Add a mood to each note");
+    await user.type(within(panel).getByLabelText("Message"), "Add a mood to each note");
     await user.click(within(panel).getByRole("button", { name: "Send" }));
     // A change the person asked for starts on its own: no second approval.
     await screen.findByLabelText("Creating it");
@@ -218,11 +218,11 @@ describe("changing a request after its App was made (review finding F07)", () =>
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list for me");
+    await user.type(screen.getByLabelText("Message"), "Keep a notes list for me");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("button", { name: "Create it" });
     expect(screen.getByText(/To change or add something before it is made, just say so below/)).toBeInTheDocument();
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
   });
 });
 
@@ -252,7 +252,7 @@ describe("a module's own thread", () => {
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getAllByRole("button", { name: "Assistant" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Chief of Staff" })[0]);
     const thread = await screen.findByRole("navigation", { name: "This module's requests" });
     expect(within(thread).getByText("Add a mood to each note")).toBeInTheDocument();
     expect(within(thread).getByText(/Change · Planned/)).toBeInTheDocument();

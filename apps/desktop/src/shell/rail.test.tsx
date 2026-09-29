@@ -33,11 +33,11 @@ describe("the assistant panel on a module page", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Chief of Staff" })).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
-    expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Chief of Staff" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Home" }));
-    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeInTheDocument();
+    expect(await screen.findByRole("complementary", { name: "Chief of Staff" })).toBeInTheDocument();
   });
 });

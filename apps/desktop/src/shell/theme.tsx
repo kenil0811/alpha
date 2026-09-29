@@ -7,9 +7,9 @@ const KEY = "alpha.theme";
 function readTheme(): Theme {
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw === "light" || raw === "dark" ? raw : "system";
+    return raw === "system" || raw === "dark" ? raw : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 

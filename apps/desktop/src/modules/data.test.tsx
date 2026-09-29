@@ -49,7 +49,7 @@ describe("a derived table page", () => {
     await user.type(within(form).getByLabelText("Calories (optional)"), "0");
     await user.click(within(form).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(fake.mutations[0]).toMatchObject({ op: "create", collection: "notes", values: { title: "Water the plants", calories: 0 } }));
-    expect(await screen.findByText("Water the plants")).toBeInTheDocument();
+    expect(await within(document.getElementById("mod-app") as HTMLElement).findByText("Water the plants")).toBeInTheDocument();
   });
 });
 

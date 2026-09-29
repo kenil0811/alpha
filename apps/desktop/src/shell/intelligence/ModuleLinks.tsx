@@ -1,8 +1,10 @@
+import type { LucideIcon } from "lucide-react";
+import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Connections between modules: which module reads which, switchable in place. */
 import { useEffect, useState } from "react";
 import { type AppSummary, type CoreClient, type ModuleConnection, isConnectionsClient } from "../../core/client";
 
-export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccounts }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, string>; onOpenModule: (appId: string) => void; onOpenAccounts: () => void }) {
+export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccounts }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void; onOpenAccounts: () => void }) {
   const [rows, setRows] = useState<{ module: AppSummary; link: ModuleConnection }[] | null>(null);
   const [version, setVersion] = useState(0);
   useEffect(() => {
@@ -50,7 +52,7 @@ export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccoun
                 <tr key={`${module.app_id}:${link.module}`}>
                   <td>
                     <button type="button" className="linklike" onClick={() => onOpenModule(module.app_id)}>
-                      <span aria-hidden="true">{icons[module.app_id] ?? "▦"}</span> {module.name}
+                      <ModuleIcon icon={icons[module.app_id]} /> {module.name}
                     </button>
                   </td>
                   <td title={link.views.map((v) => v.id).join(", ")}>

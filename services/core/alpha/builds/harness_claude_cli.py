@@ -372,11 +372,12 @@ class ClaudeCliHarness:
     def _prompt(self, inputs: HarnessInputs) -> str:
         exact = "\n".join(f"- {key}: {value}" for key, value in sorted(inputs.targets.items()))
         ui_note = (
-            "Custom compiled screens are allowed on this build: if, and only if, neither the "
-            "pages Alpha draws nor a declared block can express the main interaction, you may "
-            "write ui/src/main.tsx (see reference/UI_KIT.md) and declare ui.entry with "
-            "ui.build_profile, ui.kit_version and ui.bridge_version as above. The pages Alpha "
-            "draws are preferred."
+            "Custom compiled screens are allowed on this build, but the default is always the "
+            "pages Alpha draws (and any declared screen blocks); leave ui out of app.yaml. Write "
+            "ui/src/main.tsx instead only if the person's request explicitly asks for a custom "
+            "or specially designed screen (their own layout, look or interaction); a page or "
+            "block that fits less well is not a reason. Then see reference/UI_KIT.md and declare "
+            "ui.entry with ui.build_profile, ui.kit_version and ui.bridge_version as above."
             if "ui_build_profile" in inputs.targets
             else "Custom compiled screens are not available on this build: rely on the pages "
             "Alpha draws and leave ui out of app.yaml."

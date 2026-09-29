@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 /**
  * Intelligence: what Alpha knows and can do across every module, in one place.
  *  - Second brain: the facts it holds about the person and what each module keeps.
@@ -31,7 +32,7 @@ export function Intelligence({
 }: {
   client: CoreClient;
   modules: AppSummary[];
-  icons: Record<string, string>;
+  icons: Record<string, LucideIcon>;
   onOpenModule: (appId: string) => void;
   onOpenAbout: () => void;
   onOpenAccounts: () => void;
