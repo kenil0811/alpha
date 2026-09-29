@@ -9,6 +9,8 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
  *  `pathname`, both passed in as props — no useNavigate/useLocation import needed in this file's
  *  own tests). */
+const WORKSPACE_KEY = "alpha.workspace.name";
+
 export type Surface = { kind: "home" } | { kind: "activity" } | { kind: "settings"; section?: string } | { kind: "module"; appId: string };
 
 export function surfacePath(s: Surface): string {
@@ -185,17 +187,46 @@ export function Rail({
     );
   };
 
+  const [workspace, setWorkspace] = useState(() => localStorage.getItem(WORKSPACE_KEY) || "Alpha");
+  const [renaming, setRenaming] = useState(false);
+  const saveWorkspace = (value: string) => {
+    const name = value.trim();
+    // ponytail: name kept on this Mac only; move to a Core setting when workspaces sync.
+    if (name) {
+      setWorkspace(name);
+      localStorage.setItem(WORKSPACE_KEY, name);
+    }
+    setRenaming(false);
+  };
   const runtimeLabel = runtime === "connected" ? "Runtime connected" : runtime === "connecting" ? "Connecting to runtime" : "Runtime unavailable";
   return (
     <nav className={collapsed ? "rail rail--collapsed" : "rail"} aria-label="Alpha" style={{ width: panel.displayWidth }}>
       <div className="brand" data-tauri-drag-region>
         <Tooltip content={runtimeLabel}>
           <div className={`brand__mark brand__mark--${runtime}`} role="status">
-            <span aria-hidden="true">A</span>
+            <span aria-hidden="true">{(workspace.trim()[0] ?? "A").toUpperCase()}</span>
             <span className="sr-only">{runtimeLabel}</span>
           </div>
         </Tooltip>
-        <b>Alpha</b>
+        {renaming ? (
+          <input
+            className="brand__input"
+            aria-label="Workspace name"
+            defaultValue={workspace}
+            maxLength={40}
+            autoFocus
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            onBlur={(e) => saveWorkspace(e.target.value)}
+          />
+        ) : (
+          <button type="button" className="brand__name" title="Rename workspace" aria-label={`Workspace: ${workspace}. Rename`} onClick={() => setRenaming(true)}>
+            {workspace}
+          </button>
+        )}
         <CollapseToggleButton side="left" collapsed={collapsed} onClick={panel.toggleCollapsed} controls="rail-body" className="rail__fold" />
       </div>
       <div id="rail-body" className="rail__body">

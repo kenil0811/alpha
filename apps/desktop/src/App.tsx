@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HashRouter, useLocation, useNavigate } from "react-router";
-import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, Bell, MessageCircle, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
+import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, Bell, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
@@ -17,6 +17,7 @@ import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
 import { ToastProvider } from "./ui/toast";
 import { CollapseToggleButton, usePanelControl } from "./ui/panel";
+import { ZazooIcon } from "./ui/ZazooIcon";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -238,6 +239,19 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const nullClient = useMemo(() => new NullClient(), []);
   const { runs, error: runsError, cancel } = useRuns(client ?? nullClient);
   const needsYou = runs.filter((r) => ATTENTION.has(r.run.state)).length;
+  const bell = (
+    <button
+      type="button"
+      className={surface.kind === "activity" ? "iconbtn bell iconbtn--on" : "iconbtn bell"}
+      aria-label={needsYou ? `Activity, ${needsYou} need you` : "Activity"}
+      title="Activity"
+      aria-current={surface.kind === "activity" ? "page" : undefined}
+      onClick={() => setSurface({ kind: "activity" })}
+    >
+      <Bell size={16} />
+      {needsYou ? <span className="bell__count">{needsYou > 9 ? "9+" : needsYou}</span> : null}
+    </button>
+  );
 
   // The module list: reloaded when a creation finishes or a run completes (a new module shows up
   // in the rail without a restart).
@@ -379,35 +393,26 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
               onClick={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
             />
           }
-          headerEnd={
-            <button
-              type="button"
-              className={surface.kind === "activity" ? "iconbtn bell iconbtn--on" : "iconbtn bell"}
-              aria-label={needsYou ? `Activity, ${needsYou} need you` : "Activity"}
-              title="Activity"
-              aria-current={surface.kind === "activity" ? "page" : undefined}
-              onClick={() => setSurface({ kind: "activity" })}
-            >
-              <Bell size={16} />
-              {needsYou ? <span className="bell__count">{needsYou > 9 ? "9+" : needsYou}</span> : null}
-            </button>
-          }
+          headerEnd={bell}
           draft={draft}
         />
       </div>
     ) : runtime.kind === "connected" && !isNarrow ? (
-      <button
-        type="button"
-        className="assist assist--collapsed"
-        style={{ width: 48 }}
-        onClick={() => {
-          assistantPanel.setCollapsed(false);
-          setAssistantOpen(true);
-        }}
-        aria-label="Open the assistant"
-      >
-        <MessageCircle size={18} />
-      </button>
+      <div className="assist assist--collapsed" style={{ width: 48 }}>
+        <button
+          type="button"
+          className="assist__open"
+          onClick={() => {
+            assistantPanel.setCollapsed(false);
+            setAssistantOpen(true);
+          }}
+          aria-label="Open Chief of Staff"
+          title="Chief of Staff"
+        >
+          <ZazooIcon size={30} label="" />
+        </button>
+        {bell}
+      </div>
     ) : null;
 
   if (isNarrow) {
@@ -443,8 +448,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
             Modules
           </button>
           <button type="button" className="tabbar__btn" aria-current={assistantOpen ? "page" : undefined} onClick={() => setAssistantOpen(!assistantOpen)}>
-            <MessageCircle size={18} />
-            Assistant
+            <ZazooIcon size={20} label="" />
+            Chief of Staff
           </button>
           <button type="button" className="tabbar__btn" aria-current={surface.kind === "settings" ? "page" : undefined} onClick={() => setSurface({ kind: "settings" })}>
             <SettingsIcon size={18} />

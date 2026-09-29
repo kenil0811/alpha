@@ -177,9 +177,9 @@ describe("changing a request after its App was made (review finding F07)", () =>
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
     // On a module page the assistant stays out of the way until asked for.
-    expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Assistant" })[0]);
-    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(screen.queryByRole("complementary", { name: "Chief of Staff" })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Chief of Staff" })[0]);
+    const panel = await screen.findByRole("complementary", { name: "Chief of Staff" });
     expect(panel).toHaveTextContent("I'm looking at Notes list");
     expect(panel).toHaveTextContent("Everything already saved in it is kept");
 
@@ -254,7 +254,7 @@ describe("a module's own thread", () => {
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getAllByRole("button", { name: "Assistant" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Chief of Staff" })[0]);
     await user.click(await screen.findByRole("button", { name: "Chat history" }));
     const item = screen.getByRole("option", { name: /Add a mood to each note/ });
     expect(item).toHaveTextContent("Change · Planned");

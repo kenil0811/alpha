@@ -8,7 +8,7 @@ import { ArrowUp, Plus } from "lucide-react";
 import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { MicButton, useSpeech } from "../shell/voice";
-import { Character } from "../avatar/Character";
+import { ZazooIcon } from "../ui/ZazooIcon";
 import { Button, IconButton, StandardDropdown, type StandardDropdownOption } from "../ui";
 import { BriefCard } from "./BriefCard";
 import { QuestionsForm } from "./QuestionsForm";
@@ -192,13 +192,13 @@ export function AssistantPanel({
   const contextLabel = conversation ? (changing ? "Changing a module" : "New module") : (context.moduleName ?? "Home");
 
   return (
-    <aside className="assist" aria-label="Assistant">
+    <aside className="assist" aria-label="Chief of Staff">
       <div className="assist__head">
         {headerStart}
         <div className="assist__title">
-          <Character mood="idle" size={28} />
+          <ZazooIcon size={32} />
           <div className="assist__titletext">
-            <b>Assistant</b>
+            <b>Chief of Staff</b>
             <div className="assist__ctx">{contextLabel}</div>
           </div>
         </div>
@@ -328,11 +328,11 @@ export function AssistantPanel({
             id="goal"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Ask the Assistant… describe what you want done"
+            placeholder="Ask Chief of Staff… describe what you want done"
             aria-label="Message"
             rows={2}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void submit();
               }

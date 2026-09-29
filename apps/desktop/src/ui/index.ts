@@ -32,3 +32,4 @@ export {
   CollapsedStrip,
 } from "./panel";
 export type { PanelControl, PanelSide, PanelMode } from "./panel";
+export { ZazooIcon } from "./ZazooIcon";

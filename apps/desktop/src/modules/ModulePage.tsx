@@ -5,6 +5,7 @@
  * matching section rather than switching a tab, so old #/m/:id/:section links keep working.
  * Trusted chrome stays outside anything the module produced.
  */
+import { ZazooIcon } from "../ui/ZazooIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Boxes, Check, Database, Settings as SettingsIcon, ShieldCheck, Sparkles, icons as lucideIcons, type LucideIcon } from "lucide-react";
 import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
@@ -338,7 +339,8 @@ export function ModulePage({
           </div>
         )}
         <button type="button" className="btn btn--sm modhead__assist" onClick={onAsk}>
-          Assistant
+          <ZazooIcon size={18} label="" />
+          Chief of Staff
         </button>
       </header>
       {/* The heading stays reachable for a11y/tests even when the header shows the screen's own
@@ -456,7 +458,7 @@ export function ModulePage({
               </div>
               {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
               <p className="faint" style={{ marginTop: 10 }}>
-                Changes to what it can reach happen through the Assistant.
+                Changes to what it can reach happen through the Chief of Staff.
               </p>
             </section>
 
