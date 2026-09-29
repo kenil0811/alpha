@@ -58,7 +58,7 @@ describe("assistant surface", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     const understood = await screen.findByLabelText("How Alpha understood it");
@@ -85,12 +85,12 @@ describe("assistant surface", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("form", { name: "A few questions" });
     await user.click(screen.getByRole("button", { name: "Use these defaults for now" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 2"));
-    await user.type(screen.getByLabelText("Change or add something"), "also track protein");
+    await user.type(screen.getByLabelText("Message"), "also track protein");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 3"));
     expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("you corrected");
@@ -102,7 +102,7 @@ describe("assistant surface", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "anything");
+    await user.type(screen.getByLabelText("Message"), "anything");
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("could not work this out");
   });
@@ -117,7 +117,7 @@ describe("the brief says where data goes", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
     const brief = await screen.findByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
@@ -131,7 +131,7 @@ describe("a turn that takes long", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
     const waiting = await screen.findByText(/Thinking about your request/);
     expect(waiting).toHaveTextContent(/0:0\d/);

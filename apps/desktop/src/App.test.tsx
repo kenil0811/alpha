@@ -14,11 +14,11 @@ describe("the shell frame", () => {
     render(<App client={new FakeCoreClient()} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Good (morning|afternoon|evening)/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Activity" }));
     expect(screen.getByText(/Nothing has run yet/)).toBeInTheDocument();
     // The assistant stays beside every surface.
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
   });
 
   it("shows a failed run in Activity with a plain-language reason", async () => {

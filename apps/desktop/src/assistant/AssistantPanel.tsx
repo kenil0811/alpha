@@ -3,14 +3,18 @@
  * the place to ask about, or change, the module on screen. Core owns every conversation and
  * creation, so leaving and coming back finds the same request.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowUp, Plus } from "lucide-react";
 import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { MicButton, useSpeech } from "../shell/voice";
+import { Character } from "../avatar/Character";
+import { Button, IconButton, StandardDropdown, type StandardDropdownOption } from "../ui";
 import { BriefCard } from "./BriefCard";
 import { QuestionsForm } from "./QuestionsForm";
+import { Markdown } from "./markdown";
 import { useConversation } from "./useConversation";
+import "./assistant.css";
 
 const EXAMPLES = [
   "Track what I eat and how much, with calories, history and trends",
@@ -41,6 +45,18 @@ function requestText(conversation: Conversation): string {
   return String(first?.content.text ?? "");
 }
 
+function turnText(turn: Conversation["turns"][number]): string {
+  const text = turn.content.text;
+  if (typeof text === "string" && text.trim()) return text;
+  const answers = turn.content.answers;
+  if (answers && typeof answers === "object") {
+    return Object.values(answers as Record<string, unknown>)
+      .map(String)
+      .join(", ");
+  }
+  return "";
+}
+
 export interface AssistantContext {
   /** What the panel is looking at: the module name, or null on general surfaces. */
   moduleName: string | null;
@@ -49,13 +65,62 @@ export interface AssistantContext {
   moduleHint?: string | null;
 }
 
+/** The conversations to offer in the "Chat history" dropdown, newest first, with where each got
+ * to as the visible secondary text. Scoped to the module's own thread when one is open. */
+function useHistoryOptions(client: CoreClient, appId: string | null, refreshKey: string | null): StandardDropdownOption[] {
+  const [items, setItems] = useState<Conversation[] | null>(null);
+  const [creations, setCreations] = useState<Map<string, Creation>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = appId ? client.appConversations(appId) : client.listConversations();
+    load
+      .then((all) => {
+        if (!cancelled) setItems(appId ? all : all.slice(0, 8));
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    if (!appId && isWorkflowsClient(client)) {
+      client
+        .recentCreations()
+        .then((all) => {
+          if (cancelled) return;
+          const latest = new Map<string, Creation>();
+          for (const c of [...all].reverse()) latest.set(c.conversation_id, c);
+          setCreations(latest);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+    // refreshKey (the selected conversation) changes on every new request, reply, or reset, so
+    // a just-made or just-reopened conversation shows up without waiting for a remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, appId, refreshKey]);
+
+  return useMemo(() => {
+    if (!items) return [];
+    return items.map((c) => {
+      const creation = creations.get(c.conversation_id);
+      const where = appId
+        ? `${c.change_of ? "Change" : "Made it"} · ${STATE_WORDS[c.state]}`
+        : creation
+          ? (CREATION_WORDS[creation.state] ?? creation.label)
+          : STATE_WORDS[c.state];
+      return { value: c.conversation_id, label: `${requestText(c) || "Untitled request"} — ${where}` };
+    });
+  }, [items, creations, appId]);
+}
+
 export function AssistantPanel({
   client,
   conversationId = null,
   onSelect,
   onOpenApp,
   context = { moduleName: null },
-  onHide,
+  headerStart,
   draft,
 }: {
   client: CoreClient;
@@ -63,6 +128,10 @@ export function AssistantPanel({
   onSelect?: (id: string | null) => void;
   onOpenApp?: (appId: string) => void;
   context?: AssistantContext;
+  /** Reserved for the shell's own collapse toggle; the panel does not manage its own width. */
+  headerStart?: ReactNode;
+  /** @deprecated the shell track owns collapse/hide now; pass a toggle via `headerStart` instead.
+   * Kept optional so `App.tsx` (shell-owned) still type-checks until it is rewired. */
   onHide?: () => void;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
@@ -72,16 +141,16 @@ export function AssistantPanel({
   const select = onSelect ?? setOwnSelection;
   const { conversation, loading, error, busy, reconnecting, start, reply, retry, cancel, reset } = useConversation(client, selected, select);
   const [text, setText] = useState("");
-  const [correction, setCorrection] = useState("");
   const typedBefore = useRef("");
   const speech = useSpeech((final, interim) => setText(`${typedBefore.current} ${final} ${interim}`.replace(/\s+/g, " ").trim()));
   function toggleMic() {
     if (!speech.listening) typedBefore.current = text;
     speech.toggle();
   }
+  const appId = context.appId ?? null;
+  const historyOptions = useHistoryOptions(client, appId, selected);
   // Opened from a module, the panel is that module's thread: a conversation about something
   // else (or a new module made from Home) gives way to the module's own history.
-  const appId = context.appId ?? null;
   useEffect(() => {
     if (!appId || !conversation || loading) return;
     if (conversation.change_of !== appId && creation?.app_id !== appId) select(null);
@@ -95,11 +164,19 @@ export function AssistantPanel({
   }, [draft]);
   const made = creation?.state === "active";
   const making = creation !== null && !CREATION_DONE.has(creation.state);
+  const thinking = conversation?.state === "thinking";
 
   async function submit(event?: FormEvent) {
     event?.preventDefault();
-    if (!text.trim()) return;
-    await start(text.trim(), context.appId ?? null);
+    const value = text.trim();
+    if (!value || busy || thinking || making) return;
+    const correctable = conversation && !made && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user");
+    if (correctable) {
+      await reply({ text: value });
+    } else {
+      if (conversation) reset();
+      await start(value, appId);
+    }
     setText("");
   }
 
@@ -108,33 +185,26 @@ export function AssistantPanel({
     reset();
   }
 
-  const thinking = conversation?.state === "thinking";
-  const userTurns = conversation?.turns.filter((t) => t.role === "user") ?? [];
-  const changing = conversation ? Boolean(conversation.change_of) : Boolean(context.appId);
-  const contextLabel = conversation ? (changing ? "Changing a module" : "New module") : context.moduleName ?? "Home";
+  const changing = conversation ? Boolean(conversation.change_of) : Boolean(appId);
+  const contextLabel = conversation ? (changing ? "Changing a module" : "New module") : (context.moduleName ?? "Home");
 
   return (
     <aside className="assist" aria-label="Assistant">
       <div className="assist__head">
-        <div className="assist__mark" aria-hidden="true">
-          A
+        {headerStart}
+        <div className="assist__title">
+          <Character mood="idle" size={28} />
+          <div className="assist__titletext">
+            <b>Assistant</b>
+            <div className="assist__ctx">{contextLabel}</div>
+          </div>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <b>Assistant</b>
-          <div className="assist__ctx">{contextLabel}</div>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          {conversation ? (
-            <button type="button" className="btn btn--sm" onClick={reset}>
-              New request
-            </button>
-          ) : null}
-          {onHide ? (
-            <button type="button" className="iconbtn" onClick={onHide} aria-label="Hide assistant">
-              <ChevronRight size={16} />
-            </button>
-          ) : null}
-        </div>
+      </div>
+      <div className="assist__toolbar">
+        <StandardDropdown options={historyOptions} value={selected} onChange={select} placeholder="Chat history" />
+        <IconButton aria-label="New chat" onClick={reset}>
+          <Plus size={16} />
+        </IconButton>
       </div>
       <div className="assist__body">
         {!conversation ? (
@@ -142,34 +212,37 @@ export function AssistantPanel({
             <p className="panel__hint" role="status">
               Opening your request…
             </p>
-          ) : (
-            <>
-              <div className="msg msg--ai">
-                {context.moduleName ? (
-                  <>
-                    I'm looking at <b>{context.moduleName}</b>. Describe what to change or add and Alpha rebuilds it in place. Everything already
-                    saved in it is kept.
-                    {context.moduleHint ? <div className="faint" style={{ marginTop: 6 }}>{context.moduleHint}</div> : null}
-                  </>
-                ) : (
-                  <>Tell me what you want to keep track of, automate or get done. I'll ask at most a couple of questions, then build it.</>
-                )}
-              </div>
-              {!context.moduleName ? (
-                <div className="examples" aria-label="Examples">
-                  {EXAMPLES.map((example) => (
-                    <button key={example} type="button" className="example" onClick={() => setText(example)}>
-                      {example}
-                    </button>
-                  ))}
+          ) : context.moduleName ? (
+            <div className="msg msg--ai">
+              I'm looking at <b>{context.moduleName}</b>. Describe what to change or add and Alpha rebuilds it in place. Everything already saved in it is
+              kept.
+              {context.moduleHint ? (
+                <div className="faint" style={{ marginTop: 6 }}>
+                  {context.moduleHint}
                 </div>
               ) : null}
-              {context.appId ? <ModuleThread client={client} appId={context.appId} onOpen={select} /> : <RecentRequests client={client} onOpen={select} />}
-            </>
+            </div>
+          ) : (
+            <div className="assist-empty">
+              Tell me what you want to keep track of, automate or get done…
+              <div className="assist-empty__chips">
+                {EXAMPLES.map((example) => (
+                  <Button key={example} variant="outline" className="assist-empty__chip" onClick={() => setText(example)}>
+                    {example}
+                  </Button>
+                ))}
+              </div>
+            </div>
           )
         ) : (
           <>
-            {userTurns.length ? <div className="msg msg--user">{String(userTurns[0].content.text ?? "")}</div> : null}
+            {conversation.turns
+              .filter((t) => t.role === "user")
+              .map((t) => (
+                <div key={t.turn_id} className="msg msg--user">
+                  <Markdown text={turnText(t)} />
+                </div>
+              ))}
             {conversation.interpretation ? (
               <div className="interpretation" aria-label="How Alpha understood it">
                 <div className="msg__label">How Alpha understood it</div>
@@ -183,7 +256,11 @@ export function AssistantPanel({
                 </dl>
               </div>
             ) : null}
-            {conversation.reply ? <div className="msg msg--ai">{conversation.reply}</div> : null}
+            {conversation.reply ? (
+              <div className="msg msg--ai">
+                <Markdown text={conversation.reply} />
+              </div>
+            ) : null}
             {thinking ? <Thinking since={conversation.updated_at} busy={busy} onStop={() => void cancel()} /> : null}
             {reconnecting ? (
               <p className="notice notice--quiet" role="status">
@@ -194,12 +271,12 @@ export function AssistantPanel({
               <div className="failure" role="alert" aria-label="Alpha could not work this out">
                 <p className="notice">Alpha could not work this out: {conversation.error ?? "something went wrong"}.</p>
                 <div className="row">
-                  <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void retry()}>
+                  <Button disabled={busy} onClick={() => void retry()}>
                     Try again
-                  </button>
-                  <button type="button" className="btn" onClick={startOver}>
+                  </Button>
+                  <Button variant="outline" onClick={startOver}>
                     Start over
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -226,37 +303,13 @@ export function AssistantPanel({
                     : `${creation?.result?.name ?? creation?.app_name ?? "Your module"} is in the sidebar. To change it later, open it and describe the change here.`}
                 </p>
                 <div className="row">
-                  <button type="button" className="btn" onClick={startOver}>
+                  <Button variant="outline" onClick={startOver}>
                     Describe another
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
             {making ? <p className="panel__hint">You can change the request once this attempt finishes, or after you stop it.</p> : null}
-            {!made && !making && (conversation.state === "briefed" || conversation.state === "answered" || conversation.state === "waiting_for_user") ? (
-              <form
-                className="correction"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!correction.trim()) return;
-                  reply({ text: correction.trim() });
-                  setCorrection("");
-                }}
-              >
-                <div className="field">
-                  <label htmlFor="correction">Change or add something</label>
-                  <input id="correction" value={correction} onChange={(e) => setCorrection(e.target.value)} placeholder="e.g. also track protein" />
-                </div>
-                <div className="row">
-                  <button type="submit" className="btn" disabled={busy || !correction.trim()}>
-                    Send
-                  </button>
-                  <button type="button" className="btn" onClick={startOver}>
-                    Start over
-                  </button>
-                </div>
-              </form>
-            ) : null}
           </>
         )}
         {error ? (
@@ -265,31 +318,32 @@ export function AssistantPanel({
           </p>
         ) : null}
       </div>
-      {!conversation ? (
-        <form className="composer" onSubmit={submit}>
-          <div className="composer__box">
-            <textarea
-              id="goal"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Describe what you want done…"
-              aria-label="What do you want done?"
-              rows={2}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
-              }}
-            />
-            <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-            <button type="submit" className="btn btn--primary btn--sm" disabled={busy || !text.trim()}>
-              Send
-            </button>
-          </div>
-          <div className="composer__row">
-            <span>{speech.error ?? "Uses your Claude subscription"}</span>
-            <span style={{ marginLeft: "auto" }}>⌘↩ to send</span>
-          </div>
-        </form>
-      ) : null}
+      <form className="composer" onSubmit={submit}>
+        <div className="composer__box">
+          <textarea
+            id="goal"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Ask the Assistant… describe what you want done"
+            aria-label="Message"
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+          />
+          <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
+          <IconButton aria-label="Send" type="submit" disabled={busy || thinking || making || !text.trim()}>
+            <ArrowUp size={16} />
+          </IconButton>
+        </div>
+        <div className="composer__row">
+          <span>{speech.error ?? "Uses your Claude subscription"}</span>
+          <span style={{ marginLeft: "auto" }}>Enter to send · Shift+Enter for a new line</span>
+        </div>
+      </form>
     </aside>
   );
 }
@@ -312,99 +366,10 @@ function Thinking({ since, busy, onStop }: { since: string; busy: boolean; onSto
       </div>
       {seconds >= 90 ? <div className="faint" style={{ marginTop: 4 }}>Longer than usual. A large request or a busy model service can take a few minutes; you can stop and try again.</div> : null}
       <div className="row" style={{ marginTop: 8 }}>
-        <button type="button" className="btn btn--sm" disabled={busy} onClick={onStop}>
+        <Button size="sm" disabled={busy} onClick={onStop}>
           Stop
-        </button>
+        </Button>
       </div>
     </div>
-  );
-}
-
-/** A module's own history: the request that made it and every change since, newest first. */
-function ModuleThread({ client, appId, onOpen }: { client: CoreClient; appId: string; onOpen: (id: string) => void }) {
-  const [items, setItems] = useState<Conversation[] | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .appConversations(appId)
-      .then((all) => {
-        if (!cancelled) setItems(all);
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [client, appId]);
-  if (!items?.length) return null;
-  return (
-    <nav aria-label="This module's requests" className="recent">
-      <h3 className="recent__title">This module's requests</h3>
-      <ul>
-        {items.map((c) => (
-          <li key={c.conversation_id}>
-            <button type="button" className="recent__item" onClick={() => onOpen(c.conversation_id)}>
-              <span className="recent__text">{requestText(c)}</span>
-              <span className="recent__state">{c.change_of ? "Change" : "Made it"} · {STATE_WORDS[c.state]}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
-
-/** Earlier requests, newest first, with where each one got to. */
-function RecentRequests({ client, onOpen }: { client: CoreClient; onOpen: (id: string) => void }) {
-  const [items, setItems] = useState<Conversation[] | null>(null);
-  const [creations, setCreations] = useState<Map<string, Creation>>(new Map());
-
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .listConversations()
-      .then((all) => {
-        if (!cancelled) setItems(all.slice(0, 8));
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
-    if (isWorkflowsClient(client)) {
-      client
-        .recentCreations()
-        .then((all) => {
-          if (cancelled) return;
-          const latest = new Map<string, Creation>();
-          for (const c of [...all].reverse()) latest.set(c.conversation_id, c);
-          setCreations(latest);
-        })
-        .catch(() => undefined);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
-
-  if (!items?.length) return null;
-  return (
-    <nav aria-label="Recent requests" className="recent">
-      <h3 className="recent__title">Recent requests</h3>
-      <ul>
-        {items.map((c) => {
-          const creation = creations.get(c.conversation_id);
-          const where = creation ? CREATION_WORDS[creation.state] ?? creation.label : STATE_WORDS[c.state];
-          const inProgress = creation ? !CREATION_DONE.has(creation.state) : c.state === "thinking";
-          return (
-            <li key={c.conversation_id}>
-              <button type="button" className="recent__item" onClick={() => onOpen(c.conversation_id)}>
-                <span className="recent__text">{requestText(c) || "Untitled request"}</span>
-                <span className={inProgress ? "recent__state recent__state--busy" : "recent__state"}>{where}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { OpenQuestion } from "../core/client";
+import { Button } from "../ui";
 
 const OTHER = "__other__";
 
@@ -68,12 +69,12 @@ export function QuestionsForm({
         </fieldset>
       ))}
       <div className="row">
-        <button type="submit" className="button button--primary" disabled={busy}>
+        <Button type="submit" disabled={busy}>
           Continue
-        </button>
-        <button type="button" className="button" disabled={busy} onClick={onDefaults}>
+        </Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={onDefaults}>
           Use these defaults for now
-        </button>
+        </Button>
       </div>
     </form>
   );
