@@ -145,7 +145,8 @@ describe("a module with a declared screen", () => {
 
     const tableQueries = () => client.viewQueries.filter((q) => q.viewId === "entries.all");
     expect(tableQueries().at(-1)?.body).toMatchObject({ where: { field: "category", op: "eq", value: "morning" } });
-    await user.selectOptions(screen.getByLabelText("Which entries"), "all");
+    await user.click(screen.getByRole("button", { name: "Mornings" }));
+    await user.click(await screen.findByRole("option", { name: "All" }));
     await waitFor(() => expect(tableQueries().at(-1)?.body.where).toBeUndefined());
   });
 
@@ -166,14 +167,14 @@ describe("a table's detail page", () => {
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
     const table = await screen.findByRole("table");
     await user.click(await within(table).findByRole("row", { name: "Open long walk" }));
-    const drawer = await screen.findByRole("region", { name: "long walk" });
+    const drawer = await screen.findByRole("dialog", { name: "long walk" });
     expect(within(drawer).getByText(/Along the river/)).toBeInTheDocument();
     expect(within(drawer).getByText("Added")).toBeInTheDocument();
     expect(within(drawer).getByText("Amount")).toBeInTheDocument();
     await user.click(within(drawer).getByRole("button", { name: "Star" }));
     await waitFor(() => expect(client.invocations.at(-1)).toMatchObject({ actionId: "correct_entry", input: { entry: "r1", starred: true } }));
     await user.click(within(drawer).getByRole("button", { name: "Close details" }));
-    expect(screen.queryByRole("region", { name: "long walk" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "long walk" })).not.toBeInTheDocument();
   });
 });
 
@@ -182,12 +183,14 @@ describe("quick filters on a table", () => {
     const client = clientWithRows();
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
-    await screen.findByRole("table");
-    const facet = screen.getByRole("combobox", { name: "Filter by category" });
-    await user.selectOptions(facet, "evening");
+    const table = await screen.findByRole("table");
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.selectOptions(screen.getByDisplayValue("When"), "category");
+    await user.selectOptions(screen.getByDisplayValue("—"), "evening");
+    await user.click(screen.getByRole("button", { name: "Add filter" }));
     await waitFor(() => {
-      const last = client.viewQueries.at(-1);
-      expect(JSON.stringify(last?.body.where ?? {})).toContain('"field":"category","op":"eq","value":"evening"');
+      expect(within(table).queryByText("long walk")).not.toBeInTheDocument();
+      expect(within(table).getByText("swim")).toBeInTheDocument();
     });
   });
 });
