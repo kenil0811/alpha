@@ -3,7 +3,7 @@ import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, 
 import type { AppSummary, Project } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
 import { CollapseToggleButton, ResizeHandle, type PanelControl } from "../ui/panel";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "../ui/DropdownMenu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "../ui/DropdownMenu";
 
 /** Route paths the rail links to. Kept as a small helper rather than a routing dependency here,
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
@@ -247,9 +247,23 @@ export function Rail({
             onBlur={(e) => saveWorkspace(e.target.value)}
           />
         ) : (
-          <button type="button" className="brand__name" title="Rename workspace" aria-label={`Workspace: ${workspace}. Rename`} onClick={() => setRenaming(true)}>
-            {workspace}
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="brand__name" aria-label={`Workspace: ${workspace}. Profile and workspace`}>
+                {workspace}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => onGo({ kind: "about" })}>
+                <UserRound size={14} strokeWidth={1.75} aria-hidden="true" /> About you
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename workspace</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onGo({ kind: "settings" })}>
+                <SettingsIcon size={14} strokeWidth={1.75} aria-hidden="true" /> Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         <CollapseToggleButton side="left" collapsed={collapsed} onClick={panel.toggleCollapsed} controls="rail-body" className="rail__fold" />
       </div>
@@ -288,7 +302,6 @@ export function Rail({
         ) : null}
         <div className="rail__spacer" />
         {item({ kind: "intelligence" }, Sparkles, "Intelligence")}
-        {item({ kind: "about" }, UserRound, "About you")}
         {item({ kind: "settings" }, SettingsIcon, "Settings")}
       </div>
       {!collapsed ? (

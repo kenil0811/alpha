@@ -1,4 +1,4 @@
-import { Folder } from "lucide-react";
+import { Folder, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ModuleIcon } from "../ui/ModuleIcon";
 /**
@@ -268,7 +268,7 @@ export function ProjectPage({
                 </div>
                 {facts ? (
                   <button type="button" className="btn btn--sm btn--ghost" aria-label={`Forget ${humanize(f.field)}`} onClick={() => void act(() => facts.forget(f.fact_id))}>
-                    ✕
+                    <X size={14} strokeWidth={1.75} aria-hidden="true" />
                   </button>
                 ) : null}
               </div>
