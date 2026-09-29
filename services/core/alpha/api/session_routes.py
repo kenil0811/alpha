@@ -131,14 +131,19 @@ def register(
 
     @app.get("/api/sessions")
     def list_sessions(
-        scope: str = Query(default="all", pattern="^(all|global|project)$"),
+        scope: str = Query(default="all", pattern="^(all|global|project|module)$"),
         project_id: str | None = Query(default=None, max_length=64),
+        focus_app_id: str | None = Query(default=None, max_length=120),
         limit: int = Query(default=30, ge=1, le=100),
         include_archived: bool = False,
     ) -> dict[str, list[SessionSummary]]:
         return {
             "sessions": sessions.list_sessions(
-                project_id=project_id, scope=scope, limit=limit, include_archived=include_archived
+                project_id=project_id,
+                focus_app_id=focus_app_id,
+                scope=scope,
+                limit=limit,
+                include_archived=include_archived,
             )
         }
 

@@ -224,6 +224,13 @@ def test_sessions_list_by_scope_and_latest_prefers_the_shell(tmp_path: Path) -> 
     a = sessions.create(project_id=hunt.project_id)
     b = sessions.create()
     sessions.quick_asks()
+    # A module outside any project has sessions of its own; Home does not show them.
+    m = sessions.create(focus_app_id="notes")
+    assert [s.session_id for s in sessions.list_sessions(scope="module", focus_app_id="notes")] == [
+        m.session_id
+    ]
+    assert m.session_id not in {s.session_id for s in sessions.list_sessions(scope="global")}
+    assert sessions.latest(project_id=None, focus_app_id="notes").session_id == m.session_id
     global_ids = {s.session_id for s in sessions.list_sessions(scope="global")}
     assert b.session_id in global_ids and a.session_id not in global_ids
     assert sessions.latest(project_id=hunt.project_id).session_id == a.session_id

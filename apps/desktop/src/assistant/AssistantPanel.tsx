@@ -226,6 +226,12 @@ export function AssistantPanel({
   );
 }
 
+/** Where a scope's sessions live: a project's, a module's own (outside any project), or global. */
+function scopeName(scope: AssistantScope): "project" | "module" | "global" {
+  if (scope.projectId) return "project";
+  return scope.appId ? "module" : "global";
+}
+
 /** Only the newest turn about a conversation draws its full card; earlier ones are one line. */
 function latestCardPerConversation(turns: SessionTurn[]): Map<string, string> {
   const latest = new Map<string, string>();
@@ -315,7 +321,7 @@ function SessionSwitcher({ client, scope, selected, onSelect }: { client: Sessio
     if (!open) return;
     let cancelled = false;
     client
-      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .listSessions(scopeName(scope), scope.projectId, scope.appId)
       .then((all) => {
         if (!cancelled) setItems(all.filter((s) => s.origin === "shell"));
       })
@@ -323,7 +329,7 @@ function SessionSwitcher({ client, scope, selected, onSelect }: { client: Sessio
     return () => {
       cancelled = true;
     };
-  }, [client, open, scope.projectId]);
+  }, [client, open, scope.projectId, scope.appId, scope]);
   return (
     <div className="switcher">
       <button type="button" className="btn btn--sm" onClick={() => onSelect(null)} title="Start a new session in this place">
@@ -357,7 +363,7 @@ function EarlierSessions({ client, scope, onOpen }: { client: SessionsClient; sc
   useEffect(() => {
     let cancelled = false;
     client
-      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .listSessions(scopeName(scope), scope.projectId, scope.appId)
       .then((all) => {
         if (!cancelled) setItems(all.filter((s) => s.origin === "shell").slice(0, 8));
       })
@@ -367,7 +373,7 @@ function EarlierSessions({ client, scope, onOpen }: { client: SessionsClient; sc
     return () => {
       cancelled = true;
     };
-  }, [client, scope.projectId]);
+  }, [client, scope.projectId, scope.appId, scope]);
   if (!items?.length) return null;
   return (
     <nav aria-label="Earlier sessions" className="recent">

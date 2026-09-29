@@ -640,7 +640,7 @@ export interface SessionsClient {
   /** Put a module in a project, or (null) take it out of every project. */
   fileModule(appId: string, projectId: string | null): Promise<void>;
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }>;
-  listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]>;
+  listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]>;
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
   /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
@@ -1308,9 +1308,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request(`/api/projects/${encodeURIComponent(projectId)}`);
   }
 
-  async listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]> {
+  async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {
     const query = new URLSearchParams({ scope });
     if (projectId) query.set("project_id", projectId);
+    if (focusAppId) query.set("focus_app_id", focusAppId);
     const page = await this.request<{ sessions: SessionSummary[] }>(`/api/sessions?${query.toString()}`);
     return page.sessions;
   }

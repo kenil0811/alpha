@@ -258,9 +258,11 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
     return { project, sessions: await this.listSessions("project", projectId) };
   }
 
-  async listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]> {
+  async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {
+    const inScope = (s: Session) =>
+      scope === "all" || (scope === "global" ? s.project_id === null && s.focus_app_id === null : scope === "module" ? s.project_id === null && s.focus_app_id === focusAppId : s.project_id === projectId);
     return [...this.sessions.values()]
-      .filter((s) => !s.archived_at && (scope === "all" || (scope === "global" ? s.project_id === null : s.project_id === projectId)))
+      .filter((s) => !s.archived_at && inScope(s))
       .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
       .map((s) => ({ session_id: s.session_id, project_id: s.project_id, title: s.title, focus_app_id: s.focus_app_id, origin: s.origin, state: s.state, turn_count: s.turn_count, last_text: [...s.turns].reverse().find((t) => t.role === "user")?.text ?? null, created_at: s.created_at, updated_at: s.updated_at }));
   }

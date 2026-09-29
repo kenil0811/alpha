@@ -259,27 +259,35 @@ class SessionService:
         self,
         *,
         project_id: str | None = None,
+        focus_app_id: str | None = None,
         scope: str = "all",
         limit: int = 30,
         include_archived: bool = False,
     ) -> list[SessionSummary]:
-        """`scope`: "global" (no project), "project" (the given one), or "all"."""
+        """`scope`: "global" (no project, not about one module), "project" (the given one),
+        "module" (no project, about the given module), or "all"."""
         where = [] if include_archived else ["archived_at IS NULL"]
         params: list[Any] = []
         if scope == "global":
-            where.append("project_id IS NULL")
+            where.append("project_id IS NULL AND focus_app_id IS NULL")
         elif scope == "project":
             where.append("project_id = ?")
             params.append(project_id)
+        elif scope == "module":
+            where.append("project_id IS NULL AND focus_app_id = ?")
+            params.append(focus_app_id)
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._store.query(
             f"SELECT * FROM sessions{clause} ORDER BY updated_at DESC LIMIT ?", (*params, limit)
         )
         return [self._summary(r) for r in rows]
 
-    def latest(self, *, project_id: str | None, origin: str = "shell") -> SessionSummary | None:
+    def latest(
+        self, *, project_id: str | None, focus_app_id: str | None = None, origin: str = "shell"
+    ) -> SessionSummary | None:
+        scope = "project" if project_id else "module" if focus_app_id else "global"
         found = self.list_sessions(
-            project_id=project_id, scope="project" if project_id else "global", limit=20
+            project_id=project_id, focus_app_id=focus_app_id, scope=scope, limit=20
         )
         for session in found:
             if session.origin == origin:

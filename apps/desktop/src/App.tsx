@@ -232,7 +232,8 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
   // Where the assistant is: the project of the page (or of the module on it), else global.
   const currentProject = surface.kind === "project" ? projects.find((p) => p.project_id === surface.projectId) ?? null : surface.kind === "module" ? projects.find((p) => p.modules.includes(surface.appId)) ?? null : null;
-  const scopeKey = currentProject ? `project:${currentProject.project_id}` : "global";
+  // A module outside any project keeps sessions of its own; Home is the global scope.
+  const scopeKey = currentProject ? `project:${currentProject.project_id}` : currentModule ? `module:${currentModule.app_id}` : "global";
   const sessionId = sessionByScope[scopeKey] ?? null;
   const selectSession = useCallback((id: string | null) => rememberSession(scopeKey, id), [rememberSession, scopeKey]);
   // A remembered project that no longer exists (archived, another data directory) goes Home.
