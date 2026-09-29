@@ -70,7 +70,8 @@ def test_a_person_creates_uses_and_reopens_a_result_through_the_shell(
     assert result["errors"] == []
     steps = result["steps"]
 
-    assert "passed all" in steps["ready"]
+    # Switched on after its structure checked out; the behaviour checks reported right after.
+    assert "structure checked out" in steps["ready"] and "checks passed" in steps["ready"]
     assert steps["main_action"] == "Add a note"
     assert steps["saved"].startswith("Done.")
     # The refusal is in plain words, keeps what was typed, and saves nothing.

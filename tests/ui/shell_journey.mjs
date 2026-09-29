@@ -31,14 +31,23 @@ try {
   // Ask and create.
   await page.getByLabel("What do you want done?").fill(job.request);
   await page.getByRole("button", { name: "Send" }).click();
-  await page.getByRole("button", { name: "Create it" }).click({ timeout: 20_000 });
+  // A new module is researched and shaped first: the proposal card offers "Go with this" on
+  // Alpha's pick, and the choice becomes the brief that "Create it" then builds.
+  const pick = page.getByRole("button", { name: "Go with this", exact: true });
+  const create = page.getByRole("button", { name: "Create it" });
+  await pick.or(create).first().waitFor({ timeout: 60_000 });
+  if (await pick.isVisible()) await pick.click();
+  await create.click({ timeout: 60_000 });
   const ready = page.getByLabel(/ is ready$/);
   await ready.waitFor({ timeout: 240_000 });
   result.steps.ready = await ready.innerText();
   await shot("ready");
 
-  // Open it; its main action leads.
+  // Open it: the module opens on its Notes table; the actions a person runs by hand sit on
+  // the Actions tab, the main one first.
   await ready.getByRole("button", { name: /^Open / }).click();
+  const tab = (name) => page.getByRole("tab", { name, exact: true });
+  await tab("Actions").click({ timeout: 10_000 });
   const main = page.locator("form.action--primary");
   await main.waitFor({ timeout: 10_000 });
   result.steps.main_action = await main.locator("h3").innerText();
@@ -54,12 +63,15 @@ try {
   await main.getByRole("alert").waitFor({ timeout: 60_000 });
   result.steps.refusal = await main.getByRole("alert").innerText();
   result.steps.refusal_kept_input = (await title.inputValue()) === job.too_long;
-  const saved = page.getByRole("region", { name: "Saved" });
-  await saved.getByRole("table").waitFor({ timeout: 10_000 });
-  result.steps.saved_data = await saved.innerText();
   await shot("refusal");
+  // What was saved is on the Notes page Alpha draws for the table.
+  await tab("Notes").click();
+  const saved = page.getByRole("table");
+  await saved.locator("tbody tr").first().waitFor({ timeout: 10_000 });
+  result.steps.saved_data = await saved.innerText();
 
   // A computing action under More actions reports on the saved data in plain words.
+  await tab("Actions").click();
   await page.getByText(/^More actions/).click();
   const count = page.locator("form.action", { has: page.locator("h3", { hasText: "Count notes" }) });
   await count.getByRole("button", { name: "Run" }).click();
@@ -74,8 +86,8 @@ try {
   await open.waitFor({ timeout: 10_000 });
   result.steps.listed_after_reload = await open.getAttribute("aria-label");
   await open.click();
-  const savedAgain = page.getByRole("region", { name: "Saved" });
-  await savedAgain.getByRole("table").waitFor({ timeout: 10_000 });
+  const savedAgain = page.getByRole("table");
+  await savedAgain.locator("tbody tr").first().waitFor({ timeout: 10_000 });
   result.steps.saved_after_reload = await savedAgain.innerText();
   await page.getByRole("navigation", { name: "Alpha" }).getByRole("button", { name: "Activity", exact: true }).click();
   const runs = page.getByRole("list", { name: "Runs" });
