@@ -4,49 +4,20 @@
  * client side over the rows the declared view already returned.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Filter as FilterIcon, MoreHorizontal, PanelRight, Search, X } from "lucide-react";
+import { MoreHorizontal, PanelRight } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { Tooltip, TooltipProvider } from "../../ui/Tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "../../ui/Popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../ui/DropdownMenu";
-import { StandardDropdown } from "../../ui/StandardDropdown";
 import type { ActionBinding, DetailSpec, RecordPageResult, RecordRow, ScreenBlock, ScreenColumn } from "../../core/client";
 import { cell, coerce, resolveDates, Status, subtitle } from "../blocks";
 import { formatNumber, humanize, outcomeWords, useModule, useViewQuery, type ViewQueryBody } from "../useModule";
 import { useLists } from "./useLists";
-import { opsFor, type FilterRule, type UserList, type ViewKind } from "./types";
+import { type FilterRule, type UserList, type ViewKind } from "./types";
+import { FilterButton, FilterChips, ListsMenu, PeekShell, SearchField, ViewKindSwitcher, matches, uid, type ViewKindOption } from "./ViewToolbar";
 import "./views.css";
 
 type TableBlock = Extract<ScreenBlock, { kind: "table" }>;
-
-function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function matches(row: RecordRow, rule: FilterRule, kind: string): boolean {
-  const raw = row.values[rule.field];
-  if (rule.op === "empty") return raw === null || raw === undefined || raw === "";
-  if (kind === "date") {
-    const a = raw ? String(raw) : "";
-    if (rule.op === "before") return Boolean(a) && a < rule.value;
-    if (rule.op === "after") return Boolean(a) && a > rule.value;
-    return a === rule.value;
-  }
-  if (kind === "number" || kind === "integer") {
-    const a = typeof raw === "number" ? raw : Number(raw);
-    const b = Number(rule.value);
-    if (Number.isNaN(a)) return false;
-    if (rule.op === "eq") return a === b;
-    if (rule.op === "neq") return a !== b;
-    if (rule.op === "lt") return a < b;
-    if (rule.op === "gt") return a > b;
-  }
-  const a = raw === null || raw === undefined ? "" : String(raw);
-  if (rule.op === "contains") return a.toLowerCase().includes(rule.value.toLowerCase());
-  if (rule.op === "neq") return a !== rule.value;
-  return a === rule.value;
-}
 
 export function DataView({ block }: { block: TableBlock }) {
   const { view, run, detail } = useModule();
@@ -54,7 +25,7 @@ export function DataView({ block }: { block: TableBlock }) {
   const collection = detail.collections.find((c) => c.name === spec?.collection);
   const kinds = useMemo(() => new Map((collection?.fields ?? []).map((f) => [f.name, f])), [collection]);
   const blockId = block.title ?? block.view;
-  const { lists: userLists, upsert, remove: removeList } = useLists(detail.app_id, blockId);
+  const { lists: userLists, upsert, remove: removeList } = useLists<UserList>(detail.app_id, blockId);
 
   const [listId, setListId] = useState<string>(block.lists[0]?.id ?? "all");
   const [search, setSearch] = useState("");
@@ -68,8 +39,6 @@ export function DataView({ block }: { block: TableBlock }) {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [newListName, setNewListName] = useState("");
 
   const activeUserList = userLists.find((l) => l.id === listId) ?? null;
   const onAll = listId === "all" || block.lists.some((l) => l.id === listId);
@@ -99,12 +68,10 @@ export function DataView({ block }: { block: TableBlock }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, sort, hiddenColumns, columnOrder, columnWidths, viewKind]);
 
-  function saveAsList() {
-    const title = newListName.trim() || `List ${userLists.length + 1}`;
+  function saveAsList(title: string) {
     const list: UserList = { id: uid(), title, filters, sort, hiddenColumns, columnOrder, columnWidths, viewKind };
     upsert(list);
     setListId(list.id);
-    setNewListName("");
   }
 
   const searchable = (spec?.filterable ?? []).filter((f) => kinds.get(f)?.kind === "text");
@@ -121,7 +88,7 @@ export function DataView({ block }: { block: TableBlock }) {
 
   const { data, loading, error, reload } = useViewQuery<RecordPageResult>(spec ? block.view : null, body);
   const allRows = data?.records ?? [];
-  const rows = useMemo(() => allRows.filter((r) => filters.every((f) => matches(r, f, kinds.get(f.field)?.kind ?? "text"))), [allRows, filters, kinds]);
+  const rows = useMemo(() => allRows.filter((r) => filters.every((f) => matches(r.values, f, kinds.get(f.field)?.kind ?? "text"))), [allRows, filters, kinds]);
   useEffect(() => setCursors([null]), [listId, search, sort]);
 
   const columns = useMemo<ScreenColumn[]>(() => {
@@ -166,10 +133,12 @@ export function DataView({ block }: { block: TableBlock }) {
   if (!spec) return <p className="notice">This screen refers to a view that is not declared.</p>;
   const openRow = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
 
-  const listOptions = [
-    { value: "all", label: "All" },
-    ...block.lists.map((l) => ({ value: l.id, label: l.title })),
-    ...userLists.map((l) => ({ value: l.id, label: l.title })),
+  const viewOptions: ViewKindOption<ViewKind>[] = [
+    { kind: "table", label: "Table", enabled: true },
+    { kind: "board", label: "Board", enabled: choiceColumns.length > 0, reason: "Needs a pill column to group by" },
+    { kind: "list", label: "List", enabled: true },
+    { kind: "gallery", label: "Gallery", enabled: true },
+    { kind: "calendar", label: "Calendar", enabled: dateColumns.length > 0, reason: "Needs a date column" },
   ];
 
   return (
@@ -183,52 +152,24 @@ export function DataView({ block }: { block: TableBlock }) {
 
       <div className="dv-toolbar">
         <div className="dv-toolbar__left">
-          <StandardDropdown
-            options={listOptions}
-            value={listId}
-            onChange={selectList}
-            placeholder="Select list"
-            onAdd={() => setRenaming("new")}
-            addLabel="New list"
+          <ListsMenu
+            declared={block.lists}
+            userLists={userLists}
+            listId={listId}
+            onSelect={selectList}
+            onCreate={saveAsList}
+            onRename={(list, title) => upsert({ ...list, title })}
+            onDuplicate={(list) => upsert({ ...list, id: uid(), title: `${list.title} copy` })}
+            onDelete={(list) => removeList(list.id)}
           />
-          {renaming === "new" ? (
-            <span className="dv-newlist">
-              <input className="dv-input dv-input--sm" autoFocus placeholder="Name this list…" value={newListName} onChange={(e) => setNewListName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (saveAsList(), setRenaming(null))} />
-              <Button size="sm" onClick={() => (saveAsList(), setRenaming(null))}>
-                Create
-              </Button>
-            </span>
-          ) : null}
-          {activeUserList ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <IconButton aria-label="List options" size="sm">
-                  <MoreHorizontal size={14} />
-                </IconButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => setRenaming(activeUserList.id)}>Rename</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => upsert({ ...activeUserList, id: uid(), title: `${activeUserList.title} copy` })}>Duplicate</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => (removeList(activeUserList.id), selectList("all"))}>Delete</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-          {renaming === activeUserList?.id ? (
-            <input className="dv-input dv-input--sm" autoFocus defaultValue={activeUserList.title} onBlur={(e) => (upsert({ ...activeUserList, title: e.target.value.trim() || activeUserList.title }), setRenaming(null))} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
-          ) : null}
 
-          <ViewSwitcher viewKind={viewKind} setViewKind={setViewKind} hasChoice={choiceColumns.length > 0} hasDate={dateColumns.length > 0} />
+          <ViewKindSwitcher value={viewKind} options={viewOptions} onChange={setViewKind} />
 
-          {searchable.length ? (
-            <div className="search dv-search">
-              <Search size={13} aria-hidden="true" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search" />
-            </div>
-          ) : null}
+          {searchable.length ? <SearchField value={search} onChange={setSearch} /> : null}
         </div>
         <div className="dv-toolbar__right">
           {onAll && filters.length ? (
-            <Button size="sm" variant="ghost" onClick={saveAsList}>
+            <Button size="sm" variant="ghost" onClick={() => saveAsList(`List ${userLists.length + 1}`)}>
               Save as list
             </Button>
           ) : null}
@@ -236,7 +177,7 @@ export function DataView({ block }: { block: TableBlock }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <IconButton aria-label="View actions" size="sm">
-                <MoreHorizontal size={14} />
+                <MoreHorizontal size={14} strokeWidth={1.75} />
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -251,18 +192,7 @@ export function DataView({ block }: { block: TableBlock }) {
         </div>
       </div>
 
-      {filters.length ? (
-        <div className="dv-chips">
-          {filters.map((f, i) => (
-            <span key={i} className="dv-chip">
-              {humanize(f.field)} {opsFor(kinds.get(f.field)?.kind ?? "text").find((o) => o.value === f.op)?.label} {f.op !== "empty" ? f.value : ""}
-              <button type="button" onClick={() => setFilters((fs) => fs.filter((_, j) => j !== i))} aria-label="Remove filter">
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
+      <FilterChips filters={filters} kinds={kinds} onRemove={(i) => setFilters((fs) => fs.filter((_, j) => j !== i))} />
 
       {error ? (
         <p className="notice" style={{ padding: 12 }} role="alert">
@@ -335,100 +265,6 @@ export function DataView({ block }: { block: TableBlock }) {
       </div>
     </div>
     </TooltipProvider>
-  );
-}
-
-// ---------- view switcher ----------
-
-function ViewSwitcher({ viewKind, setViewKind, hasChoice, hasDate }: { viewKind: ViewKind; setViewKind: (v: ViewKind) => void; hasChoice: boolean; hasDate: boolean }) {
-  const options: { kind: ViewKind; label: string; enabled: boolean; reason?: string }[] = [
-    { kind: "table", label: "Table", enabled: true },
-    { kind: "board", label: "Board", enabled: hasChoice, reason: "Needs a pill column to group by" },
-    { kind: "list", label: "List", enabled: true },
-    { kind: "gallery", label: "Gallery", enabled: true },
-    { kind: "calendar", label: "Calendar", enabled: hasDate, reason: "Needs a date column" },
-  ];
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost">
-          {options.find((o) => o.kind === viewKind)?.label}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {options.map((o) =>
-          o.enabled ? (
-            <DropdownMenuItem key={o.kind} onSelect={() => setViewKind(o.kind)}>
-              {o.label}
-            </DropdownMenuItem>
-          ) : (
-            <Tooltip key={o.kind} content={o.reason}>
-              <div className="ui-menu__item ui-menu__item--disabled">{o.label}</div>
-            </Tooltip>
-          ),
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ---------- filter popover ----------
-
-function FilterButton({ columns, kinds, setFilters }: { columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; setFilters: (fn: (fs: FilterRule[]) => FilterRule[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const [field, setField] = useState(columns[0]?.field ?? "");
-  const kind = kinds.get(field)?.kind ?? "text";
-  const [op, setOp] = useState(opsFor(kind)[0]?.value ?? "contains");
-  const [value, setValue] = useState("");
-  function add() {
-    if (!field || (!value && op !== "empty")) return;
-    setFilters((fs) => [...fs, { field, op, value }]);
-    setValue("");
-    setOpen(false);
-  }
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <IconButton aria-label="Filter" size="sm">
-          <FilterIcon size={14} />
-        </IconButton>
-      </PopoverTrigger>
-      <PopoverContent align="end">
-        <div className="dv-filterbuilder">
-          <select value={field} onChange={(e) => (setField(e.target.value), setOp(opsFor(kinds.get(e.target.value)?.kind ?? "text")[0]?.value ?? "contains"))}>
-            {columns.map((c) => (
-              <option key={c.field} value={c.field}>
-                {humanize(c.field)}
-              </option>
-            ))}
-          </select>
-          <select value={op} onChange={(e) => setOp(e.target.value)}>
-            {opsFor(kind).map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          {op !== "empty" ? (
-            kind === "choice" ? (
-              <select value={value} onChange={(e) => setValue(e.target.value)}>
-                <option value="">—</option>
-                {(kinds.get(field)?.choices ?? []).map((c) => (
-                  <option key={c} value={c}>
-                    {humanize(c)}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input type={kind === "date" ? "date" : kind === "number" || kind === "integer" ? "number" : "text"} value={value} onChange={(e) => setValue(e.target.value)} />
-            )
-          ) : null}
-          <Button size="sm" onClick={add}>
-            Add filter
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -861,13 +697,6 @@ function CalendarView({ rows, dateField, titleField, dateColumns, setDateField, 
 // ---------- peek ----------
 
 function Peek({ row, spec, columns, kinds, onClose, onAction, onRemove }: { row: RecordRow; spec: DetailSpec; columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; onClose: () => void; onAction: (b: ActionBinding) => void; onRemove?: () => void }) {
-  useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   const titleField = spec.title_field ?? columns[0]?.field;
   const title = titleField ? String(row.values[titleField] ?? "") : "";
   const long = new Set(spec.long_fields);
@@ -876,55 +705,49 @@ function Peek({ row, spec, columns, kinds, onClose, onAction, onRemove }: { row:
   const format = (field: string) => columns.find((c) => c.field === field)?.format ?? undefined;
   const unit = (field: string) => columns.find((c) => c.field === field)?.unit;
   const when = (iso: string) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
-  return (
+  const actions = (
     <>
-      <div className="dv-peek__scrim" onClick={onClose} />
-      <section className="dv-peek" aria-label={title || "Details"} role="dialog">
-        <div className="drawer__head">
-          <h3>{title || "Details"}</h3>
-          <span className="spacer" />
-          {/* The module's own Remove and the built-in one do the same thing; show one. */}
-          {spec.actions.filter((b) => !(onRemove && (b.title ?? "").toLowerCase() === "remove")).map((b) => (
-            <button key={b.action + (b.title ?? "")} type="button" className="btn btn--sm" onClick={() => onAction(b)}>
-              {b.title ?? humanize(b.action)}
-            </button>
-          ))}
-          {onRemove ? (
-            <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
-              Remove
-            </button>
-          ) : null}
-          <IconButton aria-label="Close details" size="sm" onClick={onClose}>
-            <X size={14} />
-          </IconButton>
-        </div>
-        <dl className="kv">
-          {shown.map((field) => (
-            <div key={field} className="kv__row">
-              <dt>{humanize(field)}</dt>
-              <dd>{cell(row.values[field], format(field), unit(field), kinds.get(field)?.kind ?? "text")}</dd>
-            </div>
-          ))}
-          {row.created_at ? (
-            <div className="kv__row">
-              <dt>Added</dt>
-              <dd>{when(row.created_at)}</dd>
-            </div>
-          ) : null}
-          {row.updated_at && row.updated_at !== row.created_at ? (
-            <div className="kv__row">
-              <dt>Last changed</dt>
-              <dd>{when(row.updated_at)}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {spec.long_fields.map((field) => (
-          <div key={field} className="drawer__long">
-            <h4>{humanize(field)}</h4>
-            {row.values[field] ? <p>{String(row.values[field])}</p> : <p className="faint">Nothing yet.</p>}
+      {/* The module's own Remove and the built-in one do the same thing; show one. */}
+      {spec.actions.filter((b) => !(onRemove && (b.title ?? "").toLowerCase() === "remove")).map((b) => (
+        <button key={b.action + (b.title ?? "")} type="button" className="btn btn--sm" onClick={() => onAction(b)}>
+          {b.title ?? humanize(b.action)}
+        </button>
+      ))}
+      {onRemove ? (
+        <button type="button" className="btn btn--sm btn--danger" onClick={onRemove}>
+          Remove
+        </button>
+      ) : null}
+    </>
+  );
+  return (
+    <PeekShell title={title} onClose={onClose} actions={actions}>
+      <dl className="kv">
+        {shown.map((field) => (
+          <div key={field} className="kv__row">
+            <dt>{humanize(field)}</dt>
+            <dd>{cell(row.values[field], format(field), unit(field), kinds.get(field)?.kind ?? "text")}</dd>
           </div>
         ))}
-      </section>
-    </>
+        {row.created_at ? (
+          <div className="kv__row">
+            <dt>Added</dt>
+            <dd>{when(row.created_at)}</dd>
+          </div>
+        ) : null}
+        {row.updated_at && row.updated_at !== row.created_at ? (
+          <div className="kv__row">
+            <dt>Last changed</dt>
+            <dd>{when(row.updated_at)}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {spec.long_fields.map((field) => (
+        <div key={field} className="drawer__long">
+          <h4>{humanize(field)}</h4>
+          {row.values[field] ? <p>{String(row.values[field])}</p> : <p className="faint">Nothing yet.</p>}
+        </div>
+      ))}
+    </PeekShell>
   );
 }
