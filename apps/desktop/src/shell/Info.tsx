@@ -6,6 +6,7 @@ import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
+import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { Badge, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
@@ -316,6 +317,100 @@ function AvatarSetting() {
   );
 }
 
+/** Hold a key to speak to Alpha instead of typing. Fn by default (a hardware modifier flag, so
+ *  it is watched natively — see `src-tauri/src/ptt.rs`); recording another key/combination goes
+ *  through the same native watcher. Web-only preview has no host to watch anything, so it says so. */
+function PushToTalkSetting() {
+  const [shortcut, setShortcut] = useState<PttShortcut>(() => readShortcut());
+  const [recording, setRecording] = useState(false);
+  const [permission, setPermission] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!hasTauri()) return;
+    let cancelled = false;
+    import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke<boolean>("ptt_permission"))
+      .then((granted) => {
+        if (!cancelled) setPermission(granted);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setRecording(false);
+        return;
+      }
+      const code = keycodeFor(e.code);
+      if (code === null) return; // a bare modifier (or unmapped key): keep waiting
+      e.preventDefault();
+      const next: PttShortcut = { mode: "key", code, shift: e.shiftKey, control: e.ctrlKey, alt: e.altKey, command: e.metaKey, label: labelFor(e.code) };
+      writeShortcut(next);
+      setShortcut(next);
+      setRecording(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [recording]);
+
+  const chooseFn = () => {
+    const next: PttShortcut = { mode: "fn" };
+    writeShortcut(next);
+    setShortcut(next);
+    setRecording(false);
+  };
+
+  const grantAccess = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("ptt_request_permission");
+      setPermission(await invoke<boolean>("ptt_permission"));
+    } catch {
+      /* not inside Tauri, or the command isn't there yet */
+    }
+  };
+
+  return (
+    <div className="card list" aria-label="Push to talk">
+      <div className="item">
+        <div className="item__body">
+          <b>Push to talk</b>
+          {hasTauri() ? (
+            <>
+              <div className="item__sub">Hold this key anywhere to speak to Alpha instead of typing. Release to stop.</div>
+              {permission === false ? (
+                <div className="item__sub">
+                  Alpha needs Input Monitoring permission to notice the key while another app is focused.{" "}
+                  <button type="button" className="btn btn--sm" onClick={() => void grantAccess()}>
+                    Grant access
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="item__sub">Desktop app only.</div>
+          )}
+        </div>
+        {hasTauri() ? (
+          <div className="row" style={{ gap: 6 }}>
+            <button type="button" className={shortcut.mode === "fn" ? "btn btn--sm btn--primary" : "btn btn--sm"} aria-pressed={shortcut.mode === "fn"} onClick={chooseFn}>
+              Fn (default)
+            </button>
+            <button type="button" className={shortcut.mode === "key" ? "btn btn--sm btn--primary" : "btn btn--sm"} aria-pressed={shortcut.mode === "key"} onClick={() => setRecording(true)}>
+              {recording ? "Press a key…" : shortcut.mode === "key" ? shortcutLabel(shortcut) : "Record a key…"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "models", label: "Models", icon: Cpu },
   { value: "look", label: "Look & Appearance", icon: Palette },
@@ -391,6 +486,7 @@ export function Settings({
           {section === "desktop" ? (
             <>
               <AvatarSetting />
+              <PushToTalkSetting />
               <div className="card list">
                 <div className="item">
                   <div className="item__body">

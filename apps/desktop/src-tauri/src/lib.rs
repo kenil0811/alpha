@@ -20,6 +20,9 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
+#[cfg(target_os = "macos")]
+mod ptt;
+
 const READY_PREFIX: &str = "ALPHA_CORE_READY ";
 /// Generated-UI qualification fixture, served from its own origin (`alpha-ui://<app-id>/`) so
 /// the shell's CSP is not inherited (srcdoc/blob documents inherit it) and the document gets
@@ -547,6 +550,7 @@ fn app_screen(app_id: &str, path: &str) -> Option<(Vec<u8>, String)> {
 pub fn run() {
     tauri::Builder::default()
         .manage(HostState::default())
+        .manage(ptt::PttState::default())
         .register_uri_scheme_protocol("alpha-ui", |_ctx, request| generated_ui_response(&request))
         .invoke_handler(tauri::generate_handler![
             core_session,
@@ -554,9 +558,13 @@ pub fn run() {
             avatar_layout,
             avatar_visible,
             avatar_is_visible,
-            show_main
+            show_main,
+            ptt::ptt_permission,
+            ptt::ptt_request_permission,
+            ptt::ptt_set_shortcut
         ])
         .setup(|app| {
+            ptt::start(app.handle().clone(), app.state::<ptt::PttState>().inner());
             let handle = app.handle().clone();
             let launch = app.state::<HostState>().launch.clone();
             std::thread::Builder::new()

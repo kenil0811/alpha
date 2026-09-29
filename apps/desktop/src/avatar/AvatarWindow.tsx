@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActClient, ActTurn } from "../core/client";
 import { MicButton, useSpeech } from "../shell/voice";
+import { usePushToTalk } from "../shell/ptt";
 import { Character, type Mood } from "./Character";
 
 export const HANDOFF_KEY = "alpha.handoff";
@@ -106,6 +107,13 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
   useEffect(() => {
     setMood((m) => (speech.listening ? "listening" : m === "listening" ? "idle" : m));
   }, [speech.listening]);
+  usePushToTalk(
+    useCallback(() => {
+      if (!expanded) void toggle();
+      speech.start();
+    }, [expanded, toggle, speech]),
+    useCallback(() => speech.stop(), [speech]),
+  );
 
   return (
     <div className={`avatar${expanded ? " avatar--open" : ""}`} onKeyDown={(e) => e.key === "Escape" && expanded && void toggle()}>

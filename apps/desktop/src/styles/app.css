@@ -64,7 +64,7 @@ a { color: var(--primary); }
 }
 .rail__body { flex: 1; overflow: auto; padding: 8px 10px 14px; display: flex; flex-direction: column; gap: 4px; }
 .brand { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-bottom: 1px solid var(--border); }
-.brand__mark { position: relative; width: 28px; height: 28px; border-radius: 8px; background: var(--navy); color: var(--bg); display: grid; place-items: center; font-family: var(--font-ed); font-weight: 600; }
+.brand__mark { position: relative; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
 .brand__mark::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); border: 2px solid var(--surface); }
 .brand__mark--connected::after { background: var(--good); }
 .brand__mark--unavailable::after { background: var(--bad); }

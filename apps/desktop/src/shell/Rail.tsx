@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, type LucideIcon } from "lucide-react";
 import type { AppSummary, Project } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
+import { ZazooIcon } from "../ui/ZazooIcon";
 import { CollapseToggleButton, ResizeHandle, type PanelControl } from "../ui/panel";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "../ui/DropdownMenu";
 
@@ -228,7 +229,9 @@ export function Rail({
       <div className="brand" data-tauri-drag-region>
         <Tooltip content={runtimeLabel}>
           <div className={`brand__mark brand__mark--${runtime}`} role="status">
-            <span aria-hidden="true">{(workspace.trim()[0] ?? "A").toUpperCase()}</span>
+            <span aria-hidden="true">
+              <ZazooIcon size={22} />
+            </span>
             <span className="sr-only">{runtimeLabel}</span>
           </div>
         </Tooltip>

@@ -10,6 +10,7 @@ import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
 import { isSessionsClient, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
+import { usePushToTalk } from "../shell/ptt";
 import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
 import { ZazooIcon } from "../ui/ZazooIcon";
 import { Button, IconButton } from "../ui";
@@ -72,6 +73,13 @@ export function AssistantPanel({
     if (!speech.listening) typedBefore.current = text;
     speech.toggle();
   }
+  usePushToTalk(
+    useCallback(() => {
+      if (!speech.listening) typedBefore.current = text;
+      speech.start();
+    }, [speech, text]),
+    useCallback(() => speech.stop(), [speech]),
+  );
   useEffect(() => {
     if (draft) setText(draft);
   }, [draft]);

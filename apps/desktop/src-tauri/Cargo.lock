@@ -36,6 +36,8 @@ dependencies = [
 name = "alpha-desktop"
 version = "0.1.0"
 dependencies = [
+ "core-foundation",
+ "core-graphics",
  "libc",
  "serde",
  "serde_json",
