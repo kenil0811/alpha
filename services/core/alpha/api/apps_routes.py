@@ -55,6 +55,8 @@ class AppPlatform:
     scheduler: Scheduler | None = None
     browser: BrowserService | None = None
     connections: ConnectionService | None = None
+    # Removes a module and everything that exists because of it (set by main).
+    purge: Any | None = None
 
     def close(self) -> None:
         if self.scheduler is not None:
@@ -129,13 +131,31 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
 
     @app.post("/api/apps/{app_id}/remove")
     def remove_app(app_id: str, body: ReleaseGuard | None = None) -> dict[str, Any]:
-        """Take the module out of use. Nothing is deleted from disk."""
+        """Remove the module for good: its records, versions, runs, builds, the conversations
+        that made or changed it and the sessions and turns about it. Cannot be undone."""
         expected = body.expected_release_id if body and body.expected_release_id else ANY_RELEASE
         try:
+            if platform.purge is not None:
+                return dict(platform.purge.purge(app_id, expected))
             platform.registry.retire(app_id, expected)
         except OperationFailed as exc:
             raise _fail(exc) from exc
         return {"app_id": app_id, "state": "removed"}
+
+    @app.get("/api/removed-modules")
+    def removed_modules() -> dict[str, Any]:
+        """Modules taken out of use before removal deleted things: still on this Mac."""
+        return {"modules": platform.purge.leftovers() if platform.purge is not None else []}
+
+    @app.post("/api/removed-modules/delete")
+    def delete_removed_modules() -> dict[str, Any]:
+        """Delete every such module for good, with everything that exists because of it."""
+        if platform.purge is None:
+            return {"deleted": []}
+        try:
+            return {"deleted": platform.purge.purge_leftovers()}
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
 
     @app.get("/api/apps/{app_id}")
     def get_app(app_id: str) -> dict[str, Any]:

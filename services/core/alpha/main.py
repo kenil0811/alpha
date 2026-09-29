@@ -62,6 +62,7 @@ from alpha.models.structured import StructuredInference
 from alpha.solutions.creation import CreationRoutes, CreationService
 from alpha.solutions.describe import module_summary
 from alpha.solutions.planner import AcceptancePlanner
+from alpha.solutions.purge import ModulePurge
 from alpha.solutions.registry import AppRegistry
 from alpha.solutions.repair import RepairService
 from alpha.storage.control_store import ControlStore
@@ -215,6 +216,18 @@ def build(
             log.info("filed %s under project %s", app_id, project_id)
 
     creations.on_made = file_made_module
+    platform.purge = ModulePurge(
+        store,
+        registry=platform.registry,
+        records=platform.records,
+        coordinator=coordinator,
+        creations=creations,
+        data_dir=settings.data_dir,
+        versions_root=settings.versions_root,
+        builds_root=settings.builds_root,
+        apps_root=settings.apps_root,
+        artifacts_root=settings.artifacts_root,
+    )
     repair = RepairService(
         store,
         registry=platform.registry,

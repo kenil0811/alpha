@@ -265,6 +265,16 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
   reverted: string[] = [];
   removed: string[] = [];
 
+  leftovers: { app_id: string; name: string }[] = [];
+  async removedModules(): Promise<{ app_id: string; name: string }[]> {
+    return this.leftovers;
+  }
+  async deleteRemovedModules(): Promise<number> {
+    const n = this.leftovers.length;
+    this.leftovers = [];
+    return n;
+  }
+
   failures: ModuleFailure[] = [];
   async appRepairs(): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }> {
     return { failures: this.failures, repairs: [] };

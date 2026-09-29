@@ -647,7 +647,7 @@ export function ModulePage({
                     </div>
                     <div className="item__body">
                       <b>Remove this module</b>
-                      <div className="item__sub">It leaves the sidebar and stops running. Its records and versions stay on this Mac, so Alpha can bring it back if you ask.</div>
+                      <div className="item__sub">Deletes the module and everything that exists because of it: its records, its history of runs and changes, and what was said about it in the assistant. This cannot be undone.</div>
                       {typeof removing === "string" && removing !== "ask" && removing !== "busy" ? (
                         <p className="notice" role="alert">
                           {removing}
@@ -656,7 +656,7 @@ export function ModulePage({
                     </div>
                     {removing === "ask" ? (
                       <span className="row" style={{ gap: 6 }}>
-                        <span className="faint">Remove {detail.name}?</span>
+                        <span className="faint">Remove {detail.name} and all its data?</span>
                         <button type="button" className="btn btn--sm btn--danger" onClick={() => void removeModule()}>
                           Remove
                         </button>

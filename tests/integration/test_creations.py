@@ -538,7 +538,7 @@ def test_a_module_alpha_draws_is_switched_on_before_its_behaviour_checks(
     assert [n["values"]["title"] for n in notes(core, app_id)] == ["Renew passport"]
 
 
-def test_going_back_restores_the_previous_version_and_removing_keeps_the_data(
+def test_going_back_restores_the_previous_version_and_removing_deletes_everything(
     build_core: CoreProcess,
 ) -> None:
     core = build_core
@@ -584,4 +584,13 @@ def test_going_back_restores_the_previous_version_and_removing_keeps_the_data(
         assert gone.status_code == 200, gone.text
         assert client.get(f"/api/apps/{app_id}").status_code == 404
     assert app_id not in apps(core)
-    assert (core.data_dir / "versions" / first["version_id"]).is_dir(), "nothing is deleted"
+    # Removing is a clean deletion: the versions, the records, the runs and the conversations
+    # that made and changed the module are gone, in the database and on disk.
+    assert not (core.data_dir / "versions" / first["version_id"]).exists()
+    assert not (core.data_dir / "versions" / change["version_id"]).exists()
+    assert not (core.data_dir / "apps" / app_id).exists()
+    with core.client() as client:
+        assert client.get(f"/api/conversations/{cid}").status_code == 404
+        assert client.get("/api/removed-modules").json() == {"modules": []}
+        owners = [r["owner"].get("app_id") for r in client.get("/api/runs").json()["runs"]]
+        assert app_id not in owners

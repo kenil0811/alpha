@@ -1,7 +1,7 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
+import { isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
@@ -315,6 +315,62 @@ function AvatarSetting() {
   );
 }
 
+/** Modules that were only taken out of use (before removal deleted things) can go for good. */
+function RemovedModules({ client }: { client: WorkflowsClient }) {
+  const [items, setItems] = useState<{ app_id: string; name: string }[]>([]);
+  const [state, setState] = useState<"idle" | "ask" | "busy" | string>("idle");
+  const load = useCallback(() => {
+    client
+      .removedModules()
+      .then(setItems)
+      .catch(() => setItems([]));
+  }, [client]);
+  useEffect(load, [load]);
+  if (!items.length && state === "idle") return null;
+  return (
+    <div className="card list" style={{ marginBottom: 14 }} aria-label="Removed modules">
+      <div className="item">
+        <div className="item__body">
+          <b>Removed modules still on this Mac</b>
+          <div className="item__sub">
+            {items.length ? `${items.map((m) => m.name).join(", ")}. ` : ""}
+            {items.length ? "They were taken out of use earlier; their records, history and what was said about them are still stored. Deleting cannot be undone." : state}
+          </div>
+        </div>
+        {items.length ? (
+          state === "ask" ? (
+            <span className="row" style={{ gap: 6 }}>
+              <button
+                type="button"
+                className="btn btn--sm btn--danger"
+                onClick={() => {
+                  setState("busy");
+                  client
+                    .deleteRemovedModules()
+                    .then((n) => {
+                      setState(`Deleted ${n} module${n === 1 ? "" : "s"} and everything about ${n === 1 ? "it" : "them"}.`);
+                      load();
+                    })
+                    .catch((e: unknown) => setState(e instanceof Error ? e.message : String(e)));
+                }}
+              >
+                Delete for good
+              </button>
+              <button type="button" className="btn btn--sm" onClick={() => setState("idle")}>
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="btn btn--sm" disabled={state === "busy"} onClick={() => setState("ask")}>
+              {state === "busy" ? "Deleting…" : `Delete ${items.length}`}
+            </button>
+          )
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function Settings({ client, health, theme, onTheme }: { client: CoreClient; health: HealthInfo; theme: Theme; onTheme: (next: Theme) => void }) {
   return (
     <section className="page" aria-labelledby="settings-heading">
@@ -327,6 +383,7 @@ export function Settings({ client, health, theme, onTheme }: { client: CoreClien
       </div>
       <ConfigurableSettings client={client} />
       <AvatarSetting />
+      {isWorkflowsClient(client) ? <RemovedModules client={client} /> : null}
       <div className="card list">
         <div className="item">
           <div className="item__body">

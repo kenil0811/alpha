@@ -386,6 +386,25 @@ hand-built:
   replay as a permanent check, a repair proposal written into the session on its own (today
   the Activity block and the next message carry it).
 
+- 29 September, evening: removing a module is a clean deletion. After Kenil took his modules
+  out of use to rebuild them, the assistant still answered "You already have a LinkedIn
+  connections tracker, it refreshed a few minutes ago" and Home counted 63 runs: "remove" only
+  set a state flag, and the context pack listed recent runs of any module. His rule: module
+  destruction should be very clean, related things should go away. Built
+  `alpha/solutions/purge.py` (ModulePurge): stops what is running, then deletes the module's
+  row, versions and releases, its records, every run with its events, tokens and model calls,
+  builds with attempts and events, the creations and the conversations that made or changed
+  it, its schedules, connections (both directions), browser access and visits, fixes, nudges
+  and project filing; sessions about it go whole, other sessions lose the turns about it (what
+  Alpha did and the message that asked) and their notes; on disk the record store, the sealed
+  version directories and the build directories, only ever inside Alpha's data directory.
+  Kept: accepted facts about the person, usage totals, sessions about other things.
+  `POST /api/apps/{id}/remove` now does this (release guard first); `GET /api/removed-modules`
+  and `POST /api/removed-modules/delete` finish removals made before; Settings names those
+  modules and deletes them after a second yes. The context pack lists recent activity only
+  for modules the person has now. Tests: `test_purge.py` (5), the integration removal test,
+  shell `removed.test.tsx`.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

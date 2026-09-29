@@ -801,8 +801,12 @@ export interface WorkflowsClient {
   appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }>;
   /** Back to the previous version; records are kept. */
   revertApp(appId: string, expectedReleaseId?: string | null): Promise<{ release_id: string }>;
-  /** Take the module out of use; nothing on disk is deleted. */
+  /** Remove the module for good, with its records, history and what was said about it. */
   removeApp(appId: string, expectedReleaseId?: string | null): Promise<void>;
+  /** Modules taken out of use before removal deleted things: still on this Mac. */
+  removedModules(): Promise<{ app_id: string; name: string }[]>;
+  /** Delete those for good. */
+  deleteRemovedModules(): Promise<number>;
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
   cancelRun(runId: string): Promise<Run>;
@@ -1250,6 +1254,16 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async recentActs(): Promise<ActTurn[]> {
     const page = await this.request<{ turns: ActTurn[] }>("/api/act");
     return page.turns;
+  }
+
+  async removedModules(): Promise<{ app_id: string; name: string }[]> {
+    const page = await this.request<{ modules: { app_id: string; name: string }[] }>("/api/removed-modules");
+    return page.modules;
+  }
+
+  async deleteRemovedModules(): Promise<number> {
+    const page = await this.request<{ deleted: unknown[] }>("/api/removed-modules/delete", { method: "POST", signal: AbortSignal.timeout(120_000) });
+    return page.deleted.length;
   }
 
   appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }> {
