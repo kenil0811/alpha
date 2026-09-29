@@ -77,4 +77,6 @@ app: bundle-core
     pnpm --filter @alpha/desktop tauri build
     rm -rf /Applications/Alpha.app
     cp -R apps/desktop/src-tauri/target/release/bundle/macos/Alpha.app /Applications/Alpha.app
+    # The bundle in target/ would show up in Spotlight as a second "Alpha"; the installed copy is the app.
+    rm -rf apps/desktop/src-tauri/target/release/bundle/macos/Alpha.app
     @echo "Installed /Applications/Alpha.app"
