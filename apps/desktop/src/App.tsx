@@ -9,6 +9,7 @@ import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, surfacePath, type Surface } from "./shell/Rail";
 import { Home } from "./shell/Home";
+import { CommandMenu } from "./shell/CommandMenu";
 import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
 import { ModulePage, type Section } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
@@ -447,6 +448,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
       </div>
       {mainContent}
       {assistantContent}
+      {runtime.kind === "connected" ? <CommandMenu modules={modules} icons={icons} onNew={startNew} /> : null}
     </div>
   );
 }
