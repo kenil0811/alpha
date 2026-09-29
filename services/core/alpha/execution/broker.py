@@ -60,6 +60,11 @@ CREATE TABLE IF NOT EXISTS broker_tokens (
 CREATE INDEX IF NOT EXISTS broker_tokens_run_idx ON broker_tokens(run_id);
 """
 
+# An operation family is unlocked by the capability of the same name, except where the family
+# is named for what it reads and the capability for what the App declares (found live: a module
+# declared `connections` and was told it lacked "modules").
+CAPABILITY_FOR_FAMILY: dict[str, str] = {"modules": "connections"}
+
 # Runs a person started may record corrections; triggers and repair tests may not.
 _PERSON_ORIGINS = {RunOrigin.USER, RunOrigin.UI, RunOrigin.ASSISTANT}
 
@@ -188,9 +193,10 @@ class CapabilityBroker:
                     f"unknown operation {call.operation!r}", operations=sorted(OPERATIONS)
                 )
             family = call.operation.split(".", 1)[0]
-            if family not in grant.capabilities:
+            needed = CAPABILITY_FOR_FAMILY.get(family, family)
+            if needed not in grant.capabilities:
                 raise forbidden(
-                    f"this App did not declare the {family} capability",
+                    f"this App did not declare the {needed} capability",
                     declared=sorted(grant.capabilities),
                 )
             result = self._dispatch(grant, call.operation, call.args)

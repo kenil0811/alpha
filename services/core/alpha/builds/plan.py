@@ -168,7 +168,17 @@ def run_invoke(
         after = _snapshot(preview, kept)
         changed = [name for name in kept if before.get(name) != after.get(name)]
         ok = run.state is RunState.FAILED and not changed
-        if run.state is not RunState.FAILED:
+        # With the model made unavailable, the point of the check is that nothing made up is
+        # stored. A run that ends succeeded with a plain message and stores nothing is the other
+        # honest outcome the planner is told to accept (found live: a plan wrote "failed", the
+        # builder chose the message, and the module was rejected for the better behaviour).
+        if step.model != "normal" and run.state is RunState.SUCCEEDED and not changed:
+            ok = True
+            summary = (
+                f"{step.action} handled the unavailable model honestly: "
+                "it ended succeeded and stored nothing"
+            )
+        elif run.state is not RunState.FAILED:
             summary = f"{step.action} should have failed but ended {run.state.value}"
         elif changed:
             detail["changed"] = changed

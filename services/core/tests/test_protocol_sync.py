@@ -13,7 +13,7 @@ from alpha.context.connections import ConnectionService
 from alpha.context.profile import ProfileService
 from alpha.context.skills import SkillService
 from alpha.data.store import RecordService
-from alpha.execution.broker import CapabilityBroker, RunGrant
+from alpha.execution.broker import CAPABILITY_FOR_FAMILY, CapabilityBroker, RunGrant
 from alpha.models.gateway import ModelGateway
 from alpha.models.runtime import AppModelService
 from alpha.models.structured import StructuredInference
@@ -51,7 +51,9 @@ def test_the_broker_handles_every_contract_operation(tmp_path: Path) -> None:
         ),
         skills=SkillService(control, gateway, StructuredInference(gateway), default_route="fake"),
     )
-    families = frozenset(op.split(".", 1)[0] for op in OPERATIONS)
+    families = frozenset(
+        CAPABILITY_FOR_FAMILY.get(op.split(".", 1)[0], op.split(".", 1)[0]) for op in OPERATIONS
+    )
     token = broker.issue(
         RunGrant(
             run_id="run_sync",

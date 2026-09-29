@@ -180,3 +180,20 @@ def test_tokens_from_a_previous_core_are_revoked(
     assert reply["error"]["code"] == "unauthenticated"
     rows = control.query("SELECT token_sha256 FROM broker_tokens")
     assert rows and all(token not in row["token_sha256"] for row in rows)
+
+
+def test_the_connections_capability_unlocks_the_modules_operations(
+    broker: tuple[CapabilityBroker, ControlStore],
+) -> None:
+    """The operations are named for what they read (modules.*); the capability an App declares
+    is `connections`. Found live: a module that declared it was told it lacked "modules"."""
+    service, _ = broker
+    without = service.issue(grant("run_d", "app-a", {"records"}))
+    reply = service.handle("run_d", call(without, "modules.list", {}))
+    assert reply["error"]["code"] == "forbidden"
+    assert "connections capability" in reply["error"]["message"]
+    with_it = service.issue(grant("run_e", "app-a", {"connections"}))
+    reply = service.handle("run_e", call(with_it, "modules.list", {}))
+    # Past the gate: this fixture has no connection service, so the reply is unavailable, not
+    # forbidden.
+    assert reply["error"]["code"] == "unavailable"
