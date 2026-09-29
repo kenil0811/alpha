@@ -125,21 +125,7 @@ export function CreationCard({
         <p className="notice" role="alert">
           {failure?.message ?? "It could not be made."}
         </p>
-        {failure?.failed_checks?.length ? (
-          <details>
-            <summary>What the checks found</summary>
-            <ul>
-              {failure.failed_checks.map((check) => (
-                <li key={check}>{check}</li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        <p className="panel__hint">
-          {failure?.next_step === "revise"
-            ? "Try changing or narrowing the request below, then create it again."
-            : "You can try again; nothing was switched on."}
-        </p>
+        <p className="panel__hint">{failure?.next_step === "revise" ? "Add or remove a detail below, or try again as it is." : "Nothing was switched on."}</p>
         <div className="row">
           <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start()}>
             Try again

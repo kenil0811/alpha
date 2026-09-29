@@ -481,11 +481,11 @@ def app_checks(core: CoreProcess, app_id: str) -> dict[str, Any] | None:
     return data
 
 
-def test_a_records_only_module_is_switched_on_before_its_behaviour_checks(
+def test_a_module_alpha_draws_is_switched_on_before_its_behaviour_checks(
     build_core: CoreProcess,
 ) -> None:
-    """A module that only keeps records and is drawn by the shell goes live after its
-    structural checks; the behaviour checks run right after and are reported on its page."""
+    """A module drawn by the shell goes live after its structural checks; the behaviour
+    checks run right after and are reported on its page."""
     core = build_core
     final = create(core, "Keep a notes list for me", "package notes_screen")
     assert final["state"] == "active", final

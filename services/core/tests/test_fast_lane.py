@@ -32,18 +32,23 @@ def notes_source(**changes: Any) -> AppSource:
     return AppSource.model_validate(data)
 
 
-def test_only_records_only_modules_drawn_by_the_shell_take_the_fast_lane() -> None:
+def test_every_module_alpha_draws_takes_the_fast_lane() -> None:
+    """Web, model, browser and scheduled modules are switched on after their structural
+    checks too; only a custom compiled screen waits for the full checks."""
     assert fast_eligible(notes_source()) is True
-    assert fast_eligible(notes_source(capabilities=["records", "http"])) is False
-    assert fast_eligible(notes_source(capabilities=["records", "browser"])) is False
-    assert fast_eligible(notes_source(capabilities=["records", "models"])) is False
+    assert fast_eligible(notes_source(capabilities=["records", "http"])) is True
+    assert fast_eligible(notes_source(capabilities=["records", "browser", "models"])) is True
     with_schedule = notes_source(
         capabilities=["records", "schedules"],
         schedules=[
             {"id": "nightly", "title": "Nightly", "action": "count_notes", "daily_at": "07:00"}
         ],
     )
-    assert fast_eligible(with_schedule) is False
+    assert fast_eligible(with_schedule) is True
+    text = re.sub(r"\{\{[A-Z_]+\}\}", "x", (FIXTURE / "app.yaml.template").read_text())
+    custom = AppSource.model_validate(yaml.safe_load(text))
+    assert custom.ui is not None and custom.ui.entry is not None
+    assert fast_eligible(custom) is False
 
 
 class FastBuilds(Builds):

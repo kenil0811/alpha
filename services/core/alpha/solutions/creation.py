@@ -1020,22 +1020,14 @@ class CreationService:
                 "Try describing it without that part."
             )
             next_step = "revise"
-        elif reason == "plan_unavailable":
-            message = (
-                "Alpha couldn't finish writing the checks for this request, so nothing was "
-                "switched on. Try again."
-            )
-            next_step = "retry"
-        elif reason == "plan_defect":
-            message = (
-                "Alpha's own checks for this request were faulty, so what was built could not "
-                "be judged fairly. Nothing was changed; try again."
-            )
+        elif reason in ("plan_unavailable", "plan_defect"):
+            # Alpha's own preparation went wrong, not the person's request: a plain retry.
+            message = "Alpha slipped while preparing this one. Nothing was changed; try again."
             next_step = "retry"
         elif reason in ("repair_limit_reached", "total_deadline_exceeded", "cost_limit_reached"):
-            tries = "once" if len(build.attempts) == 1 else f"{len(build.attempts)} times"
             message = (
-                f"It was built {tries} but didn't pass its checks, so nothing was switched on."
+                "Alpha couldn't get this working yet, so nothing was switched on. "
+                "A smaller first version usually works: leave out one part and try again."
             )
             next_step = "revise"
         elif build.state is BuildState.CANCELLED:

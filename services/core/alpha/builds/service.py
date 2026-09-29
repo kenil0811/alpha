@@ -3,7 +3,7 @@
 State machine (only Core changes it):
     queued → building → validating → ready
                   ↑           ↓
-                  └─ repairing ┘      (at most `max_repair_attempts` times)
+                  └─ repairing ┘      (`max_repair_attempts` times, plus one while converging)
     and terminal failed / cancelled from any non-terminal state.
 
 - One builder runs at a time (Blueprint §7): builds wait in `queued`, in submission order, and a
@@ -85,6 +85,27 @@ log = logging.getLogger("alpha.builds")
 
 # A repair attempt is not started with less than this much of the total budget left.
 MIN_ATTEMPT_SECONDS = 60
+
+
+class RepairPolicy:
+    """How many more repairs a build may have. The fixed allowance is the floor; past it, a
+    repair that left fewer failing checks than the one before earns one more, so a build that
+    is converging is not stopped one edit from done (found live: 30 of 32 checks passed on the
+    last allowed attempt). The total time and cost budgets still bound the whole build."""
+
+    def __init__(self, max_repairs: int) -> None:
+        self._allowed = 1 + max_repairs
+        self._previous_failed: int | None = None
+
+    def repairs_left(self, attempt_number: int, failed_now: int) -> int:
+        """Repairs still available after `attempt_number`, which ended with `failed_now`
+        required checks not passing. 0 means the build stops here."""
+        converging = self._previous_failed is not None and 0 < failed_now < self._previous_failed
+        self._previous_failed = failed_now
+        left = self._allowed - attempt_number
+        if left <= 0 and converging:
+            return 1
+        return max(left, 0)
 
 
 class BuildNotReady(Exception):
@@ -200,7 +221,7 @@ class BuildService:
         package must use it); otherwise the builder chooses one. `base_package` is the installed
         Version a change starts from: the first attempt's workspace begins as a writable copy
         of it, so the builder edits the App instead of writing it again. With `fast_lane`, a
-        candidate that only keeps records is ready after its structural checks; its behaviour
+        candidate Alpha draws itself is ready after its structural checks; its behaviour
         checks run through `check_deferred` once it is switched on."""
         route = self._gateway.route(
             route_id, stage="builder_change" if base_package is not None else "builder_new"
@@ -616,9 +637,11 @@ class BuildService:
         previous_package: Path | None = None
         repair: str | None = None
         feedback: list[Path] = []
-        max_attempts = 1 + budget.max_repair_attempts
+        policy = RepairPolicy(budget.max_repair_attempts)
         last: VerificationReport | None = None
-        for number in range(1, max_attempts + 1):
+        number = 0
+        while True:
+            number += 1
             remaining = budget.max_total_seconds - (time.monotonic() - started)
             cost_left = None if budget.max_cost_usd is None else budget.max_cost_usd - spent_usd
             stop: tuple[str, dict[str, Any]] | None = None
@@ -661,7 +684,7 @@ class BuildService:
                 spent_usd += usage.cost_usd
             report = outcome.report
             last = report
-            left = max_attempts - number
+            left = policy.repairs_left(number, len(_failed_ids(report)))
             defects = [c.id for c in report.checks if c.detail.get("plan_defect")]
             if defects:
                 # The plan itself cannot be satisfied; a repair would only waste the budget.
@@ -1049,8 +1072,8 @@ class BuildService:
         report_ref = str((attempt.directory / "verification.report.json").relative_to(self._root))
         if built.status == "candidate" and build_id in self._fast_lane:
             # The fast lane: the structural checks first, without waiting for the plan. A
-            # module that only keeps records is ready on those alone; anything else carries
-            # on with the full checks once the plan is here.
+            # module Alpha draws itself is ready on those alone; a custom screen carries on
+            # with the full checks once the plan is here.
             outcome = self._verify(
                 record, attempt_id, attempt.number, lineage, built, attempt.directory, first=True
             )

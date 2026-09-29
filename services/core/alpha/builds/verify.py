@@ -75,14 +75,12 @@ class VerificationOutcome:
 
 
 def fast_eligible(source: AppSource) -> bool:
-    """A module that only keeps records (no web, no signed-in browser, no model calls, no
-    schedules) and draws itself through the shell: its structural checks decide that it is
-    safe to switch on, and its behaviour checks can run once it is in use."""
-    return (
-        set(source.capabilities) <= {"records"}
-        and not source.schedules
-        and (source.ui is None or source.ui.entry is None)
-    )
+    """A module Alpha draws itself is switched on once its structural checks pass (the
+    package, its dependencies, the seal, every handler bound); the behaviour checks, which
+    wait on the independent plan, run while it is already in use, and the person can go back
+    a version if they fail. Only a custom compiled screen still waits for the full checks:
+    a broken screen would be the person's first click."""
+    return source.ui is None or source.ui.entry is None
 
 
 def _result(

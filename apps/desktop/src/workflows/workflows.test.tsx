@@ -90,8 +90,9 @@ describe("creating a result", () => {
       },
     });
     expect(await screen.findByRole("alert", {}, { timeout: 3000 })).toHaveTextContent("did not pass its checks after 3 tries");
-    expect(screen.getByText(/Try changing or narrowing the request/)).toBeInTheDocument();
-    expect(screen.getByText(/the total did not include the second entry/)).toBeInTheDocument();
+    expect(screen.getByText(/Add or remove a detail below/)).toBeInTheDocument();
+    // The checks' own vocabulary stays in the record, never on the card a person reads.
+    expect(screen.queryByText(/the total did not include the second entry/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Open/ })).not.toBeInTheDocument();
   });
 

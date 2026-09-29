@@ -274,7 +274,7 @@ def render_repair(
         intro = [
             f"The candidate from attempt {attempt_number} failed independent checks. Fix the",
             "package in package/ so every check in PLAN.md passes. Do not work around a check;",
-            "make the App behave as required.",
+            "make the App behave as required. Run ./validate before you finish.",
         ]
     lines = [
         f"# Repair request (attempt {attempt_number + 1})",

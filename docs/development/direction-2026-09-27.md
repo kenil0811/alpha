@@ -287,6 +287,21 @@ hand-built:
   resized by dragging the header edge; order and widths are remembered per table. The record
   panel is the form view.
 
+- 29 September, morning: the lean build pipeline, after a 91-minute failed creation
+  (build_2349017e: lid closed for 62 of them; then invalid YAML, an invalid board, and two
+  model-unavailable checks judged too strictly; plus my broker bug where `connections` never
+  unlocked `modules.*`). Fixed the judge and the broker first. Then, by subtraction: (1) every
+  attempt gets a `./validate` script (`alpha/builds/validate.py`: app.yaml parses and matches
+  the contract, layout, compile, every handler resolves, from the verifier's own code) and the
+  builder is told to run it before handing over, so a typo costs seconds, not a repair round;
+  (2) the fast lane is every module Alpha draws (only a custom compiled screen waits for the
+  full checks): structure decides activation, the independent plan's checks run while the
+  module is in use, revert stays one click; (3) repairs: the fixed allowance plus one more
+  while the failing count shrinks (`RepairPolicy`), bounded by the time budget; (4) the failure
+  card says what happens next in plain words and no longer lists check names. Still to do from
+  the same discussion: a failed deferred check should start a quick repair on its own rather
+  than only a notice, and a build paused by sleep should say so.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

@@ -41,6 +41,7 @@ from alpha.builds.harness import (
     HarnessInputs,
     HarnessOutcome,
 )
+from alpha.builds.validate import write_validate_script
 
 PACKAGE_CONTRACT = """You are building an Alpha App: a small tool a nontechnical person will use
 to get real work done. Work ONLY inside the current directory.
@@ -100,8 +101,11 @@ Rules:
   line is the main way in; forms after; then metrics and trends). Use the labels PLAN.md names
   for placeholders, column titles and tab names. Do not write ui/src/main.tsx.
 - Do not write or run your own unit tests, probes or sample scripts: Alpha verifies the package
-  against PLAN.md with real runs. A compile check (python -m py_compile) is enough; spend the
-  time on the module, and finish as soon as it is complete.
+  against PLAN.md with real runs. Check your own work with `./validate` (run exactly that, from
+  the current directory, no cd and no arguments): it applies Alpha's own package rules (app.yaml
+  parses and matches the contract, files follow the layout, the Python compiles, every handler
+  resolves) and lists what is wrong. Run it after writing app.yaml and the handlers, and again
+  before you finish; only hand over a package it reports OK.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
@@ -170,6 +174,7 @@ class ClaudeCliHarness:
         (workspace / "package").mkdir(parents=True, exist_ok=True)
         config_home = workspace / ".claude-home"
         config_home.mkdir(exist_ok=True)
+        validate = write_validate_script(workspace, self._python)
         env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": os.environ.get("HOME", str(workspace)),
@@ -214,6 +219,9 @@ class ClaudeCliHarness:
             # can look at the sites the goal names and write a reader for their real structure.
             f"Bash({self._python} -m py_compile:*)",
             f"Bash({self._python} -m unittest:*)",
+            # The attempt's own validate script: Alpha's package rules, read-only.
+            f"Bash(./{validate.name}:*)",
+            f"Bash({validate}:*)",
             "WebFetch",
             "WebSearch",
             "--max-turns",
