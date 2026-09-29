@@ -1,5 +1,5 @@
 import type { Run } from "@alpha/contracts";
-import { type AppChecks, type ScheduleStatus, type SkillDraft, type SkillRun, type SkillSpec, type ModuleConnection, type Nudge, type OnboardingStatus, type ProfileFact,
+import { type AppChecks, type ModuleFailure, type ModuleRepair, type ScheduleStatus, type SkillDraft, type SkillRun, type SkillSpec, type ModuleConnection, type Nudge, type OnboardingStatus, type ProfileFact,
   CREATION_DONE,
   type AppDetail,
   type AppsClient,
@@ -264,6 +264,11 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
   checks: AppChecks | null = null;
   reverted: string[] = [];
   removed: string[] = [];
+
+  failures: ModuleFailure[] = [];
+  async appRepairs(): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }> {
+    return { failures: this.failures, repairs: [] };
+  }
 
   async appChecks(): Promise<AppChecks | null> {
     return this.checks;

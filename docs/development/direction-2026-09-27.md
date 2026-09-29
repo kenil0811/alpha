@@ -364,6 +364,28 @@ hand-built:
   asks" pointable at a project; session-level Stop; embeddings later behind the same search
   interface. Then the failure-ownership design (recorded calls, undo on failure, repair cases).
 
+- 29 September, late afternoon: self-healing modules. Kenil's "the search new listings
+  feature is not working, help me fix it" had gone through the loop as a change and the
+  assistant, seeing no error, invented a reporting feature and briefed a rebuild. The rule he
+  set: one way in, you say what you want, Alpha works out what it takes, and a broken module
+  should fix itself before you ask. Built: `alpha/solutions/repair.py` (RepairService):
+  diagnose a failed run from its events (whose fault: the module's own code, Alpha's platform,
+  something outside, or a refusal of bad input; the line in `src/app_code`; a plain sentence);
+  fix a fault in the module's code through the quick path (`CreationService.start_repair`,
+  evidence = input, error, traceback; `plan_source` "repair", activation kind "repair", release
+  guarded, data kept); run the failed action again with the same input; one attempt per cause
+  per version (the same cause on the fixed version counts as tried), then it says so plainly.
+  Triggered by the failure itself (`AppRunService.on_finished` → `RepairService.consider`,
+  background) and by the loop: failures are FACTS lines with the cause and the fix's state, and
+  a `fix` step runs the repair and reports its own words; "change" is never used for something
+  the facts show broken. Plain words replace "Something went wrong in this workflow". Routes
+  `GET/POST /api/apps/{id}/repairs`; the module's Activity has "What went wrong" with the fix
+  state per failure. Tests: `test_repair.py` (8: diagnosis, faults named not fixed, fix and
+  rerun, one attempt, edit that does not hold, automatic trigger, the real quick path from
+  evidence, the loop's fix step). Not yet: recorded calls and undo of a failed run's writes,
+  replay as a permanent check, a repair proposal written into the session on its own (today
+  the Activity block and the next message carry it).
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

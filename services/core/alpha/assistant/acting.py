@@ -41,7 +41,7 @@ log = logging.getLogger("alpha.acting")
 CONVERSATION_WAITING = {"waiting_for_user", "proposed"}
 WAIT_GRACE_SECONDS = 30.0
 
-KINDS = ("run", "query", "skill", "open", "build", "change", "answer", "done")
+KINDS = ("run", "query", "skill", "open", "fix", "build", "change", "answer", "done")
 MAX_STEPS = 8
 MAX_RUNS_PER_STEP = 40
 TIME_BUDGET_SECONDS = 240.0
@@ -62,7 +62,8 @@ Step kinds:
 - "query": read a module's view to answer a question. Give app_id and view_id.
 - "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a module's actions if the person asked for that, or report.
 - "open": the person wants to look at a module or a tab. Give app_id and, when clear, tab_id.
-- "change": the person wants a listed module to work or look differently. Give app_id.
+- "fix": FACTS list a FAILED run of a module that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the module's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
+- "change": the person wants a listed module to work or look differently (not a failure: those are "fix"). Give app_id.
 - "build": the person wants something no listed module can do. Alpha starts making it.
 - "done": the work for this sentence is finished (there are OBSERVATIONS). Finish as soon as the observations cover what was asked; do not keep adding. reply says exactly what happened: counts, numbers and dates from the observations, any failure named plainly. Never more than what the observations show.
 - "answer": nothing needs doing (a question you can answer, a greeting, a request outside the modules), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
@@ -110,6 +111,7 @@ def step_schema() -> dict[str, Any]:
             },
             "view_id": {"type": ["string", "null"]},
             "tab_id": {"type": ["string", "null"]},
+            "run_id": {"type": ["string", "null"]},
             "skill_id": {"type": ["string", "null"]},
             "inputs": {"type": ["object", "null"]},
             "reply": {"type": "string", "maxLength": 400},
@@ -196,12 +198,16 @@ def fake_act(prompt: str) -> dict[str, Any]:
     """Control responder: a `fake:` directive in the sentence picks the steps."""
     said = prompt.split("THE PERSON SAID:")[-1].split("OBSERVATIONS")[0].strip()
     observed = "(none yet)" not in prompt.split("OBSERVATIONS")[-1]
-    match = re.search(r"fake:(runs|run|query|skill|open|change|build|answer)\s*(.*)$", said, re.S)
+    match = re.search(
+        r"fake:(runs|run|query|skill|open|fix|change|build|answer)\s*(.*)$", said, re.S
+    )
     if not match:
         return {"kind": "answer", "reply": "I can't do that yet, but I could make it."}
     kind, rest = match.group(1), match.group(2).strip()
     if observed:
         results = prompt.split("OBSERVATIONS")[-1]
+        if '"step": "fix"' in results:
+            return {"kind": "done", "reply": ""}  # the summary carries the fix's own words
         succeeded = results.count('"succeeded"')
         failed = results.count('"failed')
         rows = results.count('"rows"')
@@ -227,6 +233,8 @@ def fake_act(prompt: str) -> dict[str, Any]:
         )
     elif kind == "open":
         out.update(app_id=words[0], tab_id=words[1] if len(words) > 1 else None)
+    elif kind == "fix":
+        out.update(app_id=words[0], run_id=words[1] if len(words) > 1 else None)
     elif kind == "change":
         out.update(app_id=words[0])
     return out
@@ -245,6 +253,9 @@ def summary_reply(observations: list[dict[str, Any]]) -> str:
             read += 1
         if obs.get("step") == "skill":
             read += 1
+    fixes = [o for o in observations if o.get("step") == "fix"]
+    if fixes:
+        return str(fixes[-1].get("message") or "Alpha looked into the failure.")
     parts = []
     if done:
         parts.append(f"{done} done")
@@ -269,6 +280,15 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
     used = [str(o.get("skill")) for o in observations if o.get("step") == "skill"]
     if used:
         return f"used the skill {', '.join(used)}; nothing was changed"
+    fixes = [o for o in observations if o.get("step") == "fix"]
+    if fixes:
+        state = str(fixes[-1].get("state") or "")
+        where = f" in {app_name}" if app_name else ""
+        return (
+            f"fixed the module's code{where} and ran the action again"
+            if state == "fixed"
+            else f"looked into a failure{where}: {state.replace('_', ' ') or 'no fix'}"
+        )
     if kind == "open":
         return f"opened {app_name or 'a module'} in Alpha's window"
     if kind in ("build", "change"):
@@ -326,6 +346,7 @@ class ActService:
         context: Callable[..., str] | None = None,
         skills: Any | None = None,
         projects: Any | None = None,
+        repair: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
     ) -> None:
@@ -341,6 +362,7 @@ class ActService:
         self._context = context
         self._skills = skills
         self._projects = projects
+        self._repair = repair
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -600,6 +622,11 @@ class ActService:
             work.opened = {"app_id": step_app, "tab_id": output.get("tab_id")}
             work.reply = step_reply or f"Opening {work.names[step_app]}."
             return False
+        if step_kind == "fix" and step_app:
+            work.kind = work.kind if work.kind == "run" else "fix"
+            work.app_id = step_app
+            work.observe(self._fix(step_app, work.names[step_app], output.get("run_id")))
+            return work.within_time()
         if step_kind in ("build", "change"):
             self._step_start(work, step_kind, step_app)
             return False
@@ -608,6 +635,40 @@ class ActService:
             work.kind = "answer"
         work.reply = step_reply
         return False
+
+    def _fix(self, app_id: str, app_name: str, run_id: Any) -> dict[str, Any]:
+        """Repair the module's code for one failed run and run it again (blocks, bounded)."""
+        if self._repair is None:
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "unavailable",
+                "message": "Fixing is not available on this host.",
+            }
+        chosen = str(run_id or "")
+        if not chosen:
+            recent = [
+                f for f in self._repair.recent(app_id, limit=3) if f.get("kind") == "module_code"
+            ]
+            chosen = str(recent[0]["run_id"]) if recent else ""
+        if not chosen:
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "nothing",
+                "message": f"No recent failure of {app_name} is in its own code, so there is nothing to fix.",
+            }
+        try:
+            result = self._repair.repair(chosen)
+        except Exception as exc:
+            log.exception("fix step failed")
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "error",
+                "message": f"The fix could not run: {exc}",
+            }
+        return {"step": "fix", "module": app_name, "run_id": chosen, **result}
 
     def _step_run(self, work: _Work, app_id: str, runs: list[Any]) -> bool:
         work.app_id, work.kind = app_id, "run"
@@ -739,6 +800,11 @@ class ActService:
                     facts.append(f"being made right now: {what} ({creation.label.lower()})")
             except Exception:
                 log.debug("could not list creations", exc_info=True)
+        if self._repair is not None:
+            try:
+                facts.extend(self._repair.facts(list(names)[:20]))
+            except Exception:
+                log.debug("could not list failures", exc_info=True)
         if session_id:
             for turn in self._sessions.window(session_id, 8):
                 detail = turn.detail or {}

@@ -14,6 +14,7 @@ import { ActionsView } from "../workflows/ActionsView";
 import { GeneratedScreen } from "../workflows/GeneratedScreen";
 import { Block } from "./blocks";
 import { DataPage } from "./DataPage";
+import type { ModuleFailure } from "../core/client";
 import { ModuleContext, humanize, makeModuleContext, type ModuleClient } from "./useModule";
 
 type Section = "app" | "activity" | "settings";
@@ -324,6 +325,50 @@ function Automations({ client, appId, version, onChanged }: { client: ModuleClie
   );
 }
 
+/** What went wrong lately, whose fault it was, and what Alpha did about it on its own. */
+function Failures({ client, appId, version }: { client: ModuleClient; appId: string; version: number }) {
+  const [items, setItems] = useState<ModuleFailure[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .appRepairs(appId)
+      .then((found) => {
+        if (!cancelled) setItems(found.failures);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, appId, version]);
+  if (!items?.length) return null;
+  const word = (f: ModuleFailure) =>
+    f.repair ? (f.repair.state === "fixed" ? "Fixed" : f.repair.state === "fixing" ? "Fixing" : "Not fixed") : f.kind === "module_code" ? "Alpha will fix this" : f.kind === "refusal" ? "Refused" : f.kind === "outside" ? "Outside Alpha" : "Alpha's own problem";
+  return (
+    <div className="section">
+      <div className="section__head">
+        <h2>What went wrong</h2>
+        <span className="faint">Recent failures in plain words, and what Alpha did about them</span>
+      </div>
+      <div className="card list" aria-label="What went wrong">
+        {items.map((f) => (
+          <div className="item" key={f.run_id}>
+            <span className={`pill ${f.repair?.state === "fixed" ? "pill--good" : f.repair?.state === "fixing" ? "pill--info" : f.kind === "module_code" ? "pill--warn" : "pill--gray"}`}>{word(f)}</span>
+            <div className="item__body">
+              <div>{f.said}</div>
+              <div className="item__sub">
+                {new Date(f.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                {f.repair ? ` · ${f.repair.summary}` : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ModulePage({
   client,
   appId,
@@ -493,6 +538,7 @@ export function ModulePage({
                 </div>
                 {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">Nothing has run yet.</p>}
               </div>
+              <Failures client={client} appId={appId} version={version} />
               <Automations client={client} appId={appId} version={version} onChanged={changed} />
               {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
               <div className="section">

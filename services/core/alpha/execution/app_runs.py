@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import subprocess
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -66,10 +67,18 @@ class AppRunService:
         self._inventory = inventory
         self._broker = broker
         self._timezone = timezone
+        # Called with the run id once any run of a module has finished (after tokens are
+        # revoked); main wires the repair service to it so a failure is looked at on its own.
+        self.on_finished: Callable[[str], None] | None = None
 
     @property
     def timezone(self) -> str:
         return self._timezone
+
+    def _finished(self, run_id: str) -> None:
+        self._broker.revoke(run_id)
+        if self.on_finished is not None:
+            self.on_finished(run_id)
 
     def in_flight(self, app_id: str, action_id: str) -> Run | None:
         """The run of this App's action that is still going, if any (oldest first)."""
@@ -177,7 +186,7 @@ class AppRunService:
             build_job=build_job,
             on_call=self._broker.handle,
             validate_output=validate_output,
-            on_finish=self._broker.revoke,
+            on_finish=self._finished,
             reason_from_error_code=True,
         )
         return self._coordinator.submit_run(

@@ -38,10 +38,12 @@ from alpha.assistant.service import AssistantService
 from alpha.builds.quick_edit import (
     QUICK_CHANGE_SYSTEM,
     QUICK_MAX_BYTES,
+    QUICK_REPAIR_SYSTEM,
     apply_edits,
     fake_quick_change,
     quick_change_prompt,
     quick_change_schema,
+    quick_repair_prompt,
     read_package_files,
 )
 from alpha.builds.service import BuildNotReady, BuildService
@@ -451,6 +453,48 @@ class CreationService:
         ).start()
         return self.get(creation_id)
 
+    def start_repair(self, app_id: str, evidence: str, *, run_id: str) -> CreationRecord:
+        """Fix a module whose own code failed in a real run: the evidence (what ran, how it
+        failed) goes to one edit call through the quick path; the fix must validate and bind,
+        then it becomes the current version with the data kept. No conversation: the repair
+        service asked, on its own or for the person."""
+        if self._registry is None or self._inference is None:
+            raise CreationRefused("repairs are not available on this host")
+        try:
+            current = self._registry.current(app_id)
+        except OperationFailed as exc:
+            raise CreationRefused(f"the module to repair is not installed: {exc}") from exc
+        creation_id = new_id("create")
+        now = _now()
+        with self._store.transaction() as conn:
+            conn.execute(
+                """INSERT INTO creations(creation_id, conversation_id, brief_id, brief_revision,
+                   app_id, app_name, state, plan_source, history_json, created_at, updated_at,
+                   change_of) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    creation_id,
+                    f"repair:{run_id}",
+                    "repair",
+                    0,
+                    app_id,
+                    current.source.name,
+                    "building",
+                    "repair",
+                    "[]",
+                    now,
+                    now,
+                    app_id,
+                ),
+            )
+        self._note(creation_id, "building", "Fixing it")
+        threading.Thread(
+            target=self._run_quick,
+            args=(creation_id, app_id, evidence, "repair"),
+            name=f"creation-{creation_id}",
+            daemon=True,
+        ).start()
+        return self.get(creation_id)
+
     def _hand_over(self, creation_id: str) -> None:
         rows = self._store.query(
             "SELECT conversation_id FROM creations WHERE creation_id = ?", (creation_id,)
@@ -462,9 +506,9 @@ class CreationService:
         except Exception:
             log.exception("could not continue %s through the full path", creation_id)
 
-    def _run_quick(self, creation_id: str, app_id: str, request: str) -> None:
+    def _run_quick(self, creation_id: str, app_id: str, request: str, mode: str = "change") -> None:
         try:
-            self._quick_change(creation_id, app_id, request)
+            self._quick_change(creation_id, app_id, request, mode=mode)
         except Exception as exc:
             log.exception("quick change %s failed inside Core", creation_id)
             self._finish(
@@ -479,10 +523,13 @@ class CreationService:
                 },
             )
 
-    def _quick_change(self, creation_id: str, app_id: str, request: str) -> None:
-        """Edit the module's files directly from the person's words: one model call returns the
-        changed files, the package must still validate and its handlers bind, then it becomes
-        the current version. One repair round when the first edit is refused."""
+    def _quick_change(
+        self, creation_id: str, app_id: str, request: str, *, mode: str = "change"
+    ) -> None:
+        """Edit the module's files directly from the person's words (`mode` "change") or from
+        the evidence of a failed run ("repair"): one model call returns the changed files, the
+        package must still validate and its handlers bind, then it becomes the current
+        version. One repair round when the first edit is refused."""
         assert self._registry is not None and self._inference is not None
         current = self._registry.current(app_id)
         files = read_package_files(current.location)
@@ -511,14 +558,22 @@ class CreationService:
         for attempt in (1, 2):
             if self._stopped(creation_id):
                 return
-            prompt = quick_change_prompt(request + self._look_rules(), files, references, feedback)
+            if mode == "repair":
+                evidence = request + (f"\n\nPREVIOUS ATTEMPT:\n{feedback}" if feedback else "")
+                prompt = quick_repair_prompt(evidence, files, references)
+                system = QUICK_REPAIR_SYSTEM
+            else:
+                prompt = quick_change_prompt(
+                    request + self._look_rules(), files, references, feedback
+                )
+                system = QUICK_CHANGE_SYSTEM
             try:
                 result = self._inference.call(
                     route,
-                    system=QUICK_CHANGE_SYSTEM,
+                    system=system,
                     prompt=prompt,
                     schema=quick_change_schema(),
-                    scope_kind="quick_change",
+                    scope_kind="quick_change" if mode == "change" else "quick_repair",
                     scope_ref=creation_id,
                     fake=lambda _p: fake_quick_change(request, files),
                 )
@@ -545,6 +600,19 @@ class CreationService:
                         "message": str(
                             output.get("reason") or "Nothing in the module needed to change."
                         )[:400],
+                        "next_step": "revise",
+                    },
+                )
+                return
+            if output.get("needs_full_build") and mode == "repair":
+                reason = str(output.get("reason") or "it needs more than an edit").rstrip(".")
+                self._finish(
+                    creation_id,
+                    "failed",
+                    None,
+                    {
+                        "reason": "needs_full_build",
+                        "message": f"this needs more than a fix ({reason}); ask for it as a change",
                         "next_step": "revise",
                     },
                 )
@@ -589,7 +657,7 @@ class CreationService:
                     version = self._registry.install(
                         package,
                         Activation(
-                            kind="quick_change",
+                            kind="quick_change" if mode == "change" else "repair",
                             origin=current.origin,
                             expected_release_id=current.release_id,
                             creation_id=creation_id,

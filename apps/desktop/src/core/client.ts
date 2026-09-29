@@ -501,6 +501,30 @@ export interface CreationChecks {
 }
 
 /** Where a module's latest fast-lane checks stand, from its own page. */
+/** A failed run of a module, diagnosed in plain words, and what Alpha did about it. */
+export interface ModuleFailure {
+  run_id: string;
+  app_id: string;
+  action_id: string;
+  at: string;
+  kind: "module_code" | "platform" | "outside" | "refusal" | "unknown";
+  where: string | null;
+  said: string;
+  repair: { repair_id: string; state: "fixing" | "fixed" | "not_fixed"; summary: string } | null;
+}
+
+export interface ModuleRepair {
+  repair_id: string;
+  app_id: string;
+  run_id: string;
+  action_id: string | null;
+  kind: string;
+  state: "fixing" | "fixed" | "not_fixed";
+  summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppChecks extends CreationChecks {
   creation_id: string;
   change_of: string | null;
@@ -773,6 +797,8 @@ export interface WorkflowsClient {
   recentCreations(): Promise<Creation[]>;
   /** The module's latest behaviour checks (fast lane), or null when none apply. */
   appChecks(appId: string): Promise<AppChecks | null>;
+  /** Recent failures of the module with their cause in words, and the fixes Alpha made. */
+  appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }>;
   /** Back to the previous version; records are kept. */
   revertApp(appId: string, expectedReleaseId?: string | null): Promise<{ release_id: string }>;
   /** Take the module out of use; nothing on disk is deleted. */
@@ -1224,6 +1250,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async recentActs(): Promise<ActTurn[]> {
     const page = await this.request<{ turns: ActTurn[] }>("/api/act");
     return page.turns;
+  }
+
+  appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }> {
+    return this.request(`/api/apps/${encodeURIComponent(appId)}/repairs`);
   }
 
   async appChecks(appId: string): Promise<AppChecks | null> {
