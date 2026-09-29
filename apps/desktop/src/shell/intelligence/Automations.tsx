@@ -3,6 +3,7 @@ import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Automations: every schedule across the modules, switchable in place. */
 import { useEffect, useState } from "react";
 import type { AppSummary, CoreClient, SchedulesClient, ScheduleStatus } from "../../core/client";
+import "../../modules/views/views.css";
 
 export function Automations({ client: core, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void }) {
   const client = core as CoreClient & SchedulesClient;
@@ -29,7 +30,8 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
   if (!rows.length) return <p className="empty">Nothing runs on its own yet. A module that checks or reminds on a schedule appears here.</p>;
   return (
     <div className="card">
-      <table className="table" aria-label="Automations">
+      <div className="tablewrap">
+      <table className="table dv-table" aria-label="Automations">
         <thead>
           <tr>
             <th>Module</th>
@@ -41,7 +43,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
         </thead>
         <tbody>
           {rows.map(({ module, schedule }) => (
-            <tr key={`${module.app_id}:${schedule.id}`}>
+            <tr key={`${module.app_id}:${schedule.id}`} className="dv-row">
               <td>
                 <button type="button" className="linklike" onClick={() => onOpenModule(module.app_id)}>
                   <ModuleIcon icon={icons[module.app_id]} /> {module.name}
@@ -73,6 +75,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

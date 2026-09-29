@@ -3,6 +3,7 @@ import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Connections between modules: which module reads which, switchable in place. */
 import { useEffect, useState } from "react";
 import { type AppSummary, type CoreClient, type ModuleConnection, isConnectionsClient } from "../../core/client";
+import "../../modules/views/views.css";
 
 export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccounts }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void; onOpenAccounts: () => void }) {
   const [rows, setRows] = useState<{ module: AppSummary; link: ModuleConnection }[] | null>(null);
@@ -38,7 +39,8 @@ export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccoun
       {rows && !rows.length ? <p className="empty">No module reads another yet. When one asks to, it shows here and in its Settings.</p> : null}
       {rows && rows.length ? (
         <div className="card">
-          <table className="table" aria-label="Module connections">
+          <div className="tablewrap">
+          <table className="table dv-table" aria-label="Module connections">
             <thead>
               <tr>
                 <th>Module</th>
@@ -49,7 +51,7 @@ export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccoun
             </thead>
             <tbody>
               {rows.map(({ module, link }) => (
-                <tr key={`${module.app_id}:${link.module}`}>
+                <tr key={`${module.app_id}:${link.module}`} className="dv-row">
                   <td>
                     <button type="button" className="linklike" onClick={() => onOpenModule(module.app_id)}>
                       <ModuleIcon icon={icons[module.app_id]} /> {module.name}
@@ -83,6 +85,7 @@ export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccoun
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : null}
     </div>

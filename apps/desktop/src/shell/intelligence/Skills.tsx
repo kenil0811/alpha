@@ -3,6 +3,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import type { CoreClient, SkillDraft, SkillRun, SkillSpec } from "../../core/client";
 import { humanize } from "../../modules/useModule";
 import { asLink, shown } from "./shared";
+import "../../modules/views/views.css";
 
 const EMPTY: SkillDraft = { title: "", description: "", kind: "procedure", instructions: "", module: null, action: null, inputs: [], produces: "", sources: [] };
 
@@ -251,7 +252,7 @@ function RunResult({ run }: { run: SkillRun }) {
       <p className={run.state === "failed" ? "notice" : "notice notice--quiet"}>{run.summary}</p>
       {run.items.length ? (
         <div className="card" style={{ overflow: "auto" }}>
-          <table className="table" aria-label="What it found">
+          <table className="table dv-table" aria-label="What it found">
             <thead>
               <tr>
                 {columns.map((c) => (
@@ -261,7 +262,7 @@ function RunResult({ run }: { run: SkillRun }) {
             </thead>
             <tbody>
               {run.items.map((item, i) => (
-                <tr key={i}>
+                <tr key={i} className="dv-row">
                   {columns.map((c) => (
                     <td key={c} title={shown(item[c])}>
                       {(() => {
