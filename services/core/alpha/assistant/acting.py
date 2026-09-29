@@ -19,6 +19,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from alpha_contracts.apps import AppSource, Invocable
@@ -283,6 +284,35 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
     return "nothing was done; Alpha only replied"
 
 
+@dataclass
+class _Work:
+    """One sentence being worked through: what the steps decided so far and what they saw."""
+
+    turn_id: str
+    text: str
+    names: dict[str, str]
+    deadline: float
+    kind: str = "answer"
+    app_id: str | None = None
+    action_id: str | None = None
+    run_id: str | None = None
+    conversation_id: str | None = None
+    opened: dict[str, Any] | None = None
+    reply: str = ""
+    observations: list[dict[str, Any]] = field(default_factory=list)
+
+    def observe(self, observation: dict[str, Any]) -> None:
+        self.observations.append(observation)
+
+    def within_time(self) -> bool:
+        """False once the budget is spent: the rest is not done, and the reply says so."""
+        if time.monotonic() <= self.deadline:
+            return True
+        self.observe({"note": "out of time; the rest was not done"})
+        self.reply = ""
+        return False
+
+
 class ActService:
     def __init__(
         self,
@@ -332,145 +362,162 @@ class ActService:
         route = self._gateway.route(self._default_route, stage="assistant")
         sources = self._sources()
         names = {app_id: source.name for app_id, source in sources}
-        context = names.get(context_app_id or "") if context_app_id else None
-        turn_id = new_id("act")
-        catalogue = catalogue_text(sources)
-        facts = self._facts(names)
-        known = ""
-        if self._context is not None:
-            try:
-                known = self._context(text)
-            except Exception:
-                log.exception("context pack failed; the sentence goes on without it")
-        skills_text = self._skills.catalogue_text() if self._skills is not None else ""
-        recent = self.recent(5)
-        started = time.monotonic()
-        deadline = started + TIME_BUDGET_SECONDS
-        observations: list[dict[str, Any]] = []
-        kind, app_id, action_id, run_id, conversation_id = "answer", None, None, None, None
-        opened: dict[str, Any] | None = None
-        reply = ""
+        work = _Work(
+            turn_id=new_id("act"),
+            text=text,
+            names=names,
+            deadline=time.monotonic() + TIME_BUDGET_SECONDS,
+        )
+        prompt_parts = dict(
+            catalogue=catalogue_text(sources),
+            facts=self._facts(names),
+            recent=self.recent(5),
+            context_app=names.get(context_app_id or "") if context_app_id else None,
+            known=self._known(text),
+            skills=self._skills.catalogue_text() if self._skills is not None else "",
+        )
         for _step in range(MAX_STEPS):
-            try:
-                decided = self._inference.call(
-                    route,
-                    system=STEP_SYSTEM,
-                    prompt=step_prompt(
-                        text,
-                        catalogue,
-                        facts,
-                        recent,
-                        observations,
-                        self._today(),
-                        context,
-                        known=known,
-                        skills=skills_text,
-                    ),
-                    schema=step_schema(),
-                    scope_kind="act",
-                    scope_ref=turn_id,
-                    fake=fake_act if route.route_id == "fake" else None,
-                )
-                output = decided.output if isinstance(decided.output, dict) else {}
-            except InferenceError as exc:
-                log.warning("act step failed: %s", exc)
-                output = {"kind": "done" if observations else "answer", "reply": ""}
-            step_kind = str(output.get("kind") or "answer")
-            step_app = output.get("app_id") if output.get("app_id") in names else None
-            step_reply = str(output.get("reply") or "").strip()
-            if step_kind == "run" and step_app and isinstance(output.get("runs"), list):
-                app_id, kind = step_app, "run"
-                results = self._run_batch(step_app, output["runs"], deadline)
-                if results and action_id is None:
-                    action_id = str(results[0].get("action"))
-                    run_id = next((r.get("run_id") for r in results if r.get("run_id")), None)
-                observations.append({"step": "run", "module": names[step_app], "results": results})
-                if time.monotonic() > deadline:
-                    observations.append({"note": "out of time; the rest was not done"})
-                    reply = ""
-                    break
-                continue
-            if step_kind == "query" and step_app:
-                app_id = step_app
-                kind = kind if kind == "run" else "query"
-                observations.append(
-                    self._read(step_app, names[step_app], str(output.get("view_id") or ""))
-                )
-                continue
-            if step_kind == "skill" and output.get("skill_id") and self._skills is not None:
-                kind = kind if kind == "run" else "skill"
-                observations.append(self._use_skill(str(output["skill_id"]), output.get("inputs")))
-                if time.monotonic() > deadline:
-                    observations.append({"note": "out of time; the rest was not done"})
-                    reply = ""
-                    break
-                continue
-            if step_kind == "open" and step_app:
-                kind, app_id = "open", step_app
-                opened = {"app_id": step_app, "tab_id": output.get("tab_id")}
-                reply = step_reply or f"Opening {names[step_app]}."
+            output = self._decide(route, work, prompt_parts)
+            if not self._apply(work, output):
                 break
-            if step_kind in ("build", "change"):
-                kind = step_kind
-                app_id = step_app if step_kind == "change" else None
-                try:
-                    record = self._assistant.start(text, change_of=app_id)
-                    conversation_id = record.conversation_id
-                    opened = {"conversation_id": conversation_id}
-                    reply = (
-                        f"I've asked Alpha to change {names[app_id]}; its window shows the details."
-                        if app_id
-                        else "I've handed that to Alpha as something new to make; its window shows what happens next."
-                    )
-                except Exception as exc:  # the conversation could not start; say so
-                    log.exception("act could not start a conversation")
-                    reply, kind = f"I couldn't start that: {exc}", "answer"
-                break
-            # done / answer / anything unknown: the reply, grounded on what was observed.
-            if step_kind not in ("done", "answer"):
-                step_kind = "done" if observations else "answer"
-            if not observations:
-                kind = "answer"
-            reply = step_reply
-            break
-        if not reply:
-            reply = (
-                summary_reply(observations)
-                if observations
+        if not work.reply:
+            work.reply = (
+                summary_reply(work.observations)
+                if work.observations
                 else "I couldn't work that out just now. Try again?"
             )
-        detail = {"observations": observations, "open": opened}
+        return self._record(work)
+
+    # ----- one step ------------------------------------------------------------------------
+
+    def _known(self, text: str) -> str:
+        if self._context is None:
+            return ""
+        try:
+            return self._context(text)
+        except Exception:
+            log.exception("context pack failed; the sentence goes on without it")
+            return ""
+
+    def _decide(self, route: Any, work: _Work, parts: dict[str, Any]) -> dict[str, Any]:
+        """One model call: the next step, or a grounded ending when the call itself fails."""
+        try:
+            decided = self._inference.call(
+                route,
+                system=STEP_SYSTEM,
+                prompt=step_prompt(
+                    work.text,
+                    parts["catalogue"],
+                    parts["facts"],
+                    parts["recent"],
+                    work.observations,
+                    self._today(),
+                    parts["context_app"],
+                    known=parts["known"],
+                    skills=parts["skills"],
+                ),
+                schema=step_schema(),
+                scope_kind="act",
+                scope_ref=work.turn_id,
+                fake=fake_act if route.route_id == "fake" else None,
+            )
+            return decided.output if isinstance(decided.output, dict) else {}
+        except InferenceError as exc:
+            log.warning("act step failed: %s", exc)
+            return {"kind": "done" if work.observations else "answer", "reply": ""}
+
+    def _apply(self, work: _Work, output: dict[str, Any]) -> bool:
+        """Carry out the decided step. True to decide again; False when the sentence is done."""
+        step_kind = str(output.get("kind") or "answer")
+        step_app = output.get("app_id") if output.get("app_id") in work.names else None
+        step_reply = str(output.get("reply") or "").strip()
+        if step_kind == "run" and step_app and isinstance(output.get("runs"), list):
+            return self._step_run(work, step_app, output["runs"])
+        if step_kind == "query" and step_app:
+            work.app_id = step_app
+            work.kind = work.kind if work.kind == "run" else "query"
+            work.observe(
+                self._read(step_app, work.names[step_app], str(output.get("view_id") or ""))
+            )
+            return True
+        if step_kind == "skill" and output.get("skill_id") and self._skills is not None:
+            work.kind = work.kind if work.kind == "run" else "skill"
+            work.observe(self._use_skill(str(output["skill_id"]), output.get("inputs")))
+            return work.within_time()
+        if step_kind == "open" and step_app:
+            work.kind, work.app_id = "open", step_app
+            work.opened = {"app_id": step_app, "tab_id": output.get("tab_id")}
+            work.reply = step_reply or f"Opening {work.names[step_app]}."
+            return False
+        if step_kind in ("build", "change"):
+            self._step_start(work, step_kind, step_app)
+            return False
+        # done / answer / anything unknown: the reply, grounded on what was observed.
+        if not work.observations:
+            work.kind = "answer"
+        work.reply = step_reply
+        return False
+
+    def _step_run(self, work: _Work, app_id: str, runs: list[Any]) -> bool:
+        work.app_id, work.kind = app_id, "run"
+        results = self._run_batch(app_id, runs, work.deadline)
+        if results and work.action_id is None:
+            work.action_id = str(results[0].get("action"))
+            work.run_id = next((r.get("run_id") for r in results if r.get("run_id")), None)
+        work.observe({"step": "run", "module": work.names[app_id], "results": results})
+        return work.within_time()
+
+    def _step_start(self, work: _Work, step_kind: str, app_id: str | None) -> None:
+        """Hand the sentence to the assistant as something new to make, or a change."""
+        work.kind = step_kind
+        work.app_id = app_id if step_kind == "change" else None
+        try:
+            record = self._assistant.start(work.text, change_of=work.app_id)
+            work.conversation_id = record.conversation_id
+            work.opened = {"conversation_id": work.conversation_id}
+            work.reply = (
+                f"I've asked Alpha to change {work.names[work.app_id]}; its window shows the details."
+                if work.app_id
+                else "I've handed that to Alpha as something new to make; its window shows what happens next."
+            )
+        except Exception as exc:  # the conversation could not start; say so
+            log.exception("act could not start a conversation")
+            work.reply, work.kind = f"I couldn't start that: {exc}", "answer"
+
+    def _record(self, work: _Work) -> ActTurn:
+        detail = {"observations": work.observations, "open": work.opened}
         now = utc_now().isoformat().replace("+00:00", "Z")
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO act_turns(turn_id, text, kind, app_id, action_id, run_id,
                    conversation_id, reply, detail_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    turn_id,
-                    text,
-                    kind,
-                    app_id,
-                    action_id,
-                    run_id,
-                    conversation_id,
-                    reply,
+                    work.turn_id,
+                    work.text,
+                    work.kind,
+                    work.app_id,
+                    work.action_id,
+                    work.run_id,
+                    work.conversation_id,
+                    work.reply,
                     json.dumps(detail, default=str),
                     now,
                 ),
             )
+        app_name = work.names.get(work.app_id or "")
         return ActTurn(
-            turn_id=turn_id,
-            text=text,
-            kind=kind,
-            app_id=app_id,
-            app_name=names.get(app_id or ""),
-            action_id=action_id,
-            run_id=run_id,
-            conversation_id=conversation_id,
-            open=opened,
-            reply=reply,
+            turn_id=work.turn_id,
+            text=work.text,
+            kind=work.kind,
+            app_id=work.app_id,
+            app_name=app_name,
+            action_id=work.action_id,
+            run_id=work.run_id,
+            conversation_id=work.conversation_id,
+            open=work.opened,
+            reply=work.reply,
             created_at=now,
-            outcome=outcome_line(kind, detail, names.get(app_id or "")),
+            outcome=outcome_line(work.kind, detail, app_name),
         )
 
     # ----- steps --------------------------------------------------------------------------

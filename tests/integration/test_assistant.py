@@ -39,15 +39,28 @@ def reply(core: CoreProcess, conversation_id: str, body: dict[str, Any]) -> dict
         return data
 
 
-def settle(core: CoreProcess, conversation_id: str, timeout: float = 15.0) -> dict[str, Any]:
+def settle(core: CoreProcess, conversation_id: str, timeout: float = 60.0) -> dict[str, Any]:
+    """The conversation once the assistant has stopped thinking or researching."""
     deadline = time.monotonic() + timeout
     last: dict[str, Any] = {}
     while time.monotonic() < deadline:
         last = get(core, conversation_id)
-        if last["state"] != "thinking":
+        if last["state"] not in ("thinking", "researching"):
             return last
-        time.sleep(0.05)
-    raise AssertionError(f"conversation {conversation_id} stayed thinking")
+        time.sleep(0.1)
+    raise AssertionError(f"conversation {conversation_id} stayed {last.get('state')}")
+
+
+def accepted(core: CoreProcess, conversation_id: str) -> dict[str, Any]:
+    """Settled, and past the proposal a new module gets: the default option is picked the
+    way the shell sends a pick, as a plain reply."""
+    conversation = settle(core, conversation_id)
+    if conversation["state"] == "proposed":
+        options = {o["id"]: o for o in conversation["proposal"]["options"]}
+        pick = options[conversation["proposal"]["default"]]
+        reply(core, conversation_id, {"text": f'Go with "{pick["title"]}": {pick["summary"]}'})
+        conversation = settle(core, conversation_id)
+    return conversation
 
 
 def test_tracker_request_is_clarified_then_briefed_with_provenance(
@@ -73,12 +86,16 @@ def test_tracker_request_is_clarified_then_briefed_with_provenance(
     answers = {q["id"]: q["options"][0] for q in first["questions"]}
     replied = reply(core, created["conversation_id"], {"answers": answers})
     assert replied["state"] == "thinking"
-    second = settle(core, created["conversation_id"])
+    proposed = settle(core, created["conversation_id"])
+    assert proposed["state"] == "proposed", "a new module is researched and shaped first"
+    assert proposed["current_brief"]["revision"] == 2, "the brief is ready behind the options"
+    second = accepted(core, created["conversation_id"])
     assert second["state"] == "briefed"
     brief2 = second["current_brief"]
-    assert brief2["id"] == brief1["id"] and brief2["revision"] == 2
-    assert brief2["supersedes_revision"] == 1 and brief2["open_questions"] == []
-    assert second["brief_history"] == [1, 2]
+    # Revision 2 answered the questions; the pick from the proposal is revision 3.
+    assert brief2["id"] == brief1["id"] and brief2["revision"] == 3
+    assert brief2["supersedes_revision"] == 2 and brief2["open_questions"] == []
+    assert second["brief_history"] == [1, 2, 3]
     user_sourced = [a for a in brief2["assumptions"] if a["source"] == "user_answer"]
     assert user_sourced and all(a["turn_ref"] for a in user_sourced)
     kept = [a for a in brief2["assumptions"] if a["source"] == "model_default"]
@@ -92,7 +109,7 @@ def test_tracker_request_is_clarified_then_briefed_with_provenance(
     conn = sqlite3.connect(data_dir / "control.sqlite")
     assert conn.execute("SELECT COUNT(*) FROM builds").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM briefs").fetchone()[0] == 2
+    assert conn.execute("SELECT COUNT(*) FROM briefs").fetchone()[0] == 3
     conn.close()
 
 
@@ -100,9 +117,9 @@ def test_use_defaults_resolves_open_questions(core: CoreProcess) -> None:
     created = start(core, "Track what I eat and how much, with calories, history and trends")
     settle(core, created["conversation_id"])
     reply(core, created["conversation_id"], {"use_defaults": True})
-    final = settle(core, created["conversation_id"])
+    final = accepted(core, created["conversation_id"])
     assert final["state"] == "briefed"
-    assert final["current_brief"]["revision"] == 2
+    assert final["current_brief"]["revision"] == 3, "defaults, then the pick from the proposal"
     assert final["questions"] == []
 
 
@@ -207,11 +224,12 @@ def test_a_turn_cut_off_by_a_restart_is_reported_and_can_be_retried(data_dir: Pa
             again = client.post(f"/api/conversations/{started['conversation_id']}/retry")
             assert again.status_code == 409, "only a failed turn can be retried"
         done = settle(second, started["conversation_id"])
-        assert done["state"] == "briefed", done
+        assert done["state"] == "proposed", done
         assert done["delivery"] == "app"
         assert len([t for t in done["turns"] if t["role"] == "user"]) == len(
             [t for t in stalled["turns"] if t["role"] == "user"]
         ), "retry adds no user turn"
         assert len(done["turns"]) == turns + 1
+        assert accepted(second, started["conversation_id"])["state"] == "briefed"
     finally:
         second.stop()

@@ -299,6 +299,10 @@ def _last_answers(prompt: str) -> dict[str, Any]:
 def fake_assistant(prompt: str) -> dict[str, Any]:
     text = prompt.lower()
     latest = text.split("latest user input:")[-1]
+    if latest.split("user:")[-1].strip().startswith("go with"):
+        # A pick from the proposal card ("Go with \"…\"") continues the request it answers:
+        # the subject is in the conversation, not in the pick.
+        latest = text
     if "slowly:" in latest:
         time.sleep(2.0)  # lets tests observe the `thinking` state
     if "capital of" in latest or "what is" in latest and "eat" not in latest:

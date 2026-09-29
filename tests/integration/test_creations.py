@@ -39,14 +39,28 @@ pytestmark = pytest.mark.integration
 DONE = {"active", "failed", "cancelled"}
 
 
+def _settled(client: Any, cid: str, conversation: dict[str, Any]) -> dict[str, Any]:
+    """The conversation once the assistant has stopped thinking or researching."""
+    deadline = time.monotonic() + 60
+    while conversation["state"] in ("thinking", "researching") and time.monotonic() < deadline:
+        time.sleep(0.1)
+        conversation = client.get(f"/api/conversations/{cid}").json()
+    return conversation
+
+
 def briefed(core: CoreProcess, text: str) -> str:
     with core.client() as client:
         conversation = client.post("/api/conversations", json={"text": text}).json()
         cid = conversation["conversation_id"]
-        deadline = time.monotonic() + 20
-        while conversation["state"] == "thinking" and time.monotonic() < deadline:
-            time.sleep(0.1)
-            conversation = client.get(f"/api/conversations/{cid}").json()
+        conversation = _settled(client, cid, conversation)
+        if conversation["state"] == "proposed":
+            # A new module is researched and shaped first; the person picks an option (the
+            # shell sends the pick as a plain reply). Here: the default.
+            options = {o["id"]: o for o in conversation["proposal"]["options"]}
+            pick = options[conversation["proposal"]["default"]]
+            reply = {"text": f'Go with "{pick["title"]}": {pick["summary"]}'}
+            conversation = client.post(f"/api/conversations/{cid}/messages", json=reply).json()
+            conversation = _settled(client, cid, conversation)
     assert conversation["state"] == "briefed", conversation
     assert conversation["delivery"] == "app"
     return str(cid)
