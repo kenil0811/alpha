@@ -50,6 +50,7 @@ from alpha.data.packages import (
     collect_files,
     load_source,
     resolve_dependencies,
+    screen_page_conflicts,
     seal,
 )
 from alpha.execution.app_runs import HandlerBinder
@@ -398,6 +399,11 @@ class CandidateVerifier:
                 )
             )
         if run.source.screen is not None:
+            conflicts = screen_page_conflicts(run.source)
+            if conflicts:
+                return run.add(
+                    _result("package.screen", "package", False, "; ".join(conflicts[:3]))
+                )
             tabs = ", ".join(t.title for t in run.source.screen.tabs)
             first = run.source.screen.tabs[0].blocks[0]
             # The conventions: the person lands on the data or the way in, never on a summary.

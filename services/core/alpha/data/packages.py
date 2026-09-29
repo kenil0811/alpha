@@ -446,3 +446,29 @@ def sealed_manifest(version_dir: Path) -> DependencyManifest:
     return DependencyManifest.model_validate(
         json.loads((version_dir / "dependency.manifest.json").read_bytes())
     )
+
+
+def screen_page_conflicts(source: AppSource) -> list[str]:
+    """Screen tabs that draw a table, board or list over a collection. Alpha draws a page for
+    every collection (table, board, list, calendar, chart, saved lists, a record page, edits in
+    place), so such a block only hides the richer page behind a poorer copy; found live in a
+    module whose builder declared both `page:` and a screen table for the same data. Screen
+    tabs are for what a page cannot give: forms, text and summary blocks. Installed modules
+    from before this rule keep drawing their screens; only new packages are held to it."""
+    if source.screen is None:
+        return []
+    views = {v.id: v for v in source.views}
+    problems: list[str] = []
+    for tab in source.screen.tabs:
+        for index, block in enumerate(tab.blocks):
+            if block.kind not in ("table", "board", "list"):
+                continue
+            view = views.get(getattr(block, "view", ""))
+            collection = view.collection if view is not None else "a collection"
+            problems.append(
+                f"screen tab {tab.id} block {index + 1} is a {block.kind} over {collection}: "
+                "Alpha already draws a page for every table (declare `page:` on the collection "
+                "for its columns, grouping and quick entry); keep screen tabs for forms, text "
+                "and summary blocks, or leave `screen:` out"
+            )
+    return problems

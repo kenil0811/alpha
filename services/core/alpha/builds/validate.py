@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from alpha.capabilities.errors import OperationFailed
-from alpha.data.packages import collect_files, load_source
+from alpha.data.packages import collect_files, load_source, screen_page_conflicts
 
 SCRIPT_NAME = "validate"
 
@@ -52,6 +52,9 @@ def validate_package(package_dir: Path, app_python: Path) -> list[str]:
         collect_files(package_dir, source)
     except OperationFailed as exc:
         return [exc.message]
+    conflicts = screen_page_conflicts(source)
+    if conflicts:
+        return conflicts
     src = package_dir / "src"
     if not src.is_dir():
         return ["the package has no src/ directory"]

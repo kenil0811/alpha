@@ -166,13 +166,17 @@ screen can only narrow it with filters on `filterable` fields and sort on `sorta
 Aggregate views take `group_by` (field, optional `bucket` day/week/month) and `metrics` (count,
 sum, avg, min, max). Put a text field the person will search in `filterable`.
 
-### screen (extra tabs, only when a derived page is not enough)
+### screen (extra tabs, only when a page cannot give the interaction)
 
-Every collection already has its page and the summary has its tab, so most modules declare no
-screen. Declare one only for an interaction those cannot give (a form that sets a goal, a board
-that must call a specific action when a card moves, a table over a filtered view with row
-actions). Its tabs are added after the Summary tab and before the derived pages. Every block
-reads through a view above and writes through an action whose `invocable_from` includes `ui`.
+Every collection already has its page (table, board, list, calendar and chart views, saved
+lists, a record page for each row, edits in place) and `summary:` has its tab, so most modules
+declare no screen. A screen never draws a table, board or list over a collection: the platform
+refuses that (`./validate` names it), because it would hide the richer page behind a poorer
+copy. Declare a screen only for an interaction a page cannot give: a form that sets a goal, a
+quick entry whose action does a whole job from one typed line, a text block that explains a
+routine, a metrics or trend card that belongs beside such a form. Its tabs are added after the
+Summary tab and before the pages. Every block reads through a view above and writes through an
+action whose `invocable_from` includes `ui`.
 
 ```yaml
 screen:
@@ -180,30 +184,12 @@ screen:
   assistant_hint: Meals are logged by typing one line.   # optional, for the assistant
   tabs:
     - id: log
-      title: Food log
+      title: Log
       blocks:
         - kind: quick_entry           # one line in, one action call; keep it first
           action: log_meal
           input: text                 # the action input that receives the typed line
           placeholder: "What did you eat? e.g. 2 eggs and toast"
-        - kind: table
-          view: meals.recent
-          columns:
-            - {field: eaten_on, format: date, title: Day}
-            - {field: title, editable: true}
-            - {field: calories, format: number, unit: kcal, editable: true}
-            - {field: kind, format: pill}
-          lists:                      # saved filters offered in a dropdown; {"$today": -6} = six days ago
-            - {id: week, title: Last 7 days, where: {field: eaten_on, op: gte, value: {"$today": -6}}}
-          edit: {action: correct_meal, id_param: meal}      # a cell edit calls correct_meal(meal=<id>, <field>=<value>)
-          delete: {action: correct_meal, id_param: meal, input: {delete: true}}
-          row_actions: [{action: duplicate_meal, id_param: meal, title: Again}]
-          # The record's own page, opened by clicking a row: every field of the view (or `fields`),
-          # long text as paragraphs, when it was added and last changed, and the actions for one
-          # record. Every table that tracks things should have one.
-          detail: {title_field: food, long_fields: [notes], actions: [{action: correct_meal, id_param: meal, input: {delete: true}, title: Remove}]}
-          totals: [calories]          # summed over the rows shown
-          empty: Nothing logged yet.
         - kind: metrics
           cards:
             - {title: Calories today, view: meals.by_day, metric: total, unit: kcal, goal: 2000}
@@ -223,23 +209,6 @@ screen:
           unit: kcal
           goal: 2000
           days: 14
-    - id: review
-      title: Review
-      blocks:
-        - kind: board                 # columns from a choice field; moving a card calls an action
-          view: meals.recent
-          group_field: kind
-          columns: [breakfast, lunch, dinner, snack]
-          title_field: title
-          subtitle_fields: [eaten_on, calories]
-          move: {action: correct_meal, id_param: meal}
-          field_param: kind
-        - kind: list                  # simple rows with a title, subtitles, a badge, a link
-          view: meals.recent
-          title_field: title
-          subtitle_fields: [eaten_on]
-          badge_field: kind
-          item_actions: [{action: correct_meal, id_param: meal, input: {delete: true}, title: Remove}]
     - id: goals
       title: Goals
       blocks:
@@ -257,19 +226,19 @@ Prefer a `quick_entry` for the main logging job: its action takes the typed line
 whole job itself (parse what it can, estimate the rest through `ctx.models`, save, and return a
 `message` in plain words). Do not split "estimate" and "log" into two forms the person has to
 copy numbers between. Use `goal_from` (a records view holding the person's goal) so metric
-cards and trends compare against what they set, not a fixed number.
+cards and trends compare against what they set, not a fixed number. Columns, grouping, the
+date a calendar uses and a quick entry for a table belong on the collection's `page:` (see
+collections), never in a screen.
 
-Rules the platform checks: every `view` exists; every column, subtitle, title, group and badge
-field is in the view's collection (or its `fields`); `edit`/`delete`/`move` name an `id_param`;
-a `board`'s `group_field` is a choice field and its `columns` are its choices; a `metrics` card
-or `trend` uses an aggregate view and names one of its metrics; `trend.x` is a group key of that
-view (`<field>_day` for a day bucket). Actions the screen runs must list `ui` in
+Rules the platform checks: every `view` exists; every field a block names is in the view's
+collection (or its `fields`); no table, board or list block over a collection; a `metrics`
+card or `trend` uses an aggregate view and names one of its metrics; `trend.x` is a group key
+of that view (`<field>_day` for a day bucket). Actions the screen runs must list `ui` in
 `invocable_from`. A metric card over a day-bucketed view shows today's group.
 
 What the shell does with the declaration: the quick entry sends the typed line and shows the
-action's `message` output (return a `message` in the person's words); editable cells send
-`{id_param: id, <field>: value}` and refresh the views; totals and pagination are automatic;
-model estimates are labelled from record provenance.
+action's `message` output (return a `message` in the person's words); forms send their fields
+to the action and show its `message`; model estimates are labelled from record provenance.
 
 ### uses (reading the person's other modules)
 

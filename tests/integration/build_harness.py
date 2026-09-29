@@ -255,19 +255,17 @@ SCREEN_YAML = """views:
     max_limit: 50
 screen:
   tabs:
-    - id: notes
-      title: Notes
+    - id: add
+      title: Quick add
       blocks:
         - {kind: quick_entry, action: add_note, input: title, placeholder: Add a note}
-        - kind: table
-          view: notes.recent
-          columns: [{field: title, title: Note}, {field: noted_on, title: Date, format: date}]
+        - {kind: text, title: How this works, body: One line per note; the Notes page lists them.}
 """
 
 
 def notes_screen(p: Path) -> None:
-    """Not a defect: the same notes, drawn by Alpha's shell from a declared screen instead of
-    a compiled ui. Records only, so the fast lane applies."""
+    """Not a defect: the same notes with a declared screen tab beside the page Alpha draws
+    for the table (a screen never redoes a table). Records only, so the fast lane applies."""
     shutil.rmtree(p / "ui")
     text = _yaml(p).read_text(encoding="utf-8")
     _yaml(p).write_text(text[: text.index("ui:\n")] + SCREEN_YAML, encoding="utf-8")

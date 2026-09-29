@@ -59,3 +59,20 @@ def test_the_script_runs_from_the_attempt_directory(tmp_path: Path) -> None:
     run = subprocess.run(["./validate"], cwd=tmp_path, capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
     assert run.stdout.startswith("OK:")
+
+
+def test_a_screen_table_over_a_collection_is_refused_in_favour_of_the_page(tmp_path: Path) -> None:
+    """Alpha draws a page for every table; a screen table only hides it (found live)."""
+    broken = package(tmp_path)
+    app_yaml = broken / "app.yaml"
+    app_yaml.write_text(
+        app_yaml.read_text()
+        + "views:\n  - {id: notes.all, collection: notes}\n"
+        + "screen:\n  tabs:\n    - id: notes\n      title: Notes\n      blocks:\n"
+        + "        - {kind: table, view: notes.all, columns: [{field: title, title: Note}]}\n"
+    )
+    problems = validate_package(broken, PYTHON)
+    assert len(problems) == 1 and problems[0].startswith(
+        "screen tab notes block 1 is a table over notes"
+    )
+    assert "declare `page:`" in problems[0]

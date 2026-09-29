@@ -311,6 +311,18 @@ hand-built:
   to the proposal flow and the derived pages, which the 28 September slices had left behind:
   147 integration and 8 UI tests pass.
 
+- 29 September, midday: pages, not screens. Kenil's cold-call module came out with a
+  declared `screen:` (form + table blocks, the old shape) on top of `page:` and `summary:`,
+  so the module page showed the poorer screen tables and hid the standard pages we decided
+  on. Cause: the builder's own instructions in the Claude CLI harness still said "the screen
+  is declared under screen:" while the contract document and conventions said pages. Fixed
+  by one rule in one place (`alpha/data/packages.py: screen_page_conflicts`): a screen never
+  draws a table, board or list over a collection; the verifier's `package.screen` and the
+  builder's `./validate` both apply it; installed modules from before keep their screens.
+  The harness instructions now say: describe the data (`title_field`, status, `page:`,
+  `summary:`), do not design a screen; `screen:` only for what a page cannot give. The
+  contract document's screen section and the notes_screen fixture follow.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

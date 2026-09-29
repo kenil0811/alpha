@@ -61,14 +61,10 @@ Rules:
 - package/app.yaml must keep the exact platform values listed below (app_id included when it
   is listed). Choose name and description yourself, in the person's words.
 - Each attempt is stopped after a fixed time (see below). Build what a capable product person
-  would expect for this request, complete and usable on the first try: the Python package
-  first, then the screen. PLAN.md's checks are the floor, not the ceiling. Every App that
-  tracks things gives each table a `detail` (the record's own page: every field, long text
-  readable, the actions that apply), shows when entries were added (`created_at`, titled
-  "Added") and when each source was last read, offers saved lists over its statuses and
-  categories, and summarises what matters. Skip only what the goal does not ask for AND a
-  product person would not expect. If time runs short, finish and polish what exists rather
-  than starting more.
+  would expect for this request, complete and usable on the first try: the data and the
+  actions, described well. PLAN.md's checks are the floor, not the ceiling. Skip only what
+  the goal does not ask for AND a product person would not expect. If time runs short, finish
+  and polish what exists rather than starting more.
 - Sources named loosely ("LinkedIn", "Indeed") are the App's job to resolve, not the person's:
   keep a small table of known sites and their listing-page address patterns, fall back to
   ctx.web.search to find the listing page, verify it yields item links before saving it, store
@@ -94,12 +90,16 @@ Rules:
   While Alpha runs PLAN.md's checks the web is unreachable (every ctx.web call raises): an
   action that reads the web must then report that plainly and store nothing; do not add inputs
   whose only purpose is to stand in for a page's contents.
-- The screen is DECLARED in app.yaml under `screen:` (tabs of blocks: quick_entry, table,
-  metrics, progress, trend, board, list, form, text) over read views declared under `views:`. Alpha
-  draws it. Every action a block runs must list ui in invocable_from. Lay it out by the MODULE
-  CONVENTIONS in the instructions below (data first; a quick_entry above it only when typing a
-  line is the main way in; forms after; then metrics and trends). Use the labels PLAN.md names
-  for placeholders, column titles and tab names. Do not write ui/src/main.tsx.
+- Do not design a screen. Alpha draws every table the App keeps as a standard page (table
+  first, with board, list, calendar and chart a click away, saved lists, a record page for each
+  row, edits in place) and puts the actions a person runs by hand on an Actions tab. Your job
+  is to describe the data well: on each collection a `title_field`, a status field with its
+  finished values, and `page:` (the columns the person scans first, `group_field`, `date_field`,
+  a `quick_entry` when typing one line is the main way in); under `summary:` the metrics,
+  progress and trend cards over `views:`. `screen:` is only for an interaction no page can
+  give (a form that sets a goal, a text block that explains a routine) and never a table,
+  board or list over a collection; `./validate` refuses that. Use the labels PLAN.md names
+  for fields, columns and tabs. Do not write ui/src/main.tsx.
 - Do not write or run your own unit tests, probes or sample scripts: Alpha verifies the package
   against PLAN.md with real runs. Check your own work with `./validate` (run exactly that, from
   the current directory, no cd and no arguments): it applies Alpha's own package rules (app.yaml
@@ -372,13 +372,14 @@ class ClaudeCliHarness:
     def _prompt(self, inputs: HarnessInputs) -> str:
         exact = "\n".join(f"- {key}: {value}" for key, value in sorted(inputs.targets.items()))
         ui_note = (
-            "Custom compiled screens are allowed on this build: if, and only if, no declared "
-            "block can express the main interaction, you may instead write ui/src/main.tsx "
-            "(see reference/UI_KIT.md) and declare ui.entry with ui.build_profile, "
-            "ui.kit_version and ui.bridge_version as above. A declared screen is still preferred."
+            "Custom compiled screens are allowed on this build: if, and only if, neither the "
+            "pages Alpha draws nor a declared block can express the main interaction, you may "
+            "write ui/src/main.tsx (see reference/UI_KIT.md) and declare ui.entry with "
+            "ui.build_profile, ui.kit_version and ui.bridge_version as above. The pages Alpha "
+            "draws are preferred."
             if "ui_build_profile" in inputs.targets
-            else "Custom compiled screens are not available on this build: declare the screen "
-            "under screen: and leave ui out of app.yaml."
+            else "Custom compiled screens are not available on this build: rely on the pages "
+            "Alpha draws and leave ui out of app.yaml."
         )
         repair = (inputs.workspace / "REPAIR.md").is_file()
         minutes = max(1, inputs.request.budget.max_attempt_seconds // 60)
