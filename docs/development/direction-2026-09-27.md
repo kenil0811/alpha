@@ -301,6 +301,15 @@ hand-built:
   card says what happens next in plain words and no longer lists check names. Still to do from
   the same discussion: a failed deferred check should start a quick repair on its own rather
   than only a notice, and a build paused by sleep should say so.
+  Measured on Kenil's own request right after (build_731b6f1f, "Track job search cold calls",
+  http + browser + models + connections, 5 plan scenarios): builder 6 min 29 s including three
+  `./validate` runs (11 problems, then 6, then OK, within two minutes of starting); switched
+  on 0.6 s after the builder handed over; 26 behaviour checks passed 0.5 s later. Typed to
+  usable: 6 min 30 s, first attempt. The same request had failed the night before after 91
+  minutes and three attempts.
+  Also brought the integration suites (assistant, creations, shell journey, shell probe) up
+  to the proposal flow and the derived pages, which the 28 September slices had left behind:
+  147 integration and 8 UI tests pass.
 
 ## Still to do
 
