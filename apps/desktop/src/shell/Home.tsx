@@ -1,7 +1,7 @@
 import type { Run } from "@alpha/contracts";
 import { type FormEvent, useEffect, useState } from "react";
 import { type AppSummary, type Nudge, type OnboardingStatus, type ProfileClient } from "../core/client";
-import { ArrowRight, Boxes, Sparkles, type LucideIcon } from "lucide-react";
+import { ArrowRight, Boxes, Sparkles, X, type LucideIcon } from "lucide-react";
 import { Badge } from "../ui/Badge";
 import "./pages.css";
 
@@ -127,7 +127,7 @@ export function Noticed({ client, onStart }: { client: ProfileClient; onStart: (
                 {n.next_step}
               </button>
               <button type="button" className="btn btn--sm btn--ghost" aria-label="Dismiss" title="Dismiss" onClick={() => void client.dismissNudge(n.nudge_id).then(() => setRows((all) => all.filter((x) => x.nudge_id !== n.nudge_id)))}>
-                ✕
+                <X size={14} strokeWidth={1.75} aria-hidden="true" />
               </button>
             </span>
           </li>
