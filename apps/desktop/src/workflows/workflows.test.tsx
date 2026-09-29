@@ -166,7 +166,8 @@ describe("an App without its own screen", () => {
     expect(client.invocations).toEqual([
       { appId: "notes-list-1a2b3c", actionId: "add_note", input: { title: "Buy milk", pinned: true }, origin: "user" },
     ]);
-    const table = await screen.findByRole("table", { name: "Notes" });
+    const modApp = document.getElementById("mod-app") as HTMLElement;
+    const table = await within(modApp).findByRole("table", { name: "Notes" });
     expect(within(table).getByText("Buy milk")).toBeInTheDocument();
     expect(within(table).getByText("(estimate)")).toBeInTheDocument();
   });
@@ -216,8 +217,7 @@ describe("an App with its own compiled screen", () => {
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByText("Actions and saved data")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
-    expect(screen.getByText(/Its records stay on this Mac\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/Its records stay on this Mac\./).length).toBeGreaterThan(0);
     expect(screen.queryByText(/pyprof/)).not.toBeInTheDocument();
   });
 });
@@ -282,8 +282,7 @@ describe("where the data goes", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Data" }));
-    expect(await screen.findByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+    expect((await screen.findAllByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).length).toBeGreaterThan(0);
   });
 });
 

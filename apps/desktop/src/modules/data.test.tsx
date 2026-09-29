@@ -21,8 +21,8 @@ describe("the Data section", () => {
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Data" }));
-    const table = await screen.findByRole("table", { name: "Notes" });
+    const dataSection = document.getElementById("mod-data") as HTMLElement;
+    const table = await within(dataSection).findByRole("table", { name: "Notes" });
     expect(within(table).getByText("Buy milk")).toBeInTheDocument();
     expect(within(table).getByLabelText("estimate")).toHaveAttribute("title", expect.stringContaining("estimate"));
 
@@ -43,13 +43,12 @@ describe("the Data section", () => {
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Data" }));
     await user.click(await screen.findByRole("button", { name: "Add a row" }));
     const form = screen.getByRole("form", { name: "Add to Notes" });
     await user.type(within(form).getByLabelText("Title"), "Water the plants");
     await user.type(within(form).getByLabelText("Calories (optional)"), "0");
     await user.click(within(form).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(fake.mutations[0]).toMatchObject({ op: "create", collection: "notes", values: { title: "Water the plants", calories: 0 } }));
-    expect(await screen.findByText("Water the plants")).toBeInTheDocument();
+    expect(await within(document.getElementById("mod-data") as HTMLElement).findByText("Water the plants")).toBeInTheDocument();
   });
 });

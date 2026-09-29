@@ -110,7 +110,9 @@ describe("a module with a declared screen", () => {
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
     expect(await screen.findByRole("heading", { name: "Daily log" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Log" })).toHaveAttribute("aria-selected", "true");
-    const table = await screen.findByRole("table");
+    await screen.findByRole("tab", { name: "Log" });
+    const modApp = document.getElementById("mod-app") as HTMLElement;
+    const table = await within(modApp).findByRole("table");
     expect(within(table).getByText("long walk")).toBeInTheDocument();
     expect(within(table).getByText("120 units")).toBeInTheDocument();
     expect(within(table).getByLabelText("estimate")).toHaveAttribute("title", expect.stringContaining("estimate"));
@@ -136,7 +138,9 @@ describe("a module with a declared screen", () => {
     const client = clientWithRows();
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
-    const table = await screen.findByRole("table");
+    await screen.findByRole("tab", { name: "Log" });
+    const modApp = document.getElementById("mod-app") as HTMLElement;
+    const table = await within(modApp).findByRole("table");
     await user.click(await within(table).findByText("30 units"));
     const input = await within(table).findByRole("spinbutton", { name: "Amount" });
     await user.clear(input);
@@ -156,7 +160,7 @@ describe("a module with a declared screen", () => {
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
     await user.click(await screen.findByRole("tab", { name: "Notes" }));
     expect(screen.getByText("Plain words.")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(within(document.getElementById("mod-app") as HTMLElement).queryByRole("table")).not.toBeInTheDocument();
   });
 });
 
@@ -165,7 +169,9 @@ describe("a table's detail page", () => {
     const client = clientWithRows();
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
-    const table = await screen.findByRole("table");
+    await screen.findByRole("tab", { name: "Log" });
+    const modApp = document.getElementById("mod-app") as HTMLElement;
+    const table = await within(modApp).findByRole("table");
     await user.click(await within(table).findByRole("row", { name: "Open long walk" }));
     const drawer = await screen.findByRole("dialog", { name: "long walk" });
     expect(within(drawer).getByText(/Along the river/)).toBeInTheDocument();
@@ -183,7 +189,9 @@ describe("quick filters on a table", () => {
     const client = clientWithRows();
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="log-1" onAsk={() => undefined} />);
-    const table = await screen.findByRole("table");
+    await screen.findByRole("tab", { name: "Log" });
+    const modApp = document.getElementById("mod-app") as HTMLElement;
+    const table = await within(modApp).findByRole("table");
     await user.click(screen.getByRole("button", { name: "Filter" }));
     await user.selectOptions(screen.getByDisplayValue("When"), "category");
     await user.selectOptions(screen.getByDisplayValue("—"), "evening");

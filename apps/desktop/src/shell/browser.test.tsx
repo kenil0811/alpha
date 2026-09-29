@@ -32,7 +32,6 @@ describe("the signed-in browser", () => {
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
     const access = await screen.findByLabelText("Signed-in browser access");
     expect(within(access).getByText(/Off: this module reads it as a visitor/)).toBeInTheDocument();
     await user.click(within(access).getByLabelText("Allow linkedin.com"));

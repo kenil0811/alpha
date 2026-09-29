@@ -9,7 +9,21 @@ export interface TabItem {
   label: ReactNode;
 }
 
-export function Tabs({ items, value, onChange, "aria-label": ariaLabel }: { items: TabItem[]; value: string; onChange: (value: string) => void; "aria-label": string }) {
+export function Tabs({
+  items,
+  value,
+  onChange,
+  className,
+  "aria-label": ariaLabel,
+}: {
+  items: TabItem[];
+  value: string;
+  onChange: (value: string) => void;
+  /** Extra class alongside `.tabs`, for a caller that needs a different visual treatment
+   *  (e.g. a segmented header control) without forking the primitive. */
+  className?: string;
+  "aria-label": string;
+}) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -28,7 +42,7 @@ export function Tabs({ items, value, onChange, "aria-label": ariaLabel }: { item
   };
 
   return (
-    <div role="tablist" aria-label={ariaLabel} className="tabs" onKeyDown={onKeyDown}>
+    <div role="tablist" aria-label={ariaLabel} className={className ? `tabs ${className}` : "tabs"} onKeyDown={onKeyDown}>
       {items.map((item) => {
         const selected = item.value === value;
         return (
