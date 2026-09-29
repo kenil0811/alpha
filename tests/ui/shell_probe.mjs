@@ -57,7 +57,8 @@ try {
   await rail.getByRole("button", { name: "Home", exact: true }).click();
   const asked = page.locator(".msg--user", { hasText: job.request });
   result.continuity.request_shown_after_navigation = await asked.waitFor({ timeout: 10_000 }).then(() => true, () => false);
-  await page.getByRole("button", { name: "Create it" }).waitFor({ timeout: 20_000 });
+  // The answer is the proposal card (a new module is shaped first) or, once picked, Create it.
+  await page.getByRole("button", { name: "Go with this", exact: true }).or(page.getByRole("button", { name: "Create it" })).first().waitFor({ timeout: 60_000 });
   result.continuity.answered_after_navigation = true;
   await page.reload();
   await page.getByText("Runtime connected").waitFor({ timeout: 20_000 });
