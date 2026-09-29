@@ -4,7 +4,7 @@
  * client side over the rows the declared view already returned.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Filter as FilterIcon, MoreHorizontal, Search, X } from "lucide-react";
+import { Filter as FilterIcon, MoreHorizontal, PanelRight, Search, X } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { Tooltip, TooltipProvider } from "../../ui/Tooltip";
@@ -165,7 +165,6 @@ export function DataView({ block }: { block: TableBlock }) {
 
   if (!spec) return <p className="notice">This screen refers to a view that is not declared.</p>;
   const openRow = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
-  const hasActions = Boolean(block.delete || block.row_actions.length);
 
   const listOptions = [
     { value: "all", label: "All" },
@@ -190,7 +189,7 @@ export function DataView({ block }: { block: TableBlock }) {
             onChange={selectList}
             placeholder="Select list"
             onAdd={() => setRenaming("new")}
-            addLabel="＋ New list"
+            addLabel="New list"
           />
           {renaming === "new" ? (
             <span className="dv-newlist">
@@ -294,7 +293,6 @@ export function DataView({ block }: { block: TableBlock }) {
           sort={sort}
           setSort={setSort}
           sortable={spec.sortable}
-          hasActions={hasActions}
           selected={selected}
           setSelected={setSelected}
           columnOrder={columnOrder}
@@ -313,7 +311,7 @@ export function DataView({ block }: { block: TableBlock }) {
       ) : viewKind === "gallery" ? (
         <GalleryView block={block} columns={block.columns} kinds={kinds} rows={rows} onOpen={block.detail ? (id) => setOpenId(id) : undefined} />
       ) : viewKind === "calendar" && dateField ? (
-        <CalendarView rows={rows} dateField={dateField} titleField={block.columns[0]?.field} dateColumns={dateColumns} setDateField={setDateField} onOpen={block.detail ? (id) => setOpenId(id) : undefined} />
+        <CalendarView rows={rows} dateField={dateField} titleField={block.detail?.title_field ?? block.columns[0]?.field} dateColumns={dateColumns} setDateField={setDateField} onOpen={block.detail ? (id) => setOpenId(id) : undefined} />
       ) : (
         <ListRowsView block={block} columns={block.columns} kinds={kinds} rows={rows} onOpen={block.detail ? (id) => setOpenId(id) : undefined} />
       )}
@@ -444,7 +442,6 @@ interface TableViewProps {
   sort: { field: string; direction: "asc" | "desc" } | null;
   setSort: (s: { field: string; direction: "asc" | "desc" } | null) => void;
   sortable: string[];
-  hasActions: boolean;
   selected: Set<string>;
   setSelected: (fn: (s: Set<string>) => Set<string>) => void;
   columnOrder: string[];
@@ -459,7 +456,7 @@ interface TableViewProps {
   onRowAction: (row: RecordRow, b: ActionBinding) => void;
 }
 
-function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasActions, selected, setSelected, setColumnOrder, columnWidths, setColumnWidths, setHiddenColumns, setFilters, onCommit, onOpen, onRemove, onRowAction }: TableViewProps) {
+function TableView({ block, columns, kinds, rows, sort, setSort, sortable, selected, setSelected, setColumnOrder, columnWidths, setColumnWidths, setHiddenColumns, setFilters, onCommit, onOpen, onRemove, onRowAction }: TableViewProps) {
   const dragField = useRef<string | null>(null);
   const [focused, setFocused] = useState<{ row: number; col: number } | null>(null);
 
@@ -494,8 +491,7 @@ function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasAc
       <table className="table dv-table" onKeyDown={onTableKeyDown}>
         <thead>
           <tr>
-            {hasActions || onOpen ? <th className="dv-th-check" /> : null}
-            <th className="dv-th-check">
+            <th className="dv-gutter">
               <input type="checkbox" aria-label="Select all" checked={rows.length > 0 && selected.size === rows.length} onChange={(e) => setSelected(() => (e.target.checked ? new Set(rows.map((r) => r.id)) : new Set()))} />
             </th>
             {columns.map((c, ci) => {
@@ -507,7 +503,7 @@ function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasAc
                 <th
                   key={c.field}
                   className={numeric ? "r" : undefined}
-                  style={columnWidths[c.field] ? { width: columnWidths[c.field], resize: "horizontal", overflow: "hidden" } : { resize: "horizontal", overflow: "hidden" }}
+                  style={columnWidths[c.field] ? { width: columnWidths[c.field] } : undefined}
                   draggable
                   onDragStart={() => (dragField.current = c.field)}
                   onDragOver={(e) => e.preventDefault()}
@@ -520,12 +516,30 @@ function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasAc
                       return next;
                     });
                   }}
-                  onMouseUp={(e) => {
-                    const w = Math.round((e.target as HTMLElement).closest("th")?.getBoundingClientRect().width ?? 0);
-                    if (w) setColumnWidths((widths) => ({ ...widths, [c.field]: w }));
-                  }}
                   aria-sort={sort?.field === c.field ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
                 >
+                  <span
+                    className="dv-th__resize"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Resize ${title}`}
+                    draggable={false}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const th = e.currentTarget.parentElement as HTMLElement;
+                      const startX = e.clientX;
+                      const startW = th.getBoundingClientRect().width;
+                      const move = (ev: PointerEvent) => setColumnWidths((widths) => ({ ...widths, [c.field]: Math.max(60, Math.round(startW + ev.clientX - startX)) }));
+                      const up = () => {
+                        window.removeEventListener("pointermove", move);
+                        window.removeEventListener("pointerup", up);
+                      };
+                      window.addEventListener("pointermove", move);
+                      window.addEventListener("pointerup", up);
+                    }}
+                  />
                   <div className="dv-th">
                     <span>{title}{sort?.field === c.field ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}</span>
                     <DropdownMenu>
@@ -562,8 +576,7 @@ function TableView({ block, columns, kinds, rows, sort, setSort, sortable, hasAc
         {block.totals?.length && rows.length ? (
           <tfoot>
             <tr>
-              {hasActions || onOpen ? <td className="dv-td-check" /> : null}
-              <td className="dv-td-check" />
+              <td className="dv-gutter" />
               {columns.map((c, i) => {
                 const t = block.totals!.includes(c.field)
                   ? rows.reduce((sum, r) => sum + (typeof r.values[c.field] === "number" ? (r.values[c.field] as number) : 0), 0)
@@ -617,8 +630,9 @@ function RowMenuRow({ row, ri, columns, kinds, block, titleField, onOpen, onRemo
       onClick={onOpen ? () => onOpen(row.id) : undefined}
       aria-label={onOpen ? `Open ${String(row.values[titleField ?? ""] ?? row.id)}` : undefined}
     >
-      {onOpen || block.row_actions.length || onRemove ? (
-        <td className="dv-td-check" onClick={(e) => e.stopPropagation()}>
+      <td className="dv-gutter" onClick={(e) => e.stopPropagation()}>
+        <input type="checkbox" aria-label="Select row" checked={selected.has(row.id)} onChange={(e) => setSelected((s) => { const next = new Set(s); if (e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
+        {onOpen || block.row_actions.length || onRemove ? (
           <DropdownMenu open={menuAt} onOpenChange={setMenuAt}>
             <DropdownMenuTrigger asChild>
               <button type="button" className="dv-rowmenu" aria-label="Row menu">
@@ -627,19 +641,16 @@ function RowMenuRow({ row, ri, columns, kinds, block, titleField, onOpen, onRemo
             </DropdownMenuTrigger>
             {rowMenu}
           </DropdownMenu>
-        </td>
-      ) : null}
-      <td className="dv-td-check" onClick={(e) => e.stopPropagation()}>
-        <input type="checkbox" aria-label="Select row" checked={selected.has(row.id)} onChange={(e) => setSelected((s) => { const next = new Set(s); if (e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
+        ) : null}
       </td>
       {columns.map((c, ci) => (
-        <Cell key={c.field} row={row} column={c} kind={kinds.get(c.field)?.kind ?? "text"} choices={kinds.get(c.field)?.choices ?? []} editable={Boolean(block.edit) && Boolean(c.editable)} onCommit={(text) => onCommit(row, c.field, text)} dataCell={`${ri}-${ci}`} onFocus={() => setFocused({ row: ri, col: ci })} />
+        <Cell key={c.field} row={row} column={c} kind={kinds.get(c.field)?.kind ?? "text"} choices={kinds.get(c.field)?.choices ?? []} editable={Boolean(block.edit) && Boolean(c.editable)} onCommit={(text) => onCommit(row, c.field, text)} dataCell={`${ri}-${ci}`} onFocus={() => setFocused({ row: ri, col: ci })} onOpen={onOpen && c.field === (titleField ?? columns[0]?.field) ? () => onOpen(row.id) : undefined} />
       ))}
     </tr>
   );
 }
 
-function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocus }: { row: RecordRow; column: ScreenColumn; kind: string; choices: string[]; editable: boolean; onCommit: (text: string) => void; dataCell: string; onFocus: () => void }) {
+function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocus, onOpen }: { row: RecordRow; column: ScreenColumn; kind: string; choices: string[]; editable: boolean; onCommit: (text: string) => void; dataCell: string; onFocus: () => void; onOpen?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const value = row.values[column.field];
@@ -681,12 +692,25 @@ function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocu
     <td
       data-cell={dataCell}
       className={`${numeric ? "r num" : ""} ${editable ? "editable" : ""}`.trim()}
-      onClick={(e) => { e.stopPropagation(); begin(e); }}
+      onClick={(e) => begin(e)}
       onFocus={onFocus}
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && begin(e)}
     >
       {cell(value, column.format ?? undefined, column.unit, kind)}
+      {onOpen ? (
+        <button
+          type="button"
+          className="dv-open"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+        >
+          <PanelRight size={12} aria-hidden="true" />
+          Open
+        </button>
+      ) : null}
       {estimate ? (
         <span className="est" title="An estimate. Click the cell to correct it." aria-label="estimate">
           ≈
@@ -702,7 +726,7 @@ function Cell({ row, column, kind, choices, editable, onCommit, dataCell, onFocu
 
 function BoardView({ block, rows, kinds, groupField, choiceColumns, setGroupField, onRowAction, onOpen }: { block: TableBlock; rows: RecordRow[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; groupField: string; choiceColumns: ScreenColumn[]; setGroupField: (f: string) => void; onRowAction: (row: RecordRow, b: ActionBinding) => void; onOpen?: (id: string) => void }) {
   const choices = kinds.get(groupField)?.choices ?? [];
-  const titleField = block.columns[0]?.field;
+  const titleField = block.detail?.title_field ?? block.columns[0]?.field;
   return (
     <div>
       <div className="dv-board-head">
@@ -742,8 +766,8 @@ function BoardView({ block, rows, kinds, groupField, choiceColumns, setGroupFiel
   );
 }
 
-function GalleryView({ columns, kinds, rows, onOpen }: { block: TableBlock; columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; rows: RecordRow[]; onOpen?: (id: string) => void }) {
-  const titleField = columns[0]?.field;
+function GalleryView({ block, columns, kinds, rows, onOpen }: { block: TableBlock; columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; rows: RecordRow[]; onOpen?: (id: string) => void }) {
+  const titleField = block.detail?.title_field ?? columns[0]?.field;
   const rest = columns.slice(1, 4);
   return (
     <div className="dv-gallery">
@@ -762,8 +786,8 @@ function GalleryView({ columns, kinds, rows, onOpen }: { block: TableBlock; colu
   );
 }
 
-function ListRowsView({ columns, kinds, rows, onOpen }: { block: TableBlock; columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; rows: RecordRow[]; onOpen?: (id: string) => void }) {
-  const titleField = columns[0]?.field;
+function ListRowsView({ block, columns, kinds, rows, onOpen }: { block: TableBlock; columns: ScreenColumn[]; kinds: Map<string, { kind: string; choices?: string[] | null }>; rows: RecordRow[]; onOpen?: (id: string) => void }) {
+  const titleField = block.detail?.title_field ?? columns[0]?.field;
   const subFields = columns.slice(1, 3).map((c) => c.field);
   return (
     <div className="card list">
@@ -859,14 +883,8 @@ function Peek({ row, spec, columns, kinds, onClose, onAction, onRemove }: { row:
         <div className="drawer__head">
           <h3>{title || "Details"}</h3>
           <span className="spacer" />
-          <Tooltip content="No page route for this record yet">
-            <span>
-              <Button size="sm" variant="ghost" disabled>
-                Open as page
-              </Button>
-            </span>
-          </Tooltip>
-          {spec.actions.map((b) => (
+          {/* The module's own Remove and the built-in one do the same thing; show one. */}
+          {spec.actions.filter((b) => !(onRemove && (b.title ?? "").toLowerCase() === "remove")).map((b) => (
             <button key={b.action + (b.title ?? "")} type="button" className="btn btn--sm" onClick={() => onAction(b)}>
               {b.title ?? humanize(b.action)}
             </button>
