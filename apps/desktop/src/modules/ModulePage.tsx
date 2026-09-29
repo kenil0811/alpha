@@ -1,13 +1,15 @@
 /**
- * A module's working surface, in three fixed sections above the module's own tabs:
- *   App       the declared screen (drawn by the shell), a custom sealed screen, or action forms;
- *   Activity  what ran and what it produced, the module's automations, and what it can reach;
- *   Settings  its data, version and how it works.
+ * A module's working surface: the App screen at the top (full width), then below the fold,
+ * stacked Bridge-anatomy sections — Intelligence (automations/runs/knowledge), Governance
+ * (what it can reach), Data (its tables), Version. The `section` route param scrolls to the
+ * matching section rather than switching a tab, so old #/m/:id/:section links keep working.
  * Trusted chrome stays outside anything the module produced.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, Settings as SettingsIcon, icons as lucideIcons, type LucideIcon } from "lucide-react";
+import { Boxes, Check, Database, Settings as SettingsIcon, ShieldCheck, Sparkles, icons as lucideIcons, type LucideIcon } from "lucide-react";
 import type { AppChecks, AppDetail, BrowserAccess, BrowserVisit, ScheduleStatus } from "../core/client";
+import { Badge, Dialog, DialogClose, DialogContent, DialogTrigger, Tabs } from "../ui";
+import "./module.css";
 
 /** screen.icon is free-form data from a module's declared screen; only a real lucide name renders,
  * anything else (an old emoji, a typo) safely falls back to the generic module icon. */
@@ -27,6 +29,8 @@ import { DataSection } from "./DataSection";
 import { ModuleContext, humanize, makeModuleContext, type ModuleClient } from "./useModule";
 
 export type Section = "app" | "data" | "activity" | "settings";
+/** id of the below-the-fold section each route `section` value scrolls to; "app" scrolls to top. */
+const SECTION_ANCHOR: Record<Section, string | null> = { app: null, data: "mod-data", activity: "mod-intelligence", settings: "mod-governance" };
 
 /** Runs of charts sit side by side instead of one tall card each. */
 function groupBlocks<T extends { kind: string }>(blocks: T[]): T[][] {
@@ -248,7 +252,6 @@ export function ModulePage({
   onCancelRun,
   onRemoved,
   section: routedSection,
-  onSectionChange,
 }: {
   client: ModuleClient;
   appId: string;
@@ -278,9 +281,11 @@ export function ModulePage({
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<string | null>(null);
+  const [intelTab, setIntelTab] = useState<"automations" | "runs" | "knowledge">("automations");
+  // Kept for old #/m/:id/:section links: routing no longer switches a tab, it scrolls to the
+  // matching below-the-fold section (and pre-selects the Runs tab for "activity").
   const [sectionState, setSectionState] = useState<Section>(routedSection ?? "app");
   const section = routedSection ?? sectionState;
-  const setSection = onSectionChange ?? setSectionState;
   const changed = useCallback(() => setVersion((n) => n + 1), []);
 
   useEffect(() => {
@@ -295,6 +300,12 @@ export function ModulePage({
     setTab(null);
     setSectionState("app");
   }, [appId]);
+  useEffect(() => {
+    if (!detail) return;
+    if (section === "activity") setIntelTab("runs");
+    const anchor = SECTION_ANCHOR[section];
+    if (anchor) document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+  }, [section, detail]);
 
   const context = useMemo(() => (detail ? makeModuleContext(client, detail, version, changed) : null), [client, detail, version, changed]);
   const screen = detail?.screen ?? null;
@@ -303,42 +314,41 @@ export function ModulePage({
   const mine = useMemo(() => runs.filter((r) => (r.run.owner as { app_id?: string }).app_id === appId), [runs, appId]);
   const attention = mine.filter((r) => ["failed", "waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation"].includes(r.run.state)).length;
 
-  const sectionTab = (key: Section, label: string, badge?: number) => (
-    <button key={key} type="button" role="tab" aria-selected={section === key} onClick={() => setSection(key)}>
-      {label}
-      {badge ? (
-        <span className="pill pill--warn" style={{ marginLeft: 6 }}>
-          {badge}
-        </span>
-      ) : null}
-    </button>
-  );
+  const HeadIcon = screen?.icon ? resolveIcon(screen.icon) : icon ?? Boxes;
+  const runsCount = mine.length;
+  const knowledgeCount = screen?.assistant_hint ? 1 : 0;
 
   return (
-    <section className="page" aria-labelledby="module-heading">
-      <div className="modhead">
-        <div className="modhead__title">
-          <div className="modhead__ico" aria-hidden="true">
-            {(() => {
-              const HeadIcon = screen?.icon ? resolveIcon(screen.icon) : icon ?? Boxes;
-              return <HeadIcon size={18} strokeWidth={1.75} />;
-            })()}
-          </div>
-          <div style={{ minWidth: 0 }}>
+    <section className="page mod-page" aria-labelledby="module-heading">
+      <header className="modhead">
+        {screen && screen.tabs.length > 1 ? (
+          <Tabs
+            className="modhead__tabs"
+            items={screen.tabs.map((t) => ({ value: t.id, label: t.title }))}
+            value={currentTab?.id ?? screen.tabs[0].id}
+            onChange={setTab}
+            aria-label={`${detail?.name ?? "Module"} tabs`}
+          />
+        ) : (
+          <div className="modhead__title">
+            <div className="modhead__ico" aria-hidden="true">
+              <HeadIcon size={18} strokeWidth={1.75} />
+            </div>
             <h2 id="module-heading">{detail?.name ?? "Opening…"}</h2>
-            {detail ? <div className="faint">{detail.description}</div> : null}
           </div>
-        </div>
-        <div className="toggle toggle--sections" role="tablist" aria-label="Module sections">
-          {sectionTab("app", "App")}
-          {sectionTab("data", "Data")}
-          {sectionTab("activity", "Activity", attention)}
-          {sectionTab("settings", "Settings")}
-        </div>
-        <button type="button" className="btn btn--sm" onClick={onAsk}>
+        )}
+        <button type="button" className="btn btn--sm modhead__assist" onClick={onAsk}>
           Assistant
         </button>
-      </div>
+      </header>
+      {/* The heading stays reachable for a11y/tests even when the header shows the screen's own
+          tabs instead of the name (several-tab screens use the segmented control as the title row). */}
+      {screen && screen.tabs.length > 1 ? (
+        <h2 id="module-heading" className="sr-only">
+          {detail?.name ?? "Opening…"}
+        </h2>
+      ) : null}
+      {detail?.description ? <p className="modhead__desc">{detail.description}</p> : null}
       {error ? (
         <p className="notice" role="alert">
           {error}
@@ -346,33 +356,22 @@ export function ModulePage({
       ) : null}
       {detail && context ? (
         <ModuleContext.Provider value={context}>
-          {section === "app" ? <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} /> : null}
-          {section === "app" ? (
-            screen && currentTab ? (
-              <>
-                {screen.tabs.length > 1 ? (
-                  <div className="subtabs" role="tablist" aria-label={`${detail.name} tabs`}>
-                    {screen.tabs.map((t) => (
-                      <button key={t.id} type="button" role="tab" aria-selected={currentTab.id === t.id} onClick={() => setTab(t.id)}>
-                        {t.title}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="blocks" key={currentTab.id}>
-                  {groupBlocks(currentTab.blocks).map((group, i) =>
-                    group.length > 1 ? (
-                      <div className="chart-grid" key={`${currentTab.id}-${i}`}>
-                        {group.map((block, j) => (
-                          <Block key={`${currentTab.id}-${i}-${j}`} block={block} position={i} />
-                        ))}
-                      </div>
-                    ) : (
-                      <Block key={`${currentTab.id}-${i}`} block={group[0]} position={i} />
-                    ),
-                  )}
-                </div>
-              </>
+          <ChecksBanner client={client} appId={appId} releaseId={detail.release_id} onReverted={changed} onRemoved={onRemoved} />
+          <div className="mod-app" id="mod-app">
+            {screen && currentTab ? (
+              <div className="blocks" key={currentTab.id}>
+                {groupBlocks(currentTab.blocks).map((group, i) =>
+                  group.length > 1 ? (
+                    <div className="chart-grid" key={`${currentTab.id}-${i}`}>
+                      {group.map((block, j) => (
+                        <Block key={`${currentTab.id}-${i}-${j}`} block={block} position={i} />
+                      ))}
+                    </div>
+                  ) : (
+                    <Block key={`${currentTab.id}-${i}`} block={group[0]} position={i} />
+                  ),
+                )}
+              </div>
             ) : detail.ui?.entry ? (
               <>
                 <GeneratedScreen client={client} detail={detail} />
@@ -387,127 +386,134 @@ export function ModulePage({
                 <ActionsView client={client} appId={appId} actions={detail.actions} primary={detail.primary_action} onChanged={changed} />
                 <SavedData client={client} appId={appId} collections={detail.collections} refresh={version} />
               </>
-            )
-          ) : null}
+            )}
+          </div>
 
-          {section === "data" ? (
-            <>
+          <div className="mod-sections">
+            <section className="mod-section" id="mod-intelligence">
+              <h2 className="mod-section__title">
+                <Sparkles size={16} /> Intelligence
+              </h2>
+              <Tabs
+                aria-label="Intelligence"
+                value={intelTab}
+                onChange={(v) => setIntelTab(v as typeof intelTab)}
+                items={[
+                  { value: "automations", label: "Automations" },
+                  {
+                    value: "runs",
+                    label: (
+                      <>
+                        Runs {runsCount ? <Badge variant={attention ? "warning" : "neutral"}>{attention || runsCount}</Badge> : null}
+                      </>
+                    ),
+                  },
+                  { value: "knowledge", label: knowledgeCount ? <>Knowledge <Badge variant="neutral">{knowledgeCount}</Badge></> : "Knowledge" },
+                ]}
+              />
+              {intelTab === "automations" ? <Automations client={client} appId={appId} version={version} onChanged={changed} /> : null}
+              {intelTab === "runs" ? (
+                <div className="card list" style={{ marginTop: 12 }}>
+                  {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">No Runs.</p>}
+                  {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
+                </div>
+              ) : null}
+              {intelTab === "knowledge" ? (
+                <div className="card" style={{ marginTop: 12, padding: 12 }}>
+                  {screen?.assistant_hint ? <p>{screen.assistant_hint}</p> : <p className="empty">No Knowledge.</p>}
+                </div>
+              ) : null}
+            </section>
+
+            <section className="mod-section" id="mod-governance">
+              <h2 className="mod-section__title">
+                <ShieldCheck size={16} /> Governance
+              </h2>
+              <div className="card list">
+                {(detail.capabilities ?? []).map((family) => {
+                  const words = ACCESS[family] ?? { title: humanize(family), sub: "" };
+                  return (
+                    <div className="item" key={family}>
+                      <div className="item__ico" aria-hidden="true">
+                        <Check size={14} />
+                      </div>
+                      <div className="item__body">
+                        <b>{words.title}</b>
+                        <div className="item__sub">{words.sub}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="item">
+                  <div className="item__ico" aria-hidden="true">
+                    ○
+                  </div>
+                  <div className="item__body">
+                    <b>Nothing else</b>
+                    <div className="item__sub">No files on this Mac, no other module's data, no sign-ins, no messages. {detail.data_notice ?? "Its records stay on this Mac."}</div>
+                  </div>
+                </div>
+              </div>
+              {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
+              <p className="faint" style={{ marginTop: 10 }}>
+                Changes to what it can reach happen through the Assistant.
+              </p>
+            </section>
+
+            <section className="mod-section" id="mod-data">
+              <h2 className="mod-section__title">
+                <Database size={16} /> Data
+              </h2>
               <div className="section__head" style={{ marginBottom: 12 }}>
                 <span className="faint">
                   {counts} record{counts === 1 ? "" : "s"} across {detail.collections.length} table{detail.collections.length === 1 ? "" : "s"} · {detail.data_notice ?? "Its records stay on this Mac."} · Changes you make here are kept as yours.
                 </span>
               </div>
               <DataSection client={client} detail={detail} version={version} onChanged={changed} />
-            </>
-          ) : null}
+            </section>
 
-          {section === "activity" ? (
-            <>
-              <div className="section" style={{ marginTop: 0 }}>
-                <div className="section__head">
-                  <h2>What ran</h2>
-                  <span className="faint">Every action of this module, newest first, with its outcome</span>
-                </div>
-                {onCancelRun ? <RunList runs={mine} onCancel={onCancelRun} appNames={{ [appId]: detail.name }} /> : <p className="empty">Nothing has run yet.</p>}
-              </div>
-              <Automations client={client} appId={appId} version={version} onChanged={changed} />
-              {(detail.capabilities ?? []).includes("browser") ? <BrowserVisits client={client} appId={appId} version={version} /> : null}
-              <div className="section">
-                <div className="section__head">
-                  <h2>What it can reach</h2>
-                </div>
-                <div className="card list">
-                  {(detail.capabilities ?? []).map((family) => {
-                    const words = ACCESS[family] ?? { title: humanize(family), sub: "" };
-                    return (
-                      <div className="item" key={family}>
-                        <div className="item__ico" aria-hidden="true">
-                          ●
-                        </div>
-                        <div className="item__body">
-                          <b>{words.title}</b>
-                          <div className="item__sub">{words.sub}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="item">
-                    <div className="item__ico" aria-hidden="true">
-                      ○
-                    </div>
-                    <div className="item__body">
-                      <b>Nothing else</b>
-                      <div className="item__sub">No files on this Mac, no other module's data, no sign-ins, no messages. {detail.data_notice ?? "Its records stay on this Mac."}</div>
+            <section className="mod-section" id="mod-version">
+              <h2 className="mod-section__title">
+                <SettingsIcon size={16} /> Version
+              </h2>
+              <div className="card list">
+                <div className="item">
+                  <div className="item__body">
+                    <b>Version</b>
+                    <div className="item__sub" title={`Version ${detail.version_id} · runtime ${detail.runtime_profile_id}`}>
+                      Built by Alpha · the current version is in use
+                      {typeof goingBack === "string" && goingBack !== "ask" && goingBack !== "busy" ? ` · ${goingBack}` : ""}
                     </div>
                   </div>
-                </div>
-              </div>
-            </>
-          ) : null}
-
-          {section === "settings" ? (
-            <>
-              {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
-              <div className="section" style={{ marginTop: (detail.capabilities ?? []).includes("browser") ? undefined : 0 }}>
-                <div className="section__head">
-                  <h2>How it works</h2>
-                </div>
-                <div className="card list">
-                  <div className="item">
-                    <div className="item__ico" aria-hidden="true">
-                      <SettingsIcon size={14} />
-                    </div>
-                    <div className="item__body">
-                      <b>What it can do</b>
-                      <div className="item__sub">{detail.actions.map((a) => `${a.title}: ${a.description}`).join(" · ")}</div>
-                    </div>
-                  </div>
-                  {screen?.assistant_hint ? (
-                    <div className="item">
-                      <div className="item__ico" aria-hidden="true">
-                        💬
-                      </div>
-                      <div className="item__body">
-                        <b>What the assistant knows about it</b>
-                        <div className="item__sub">{screen.assistant_hint}</div>
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="item">
-                    <div className="item__ico" aria-hidden="true">
-                      🕘
-                    </div>
-                    <div className="item__body">
-                      <b>Version</b>
-                      <div className="item__sub" title={`Version ${detail.version_id} · runtime ${detail.runtime_profile_id}`}>
-                        Built by Alpha · the current version is in use
-                        {typeof goingBack === "string" && goingBack !== "ask" && goingBack !== "busy" ? ` · ${goingBack}` : ""}
-                      </div>
-                    </div>
-                    {detail.can_revert ? (
-                      goingBack === "ask" ? (
-                        <span className="row" style={{ gap: 6 }}>
-                          <span className="faint">Go back? Your records stay.</span>
-                          <button type="button" className="btn btn--sm btn--primary" onClick={() => void goBack()}>
-                            Go back
-                          </button>
-                          <button type="button" className="btn btn--sm" onClick={() => setGoingBack(null)}>
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        <button type="button" className="btn btn--sm" disabled={goingBack === "busy"} onClick={() => setGoingBack("ask")}>
+                  {detail.can_revert ? (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="btn btn--sm" disabled={goingBack === "busy"}>
                           Go back to the previous version
                         </button>
-                      )
-                    ) : (
-                      <span className="faint">Changes arrive in a later release</span>
-                    )}
-                  </div>
+                      </DialogTrigger>
+                      <DialogContent title="Go back to the previous version?" description="Your records are kept.">
+                        <div className="row" style={{ gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+                          <DialogClose asChild>
+                            <button type="button" className="btn btn--sm">
+                              Cancel
+                            </button>
+                          </DialogClose>
+                          <DialogClose asChild>
+                            <button type="button" className="btn btn--sm btn--primary" onClick={() => void goBack()}>
+                              Go back
+                            </button>
+                          </DialogClose>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  ) : (
+                    <span className="faint">Changes arrive in a later release</span>
+                  )}
                 </div>
               </div>
-            </>
-          ) : null}
+            </section>
+          </div>
         </ModuleContext.Provider>
       ) : null}
     </section>
