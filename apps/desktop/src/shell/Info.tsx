@@ -1,28 +1,29 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { CircleCheck, Circle } from "lucide-react";
 import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
+import { Badge, PageHeader, Tabs, useToast, type TabItem } from "../ui";
+import "./pages.css";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
   return (
-    <section className="page" aria-labelledby="activity-heading">
-      <div className="modhead">
-        <div className="modhead__title">
-          <div>
-            <h2 id="activity-heading">Activity</h2>
-            <div className="faint">What ran, what it produced, what needs you</div>
-          </div>
-        </div>
-      </div>
-      {error ? (
-        <p className="notice" role="alert">
-          {error}
+    <section aria-labelledby="activity-heading">
+      <PageHeader title={<span id="activity-heading">Activity</span>} />
+      <div className="page--wide">
+        <p className="faint" style={{ marginTop: -8, marginBottom: 16 }}>
+          What ran, what it produced, what needs you
         </p>
-      ) : null}
-      <RunList runs={runs} onCancel={onCancel} appNames={appNames} />
+        {error ? (
+          <p className="notice" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <RunList runs={runs} onCancel={onCancel} appNames={appNames} />
+      </div>
     </section>
   );
 }
@@ -85,7 +86,7 @@ function SignedInSites({ client }: { client: CoreClient }) {
         {sites.map((s) => (
           <div className="item" key={s.site}>
             <div className="item__ico" aria-hidden="true">
-              {s.state === "connected" ? "●" : "○"}
+              {s.state === "connected" ? <CircleCheck size={16} /> : <Circle size={16} />}
             </div>
             <div className="item__body">
               <b>{s.site}</b>
@@ -135,38 +136,36 @@ export function Connections({ client }: { client: CoreClient }) {
     client.capabilities().then(setItems).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [client]);
   return (
-    <section className="page" aria-labelledby="connections-heading">
-      <div className="modhead">
-        <div className="modhead__title">
-          <div>
-            <h2 id="connections-heading">Connections</h2>
-            <div className="faint">Accounts and services your modules may use. Alpha never shows or stores raw passwords here.</div>
-          </div>
-        </div>
-      </div>
-      {error ? (
-        <p className="notice" role="alert">
-          {error}
+    <section aria-labelledby="connections-heading">
+      <PageHeader title={<span id="connections-heading">Connections</span>} />
+      <div className="page--wide">
+        <p className="faint" style={{ marginTop: -8, marginBottom: 16 }}>
+          Accounts and services your modules may use. Alpha never shows or stores raw passwords here.
         </p>
-      ) : null}
-      <SignedInSites client={client} />
-      <div className="card list">
-        {(items ?? []).map((c) => {
-          const words = FAMILY_WORDS[c.family] ?? { title: c.family, sub: c.description };
-          return (
-            <div className="item" key={c.family}>
-              <div className="item__ico" aria-hidden="true">
-                {c.available ? "●" : "○"}
+        {error ? (
+          <p className="notice" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <SignedInSites client={client} />
+        <div className="card list">
+          {(items ?? []).map((c) => {
+            const words = FAMILY_WORDS[c.family] ?? { title: c.family, sub: c.description };
+            return (
+              <div className="item" key={c.family}>
+                <div className="item__ico" aria-hidden="true">
+                  {c.available ? <CircleCheck size={16} /> : <Circle size={16} />}
+                </div>
+                <div className="item__body">
+                  <b>{words.title}</b>
+                  <div className="item__sub">{c.available ? words.sub : c.unavailable_reason ?? c.arrives_with ?? "Not connected yet"}</div>
+                </div>
+                <Badge variant={c.available ? "success" : "neutral"}>{c.available ? "Connected" : "Not yet"}</Badge>
               </div>
-              <div className="item__body">
-                <b>{words.title}</b>
-                <div className="item__sub">{c.available ? words.sub : c.unavailable_reason ?? c.arrives_with ?? "Not connected yet"}</div>
-              </div>
-              <span className={`pill ${c.available ? "pill--good" : "pill--gray"}`}>{c.available ? "Connected" : "Not yet"}</span>
-            </div>
-          );
-        })}
-        {items && !items.length ? <p className="empty">Nothing to connect yet.</p> : null}
+            );
+          })}
+          {items && !items.length ? <p className="empty">Nothing to connect yet.</p> : null}
+        </div>
       </div>
     </section>
   );
@@ -177,10 +176,12 @@ export function applyDensity(density: string): void {
   document.documentElement.dataset.density = density === "comfortable" ? "comfortable" : "compact";
 }
 
-/** Every setting Core exposes, grouped, editable in place; a change is saved as it is made. */
-function ConfigurableSettings({ client }: { client: CoreClient }) {
+/** Every setting Core exposes, grouped, editable in place; a change is saved as it is made.
+ *  `only`, when given, renders just those groups (the section a Settings tab owns); omitted
+ *  renders every group Core reports, for a section that hasn't reserved specific group names. */
+function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; only?: string[]; exclude?: string[] }) {
   const [fields, setFields] = useState<SettingField[] | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const toast = useToast();
   useEffect(() => {
     let cancelled = false;
     client
@@ -202,13 +203,14 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
     setFields((all) => (all ?? []).map((f) => (f.id === field.id ? { ...f, value } : f)));
     try {
       setFields(await client.updateSettings({ [field.id]: value }));
-      setNote(`Saved. ${field.title} applies from the next time it is used.`);
+      toast.show(`Saved. ${field.title} applies from the next time it is used.`);
     } catch (e) {
-      setNote(`Could not save ${field.title.toLowerCase()}: ${e instanceof Error ? e.message : String(e)}`);
+      toast.show(`Could not save ${field.title.toLowerCase()}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   if (!fields?.length) return null;
-  const groups = [...new Set(fields.map((f) => f.group))];
+  const groups = [...new Set(fields.map((f) => f.group))].filter((g) => (!only || only.includes(g)) && !exclude?.includes(g));
+  if (!groups.length) return null;
   return (
     <>
       {groups.map((group) => (
@@ -260,11 +262,6 @@ function ConfigurableSettings({ client }: { client: CoreClient }) {
             ))}
         </div>
       ))}
-      {note ? (
-        <p className="panel__hint" role="status">
-          {note}
-        </p>
-      ) : null}
     </>
   );
 }
@@ -315,45 +312,71 @@ function AvatarSetting() {
   );
 }
 
+const SETTINGS_SECTIONS: TabItem[] = [
+  { value: "models", label: "Models" },
+  { value: "look", label: "Look & Appearance" },
+  { value: "builds", label: "Builds" },
+  { value: "desktop", label: "Desktop" },
+  { value: "data", label: "Data & runtime" },
+];
+
 export function Settings({ client, health, theme, onTheme }: { client: CoreClient; health: HealthInfo; theme: Theme; onTheme: (next: Theme) => void }) {
+  const [section, setSection] = useState("models");
   return (
-    <section className="page" aria-labelledby="settings-heading">
-      <div className="modhead">
-        <div className="modhead__title">
-          <div>
-            <h2 id="settings-heading">Settings</h2>
-          </div>
-        </div>
-      </div>
-      <ConfigurableSettings client={client} />
-      <AvatarSetting />
-      <div className="card list">
-        <div className="item">
-          <div className="item__body">
-            <b>Appearance</b>
-            <div className="item__sub">Light or dark, or follow the Mac's setting.</div>
-          </div>
-          <ThemeControl theme={theme} onChange={onTheme} />
-        </div>
-        <div className="item">
-          <div className="item__body">
-            <b>Runs while Alpha is open</b>
-            <div className="item__sub">Closing the window keeps Alpha running from the menu bar. Quit stops everything.</div>
-          </div>
-        </div>
-        <div className="item">
-          <div className="item__body">
-            <b>Where your data lives</b>
-            <div className="item__sub">{health.data_dir}</div>
-          </div>
-        </div>
-        <div className="item">
-          <div className="item__body">
-            <b>Runtime</b>
-            <div className="item__sub">
-              Core {health.core_version} · Python {health.python_version.split(" ")[0]} · internal development build
+    <section aria-labelledby="settings-heading">
+      <PageHeader title={<span id="settings-heading">Settings</span>} />
+      <div className="settings-layout">
+        <nav className="settings-tabs">
+          <Tabs items={SETTINGS_SECTIONS} value={section} onChange={setSection} aria-label="Settings sections" />
+        </nav>
+        <div className="settings-content">
+          {section === "models" ? <ConfigurableSettings client={client} only={["Models"]} /> : null}
+          {section === "look" ? (
+            <>
+              <ConfigurableSettings client={client} only={["Look"]} />
+              <div className="card list">
+                <div className="item">
+                  <div className="item__body">
+                    <b>Appearance</b>
+                    <div className="item__sub">Light or dark, or follow the Mac's setting.</div>
+                  </div>
+                  <ThemeControl theme={theme} onChange={onTheme} />
+                </div>
+              </div>
+            </>
+          ) : null}
+          {section === "builds" ? <ConfigurableSettings client={client} exclude={["Models", "Look"]} /> : null}
+          {section === "desktop" ? (
+            <>
+              <AvatarSetting />
+              <div className="card list">
+                <div className="item">
+                  <div className="item__body">
+                    <b>Runs while Alpha is open</b>
+                    <div className="item__sub">Closing the window keeps Alpha running from the menu bar. Quit stops everything.</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+          {section === "data" ? (
+            <div className="card list">
+              <div className="item">
+                <div className="item__body">
+                  <b>Where your data lives</b>
+                  <div className="item__sub">{health.data_dir}</div>
+                </div>
+              </div>
+              <div className="item">
+                <div className="item__body">
+                  <b>Runtime</b>
+                  <div className="item__sub">
+                    Core {health.core_version} · Python {health.python_version.split(" ")[0]} · internal development build
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </section>
