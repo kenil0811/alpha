@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Home as HomeIcon, Clock, Link2, Settings as SettingsIcon, Plus, Boxes, MoreVertical, type LucideIcon } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, type LucideIcon } from "lucide-react";
 import type { AppSummary } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
 import { CollapseToggleButton, ResizeHandle, type PanelControl } from "../ui/panel";
@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
  *  `pathname`, both passed in as props — no useNavigate/useLocation import needed in this file's
  *  own tests). */
-export type Surface = { kind: "home" } | { kind: "activity" } | { kind: "connections" } | { kind: "settings" } | { kind: "module"; appId: string };
+export type Surface = { kind: "home" } | { kind: "activity" } | { kind: "settings"; section?: string } | { kind: "module"; appId: string };
 
 export function surfacePath(s: Surface): string {
   switch (s.kind) {
@@ -17,10 +17,8 @@ export function surfacePath(s: Surface): string {
       return "/";
     case "activity":
       return "/activity";
-    case "connections":
-      return "/connections";
     case "settings":
-      return "/settings";
+      return s.section ? `/settings/${encodeURIComponent(s.section)}` : "/settings";
     case "module":
       return `/m/${encodeURIComponent(s.appId)}`;
   }
@@ -215,8 +213,6 @@ export function Rail({
           </button>
         ) : null}
         <div className="rail__spacer" />
-        {item({ kind: "activity" }, Clock, "Activity")}
-        {item({ kind: "connections" }, Link2, "Connections")}
         {item({ kind: "settings" }, SettingsIcon, "Settings")}
       </div>
       {!collapsed ? (

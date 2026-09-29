@@ -57,7 +57,7 @@ export function CommandMenu({
     const nav: CommandItem[] = [
       { id: "go-home", label: "Go to Home", icon: Home, run: () => go(surfacePath({ kind: "home" })) },
       { id: "go-activity", label: "Go to Activity", icon: Activity, run: () => go(surfacePath({ kind: "activity" })) },
-      { id: "go-connections", label: "Go to Connections", icon: Link2, run: () => go(surfacePath({ kind: "connections" })) },
+      { id: "go-connections", label: "Go to Connections", icon: Link2, run: () => go(surfacePath({ kind: "settings", section: "connections" })) },
       { id: "go-settings", label: "Go to Settings", icon: Settings, run: () => go(surfacePath({ kind: "settings" })) },
     ];
     const openModules: CommandItem[] = modules.map((m) => ({

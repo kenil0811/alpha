@@ -121,6 +121,7 @@ export function AssistantPanel({
   onOpenApp,
   context = { moduleName: null },
   headerStart,
+  headerEnd,
   draft,
 }: {
   client: CoreClient;
@@ -130,6 +131,8 @@ export function AssistantPanel({
   context?: AssistantContext;
   /** Reserved for the shell's own collapse toggle; the panel does not manage its own width. */
   headerStart?: ReactNode;
+  /** Right slot of the header (the shell puts the Activity bell here). */
+  headerEnd?: ReactNode;
   /** @deprecated the shell track owns collapse/hide now; pass a toggle via `headerStart` instead.
    * Kept optional so `App.tsx` (shell-owned) still type-checks until it is rewired. */
   onHide?: () => void;
@@ -199,6 +202,7 @@ export function AssistantPanel({
             <div className="assist__ctx">{contextLabel}</div>
           </div>
         </div>
+        {headerEnd ? <div className="assist__headend">{headerEnd}</div> : null}
       </div>
       <div className="assist__toolbar">
         <StandardDropdown options={historyOptions} value={selected} onChange={select} placeholder="Chat history" />

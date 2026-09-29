@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HashRouter, useLocation, useNavigate } from "react-router";
-import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, MessageCircle, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
+import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, Bell, MessageCircle, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
@@ -8,9 +8,9 @@ import { HANDOFF_KEY } from "./avatar/AvatarWindow";
 import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
 import { Rail, surfacePath, type Surface } from "./shell/Rail";
-import { Home } from "./shell/Home";
+import { ATTENTION, Home } from "./shell/Home";
 import { CommandMenu } from "./shell/CommandMenu";
-import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
+import { Activity, Settings, applyDensity } from "./shell/Info";
 import { ModulePage, type Section } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
@@ -50,8 +50,10 @@ function remember(key: string, value: unknown): void {
 function surfaceFromPath(pathname: string): Surface {
   const path = decodeURIComponent(pathname);
   if (path === "/activity") return { kind: "activity" };
-  if (path === "/connections") return { kind: "connections" };
-  if (path === "/settings") return { kind: "settings" };
+  // Connections moved into Settings; the old link still lands there.
+  if (path === "/connections") return { kind: "settings", section: "connections" };
+  const st = path.match(/^\/settings(?:\/([^/]+))?$/);
+  if (st) return { kind: "settings", section: st[1] };
   const m = path.match(/^\/m\/([^/]+)/);
   if (m) return { kind: "module", appId: m[1] };
   return { kind: "home" };
@@ -235,6 +237,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const client = runtime.kind === "connected" ? runtime.client : null;
   const nullClient = useMemo(() => new NullClient(), []);
   const { runs, error: runsError, cancel } = useRuns(client ?? nullClient);
+  const needsYou = runs.filter((r) => ATTENTION.has(r.run.state)).length;
 
   // The module list: reloaded when a creation finishes or a run completes (a new module shows up
   // in the rail without a restart).
@@ -328,10 +331,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
         <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
       ) : surface.kind === "activity" ? (
         <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
-      ) : surface.kind === "connections" ? (
-        <Connections client={runtime.client} />
       ) : surface.kind === "settings" ? (
-        <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
+        <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} section={surface.section} onSection={(section) => setSurface({ kind: "settings", section })} />
       ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
         <ModulePage
           key={`${surface.appId}:${modulesTick}`}
@@ -377,6 +378,19 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
               controls="panel-right"
               onClick={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
             />
+          }
+          headerEnd={
+            <button
+              type="button"
+              className={surface.kind === "activity" ? "iconbtn bell iconbtn--on" : "iconbtn bell"}
+              aria-label={needsYou ? `Activity, ${needsYou} need you` : "Activity"}
+              title="Activity"
+              aria-current={surface.kind === "activity" ? "page" : undefined}
+              onClick={() => setSurface({ kind: "activity" })}
+            >
+              <Bell size={16} />
+              {needsYou ? <span className="bell__count">{needsYou > 9 ? "9+" : needsYou}</span> : null}
+            </button>
           }
           draft={draft}
         />

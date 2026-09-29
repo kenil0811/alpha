@@ -4,7 +4,7 @@ import type { AppSummary } from "../core/client";
 import { Badge } from "../ui/Badge";
 import "./pages.css";
 
-const ATTENTION = new Set(["waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation", "failed"]);
+export const ATTENTION = new Set(["waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation", "failed"]);
 
 function greeting(): string {
   const hour = new Date().getHours();

@@ -13,6 +13,7 @@ describe("the signed-in browser", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByRole("button", { name: "Connections" }));
     const form = await screen.findByRole("form", { name: "Sign in to a site" });
     await user.type(within(form).getByLabelText("Sign in to a site"), "https://www.LinkedIn.com/login");

@@ -1,12 +1,12 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CircleCheck, Circle } from "lucide-react";
+import { CircleCheck, Circle, Cpu, HardDrive, Hammer, Link2, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import type { BrowserSite, CapabilityEntry, CoreClient, HealthInfo, SettingField } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
-import { Badge, PageHeader, Tabs, useToast, type TabItem } from "../ui";
+import { Badge, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
@@ -129,7 +129,7 @@ function SignedInSites({ client }: { client: CoreClient }) {
   );
 }
 
-export function Connections({ client }: { client: CoreClient }) {
+export function Connections({ client, embedded = false }: { client: CoreClient; embedded?: boolean }) {
   const [items, setItems] = useState<CapabilityEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -137,9 +137,13 @@ export function Connections({ client }: { client: CoreClient }) {
   }, [client]);
   return (
     <section aria-labelledby="connections-heading">
-      <PageHeader title={<span id="connections-heading">Connections</span>} />
-      <div className="page--wide">
-        <p className="faint" style={{ marginTop: -8, marginBottom: 16 }}>
+      {embedded ? (
+        <h3 id="connections-heading" className="settings-section__title">Connections</h3>
+      ) : (
+        <PageHeader title={<span id="connections-heading">Connections</span>} />
+      )}
+      <div className={embedded ? undefined : "page--wide"}>
+        <p className="faint" style={{ marginTop: embedded ? 0 : -8, marginBottom: 16 }}>
           Accounts and services your modules may use. Alpha never shows or stores raw passwords here.
         </p>
         {error ? (
@@ -312,24 +316,62 @@ function AvatarSetting() {
   );
 }
 
-const SETTINGS_SECTIONS: TabItem[] = [
-  { value: "models", label: "Models" },
-  { value: "look", label: "Look & Appearance" },
-  { value: "builds", label: "Builds" },
-  { value: "desktop", label: "Desktop" },
-  { value: "data", label: "Data & runtime" },
+const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = [
+  { value: "models", label: "Models", icon: Cpu },
+  { value: "look", label: "Look & Appearance", icon: Palette },
+  { value: "builds", label: "Builds", icon: Hammer },
+  { value: "connections", label: "Connections", icon: Link2 },
+  { value: "desktop", label: "Desktop", icon: Monitor },
+  { value: "data", label: "Data & runtime", icon: HardDrive },
 ];
 
-export function Settings({ client, health, theme, onTheme }: { client: CoreClient; health: HealthInfo; theme: Theme; onTheme: (next: Theme) => void }) {
-  const [section, setSection] = useState("models");
+export function Settings({
+  client,
+  health,
+  theme,
+  onTheme,
+  section: requested,
+  onSection,
+}: {
+  client: CoreClient;
+  health: HealthInfo;
+  theme: Theme;
+  onTheme: (next: Theme) => void;
+  section?: string;
+  onSection?: (section: string) => void;
+}) {
+  const [own, setOwn] = useState("models");
+  const section = requested && SETTINGS_SECTIONS.some((s) => s.value === requested) ? requested : onSection ? "models" : own;
+  const setSection = onSection ?? setOwn;
   return (
-    <section aria-labelledby="settings-heading">
-      <PageHeader title={<span id="settings-heading">Settings</span>} />
+    <section aria-labelledby="settings-heading" className="settings">
+      <header className="settings__head">
+        <span className="settings__headico" aria-hidden="true">
+          <SettingsIcon size={16} />
+        </span>
+        <div>
+          <h2 id="settings-heading">Settings</h2>
+          <p>How Alpha works on this Mac</p>
+        </div>
+      </header>
       <div className="settings-layout">
-        <nav className="settings-tabs">
-          <Tabs items={SETTINGS_SECTIONS} value={section} onChange={setSection} aria-label="Settings sections" />
+        <nav className="settings-nav" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              className={value === section ? "settings-nav__item settings-nav__item--current" : "settings-nav__item"}
+              aria-current={value === section ? "page" : undefined}
+              onClick={() => setSection(value)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+              {value === section ? <span className="settings-nav__dot" aria-hidden="true" /> : null}
+            </button>
+          ))}
         </nav>
         <div className="settings-content">
+          {section === "connections" ? <Connections client={client} embedded /> : null}
           {section === "models" ? <ConfigurableSettings client={client} only={["Models"]} /> : null}
           {section === "look" ? (
             <>
