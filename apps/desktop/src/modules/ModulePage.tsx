@@ -26,7 +26,7 @@ import { Block } from "./blocks";
 import { DataSection } from "./DataSection";
 import { ModuleContext, humanize, makeModuleContext, type ModuleClient } from "./useModule";
 
-type Section = "app" | "data" | "activity" | "settings";
+export type Section = "app" | "data" | "activity" | "settings";
 
 /** Runs of charts sit side by side instead of one tall card each. */
 function groupBlocks<T extends { kind: string }>(blocks: T[]): T[][] {
@@ -247,6 +247,8 @@ export function ModulePage({
   runs = [],
   onCancelRun,
   onRemoved,
+  section: routedSection,
+  onSectionChange,
 }: {
   client: ModuleClient;
   appId: string;
@@ -257,6 +259,9 @@ export function ModulePage({
   onCancelRun?: (runId: string) => Promise<void>;
   /** The module was taken out of use from this page; the shell leaves it. */
   onRemoved?: () => void;
+  /** Section driven by the route (#/m/:id/:section); omit to let the page manage it itself. */
+  section?: Section;
+  onSectionChange?: (section: Section) => void;
 }) {
   const [goingBack, setGoingBack] = useState<"ask" | "busy" | string | null>(null);
   const goBack = async () => {
@@ -273,7 +278,9 @@ export function ModulePage({
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<string | null>(null);
-  const [section, setSection] = useState<Section>("app");
+  const [sectionState, setSectionState] = useState<Section>(routedSection ?? "app");
+  const section = routedSection ?? sectionState;
+  const setSection = onSectionChange ?? setSectionState;
   const changed = useCallback(() => setVersion((n) => n + 1), []);
 
   useEffect(() => {
@@ -286,7 +293,7 @@ export function ModulePage({
   useEffect(() => {
     setDetail(null);
     setTab(null);
-    setSection("app");
+    setSectionState("app");
   }, [appId]);
 
   const context = useMemo(() => (detail ? makeModuleContext(client, detail, version, changed) : null), [client, detail, version, changed]);

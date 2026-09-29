@@ -1,0 +1,5 @@
+.page-header { height: 56px; flex: none; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--border); gap: 12px; }
+.page-header--center { justify-content: center; text-align: center; }
+.page-header__title { margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-header--center .page-header__title { flex: none; }
+.page-header__right { flex: none; display: flex; align-items: center; gap: 8px; }

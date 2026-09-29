@@ -60,16 +60,100 @@ The rail no longer shows a status text row. The Alpha mark carries a small dot
 (`.brand__mark--connected/--unavailable`) plus a `Tooltip` and an `role="status"` + `sr-only` text
 node, so it's still screen-reader/test-visible without taking rail space.
 
-## Routes, panels (drag-resize), rail reordering/hide menu — NOT LANDED
-Given the size of the remaining asks (react-router migration off the in-memory `Surface` state,
-Bridge's full `PanelControl` with drag-resize/extended mode/stepped-Escape, native drag-to-reorder
-modules, and the per-row Hide/Rename context menu), none of these landed in this pass — the
-existing `Surface`-state navigation, the rail's collapsed/expanded toggle, and the plain module
-list all still work exactly as before, just re-skinned. Recommend a dedicated follow-up task per
-item; the tokens/primitives here don't block starting any of them (`Button`/`IconButton`/
-`DropdownMenu`/`Tooltip` are what a panel/rail-menu rebuild would reach for first).
+## Panel control — `ui/panel.tsx`
+Ports Bridge's `PanelControl` (`platform/apps/web/src/app/components/shared/PanelControl.tsx`) as
+plain CSS/React (no Tailwind here) instead of a rendered wrapper component, so the rail and the
+assistant each own their own markup and just consume the hook:
+
+- `usePanelControl({ defaultWidth, minWidth, maxWidth, storageKeyWidth, storageKeyCollapsed, snap?,
+  snapMidpoint?, migrateWidthKeys?, migrateCollapsedKeys?, initialCollapsed? })` → `{ collapsed,
+  mode: "collapsed"|"expanded"|"extended", width, displayWidth (live value during a drag),
+  isDragging, setCollapsed, toggleCollapsed, resizeBy(delta), startDrag(mouseEvent),
+  handleEscape() ⇒ boolean }`. `snap: true` (the rail) snaps to collapsed/expanded on drag
+  release at `snapMidpoint`; omitted (the assistant) resizes continuously.
+- `handleEscape()` steps extended → expanded → collapsed, one level per call, and returns whether
+  it did anything — callers gate it on focus-within/no-open-overlay themselves (see `App.tsx`'s
+  single document `keydown` listener, which checks `railRef`/`assistRef.contains(activeElement)`
+  and bails if a `[role=dialog|menu|listbox]` is open).
+- `CollapseToggleButton({ side, collapsed, onClick, controls, className? })` — PanelLeftClose/
+  PanelRightClose when expanded, ChevronsRight/ChevronsLeft when collapsed; sets
+  `aria-expanded`/`aria-controls`.
+- `ResizeHandle({ side, onMouseDown, onStep, label, value, min, max, isDragging })` —
+  `role="separator"`, `tabIndex=0`, ArrowLeft/Right step ±16px via `onStep`, hairline + grip hidden
+  until hover/focus/drag (`panel.css`).
+- `CollapsedStrip` — a plain button wrapper for a collapsed panel's icon strip.
+
+Persisted keys: `alpha.rail.width` / `alpha.rail.collapsed` (rail, snap, 76/220/360),
+`alpha.assistant.width` / `alpha.assistant.collapsed` (assistant, continuous, 48-collapsed-strip/
+286/520). The old `alpha.assistant.open` per-surface (home vs. module) open/closed map is kept as
+a *separate* concern in `App.tsx` (`openByKind`) — that's "is the assistant visible on this kind of
+surface", independent of the panel's own collapsed width state; a person can collapse the
+assistant to its 48px strip without losing the per-surface open/closed memory.
+
+Test: `ui/panel.test.tsx` covers width clamping, extended mode, the three-step Escape sequence,
+persistence across remount, and legacy-key migration — via `renderHook`, no DOM.
+
+## Routing — HashRouter
+`App.tsx` wraps the shell in `<HashRouter>` and derives `Surface` from `useLocation().pathname`
+with a small regex parser (`surfaceFromPath`/`sectionFromPath`) rather than a `<Routes>` tree —
+every destination already went through one switch statement, so a routes tree would just duplicate
+it. Paths: `/` home, `/activity`, `/connections`, `/settings`, `/m/:moduleId`,
+`/m/:moduleId/:section` (section is `app|data|activity|settings`, passed to `ModulePage` as a new
+optional `section`/`onSectionChange` prop pair — omit both and `ModulePage` manages the section
+itself, unchanged, for any caller that doesn't route). `setSurface` now calls `navigate(...)`;
+back/forward work because the browser owns the history. On first mount at `/`, `App.tsx` replays
+`alpha.surface` from localStorage once (`restoredOnce` ref) so a restart reopens the same page —
+after that the URL is the only source of truth. Rail items are still plain `<button>`s (not
+`<Link>`) that call the passed-in `onGo`/`navigate`, to keep them `role="button"` (existing tests
+assert `getByRole("button", { name: "Settings" })`, etc.) while still being real URL navigation.
+Tests: jsdom's `window.location.hash` persists across tests in the same file (unlike component
+state), so `test/setup.ts` resets it to `""` in `afterEach`.
+
+## Rail — reorder, hide/show
+`shell/Rail.tsx` now takes a `panel: PanelControl` prop (from `usePanelControl`, owned by
+`App.tsx`) instead of `collapsed`/`onToggleCollapsed`. Each module row is a `.navrow` with the nav
+button plus a `DropdownMenu` (Open / Hide from sidebar) behind a hover-revealed `⋮`; hidden ids
+persist to `alpha.rail.hiddenModules`, and a "N hidden · Show all" row appears at the bottom of the
+list when any are hidden. Native HTML5 drag-and-drop (`draggable`, `onDragStart`/`onDragOver`/
+`onDrop`) reorders rows; order persists to `alpha.rail.moduleOrder` (unknown/new modules sort after
+known ones by server order). Rename/Delete were checked against `core/client.ts` — no call exists
+for either, so both were left out per the brief.
+
+## Tabs, Toast — `ui/Tabs.tsx`, `ui/toast.tsx`
+- `Tabs({ items: {value,label}[], value, onChange, "aria-label" })` — `role="tablist"`/`"tab"`,
+  `aria-selected`, roving `tabIndex`, Arrow/Home/End. Plain CSS, no Radix — the module page's
+  existing `.subtabs` still uses its own toggle and was left alone (not a trivial swap: it also
+  carries a badge count).
+- `ToastProvider` (wired once in `App.tsx`, wrapping `HashRouter`) + `useToast() → { show(message,
+  action?) }`. One `role="status" aria-live="polite"` region, auto-dismiss 5s, optional action
+  button. The region only renders while a toast is queued, so it never collides with the rail's own
+  `role="status"` runtime dot in an accessibility-tree query.
+
+## PageHeader — `ui/PageHeader.tsx`
+`PageHeader({ title, right?, center? })`, a 56px `border-bottom` row matching the rail's `.brand`
+and the assistant's `.assist__head`, both now also 56px. Added as a primitive for the next agent to
+adopt per-page; existing page headings (Home/Activity/Connections/Settings h2s) were **not**
+retrofitted to it in this pass — flag as a follow-up if pixel alignment across every page header
+matters before ship.
+
+## Layout — flex shell, panels, mobile
+`.app` is a flex row, `100dvh`: `.rail` (flex: none, width driven by `panel.displayWidth` inline
+style) | `.main` (flex: 1, min-width: 0, overflow: auto) | `.assist` (flex: none, same pattern).
+Nothing overlays `.main` at ≥640px. `--shadow-shell-right`/`--shadow-shell-left` give each panel a
+seam shadow. Rail collapsed = 76px icon+12px-label-stacked rows (not icon-only); assistant
+collapsed = 48px strip (`.assist--collapsed`) showing a `MessageCircle` icon button that expands it
+— the floating bottom-right "Assistant" FAB is gone.
+
+Below 640px (`isNarrow` in `App.tsx`, tracked via a `resize` listener): the rail and its resize
+handle are hidden by CSS, a `.tabbar` (56px: Home, Modules, Assistant, Settings) replaces them, and
+`Modules` opens a `.drawer-sheet` (rail rendered inside a `min(86vw,320px)` left sheet) while the
+assistant becomes a `.assist--overlay` covering the full viewport. This mobile pass is intentionally
+lighter than desktop — no drag-resize, no reorder/hide menu inside the drawer's rail instance (it's
+the same `Rail` component, so those still technically work, just untested at this width) — flag for
+a dedicated mobile-pass task if that matters before ship.
 
 ## Deps added
-`lucide-react`, `@radix-ui/react-{dialog,dropdown-menu,popover,select,tooltip}`,
-`react-router` (installed, not yet wired — see above), `@fontsource-variable/geist`,
-`@fontsource-variable/source-serif-4`.
+`lucide-react`, `@radix-ui/react-{dialog,dropdown-menu,popover,select,tooltip}`, `react-router`
+(now wired — `HashRouter`), `@fontsource-variable/geist`, `@fontsource-variable/source-serif-4`.
+No new dependency for Tabs/panel-resize/drag-reorder — all native DOM APIs (HTML5 drag-and-drop,
+`mousemove`/`mouseup` listeners, `role="separator"` keyboard handling).

@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, type LucideIcon } from "lucide-react";
+import { HashRouter, useLocation, useNavigate } from "react-router";
+import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, MessageCircle, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, HealthInfo } from "./core/client";
 import { HttpCoreClient, isAppsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
 import { HANDOFF_KEY } from "./avatar/AvatarWindow";
 import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
-import { Rail, type Surface } from "./shell/Rail";
+import { Rail, surfacePath, type Surface } from "./shell/Rail";
 import { Home } from "./shell/Home";
 import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
-import { ModulePage } from "./modules/ModulePage";
+import { ModulePage, type Section } from "./modules/ModulePage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
+import { ToastProvider } from "./ui/toast";
+import { usePanelControl } from "./ui/panel";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -40,20 +43,76 @@ function remember(key: string, value: unknown): void {
   }
 }
 
+/** Parses the URL (HashRouter's `pathname`, e.g. "/m/notes-1/data") into a Surface + module
+ *  section. Kept as plain parsing rather than a <Routes> tree: every destination already
+ *  renders through one big switch below, so a routes tree would just duplicate that switch. */
+function surfaceFromPath(pathname: string): Surface {
+  const path = decodeURIComponent(pathname);
+  if (path === "/activity") return { kind: "activity" };
+  if (path === "/connections") return { kind: "connections" };
+  if (path === "/settings") return { kind: "settings" };
+  const m = path.match(/^\/m\/([^/]+)/);
+  if (m) return { kind: "module", appId: m[1] };
+  return { kind: "home" };
+}
+function sectionFromPath(pathname: string): Section | undefined {
+  const m = decodeURIComponent(pathname).match(/^\/m\/[^/]+\/([^/]+)/);
+  const s = m?.[1];
+  return s === "app" || s === "data" || s === "activity" || s === "settings" ? s : undefined;
+}
+function moduleSectionPath(appId: string, section: Section): string {
+  return `/m/${encodeURIComponent(appId)}/${section}`;
+}
+
 type Runtime =
   | { kind: "connecting" }
   | { kind: "connected"; client: CoreClient; health: HealthInfo }
   | { kind: "unavailable"; reason: string };
 
-export function App({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean } = {}) {
+export function App(props: { client?: CoreClient; devTools?: boolean } = {}) {
+  return (
+    <TooltipProvider delayDuration={300}>
+      <ToastProvider>
+        <HashRouter>
+          <AppShell {...props} />
+        </HashRouter>
+      </ToastProvider>
+    </TooltipProvider>
+  );
+}
+
+function AppShell({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const surface = surfaceFromPath(location.pathname);
+  const moduleSection = sectionFromPath(location.pathname);
+  const setSurface = useCallback(
+    (next: Surface) => {
+      remember(SURFACE_KEY, next);
+      navigate(surfacePath(next));
+    },
+    [navigate],
+  );
+  // On a fresh load (no path yet) pick up wherever the person left off; a normal navigation
+  // should never fight the router, so this runs at most once.
+  const restoredOnce = useRef(false);
+  useEffect(() => {
+    if (restoredOnce.current) return;
+    restoredOnce.current = true;
+    if (location.pathname === "/" || location.pathname === "") {
+      const last = remembered<Surface | null>(SURFACE_KEY, null);
+      if (last && last.kind !== "home") navigate(surfacePath(last), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
   // Bumped to ask the host for the runtime again: on its own every few seconds while the
   // runtime is unavailable (a first launch can wait on a macOS permission dialog), or by hand.
   const [runtimeAttempt, setRuntimeAttempt] = useState(0);
-  const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
   const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
   // The assistant panel is open on Home and closed on a module page unless the person opened
-  // it there; both choices are remembered on this Mac. The rail can fold to icons.
+  // it there; both choices are remembered on this Mac.
   const [openByKind, setOpenByKind] = useState<{ home: boolean; module: boolean }>(() => readPanelState());
   const panelKind = surface.kind === "module" ? "module" : "home";
   const assistantOpen = openByKind[panelKind];
@@ -71,23 +130,31 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     },
     [panelKind],
   );
-  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem("alpha.rail.collapsed") === "1";
-    } catch {
-      return false;
-    }
+
+  const railPanel = usePanelControl({
+    defaultWidth: 220,
+    minWidth: 76,
+    maxWidth: 360,
+    storageKeyWidth: "alpha.rail.width",
+    storageKeyCollapsed: "alpha.rail.collapsed",
+    snap: true,
+    snapMidpoint: 148,
   });
-  const toggleRail = useCallback(() => {
-    setRailCollapsed((c) => {
-      try {
-        window.localStorage.setItem("alpha.rail.collapsed", c ? "0" : "1");
-      } catch {
-        // see above
-      }
-      return !c;
-    });
+  const assistantPanel = usePanelControl({
+    defaultWidth: 286,
+    minWidth: 260,
+    maxWidth: 520,
+    storageKeyWidth: "alpha.assistant.width",
+    storageKeyCollapsed: "alpha.assistant.collapsed",
+  });
+  const [isNarrow, setIsNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 640 : false));
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
+  const [mobileDrawer, setMobileDrawer] = useState<"modules" | null>(null);
+
   const [draft, setDraft] = useState<string | null>(null);
   const [modules, setModules] = useState<AppSummary[]>([]);
   const [modulesTick, setModulesTick] = useState(0);
@@ -105,10 +172,6 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
       .catch(() => undefined);
   }, [runtime]);
 
-  const setSurface = useCallback((next: Surface) => {
-    setSurfaceState(next);
-    remember(SURFACE_KEY, next);
-  }, []);
   const selectConversation = useCallback((id: string | null) => {
     setConversationId(id);
     remember(SELECTED_KEY, id);
@@ -137,7 +200,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [selectConversation, setSurface]);
+  }, [selectConversation, setSurface, setAssistantOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,10 +268,13 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const icons = useMemo(() => Object.fromEntries(modules.map((m) => [m.app_id, moduleIcon(m)])), [modules]);
   const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
 
-  const openAssistant = useCallback((text?: string) => {
-    setAssistantOpen(true);
-    setDraft(text ?? null);
-  }, [setAssistantOpen]);
+  const openAssistant = useCallback(
+    (text?: string) => {
+      setAssistantOpen(true);
+      setDraft(text ?? null);
+    },
+    [setAssistantOpen],
+  );
   // "New" always means a new module: leave the module page, or the request would change it.
   const startNew = useCallback(() => {
     selectConversation(null);
@@ -216,48 +282,83 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     openAssistant("");
   }, [openAssistant, selectConversation, setSurface]);
 
-  return (
-    <TooltipProvider delayDuration={300}>
-    <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
-      <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
-      <main className="main">
-        {runtime.kind !== "connected" ? (
-          <section className="page">
-            <h2>Runtime</h2>
-            {runtime.kind === "connecting" ? (
-              <p className="panel__hint">Connecting to the local runtime…</p>
-            ) : (
-              <>
-                <p className="notice" role="alert">
-                  {runtime.reason}
-                </p>
-                <p className="panel__hint">Alpha keeps trying on its own every few seconds.</p>
-                <div className="row">
-                  <button type="button" className="btn btn--sm" onClick={() => setRuntimeAttempt((n) => n + 1)}>
-                    Try again now
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
-        ) : surface.kind === "home" ? (
-          <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
-        ) : surface.kind === "activity" ? (
-          <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
-        ) : surface.kind === "connections" ? (
-          <Connections client={runtime.client} />
-        ) : surface.kind === "settings" ? (
-          <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
-        ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
-          <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }} />
-        ) : null}
-        {dev && runtime.kind === "connected" ? (
-          <section className="page">
-            <GeneratedUiFixture client={runtime.client} />
-          </section>
-        ) : null}
-      </main>
-      {runtime.kind === "connected" && assistantOpen ? (
+  // Escape steps whichever panel has focus (extended -> expanded -> collapsed); it never
+  // steals Escape from an open dialog/menu, and does nothing when focus is in neither panel.
+  const railRef = useRef<HTMLDivElement>(null);
+  const assistRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const overlayOpen = document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]') !== null;
+      if (overlayOpen) return;
+      const active = document.activeElement;
+      if (railRef.current?.contains(active)) railPanel.handleEscape();
+      else if (assistRef.current?.contains(active)) assistantPanel.handleEscape();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [railPanel, assistantPanel]);
+
+  const assistantWidth = assistantPanel.collapsed ? 48 : assistantPanel.displayWidth;
+  const railWidth = railPanel.collapsed ? 76 : railPanel.displayWidth;
+
+  const mainContent = (
+    <main className="main">
+      {runtime.kind !== "connected" ? (
+        <section className="page">
+          <h2>Runtime</h2>
+          {runtime.kind === "connecting" ? (
+            <p className="panel__hint">Connecting to the local runtime…</p>
+          ) : (
+            <>
+              <p className="notice" role="alert">
+                {runtime.reason}
+              </p>
+              <p className="panel__hint">Alpha keeps trying on its own every few seconds.</p>
+              <div className="row">
+                <button type="button" className="btn btn--sm" onClick={() => setRuntimeAttempt((n) => n + 1)}>
+                  Try again now
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : surface.kind === "home" ? (
+        <Home modules={modules} icons={icons} runs={runs.map((r) => r.run)} onOpen={(appId) => setSurface({ kind: "module", appId })} onNew={startNew} onActivity={() => setSurface({ kind: "activity" })} />
+      ) : surface.kind === "activity" ? (
+        <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
+      ) : surface.kind === "connections" ? (
+        <Connections client={runtime.client} />
+      ) : surface.kind === "settings" ? (
+        <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
+      ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
+        <ModulePage
+          key={`${surface.appId}:${modulesTick}`}
+          client={runtime.client}
+          appId={surface.appId}
+          icon={icons[surface.appId]}
+          onAsk={() => openAssistant()}
+          runs={runs}
+          onCancelRun={cancel}
+          onRemoved={() => {
+            setModulesTick((n) => n + 1);
+            setSurface({ kind: "home" });
+          }}
+          section={moduleSection}
+          onSectionChange={(next) => navigate(moduleSectionPath(surface.appId, next))}
+        />
+      ) : null}
+      {dev && runtime.kind === "connected" ? (
+        <section className="page">
+          <GeneratedUiFixture client={runtime.client} />
+        </section>
+      ) : null}
+    </main>
+  );
+
+  const assistantContent =
+    runtime.kind === "connected" && (assistantOpen || isNarrow) && !assistantPanel.collapsed ? (
+      <div ref={assistRef} className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow ? undefined : { width: assistantWidth }}>
         <AssistantPanel
           client={runtime.client}
           conversationId={conversationId}
@@ -268,17 +369,78 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
             setSurface({ kind: "module", appId });
           }}
           context={{ moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
-          onHide={() => setAssistantOpen(false)}
+          onHide={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
           draft={draft}
         />
-      ) : null}
-      {!assistantOpen ? (
-        <button type="button" className="btn btn--primary assist__fab" onClick={() => setAssistantOpen(true)}>
-          Assistant
-        </button>
-      ) : null}
+      </div>
+    ) : runtime.kind === "connected" && !isNarrow ? (
+      <button
+        type="button"
+        className="assist assist--collapsed"
+        style={{ width: 48 }}
+        onClick={() => {
+          assistantPanel.setCollapsed(false);
+          setAssistantOpen(true);
+        }}
+        aria-label="Open the assistant"
+      >
+        <MessageCircle size={18} />
+      </button>
+    ) : null;
+
+  if (isNarrow) {
+    return (
+      <div className="app">
+        {mainContent}
+        {mobileDrawer === "modules" ? (
+          <div className="drawer-sheet" onClick={() => setMobileDrawer(null)}>
+            <div className="drawer-sheet__panel" onClick={(e) => e.stopPropagation()}>
+              <Rail
+                surface={surface}
+                modules={modules}
+                icons={icons}
+                runtime={runtime.kind}
+                onGo={(s) => {
+                  setSurface(s);
+                  setMobileDrawer(null);
+                }}
+                onNew={startNew}
+                panel={{ ...railPanel, collapsed: false, displayWidth: 280 }}
+              />
+            </div>
+          </div>
+        ) : null}
+        {assistantOpen ? assistantContent : null}
+        <nav className="tabbar" aria-label="Alpha">
+          <button type="button" className="tabbar__btn" aria-current={surface.kind === "home" ? "page" : undefined} onClick={() => setSurface({ kind: "home" })}>
+            <HomeIcon size={18} />
+            Home
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={mobileDrawer === "modules" ? "page" : undefined} onClick={() => setMobileDrawer("modules")}>
+            <Boxes size={18} />
+            Modules
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={assistantOpen ? "page" : undefined} onClick={() => setAssistantOpen(!assistantOpen)}>
+            <MessageCircle size={18} />
+            Assistant
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={surface.kind === "settings" ? "page" : undefined} onClick={() => setSurface({ kind: "settings" })}>
+            <SettingsIcon size={18} />
+            Settings
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <div ref={railRef}>
+        <Rail surface={surface} modules={modules} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} panel={{ ...railPanel, displayWidth: railWidth }} />
+      </div>
+      {mainContent}
+      {assistantContent}
     </div>
-    </TooltipProvider>
   );
 }
 
