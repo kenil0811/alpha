@@ -67,7 +67,7 @@ export interface AssistantContext {
 
 /** The conversations to offer in the "Chat history" dropdown, newest first, with where each got
  * to as the visible secondary text. Scoped to the module's own thread when one is open. */
-function useHistoryOptions(client: CoreClient, appId: string | null): StandardDropdownOption[] {
+function useHistoryOptions(client: CoreClient, appId: string | null, refreshKey: string | null): StandardDropdownOption[] {
   const [items, setItems] = useState<Conversation[] | null>(null);
   const [creations, setCreations] = useState<Map<string, Creation>>(new Map());
 
@@ -95,7 +95,10 @@ function useHistoryOptions(client: CoreClient, appId: string | null): StandardDr
     return () => {
       cancelled = true;
     };
-  }, [client, appId]);
+    // refreshKey (the selected conversation) changes on every new request, reply, or reset, so
+    // a just-made or just-reopened conversation shows up without waiting for a remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, appId, refreshKey]);
 
   return useMemo(() => {
     if (!items) return [];
@@ -145,7 +148,7 @@ export function AssistantPanel({
     speech.toggle();
   }
   const appId = context.appId ?? null;
-  const historyOptions = useHistoryOptions(client, appId);
+  const historyOptions = useHistoryOptions(client, appId, selected);
   // Opened from a module, the panel is that module's thread: a conversation about something
   // else (or a new module made from Home) gives way to the module's own history.
   useEffect(() => {
