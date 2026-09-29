@@ -402,7 +402,6 @@ a { color: var(--primary); }
 .creation__summary { margin: 0 0 6px; font-weight: 500; }
 
 /* ---------- desktop avatar (its own transparent window) ---------- */
-:root { --avatar-hi: #9dbbff; --avatar-lo: #3b5fd0; }
 body.avatar-window { background: transparent; overflow: hidden; }
 body.avatar-window #root { height: 100vh; }
 .avatar { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; padding: 6px; gap: 8px; }
@@ -423,20 +422,8 @@ body.avatar-window #root { height: 100vh; }
 .avatar__reply { align-self: flex-start; background: var(--hover); border-radius: 12px 12px 12px 4px; padding: 6px 10px; font-size: 13px; max-width: 92%; }
 .avatar__ask { display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
 .avatar__ask input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--bg); }
-.character { display: block; }
-.character--idle .character__body { animation: avatar-bob 3.2s ease-in-out infinite; transform-origin: 48px 84px; }
-.character__eyes { animation: avatar-blink 5s infinite; transform-origin: 48px 44px; }
-.character--thinking .character__dots circle:nth-child(1) { animation: avatar-dot 1s infinite 0s; }
-.character--thinking .character__dots circle:nth-child(2) { animation: avatar-dot 1s infinite 0.2s; }
-.character--thinking .character__dots circle:nth-child(3) { animation: avatar-dot 1s infinite 0.4s; }
-.character--talking .character__mouth { animation: avatar-talk 0.5s ease-in-out infinite alternate; transform-origin: 48px 62px; }
-.character--listening .character__body { animation: avatar-pulse 1.2s ease-in-out infinite; transform-origin: 48px 48px; }
-@keyframes avatar-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@keyframes avatar-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-@keyframes avatar-dot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-@keyframes avatar-talk { from { transform: scaleY(0.5); } to { transform: scaleY(1.1); } }
-@keyframes avatar-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-@media (prefers-reduced-motion: reduce) { .character *, .character { animation: none !important; } }
+/* Character is now Bridge's Zazoo rig (avatar/zazoo/) — its animation runs via the director's
+   own rAF loop and its own prefers-reduced-motion fallback, not CSS keyframes. */
 
 /* ---------- derived pages ---------- */
 .toolbar--page { gap: 6px; }
