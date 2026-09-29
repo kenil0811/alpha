@@ -1,0 +1,50 @@
+/** Bridge-style restyle for Home, Activity, Connections, Settings. Reuses the shared .card/.pill
+ *  tokens from app.css (already 12px radius, 1px border, white surface) — only page-specific
+ *  layout/typography lives here. */
+
+.page--home { max-width: 896px; margin: 0 auto; padding: 40px 24px; }
+.page--home .eyebrow { display: flex; align-items: center; gap: 6px; }
+.page--home h1 { font-family: var(--font-ed); font-size: 34px; font-weight: 400; margin: 6px 0 6px; }
+.page--home .subcopy { color: var(--text-2); font-size: 16px; max-width: 640px; margin: 0 0 28px; }
+
+.stat-row { display: flex; gap: 12px; margin: 0 0 28px; }
+.stat-card { flex: 1; padding: 14px 16px; }
+.stat-card__label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-card__value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 2px 0; }
+.stat-card__sub { font-size: 12px; color: var(--text-3); }
+
+.module-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 640px) {
+  .module-grid { grid-template-columns: 1fr; }
+  .stat-row { flex-direction: column; }
+}
+.module-card { padding: 20px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.module-card__top { display: flex; align-items: flex-start; gap: 12px; }
+.module-card__icon { width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; flex: none; }
+.module-card h2 { font-size: 19px; font-weight: 600; margin: 0; }
+.module-card p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.module-card__meta { margin-top: auto; font-size: 12px; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.module-card__open { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 500; font-size: 13px; background: none; border: 0; padding: 0; cursor: pointer; }
+.module-card--new { border-style: dashed; justify-content: center; align-items: flex-start; }
+.module-card--new h2 { font-family: var(--font-ed); font-size: 18px; font-weight: 500; }
+.home-state { padding: 40px 0; text-align: center; color: var(--text-2); font-size: 14px; }
+.home-state--error { color: var(--bad); }
+
+/* Activity / Connections */
+.page--wide { max-width: 896px; margin: 0 auto; padding: 24px; }
+
+/* Settings: Bridge-style left tab list */
+.settings-layout { display: flex; gap: 32px; max-width: 896px; margin: 0 auto; padding: 24px; align-items: flex-start; }
+.settings-tabs { flex: none; width: 200px; }
+.settings-tabs .tabs { flex-direction: column; border-bottom: 0; border-right: 1px solid var(--border); gap: 0; align-items: stretch; }
+.settings-tabs .tabs__tab { text-align: left; border-bottom: 0; border-right: 2px solid transparent; margin-right: -1px; margin-bottom: 0; padding: 10px 14px; border-radius: 0; }
+.settings-tabs .tabs__tab--current { border-right-color: var(--primary); background: var(--primary-soft); border-radius: 8px 0 0 8px; }
+.settings-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+
+/* Command menu */
+.command-menu__list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.command-menu__item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--text); }
+.command-menu__item--active { background: var(--primary-soft); color: var(--primary); }
+.command-menu__empty { padding: 8px 10px; color: var(--text-3); font-size: 13px; }
+.command-menu__hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); display: flex; gap: 4px; align-items: center; }
+.command-menu__hint kbd { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
