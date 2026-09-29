@@ -235,7 +235,7 @@ Alpha runs the action on time while it is open, shows the last and next run on t
 with an on/off switch and a "Run now" button, and never catches up missed runs after it was
 closed. A scheduled action gets no person to ask: make it self-contained and return a `message`.
 
-### ui (a custom screen, only when no block fits)
+### ui (a custom screen, only when the person explicitly asks for one)
 
 ```yaml
 ui:
