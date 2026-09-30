@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+import pytest
 from alpha.assistant.attachments import (
     MAX_FOLDER_INLINE_CHARS,
     MAX_INLINE_CHARS,
@@ -51,6 +52,48 @@ def test_audio_is_named_honestly_not_transcribed() -> None:
     ctx = build_context([AttachmentIn(kind="audio", name="memo.m4a")])
     assert "memo.m4a" in ctx
     assert "not transcribed" in ctx
+
+
+def test_audio_with_content_and_a_saved_key_is_transcribed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from alpha.models import transcription
+
+    monkeypatch.setattr(
+        transcription.keychain, "get_key", lambda p: "g-key" if p == "groq" else None
+    )
+    monkeypatch.setattr(
+        transcription.urllib.request,
+        "urlopen",
+        lambda req, timeout=60: _FakeResponse({"text": "buy milk tomorrow"}),
+    )
+    content = base64.b64encode(b"fake-audio-bytes").decode()
+    ctx = build_context([AttachmentIn(kind="audio", name="memo.m4a", content_b64=content)])
+    assert "buy milk tomorrow" in ctx
+    assert "transcribed" in ctx
+
+
+def test_audio_without_a_saved_key_says_so_honestly(monkeypatch: pytest.MonkeyPatch) -> None:
+    from alpha.models import transcription
+
+    monkeypatch.setattr(transcription.keychain, "get_key", lambda p: None)
+    content = base64.b64encode(b"fake-audio-bytes").decode()
+    ctx = build_context([AttachmentIn(kind="audio", name="memo.m4a", content_b64=content)])
+    assert "no transcription key saved" in ctx
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        import json
+
+        self._body = json.dumps(payload).encode()
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
 
 
 def test_folder_lists_entries_and_inlines_text(tmp_path: Path) -> None:

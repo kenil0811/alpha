@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import os
@@ -50,6 +52,7 @@ from alpha.execution.coordinator import RunCoordinator
 from alpha.models.accounts import ModelAccounts
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
+from alpha.models.transcription import NoProviderAvailable, TranscriptionError, transcribe
 from alpha.solutions.creation import CreationService
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
 
@@ -178,6 +181,18 @@ class ConversationList(BaseModel):
     conversations: list[ConversationRecord]
 
 
+class TranscribeRequest(BaseModel):
+    """A recorded clip from the shell's mic (base64), sent to be turned into text. Capped well
+    above a comfortable few minutes of speech; never written to disk, never logged."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    audio_b64: str = Field(min_length=1, max_length=34_000_000)
+    mime: str = Field(default="audio/webm", max_length=60)
+    # A Keychain provider id ("groq" or "chatgpt") to try first; omitted tries Groq then OpenAI.
+    provider: str | None = Field(default=None, max_length=20)
+
+
 # WebKit (the Tauri WebView on macOS) does not hand small streamed-fetch chunks to JavaScript
 # until enough bytes accumulate; a live SSE stream with ~1 KB frames stalls after the first few.
 # Every frame is followed by a comment of this size so each write is flushed to the consumer.
@@ -288,6 +303,22 @@ def create_app(
             raise HTTPException(status_code=404, detail="run_not_found") from exc
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/transcribe")
+    def transcribe_audio(body: TranscribeRequest) -> dict[str, str]:
+        """Turns a recorded clip into text through whichever transcription key is saved
+        (Settings -> Models: Groq or OpenAI). The bytes never touch disk here."""
+        try:
+            audio = base64.b64decode(body.audio_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="The recording could not be read.") from exc
+        try:
+            text = transcribe(audio, body.mime, preferred=body.provider)
+        except NoProviderAvailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except TranscriptionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"text": text}
 
     if builds is not None and gateway is not None:
         register_build_routes(app, builds, gateway)

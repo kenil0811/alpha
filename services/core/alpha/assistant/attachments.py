@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from alpha.models import transcription
+
 MAX_ATTACHMENTS = 10
 # Per-file text read/inline caps (characters, not bytes, but close enough for a budget).
 MAX_INLINE_CHARS = 6000
@@ -104,9 +106,44 @@ def _image(item: AttachmentIn) -> str:
 
 
 def _audio(item: AttachmentIn) -> str:
-    # ponytail: no local file-transcription path wired up yet (only live mic speech exists, see
-    # speech.rs/stt_helper.swift); add one there and call it here if this needs to read audio.
-    return f'- audio file "{item.name}": attached, but not transcribed. Its content is not known.'
+    unknown = f'- audio file "{item.name}": {{reason}} Its content is not known.'
+    audio = _read_audio(item)
+    if audio is None:
+        return unknown.format(reason="attached, but not transcribed.")
+    if len(audio) > transcription.MAX_AUDIO_BYTES:
+        return unknown.format(reason="too large to transcribe (25 MB limit).")
+    try:
+        text = transcription.transcribe(audio, item.mime or "audio/mpeg")
+    except transcription.NoProviderAvailable:
+        return unknown.format(
+            reason="attached, but not transcribed (no transcription key saved in "
+            "Settings -> Models)."
+        )
+    except transcription.TranscriptionError:
+        return unknown.format(reason="attached, but could not be transcribed.")
+    clipped = text[:MAX_INLINE_CHARS]
+    note = "" if len(text) <= MAX_INLINE_CHARS else f" (truncated, {len(text)} chars total)"
+    return f'- audio file "{item.name}", transcribed{note}:\n```\n{clipped}\n```'
+
+
+def _read_audio(item: AttachmentIn) -> bytes | None:
+    # ponytail: no duration cap (would need an audio-parsing dependency); size alone bounds cost.
+    if item.content_b64 is not None:
+        try:
+            return base64.b64decode(item.content_b64)
+        except Exception:
+            return None
+    if not item.path:
+        return None
+    path = Path(item.path)
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        if path.stat().st_size > transcription.MAX_AUDIO_BYTES:
+            return b"\0" * (transcription.MAX_AUDIO_BYTES + 1)  # oversize sentinel, caught above
+        return path.read_bytes()
+    except Exception:
+        return None
 
 
 def _folder(item: AttachmentIn) -> str:
