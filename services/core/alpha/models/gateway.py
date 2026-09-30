@@ -60,8 +60,65 @@ ROUTES: dict[str, ModelRoute] = {
         notes=(
             "founder decision 2026-09-25: subscription login owned by the CLI; internal use only",
             "reported cost is a provider-equivalent estimate, not a charge",
+            "default auth is a Console account sign-in (`claude` -> /login); an Anthropic API "
+            "key saved in Settings -> Models is used instead only when chosen there",
         ),
     ),
+    "chatgpt-codex-cli": ModelRoute(
+        route_id="chatgpt-codex-cli",
+        provider="openai-codex-cli",
+        model="default",
+        cost_basis=CostBasis.SUBSCRIPTION_UNMETERED,
+        harness="codex-cli",
+        live=True,
+        notes=("ChatGPT sign-in owned by the Codex CLI (`codex login`); the person's choice",),
+    ),
+    "chatgpt-api": ModelRoute(
+        route_id="chatgpt-api",
+        provider="openai-api",
+        model="gpt-4o-mini",
+        cost_basis=CostBasis.PROVIDER_REPORTED,
+        harness="openai-http",
+        live=True,
+        notes=("uses the OpenAI API key saved in Settings -> Models",),
+    ),
+    "openrouter": ModelRoute(
+        route_id="openrouter",
+        provider="openrouter",
+        model="openai/gpt-4o-mini",
+        cost_basis=CostBasis.PROVIDER_REPORTED,
+        harness="openai-http",
+        live=True,
+        notes=("uses the OpenRouter key and model id saved in Settings -> Models",),
+    ),
+    "grok": ModelRoute(
+        route_id="grok",
+        provider="xai-grok",
+        model="grok-4",
+        cost_basis=CostBasis.PROVIDER_REPORTED,
+        harness="openai-http",
+        live=True,
+        notes=("uses the xAI key saved in Settings -> Models",),
+    ),
+}
+
+# The provider the person chose in Settings -> Models (`models.provider`) maps onto one of the
+# routes above; when set to a non-Claude choice, it overrides the route_id a stage would
+# otherwise use (the desktop host's static ALPHA_ASSISTANT_ROUTE / ALPHA_BUILDER_ROUTE / etc).
+PROVIDER_ROUTE_ID: dict[str, str] = {
+    "claude": "claude-code-cli",
+    "chatgpt_codex": "chatgpt-codex-cli",
+    "chatgpt_api": "chatgpt-api",
+    "openrouter": "openrouter",
+    "grok": "grok",
+}
+
+# For every non-Claude live route, the one preference holding the model id to use — there is no
+# per-stage choice for these the way Claude has opus/sonnet/haiku.
+MODEL_PREFERENCE_BY_ROUTE: dict[str, str] = {
+    "chatgpt-api": "models.chatgpt_model",
+    "openrouter": "models.openrouter_model",
+    "grok": "models.grok_model",
 }
 
 
@@ -126,18 +183,36 @@ class ModelGateway:
         ]
 
     def route(self, route_id: str, stage: str | None = None) -> ModelRoute:
-        """The route, with the model the person chose for `stage` in Settings (assistant,
-        planner, builder_new, builder_change or app) when the route can take one."""
+        """The route, with the model the person chose in Settings when the route can take one.
+        For a `stage` (assistant, planner, builder_new, builder_change or app), `models.provider`
+        first picks which route actually runs; on Claude, `models.{stage}` then picks
+        opus/sonnet/haiku, otherwise the route's own single model preference applies."""
         route = ROUTES.get(route_id)
         if route is None:
             raise RouteUnavailable(f"unknown model route {route_id!r}")
+        # Only a *live* default route (what the host configured for this stage) is subject to the
+        # person's provider choice; a caller asking for "fake" (control fixture, tests) always
+        # gets exactly that, never silently swapped for a real provider.
+        if stage and self.preferences is not None and route.live:
+            chosen_provider = self.preferences.get("models.provider")
+            override_id = PROVIDER_ROUTE_ID.get(str(chosen_provider))
+            if override_id and override_id != route_id and override_id in ROUTES:
+                route_id, route = override_id, ROUTES[override_id]
         if route_id not in self._enabled:
             raise RouteUnavailable(
                 f"model route {route_id!r} is not enabled on this host (ALPHA_ENABLED_MODEL_ROUTES)"
             )
-        if stage and self.preferences is not None and route.live:
+        if not (stage and self.preferences is not None and route.live):
+            return route
+        if route.route_id == "claude-code-cli":
             chosen = self.preferences.get(f"models.{stage}")
             if chosen and chosen != "default":
+                return replace(route, model=str(chosen))
+            return route
+        model_pref = MODEL_PREFERENCE_BY_ROUTE.get(route.route_id)
+        if model_pref:
+            chosen = self.preferences.get(model_pref)
+            if chosen:
                 return replace(route, model=str(chosen))
         return route
 

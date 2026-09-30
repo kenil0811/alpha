@@ -18,6 +18,22 @@ MODEL_OPTIONS: tuple[tuple[str, str], ...] = (
     ("haiku", "Claude Haiku (fastest)"),
 )
 
+# The provider every stage uses. "claude" (Console-account sign-in) is the default: it needs no
+# key and keeps working even where a Claude subscription sign-in is turned off (founder decision
+# 2026-09-25). The others are the person's explicit choice, made in Settings -> Models.
+PROVIDER_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("claude", "Claude"),
+    ("chatgpt_codex", "ChatGPT (signed in with Codex)"),
+    ("chatgpt_api", "ChatGPT (API key)"),
+    ("openrouter", "OpenRouter"),
+    ("grok", "Grok"),
+)
+
+CLAUDE_AUTH_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("console", "Console account (sign in with `claude`)"),
+    ("api_key", "Anthropic API key"),
+)
+
 
 @dataclass(frozen=True)
 class SettingField:
@@ -68,6 +84,53 @@ FIELDS: tuple[SettingField, ...] = (
         "Estimates, scoring and summaries a module asks for while you use it. Faster models "
         "make checks and scoring feel quick.",
         "sonnet",
+    ),
+    SettingField(
+        "models.provider",
+        "Models",
+        "Provider",
+        "Which account or key every stage uses. Claude needs no key and is the default; the "
+        "others use the account or key you connect below.",
+        "choice",
+        "claude",
+        PROVIDER_OPTIONS,
+    ),
+    SettingField(
+        "models.claude_auth_mode",
+        "Models",
+        "Claude sign-in",
+        "Console account: sign in once with `claude` in a terminal, no key needed. API key: use "
+        "an Anthropic API key instead, for example where Console sign-in is turned off.",
+        "choice",
+        "console",
+        CLAUDE_AUTH_OPTIONS,
+    ),
+    SettingField(
+        "models.chatgpt_model",
+        "Models",
+        "ChatGPT model (API key)",
+        "The OpenAI model id to use when ChatGPT is connected with an API key.",
+        "text",
+        "gpt-4o-mini",
+        maximum=100,
+    ),
+    SettingField(
+        "models.openrouter_model",
+        "Models",
+        "OpenRouter model",
+        "The OpenRouter model id to use, for example openai/gpt-4o-mini.",
+        "text",
+        "openai/gpt-4o-mini",
+        maximum=100,
+    ),
+    SettingField(
+        "models.grok_model",
+        "Models",
+        "Grok model",
+        "The xAI model id to use, for example grok-4.",
+        "text",
+        "grok-4",
+        maximum=100,
     ),
     SettingField(
         "build.fast_lane",

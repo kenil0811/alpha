@@ -55,6 +55,7 @@ from alpha.execution.coordinator import RunCoordinator
 from alpha.execution.profiles import ProfileInventory, sdk_source_digest
 from alpha.execution.scheduler import Scheduler
 from alpha.execution.supervisor import WorkerSupervisor
+from alpha.models.accounts import ModelAccounts
 from alpha.models.gateway import ModelGateway
 from alpha.models.preferences import Preferences
 from alpha.models.runtime import AppModelService
@@ -91,13 +92,15 @@ def build(
     report = coordinator.reconcile_on_startup()
     if report:
         log.warning("reconciled %d interrupted run(s) on startup: %s", len(report), report)
+    preferences = Preferences(store)
     gateway = ModelGateway(
         store,
         settings.enabled_model_routes,
         max_attempt_seconds=settings.build_max_attempt_seconds,
         max_total_seconds=settings.build_max_total_seconds,
-        preferences=Preferences(store),
+        preferences=preferences,
     )
+    model_accounts = ModelAccounts(preferences)
     inference = StructuredInference(
         gateway,
         claude_binary="claude",
@@ -282,6 +285,7 @@ def build(
         skills,
         projects=projects,
         sessions=sessions,
+        model_accounts=model_accounts,
     )
     app.state.repair = repair
     review.start_if_due()
