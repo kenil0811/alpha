@@ -867,7 +867,7 @@ export interface WorkflowsClient {
    *  an attachment anyone else building on Alpha can add as a new module. */
   exportModule(appId: string): Promise<Blob>;
   /** Install a `.alphamodule` file (from disk, or dropped/attached) as a new module. */
-  importModuleFile(file: File | Blob): Promise<{ app_id: string; name: string }>;
+  importModuleFile(file: File | Blob | { path: string }): Promise<{ app_id: string; name: string }>;
 }
 
 export function isWorkflowsClient(client: unknown): client is WorkflowsClient {
@@ -1081,7 +1081,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return response.blob();
   }
 
-  async importModuleFile(file: File | Blob): Promise<{ app_id: string; name: string }> {
+  async importModuleFile(file: File | Blob | { path: string }): Promise<{ app_id: string; name: string }> {
+    if ("path" in file) {
+      return this.request<{ app_id: string; name: string }>("/api/modules/import", { method: "POST", body: JSON.stringify({ path: file.path }) });
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     let binary = "";
     for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);

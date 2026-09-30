@@ -95,8 +95,9 @@ class ActionRunRequest(BaseModel):
 class ModuleImportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # base64-encoded bytes of a `.alphamodule` file.
-    data_base64: str
+    # base64-encoded bytes of a `.alphamodule` file, or (desktop) its local path.
+    data_base64: str | None = None
+    path: str | None = None
 
 
 def _app_notice(platform: AppPlatform, capabilities: list[str]) -> str:
@@ -186,10 +187,18 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
         import base64
         import binascii
 
-        try:
-            data = base64.b64decode(body.data_base64, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise _fail(invalid("that file couldn't be read")) from exc
+        if body.path is not None:
+            source = Path(body.path).expanduser()
+            if source.suffix.lower() != ".alphamodule" or not source.is_file():
+                raise _fail(invalid("that isn't an Alpha module file"))
+            if source.stat().st_size > 10 * 1024 * 1024:
+                raise _fail(invalid("that module file is larger than 10 MB"))
+            data = source.read_bytes()
+        else:
+            try:
+                data = base64.b64decode(body.data_base64 or "", validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise _fail(invalid("that file couldn't be read")) from exc
         try:
             imported = import_module(platform.registry, data)
         except OperationFailed as exc:

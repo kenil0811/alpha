@@ -19,7 +19,9 @@ import { ProjectPage } from "./shell/ProjectPage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
-import { ToastProvider } from "./ui/toast";
+import { ToastProvider, useToast } from "./ui/toast";
+import { registerAttachmentHandler } from "./assistant/attachments";
+import { ALPHAMODULE_EXTENSION } from "./modules/alphaModuleAttachment";
 import { CollapseToggleButton, usePanelControl } from "./ui/panel";
 import { ZazooIcon } from "./ui/ZazooIcon";
 
@@ -368,6 +370,27 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
     },
     [setSurface],
   );
+
+  // An exported module attached in any composer installs as a module instead of riding along
+  // as message context.
+  const toast = useToast();
+  useEffect(() => {
+    if (!client || !isWorkflowsClient(client)) return;
+    return registerAttachmentHandler(
+      (a) => a.name.toLowerCase().endsWith(ALPHAMODULE_EXTENSION),
+      (a) => {
+        const source = a.path ? { path: a.path } : a.contentB64 ? new Blob([Uint8Array.from(atob(a.contentB64), (c) => c.charCodeAt(0))]) : null;
+        if (!source) return toast.show("Couldn't read that module file.");
+        client
+          .importModuleFile(source)
+          .then((r) => {
+            handleModuleImported(r.app_id);
+            toast.show(`Added ${r.name}`);
+          })
+          .catch((e: unknown) => toast.show(e instanceof Error ? e.message : "Couldn't add that module."));
+      },
+    );
+  }, [client, handleModuleImported, toast]);
 
   // Escape steps whichever panel has focus (extended -> expanded -> collapsed); it never
   // steals Escape from an open dialog/menu, and does nothing when focus is in neither panel.

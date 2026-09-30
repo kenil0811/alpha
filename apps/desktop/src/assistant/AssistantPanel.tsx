@@ -260,7 +260,7 @@ export function AssistantPanel({
           </IconButton>
         </div>
         <div className="composer__row">
-          <span>{speech.error ?? "Uses your Claude subscription"}</span>
+          <span>{speech.error ?? "Replies use the model chosen in Settings → Models"}</span>
           {session ? (
             <IconButton aria-label="Refresh the session" size="sm" style={{ marginLeft: "auto" }} onClick={() => refresh()}>
               <RotateCw size={12} />
