@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../App";
@@ -167,5 +167,43 @@ describe("a turn that takes long", () => {
     await user.click(within(card).getByRole("button", { name: "Go with this" }));
     await waitFor(() => expect(String(client.conversations.get("conv_1")?.turns.at(-1)?.content.text)).toMatch(/^Go with "List with tags"/));
     await waitFor(() => expect(screen.queryByLabelText("Options")).not.toBeInTheDocument());
+  });
+});
+
+describe("attaching context to a message", () => {
+  it("a pasted image becomes a removable chip, is sent with the message, and shows in history", async () => {
+    const client = scriptedTracker();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    const box = screen.getByLabelText("Message");
+    const file = new File(["fake-bytes"], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(box, { clipboardData: { items: [{ getAsFile: () => file }] } });
+    expect(await screen.findByText("screenshot.png")).toBeInTheDocument();
+
+    await user.type(box, "what does this show?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    // The attachment travelled with the message and is not left queued in the composer.
+    await waitFor(() => expect(screen.getAllByText("screenshot.png")).toHaveLength(1));
+    expect(within(screen.getByText("screenshot.png").closest(".msg--user")!).getByText("screenshot.png")).toBeInTheDocument();
+  });
+
+  it("removing a queued attachment before sending leaves it out of the message", async () => {
+    const client = scriptedTracker();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    const box = screen.getByLabelText("Message");
+    const file = new File(["x"], "notes.txt", { type: "text/plain" });
+    fireEvent.paste(box, { clipboardData: { items: [{ getAsFile: () => file }] } });
+    await screen.findByText("notes.txt");
+    await user.click(screen.getByRole("button", { name: "Remove notes.txt" }));
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+
+    await user.type(box, "just text, no attachment");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText("just text, no attachment");
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
   });
 });

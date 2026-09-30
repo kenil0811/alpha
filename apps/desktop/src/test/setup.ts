@@ -19,3 +19,10 @@ if (typeof window.ResizeObserver === "undefined") {
     disconnect() {}
   };
 }
+
+// jsdom's own object-URL support chokes on a plain `new File(...)` (it expects internals only a
+// real browser or its own Blob sets up); an attached image's chip thumbnail
+// (assistant/attachments.ts) asks for one, so every test that pastes or drops an image needs a
+// stub that just works.
+URL.createObjectURL = () => "blob:stub";
+URL.revokeObjectURL = () => undefined;

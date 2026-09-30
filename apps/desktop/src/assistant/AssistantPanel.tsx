@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
-import { isSessionsClient, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
+import { isSessionsClient, type AttachmentWire, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
@@ -15,6 +15,8 @@ import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./Conversa
 import { ZazooIcon } from "../ui/ZazooIcon";
 import { Button, IconButton } from "../ui";
 import { Markdown } from "./markdown";
+import { AttachMenu, AttachmentChips, useAttachments } from "./AttachMenu";
+import { toWire, useComposerDrop, usePasteAttachments } from "./attachments";
 import "./assistant.css";
 
 const EXAMPLES = [
@@ -67,6 +69,9 @@ export function AssistantPanel({
   const select = onSelectSession ?? setOwnSession;
   const { session, loading, error, busy, reconnecting, send, refresh } = useSession(sessions, selected, select, scope);
   const [text, setText] = useState("");
+  const attach = useAttachments();
+  const onPaste = usePasteAttachments(attach.add);
+  const { onDrop, onDragOver } = useComposerDrop(attach.add);
   const typedBefore = useRef("");
   const speech = useSpeech((final, interim) => setText(`${typedBefore.current} ${final} ${interim}`.replace(/\s+/g, " ").trim()));
   function toggleMic() {
@@ -94,7 +99,9 @@ export function AssistantPanel({
     if (!clean || busy) return;
     onSelectConversation?.(null);
     setText("");
-    await send(clean);
+    const wire = attach.items.map(toWire);
+    attach.clear();
+    await send(clean, wire);
   }
 
   const label = scope.moduleName ?? scope.projectName ?? "Home";
@@ -175,6 +182,15 @@ export function AssistantPanel({
               turn.role === "user" ? (
                 <div key={turn.turn_id} className="msg msg--user">
                   {turn.text}
+                  {turn.attachments?.length ? (
+                    <div className="attach-chips" style={{ marginTop: 6 }}>
+                      {turn.attachments.map((a, i) => (
+                        <span key={i} className="attach-chip">
+                          <span className="attach-chip__name">{a.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : turn.kind === "work" && turn.conversation_id ? (
                 cards.get(turn.conversation_id) === turn.turn_id ? (
@@ -219,12 +235,15 @@ export function AssistantPanel({
           </p>
         ) : null}
       </div>
-      <form className="composer" onSubmit={submit}>
+      <form className="composer" onSubmit={submit} onDrop={onDrop} onDragOver={onDragOver}>
+        <AttachmentChips items={attach.items} onRemove={attach.remove} />
         <div className="composer__box">
+          <AttachMenu onAdd={attach.add} small />
           <textarea
             id="goal"
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onPaste={onPaste}
             placeholder={session ? "Ask Chief of Staff… say what to do, ask, or describe a change" : "Ask Chief of Staff… describe what you want done"}
             aria-label="Message"
             rows={2}
@@ -320,7 +339,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
   }, [client, session]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: AttachmentWire[]) => {
       if (!client) {
         setError("This runtime cannot hold sessions yet.");
         return;
@@ -334,7 +353,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
           id = made.session_id;
           onSelect(id);
         }
-        setSession(await client.sendSession(id, text, scope.appId ?? null));
+        setSession(await client.sendSession(id, text, scope.appId ?? null, attachments));
       } catch (e) {
         setError(`Could not send: ${e instanceof Error ? e.message : String(e)}`);
       } finally {

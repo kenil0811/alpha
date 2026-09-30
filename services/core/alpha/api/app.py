@@ -32,6 +32,7 @@ from alpha.api.profile_routes import register as register_profile_routes
 from alpha.api.session_routes import register as register_session_routes
 from alpha.api.skill_routes import register as register_skill_routes
 from alpha.assistant.acting import ActService, ActTurn
+from alpha.assistant.attachments import MAX_ATTACHMENTS, AttachmentIn
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
@@ -160,6 +161,7 @@ class ActRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     # The module the person is looking at, when any; helps resolve "add one" or "check it".
     app_id: str | None = Field(default=None, max_length=80)
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
 
 
 class ConversationMessage(BaseModel):
@@ -471,7 +473,7 @@ def register_act_routes(app: FastAPI, acting: ActService) -> None:
         """Do what the sentence asks, at once, and say what happened. Blocks while the run
         finishes (bounded), so the avatar can speak the outcome."""
         try:
-            return acting.act(body.text, context_app_id=body.app_id)
+            return acting.act(body.text, context_app_id=body.app_id, attachments=body.attachments)
         except RouteUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 

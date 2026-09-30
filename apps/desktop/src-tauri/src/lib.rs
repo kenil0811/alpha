@@ -551,6 +551,7 @@ fn app_screen(app_id: &str, path: &str) -> Option<(Vec<u8>, String)> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(HostState::default())
         .manage(ptt::PttState::default())
         .manage(speech::SpeechState::default())

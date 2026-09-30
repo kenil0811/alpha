@@ -1,5 +1,6 @@
 import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
 import type {
+  AttachmentWire,
   CapabilityEntry,
   Conversation,
   ConversationReply,
@@ -288,14 +289,18 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
   }
 
   /** Mirrors Core's loop: text answers a waiting conversation, else Alpha starts one. */
-  async sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
+  async sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session> {
     let session = await this.getSession(sessionId);
     const now = new Date().toISOString();
     const turn = (role: "user" | "alpha", body: string, extra: Partial<SessionTurn> = {}): SessionTurn => ({ turn_id: `st_${session.turn_count + 1}`, sequence: session.turn_count + 1, role, kind: "text", text: body, created_at: now, ...extra });
     const add = (t: SessionTurn) => {
       session = { ...session, turns: [...session.turns, t], turn_count: session.turn_count + 1, updated_at: now, title: session.title ?? (t.role === "user" ? t.text : null) };
     };
-    add(turn("user", text));
+    add(
+      turn("user", text, {
+        attachments: attachments?.length ? attachments.map((a) => ({ kind: a.kind, name: a.name, size: a.size, mime: a.mime })) : undefined,
+      }),
+    );
     const latest = [...session.turns].reverse().find((t) => t.kind === "work" && t.conversation_id);
     const waiting = latest?.conversation_id ? this.conversations.get(latest.conversation_id) : null;
     if (waiting && (waiting.state === "waiting_for_user" || waiting.state === "proposed" || waiting.state === "briefed")) {

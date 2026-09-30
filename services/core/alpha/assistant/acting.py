@@ -29,6 +29,7 @@ from alpha_contracts.apps import AppSource, Invocable
 from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 from pydantic import BaseModel
 
+from alpha.assistant.attachments import AttachmentIn, attachment_summaries, build_context
 from alpha.assistant.sessions import SessionService, SessionTurn
 from alpha.capabilities.errors import OperationFailed
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
@@ -88,6 +89,8 @@ class ActTurn(BaseModel):
     created_at: str
     # What the steps did: for the person's record and for grounding later sentences.
     outcome: str | None = None
+    # What was attached to the person's message (name, kind, size only).
+    attachments: list[dict[str, Any]] | None = None
 
 
 def step_schema() -> dict[str, Any]:
@@ -164,6 +167,7 @@ def step_prompt(
     known: str = "",
     skills: str = "",
     project: str = "",
+    attachments: str = "",
 ) -> str:
     parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
     if skills:
@@ -183,6 +187,8 @@ def step_prompt(
         parts += [memory, ""]
     if context_app:
         parts += [f"THE PERSON IS LOOKING AT: {context_app}", ""]
+    if attachments:
+        parts += [attachments, ""]
     parts.append(f"THE PERSON SAID: {text}")
     parts.append("")
     parts.append("OBSERVATIONS (what this sentence's steps have done so far):")
@@ -378,6 +384,9 @@ class _Work:
     observations: list[dict[str, Any]] = field(default_factory=list)
     # Sites a module could not read for want of the person's yes (see BrowserService.access).
     access: list[dict[str, Any]] = field(default_factory=list)
+    # What was attached to this message: prompt text, and the summary recorded on the turn.
+    attachments_context: str = ""
+    attachments: list[dict[str, Any]] = field(default_factory=list)
 
     def observe(self, observation: dict[str, Any]) -> None:
         self.observations.append(observation)
@@ -454,10 +463,18 @@ class ActService:
             pending = None
         return found[-limit:]
 
-    def act(self, text: str, *, context_app_id: str | None = None) -> ActTurn:
+    def act(
+        self,
+        text: str,
+        *,
+        context_app_id: str | None = None,
+        attachments: list[AttachmentIn] | None = None,
+    ) -> ActTurn:
         """The avatar's way in: one message to the Quick asks session, answered when done."""
         session = self._sessions.quick_asks()
-        turn = self.send(session.session_id, text, wait=True, context_app_id=context_app_id)
+        turn = self.send(
+            session.session_id, text, wait=True, context_app_id=context_app_id, attachments=attachments
+        )
         if turn is None:  # the budget ran out before the loop finished; the session has the rest
             raise OperationFailed(
                 "timed_out", "Alpha is still working on that; see the session", {}
@@ -471,22 +488,29 @@ class ActService:
         *,
         wait: bool = False,
         context_app_id: str | None = None,
+        attachments: list[AttachmentIn] | None = None,
     ) -> ActTurn | None:
         """Record the person's message and work it through in a thread. With `wait`, block
         (bounded) and return the outcome; otherwise return None at once and let the session
         be polled (its state is `thinking` meanwhile)."""
         clean = text.strip()
+        attachments = attachments or []
         if not clean:
             raise OperationFailed("invalid_input", "say something first", {})
         self._sessions.begin_turn(session_id)
         try:
-            user_turn = self._sessions.append(session_id, "user", clean)
+            user_turn = self._sessions.append(
+                session_id,
+                "user",
+                clean,
+                detail={"attachments": attachment_summaries(attachments)} if attachments else None,
+            )
         except Exception:
             self._sessions.set_state(session_id, "idle")
             raise
         thread = threading.Thread(
             target=self._work_quietly,
-            args=(session_id, user_turn, context_app_id),
+            args=(session_id, user_turn, context_app_id, attachments),
             name=f"session-turn-{session_id[-6:]}",
             daemon=True,
         )
@@ -515,10 +539,14 @@ class ActService:
     # ----- one message ---------------------------------------------------------------------
 
     def _work_quietly(
-        self, session_id: str, user_turn: SessionTurn, context_app_id: str | None
+        self,
+        session_id: str,
+        user_turn: SessionTurn,
+        context_app_id: str | None,
+        attachments: list[AttachmentIn] | None = None,
     ) -> None:
         try:
-            result = self._work(session_id, user_turn, context_app_id)
+            result = self._work(session_id, user_turn, context_app_id, attachments or [])
         except Exception:  # never leave a session stuck in thinking
             log.exception("session turn crashed for %s", session_id)
             result = self._finish(
@@ -541,7 +569,13 @@ class ActService:
         except Exception:
             log.exception("could not start compaction for %s", session_id)
 
-    def _work(self, session_id: str, user_turn: SessionTurn, context_app_id: str | None) -> ActTurn:
+    def _work(
+        self,
+        session_id: str,
+        user_turn: SessionTurn,
+        context_app_id: str | None,
+        attachments: list[AttachmentIn],
+    ) -> ActTurn:
         session = self._sessions.get(session_id, window=1)
         sources = self._sources(session.project_id)
         names = {app_id: source.name for app_id, source in sources}
@@ -551,6 +585,7 @@ class ActService:
             text=user_turn.text,
             names=names,
             deadline=time.monotonic() + TIME_BUDGET_SECONDS,
+            attachments=attachment_summaries(attachments),
         )
         waiting = self._waiting_conversation(session_id)
         if waiting is not None:
@@ -565,6 +600,7 @@ class ActService:
             known=self._known(work.text, focus, session.project_id),
             skills=self._skills.catalogue_text() if self._skills is not None else "",
             project=self._project_text(session.project_id),
+            attachments=self._attachments_context(attachments),
         )
         route = self._gateway.route(self._default_route, stage="assistant")
         for _step in range(MAX_STEPS):
@@ -603,6 +639,13 @@ class ActService:
             work.kind = "answer"
         work.opened = {"conversation_id": conversation_id, "session_id": work.session_id}
         return self._finish(work)
+
+    def _attachments_context(self, attachments: list[AttachmentIn]) -> str:
+        try:
+            return build_context(attachments)
+        except Exception:
+            log.exception("attachment context failed; the turn goes on without it")
+            return ""
 
     def _memory(self, session_id: str, text: str) -> str:
         try:
@@ -654,6 +697,7 @@ class ActService:
                     known=parts["known"],
                     skills=parts["skills"],
                     project=parts["project"],
+                    attachments=parts["attachments"],
                 ),
                 schema=step_schema(),
                 scope_kind="act",
@@ -837,6 +881,7 @@ class ActService:
             "conversation_id": work.conversation_id,
             "open": work.opened,
             "observations": work.observations,
+            "attachments": work.attachments,
         }
         offer = self._offer(work)
         if offer is not None:
@@ -864,6 +909,7 @@ class ActService:
             reply=work.reply,
             created_at=turn.created_at,
             outcome=outcome_line(work.kind, detail, app_name),
+            attachments=work.attachments or None,
         )
 
     def _offer(self, work: _Work) -> dict[str, Any] | None:
@@ -900,6 +946,7 @@ class ActService:
             reply=turn.text,
             created_at=turn.created_at,
             outcome=turn.outcome,
+            attachments=said.attachments if said else None,
         )
 
     # ----- steps --------------------------------------------------------------------------
