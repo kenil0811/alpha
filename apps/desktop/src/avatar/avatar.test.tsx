@@ -37,8 +37,8 @@ describe("the desktop avatar", () => {
     render(<AvatarWindow client={client} host={{ layout: async (e) => void layouts.push(e), showMain: async () => undefined }} />);
     await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
     expect(layouts).toEqual([true]);
-    await user.type(await screen.findByLabelText("What should Alpha do"), "log two eggs");
-    await user.click(screen.getByRole("button", { name: "Do it" }));
+    await user.type(await screen.findByLabelText("Message"), "log two eggs");
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(client.asked).toEqual(["log two eggs"]);
     expect(await screen.findByText(/Logged two eggs: 156 calories/)).toBeInTheDocument();
     expect(screen.getByText(/Daily Diet Tracker/)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("the desktop avatar", () => {
     const user = userEvent.setup();
     render(<AvatarWindow client={client} host={{ layout: async () => undefined, showMain: async () => void (shown += 1) }} />);
     await user.click(screen.getByRole("button", { name: "Ask Alpha" }));
-    await user.type(await screen.findByLabelText("What should Alpha do"), "open my diet tracker{enter}");
+    await user.type(await screen.findByLabelText("Message"), "open my diet tracker{enter}");
     await screen.findByText("Opening Daily Diet Tracker.");
     expect(shown).toBe(1);
     expect(JSON.parse(localStorage.getItem(HANDOFF_KEY) ?? "{}")).toMatchObject({ app_id: "diet", tab_id: "today" });

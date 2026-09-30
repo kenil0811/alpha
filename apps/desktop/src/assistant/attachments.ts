@@ -265,6 +265,13 @@ export function useComposerDrop(onAdd: (items: PendingAttachment[]) => void) {
   return { onDrop, onDragOver };
 }
 
+/** The composer's textarea: one line by default, growing with content up to its CSS max-height
+ *  (the scrollbar takes over past that). Call on change and after clearing the field. */
+export function autoGrow(el: HTMLTextAreaElement): void {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 /** Paste an image (or any file) onto the composer: clipboard bytes, read into memory either
  *  way (a pasted item never has a path to hand over instead). */
 export function usePasteAttachments(onAdd: (items: PendingAttachment[]) => void) {

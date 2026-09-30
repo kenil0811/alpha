@@ -260,6 +260,7 @@ def build(
         projects=projects,
         repair=repair,
         browser=platform.browser,
+        preferences=preferences,
     )
     app = create_app(
         settings,

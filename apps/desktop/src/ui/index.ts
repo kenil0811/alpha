@@ -15,6 +15,9 @@ export {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "./DropdownMenu";
 export { Popover, PopoverTrigger, PopoverContent } from "./Popover";
 export { Select, SelectTrigger, SelectContent, SelectItem } from "./Select";

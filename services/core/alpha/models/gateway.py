@@ -121,6 +121,17 @@ MODEL_PREFERENCE_BY_ROUTE: dict[str, str] = {
     "grok": "models.grok_model",
 }
 
+# The + menu's model picker offers Settings -> Models accounts (alpha.models.accounts.PROVIDERS
+# ids); each maps onto the CLI/sign-in route that account actually drives. "groq" has no route
+# registered yet (no ROUTES entry) - choosing it fails over to RouteUnavailable, same as any other
+# not-enabled route, until a groq route ships.
+ACCOUNT_TO_ROUTE_ID: dict[str, str] = {
+    "claude": "claude-code-cli",
+    "chatgpt": "chatgpt-codex-cli",
+    "openrouter": "openrouter",
+    "grok": "grok",
+}
+
 
 class RouteUnavailable(Exception):
     pass
@@ -182,11 +193,36 @@ class ModelGateway:
             for r in ROUTES.values()
         ]
 
-    def route(self, route_id: str, stage: str | None = None) -> ModelRoute:
+    def route(
+        self,
+        route_id: str,
+        stage: str | None = None,
+        *,
+        account_override: str | None = None,
+        model_override: str | None = None,
+    ) -> ModelRoute:
         """The route, with the model the person chose in Settings when the route can take one.
         For a `stage` (assistant, planner, builder_new, builder_change or app), `models.provider`
         first picks which route actually runs; on Claude, `models.{stage}` then picks
-        opus/sonnet/haiku, otherwise the route's own single model preference applies."""
+        opus/sonnet/haiku, otherwise the route's own single model preference applies.
+
+        `account_override` is a per-request choice (the + menu's model picker, an account id from
+        Settings -> Models: claude/chatgpt/openrouter/grok) and wins outright over both the
+        stage's default and the person's Settings provider - it only ever plays for that one
+        request. It still must be an enabled route on this host, or RouteUnavailable is raised
+        exactly as an unconfigured stage route would be; the caller turns that into the same
+        model_error card a live call's own connection failure would."""
+        if account_override is not None:
+            override_id = ACCOUNT_TO_ROUTE_ID.get(account_override)
+            if override_id is None or override_id not in ROUTES:
+                raise RouteUnavailable(f"unknown model provider {account_override!r}")
+            if override_id not in self._enabled:
+                raise RouteUnavailable(
+                    f"model route {override_id!r} is not enabled on this host "
+                    "(ALPHA_ENABLED_MODEL_ROUTES)"
+                )
+            route = ROUTES[override_id]
+            return replace(route, model=str(model_override)) if model_override else route
         route = ROUTES.get(route_id)
         if route is None:
             raise RouteUnavailable(f"unknown model route {route_id!r}")

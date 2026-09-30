@@ -57,6 +57,14 @@ class SessionPatch(BaseModel):
     archived: bool | None = None
 
 
+class ModelChoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # A Settings -> Models account id (claude/chatgpt/openrouter/grok); the + menu's model picker.
+    provider: str = Field(min_length=1, max_length=40)
+    model: str | None = Field(default=None, max_length=100)
+
+
 class SessionMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -66,6 +74,9 @@ class SessionMessage(BaseModel):
     # The module on screen when the message was typed, a hint for the loop.
     app_id: str | None = Field(default=None, max_length=120)
     attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+    # The + menu's Advanced choices for this one message; unset falls back to Settings -> Access.
+    access_mode: str | None = Field(default=None, pattern="^(ask|approve_for_me|full)$")
+    model: ModelChoice | None = None
 
 
 def _fail(exc: OperationFailed) -> HTTPException:
@@ -198,6 +209,8 @@ def register(
                 wait=body.wait,
                 context_app_id=body.app_id,
                 attachments=body.attachments,
+                access_mode=body.access_mode,
+                model=body.model.model_dump() if body.model else None,
             )
         except OperationFailed as exc:
             raise _fail(exc) from exc
