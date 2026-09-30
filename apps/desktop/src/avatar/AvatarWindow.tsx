@@ -5,13 +5,15 @@
  * to look at, a conversation to follow) is handed to the main window, which comes forward.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUp } from "lucide-react";
 import type { ActClient, ActTurn } from "../core/client";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
 import { useTts } from "../shell/tts";
-import { AttachMenu, AttachmentChips, useAttachments } from "../assistant/AttachMenu";
-import { toWire, useComposerDrop, usePasteAttachments } from "../assistant/attachments";
+import { AttachMenu, AttachmentChips, useAdvanced, useAttachments } from "../assistant/AttachMenu";
+import { autoGrow, toWire, useComposerDrop, usePasteAttachments } from "../assistant/attachments";
 import { NotConnectedCard } from "../assistant/NotConnectedCard";
+import { IconButton } from "../ui";
 import { Character, type Mood } from "./Character";
 
 export const HANDOFF_KEY = "alpha.handoff";
@@ -39,11 +41,12 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
   const [error, setError] = useState<string | null>(null);
   const [bubble, setBubble] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attach = useAttachments();
   const onPaste = usePasteAttachments(attach.add);
   const { onDrop, onDragOver } = useComposerDrop(attach.add);
+  const advanced = useAdvanced("avatar", client);
 
   useEffect(() => {
     client
@@ -120,8 +123,9 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
       setText("");
       const wire = attach.items.map(toWire);
       attach.clear();
+      if (inputRef.current) inputRef.current.style.height = "auto";
       try {
-        const turn = await client.act(clean, undefined, wire);
+        const turn = await client.act(clean, undefined, wire, { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
         setTurns((all) => [...all, turn].slice(-30));
         say(turn.reply, turn.kind === "answer" && /can't|couldn't|didn't/i.test(turn.reply) ? "sorry" : "talking");
         if (turn.open && (turn.open.app_id || turn.open.conversation_id || turn.open.session_id)) {
@@ -140,7 +144,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
         setBusy(false);
       }
     },
-    [busy, client, host, say, attach],
+    [busy, client, host, say, attach, advanced.accessMode, advanced.model],
   );
 
   const speech = useSpeech((final, interim) => {
@@ -218,20 +222,40 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
             onDrop={onDrop}
             onDragOver={onDragOver}
           >
-            <AttachMenu onAdd={attach.add} small />
-            <MicButton listening={speech.listening} supported={speech.supported} onToggle={speech.toggle} small />
-            <input
+            <AttachMenu
+              onAdd={attach.add}
+              small
+              advanced={{
+                accessMode: advanced.accessMode,
+                onAccessModeChange: advanced.setAccessMode,
+                model: advanced.model,
+                onModelChange: advanced.setModel,
+                client,
+              }}
+            />
+            <textarea
               ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                autoGrow(e.currentTarget);
+              }}
               onPaste={onPaste}
               placeholder="Log two eggs… how many calories today… open the job radar"
-              aria-label="What should Alpha do"
+              aria-label="Message"
+              rows={1}
               disabled={busy}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void send(text);
+                }
+              }}
             />
-            <button type="button" className="btn btn--sm btn--primary" disabled={busy || !text.trim()} onClick={() => void send(text)}>
-              Do it
-            </button>
+            <MicButton listening={speech.listening} supported={speech.supported} onToggle={speech.toggle} small />
+            <IconButton aria-label="Send" type="button" size="sm" className="avatar__send" disabled={busy || !text.trim()} onClick={() => void send(text)}>
+              <ArrowUp size={14} aria-hidden="true" />
+            </IconButton>
           </form>
         </section>
       ) : null}

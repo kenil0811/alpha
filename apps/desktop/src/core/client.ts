@@ -692,6 +692,13 @@ export interface SessionSummary {
   updated_at: string;
 }
 
+/** The + menu's Advanced choices for one message (see assistant/advanced.ts): unset falls back
+ *  to the session's own remembered choice, then Settings -> Access. */
+export interface AdvancedOptions {
+  accessMode?: "ask" | "approve_for_me" | "full";
+  model?: { provider: string; model?: string };
+}
+
 export interface SessionsClient {
   listProjects(): Promise<Project[]>;
   createProject(name: string, goal?: string | null): Promise<Project>;
@@ -702,8 +709,10 @@ export interface SessionsClient {
   listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]>;
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
-  /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
-  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session>;
+  /** Say something; Alpha works it through in the background (poll the session while `thinking`).
+   *  `options` are the + menu's Advanced choices for this one message; omitted falls back to
+   *  Settings -> Access. */
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session>;
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session>;
 }
 
@@ -840,7 +849,7 @@ export function isProfileClient(client: unknown): client is ProfileClient {
 
 export interface ActClient {
   /** Do what the sentence asks, at once; resolves when Alpha can say what happened. */
-  act(text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<ActTurn>;
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<ActTurn>;
   recentActs(): Promise<ActTurn[]>;
 }
 
@@ -1359,11 +1368,17 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     await this.request(`/api/profile/facts/${encodeURIComponent(factId)}/forget`, { method: "POST" });
   }
 
-  act(text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<ActTurn> {
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<ActTurn> {
     // A run may take a while; the avatar waits for the outcome rather than a promise.
     return this.request<ActTurn>("/api/act", {
       method: "POST",
-      body: JSON.stringify({ text, app_id: appId ?? null, attachments: attachments ?? [] }),
+      body: JSON.stringify({
+        text,
+        app_id: appId ?? null,
+        attachments: attachments ?? [],
+        access_mode: options?.accessMode ?? null,
+        model: options?.model ?? null,
+      }),
       signal: AbortSignal.timeout(300_000),
     });
   }
@@ -1455,10 +1470,16 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`);
   }
 
-  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session> {
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session> {
     return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
       method: "POST",
-      body: JSON.stringify({ text, app_id: appId ?? null, attachments: attachments ?? [] }),
+      body: JSON.stringify({
+        text,
+        app_id: appId ?? null,
+        attachments: attachments ?? [],
+        access_mode: options?.accessMode ?? null,
+        model: options?.model ?? null,
+      }),
     });
   }
 

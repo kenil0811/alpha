@@ -33,6 +33,7 @@ from alpha.assistant.attachments import AttachmentIn, attachment_summaries, buil
 from alpha.assistant.sessions import SessionService, SessionTurn
 from alpha.capabilities.errors import OperationFailed
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
+from alpha.models.gateway import RouteUnavailable
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
@@ -41,6 +42,54 @@ log = logging.getLogger("alpha.acting")
 # Conversation states in which typed text belongs to that conversation, not to a new step.
 CONVERSATION_WAITING = {"waiting_for_user", "proposed"}
 WAIT_GRACE_SECONDS = 30.0
+
+# The three governance stances the + menu's Access group offers (AP-182 governed-work rule:
+# nothing here weakens critical blocks - secret leakage, a residency violation, or an irreversible
+# delete of the person's own data still confirms under every mode, enforced where those checks
+# already live, not here). Server enforces; the UI only requests (never trust a client-sent mode
+# beyond picking which of these three server-side behaviours applies).
+ACCESS_MODES = ("ask", "approve_for_me", "full")
+DEFAULT_ACCESS_MODE = "ask"
+
+# No risk/unsafe classification exists anywhere in Core today (grep turns up nothing: no
+# "is_unsafe", no action-risk registry). This is the explicit fallback the task calls for:
+# delete/send/payment-shaped action ids are treated as unsafe/destructive. ponytail: a name
+# pattern, not a declared per-action risk field; "writes outside the module's own data" doesn't
+# apply yet (every App's records.* calls are already confined to its own collections - see
+# AppSource/records isolation) and "new egress host" can't be told apart from a known one at this
+# layer (ActService only ever sees {action_id, input}; the actual http.get/browser calls happen
+# inside the sandboxed worker, invisible here). Both are flagged as gaps in the commit message,
+# not silently assumed done.
+_UNSAFE_ACTION_RE = re.compile(
+    r"delete|remove|destroy|purge|cancel|send|email|message|post|publish|pay|charge|purchase|"
+    r"refund|transfer|withdraw",
+    re.I,
+)
+
+
+def _is_unsafe_action(action_id: str) -> bool:
+    return bool(_UNSAFE_ACTION_RE.search(action_id or ""))
+
+
+def needs_approval(access_mode: str, egress: bool, runs: list[dict[str, Any]]) -> bool:
+    """Whether a "run" step must wait for the person's yes before Core dispatches it.
+
+    ask: every internet/egress action (the app declares the http or browser capability) or
+      anything the unsafe pattern names, needs approval every time - the strict, always-ask stance
+      ("Ask for approval - always ask to edit external files and use the internet").
+    approve_for_me: only the unsafe/destructive ones; a plain read is never gated.
+    full: never gates here (critical blocks are a separate, pre-existing concern - see above)."""
+    if access_mode not in ("ask", "approve_for_me"):
+        return False
+    unsafe = any(_is_unsafe_action(r.get("action_id", "")) for r in runs)
+    if access_mode == "ask":
+        return egress or unsafe
+    return unsafe
+
+
+# The resume phrase for a pending run's one-click "Approve and run" (see `_offer`): the person's
+# own plain yes, typed or clicked, never a hidden sentinel round-tripped through the chat.
+_AFFIRM_RE = re.compile(r"^(yes|yeah|yep|sure|ok|okay|go ahead|do it|approve|confirm)\b", re.I)
 
 KINDS = ("run", "query", "skill", "open", "fix", "allow", "build", "change", "answer", "done")
 MAX_STEPS = 8
@@ -426,6 +475,17 @@ class _Work:
     # What was attached to this message: prompt text, and the summary recorded on the turn.
     attachments_context: str = ""
     attachments: list[dict[str, Any]] = field(default_factory=list)
+    # This turn's governance stance (see ACCESS_MODES) and, when the + menu overrode the model,
+    # the Settings -> Models account id to route this call through instead of the stage default.
+    access_mode: str = DEFAULT_ACCESS_MODE
+    model_override: str | None = None
+    model_name_override: str | None = None
+    # Sources for this turn's project, keyed by app_id, so a "run" step's gate can see whether the
+    # target module declares the http or browser (egress) capability.
+    sources: dict[str, AppSource] = field(default_factory=dict)
+    # Set instead of running when a step needed the person's yes first; carried onto the turn's
+    # detail so the next message (an affirmative) can run exactly this, unchanged.
+    pending_run: dict[str, Any] | None = None
 
     def observe(self, observation: dict[str, Any]) -> None:
         self.observations.append(observation)
@@ -461,6 +521,7 @@ class ActService:
         browser: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
+        preferences: Any | None = None,
     ) -> None:
         self._store = store
         self._gateway = gateway
@@ -476,6 +537,9 @@ class ActService:
         self._projects = projects
         self._repair = repair
         self._browser = browser
+        # Settings -> Access's default stance for a session that hasn't picked its own (see
+        # `access.mode` in alpha.models.preferences); None in tests keeps today's DEFAULT_ACCESS_MODE.
+        self._preferences = preferences
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -508,11 +572,19 @@ class ActService:
         *,
         context_app_id: str | None = None,
         attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> ActTurn:
         """The avatar's way in: one message to the Quick asks session, answered when done."""
         session = self._sessions.quick_asks()
         turn = self.send(
-            session.session_id, text, wait=True, context_app_id=context_app_id, attachments=attachments
+            session.session_id,
+            text,
+            wait=True,
+            context_app_id=context_app_id,
+            attachments=attachments,
+            access_mode=access_mode,
+            model=model,
         )
         if turn is None:  # the budget ran out before the loop finished; the session has the rest
             raise OperationFailed(
@@ -528,14 +600,22 @@ class ActService:
         wait: bool = False,
         context_app_id: str | None = None,
         attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> ActTurn | None:
         """Record the person's message and work it through in a thread. With `wait`, block
         (bounded) and return the outcome; otherwise return None at once and let the session
-        be polled (its state is `thinking` meanwhile)."""
+        be polled (its state is `thinking` meanwhile).
+
+        `access_mode` (see ACCESS_MODES) and `model` ({"provider": ..., "model": ...}, provider an
+        account id from Settings -> Models) are this one message's + menu choices; unset falls
+        back to the person's Settings -> Access default, then DEFAULT_ACCESS_MODE."""
         clean = text.strip()
         attachments = attachments or []
         if not clean:
             raise OperationFailed("invalid_input", "say something first", {})
+        if access_mode is not None and access_mode not in ACCESS_MODES:
+            raise OperationFailed("invalid_input", f"unknown access mode {access_mode!r}", {})
         self._sessions.begin_turn(session_id)
         try:
             user_turn = self._sessions.append(
@@ -549,7 +629,7 @@ class ActService:
             raise
         thread = threading.Thread(
             target=self._work_quietly,
-            args=(session_id, user_turn, context_app_id, attachments),
+            args=(session_id, user_turn, context_app_id, attachments, access_mode, model),
             name=f"session-turn-{session_id[-6:]}",
             daemon=True,
         )
@@ -583,9 +663,13 @@ class ActService:
         user_turn: SessionTurn,
         context_app_id: str | None,
         attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> None:
         try:
-            result = self._work(session_id, user_turn, context_app_id, attachments or [])
+            result = self._work(
+                session_id, user_turn, context_app_id, attachments or [], access_mode, model
+            )
         except Exception:  # never leave a session stuck in thinking
             log.exception("session turn crashed for %s", session_id)
             result = self._finish(
@@ -608,12 +692,31 @@ class ActService:
         except Exception:
             log.exception("could not start compaction for %s", session_id)
 
+    def _default_access_mode(self) -> str:
+        if self._preferences is None:
+            return DEFAULT_ACCESS_MODE
+        try:
+            chosen = str(self._preferences.get("access.mode"))
+        except Exception:
+            return DEFAULT_ACCESS_MODE
+        return chosen if chosen in ACCESS_MODES else DEFAULT_ACCESS_MODE
+
+    def _pending_run(self, session_id: str) -> dict[str, Any] | None:
+        """A run this session is waiting on the person's yes for (see `needs_approval`), if any."""
+        latest = self._sessions.latest_work(session_id)
+        if latest is None or not latest.detail:
+            return None
+        pending = latest.detail.get("pending_run")
+        return pending if isinstance(pending, dict) else None
+
     def _work(
         self,
         session_id: str,
         user_turn: SessionTurn,
         context_app_id: str | None,
         attachments: list[AttachmentIn],
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> ActTurn:
         session = self._sessions.get(session_id, window=1)
         sources = self._sources(session.project_id)
@@ -625,7 +728,20 @@ class ActService:
             names=names,
             deadline=time.monotonic() + TIME_BUDGET_SECONDS,
             attachments=attachment_summaries(attachments),
+            access_mode=access_mode if access_mode in ACCESS_MODES else self._default_access_mode(),
+            model_override=(model or {}).get("provider") or None,
+            model_name_override=(model or {}).get("model") or None,
+            sources={app_id: source for app_id, source in sources},
         )
+        log.info("act turn %s access_mode=%s", work.turn_id, work.access_mode)
+        # An approved pending run (the offer's "Approve and run" sends the person's plain yes)
+        # runs at once, exactly as stored, with no new model call and no re-gating.
+        pending = self._pending_run(session_id)
+        if pending is not None and _AFFIRM_RE.match(work.text.strip()):
+            work.access_mode = "full"  # this one instance only; already approved by the person
+            if self._step_run(work, str(pending["app_id"]), list(pending["runs"])):
+                pass  # a single stored run never re-enters the step loop
+            return self._finish(work)
         waiting = self._waiting_conversation(session_id)
         if waiting is not None:
             return self._continue_conversation(work, waiting)
@@ -641,7 +757,20 @@ class ActService:
             project=self._project_text(session.project_id),
             attachments=self._attachments_context(attachments),
         )
-        route = self._gateway.route(self._default_route, stage="assistant")
+        try:
+            route = self._gateway.route(
+                self._default_route,
+                stage="assistant",
+                account_override=work.model_override,
+                model_override=work.model_name_override,
+            )
+        except RouteUnavailable as exc:
+            work.model_error = {"kind": "generic", "provider": work.model_override or "unknown"}
+            work.reply = (
+                f"I can't reach that model right now ({exc}). Pick a connected one from the + "
+                "menu or Settings → Models."
+            )
+            return self._finish(work)
         for _step in range(MAX_STEPS):
             output = self._decide(route, work, prompt_parts)
             if not self._apply(work, output):
@@ -889,6 +1018,24 @@ class ActService:
 
     def _step_run(self, work: _Work, app_id: str, runs: list[Any]) -> bool:
         work.app_id, work.kind = app_id, "run"
+        source = work.sources.get(app_id)
+        egress = bool(source and ("http" in source.capabilities or "browser" in source.capabilities))
+        gated = needs_approval(work.access_mode, egress, runs)
+        log.info(
+            "act run app=%s access_mode=%s egress=%s gated=%s", app_id, work.access_mode, egress, gated
+        )
+        if gated:
+            name = work.names[app_id]
+            work.pending_run = {"app_id": app_id, "runs": runs}
+            work.reply = (
+                f"{name} wants to use the internet to do that — I need your OK first."
+                if egress
+                else f"{name} wants to do something that looks hard to undo — I need your OK first."
+            )
+            work.observe(
+                {"step": "run", "module": name, "state": "needs_approval", "message": work.reply}
+            )
+            return False
         results = self._run_batch(app_id, runs, work.deadline)
         if results and work.action_id is None:
             work.action_id = str(results[0].get("action"))
@@ -930,6 +1077,8 @@ class ActService:
         }
         if work.model_error is not None:
             detail["model_error"] = work.model_error
+        if work.pending_run is not None:
+            detail["pending_run"] = work.pending_run
         offer = self._offer(work)
         if offer is not None:
             detail["offer"] = offer
@@ -962,7 +1111,16 @@ class ActService:
 
     def _offer(self, work: _Work) -> dict[str, Any] | None:
         """A one-click yes for the thing that stands in the way: a module the person is
-        signed in for but has not yet allowed. The click sends their yes as a message."""
+        signed in for but has not yet allowed, or a run gated on their approval (see
+        `needs_approval`). The click sends their yes as a plain message."""
+        if work.pending_run is not None:
+            name = work.names.get(str(work.pending_run["app_id"]), "It")
+            return {
+                "kind": "run_confirm",
+                "app_id": work.pending_run["app_id"],
+                "label": "Approve and run",
+                "say": f"Yes, go ahead and let {name} do that.",
+            }
         waiting = [e for e in work.access if e["connected"] and not e["allowed"]]
         if work.app_id:
             waiting = [e for e in waiting if e["app_id"] == work.app_id] or waiting

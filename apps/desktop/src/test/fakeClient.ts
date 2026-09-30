@@ -1,5 +1,6 @@
 import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
 import type {
+  AdvancedOptions,
   AttachmentWire,
   CapabilityEntry,
   Conversation,
@@ -339,8 +340,12 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
     return next;
   }
 
+  /** Test control: every sendSession call's Advanced options, in order (see AttachMenu's + menu). */
+  sendOptions: AdvancedOptions[] = [];
+
   /** Mirrors Core's loop: text answers a waiting conversation, else Alpha starts one. */
-  async sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session> {
+  async sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session> {
+    this.sendOptions.push(options ?? {});
     let session = await this.getSession(sessionId);
     const now = new Date().toISOString();
     const turn = (role: "user" | "alpha", body: string, extra: Partial<SessionTurn> = {}): SessionTurn => ({ turn_id: `st_${session.turn_count + 1}`, sequence: session.turn_count + 1, role, kind: "text", text: body, created_at: now, ...extra });

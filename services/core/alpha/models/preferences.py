@@ -34,6 +34,18 @@ CLAUDE_AUTH_OPTIONS: tuple[tuple[str, str], ...] = (
     ("api_key", "Anthropic API key"),
 )
 
+# The person's default governance stance, shown in Settings and offered as the + menu's starting
+# point for every new session (a session that has chosen its own stays on it). "ask" is the
+# default: it is the strictest of the three, kept as the safe out-of-box behaviour rather than
+# defaulting to "approve_for_me" (AP-182 still requires universal user approval for anything
+# unaudited; nothing in Core's execution path asked for approval before this setting existed, so
+# "ask" is a new, stricter floor, not a preservation of the old unrestricted behaviour).
+ACCESS_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("ask", "Ask for approval"),
+    ("approve_for_me", "Approve for me"),
+    ("full", "Full access"),
+)
+
 
 @dataclass(frozen=True)
 class SettingField:
@@ -209,6 +221,18 @@ FIELDS = (
         minimum=3,
         maximum=120,
         unit="s",
+    ),
+    SettingField(
+        "access.mode",
+        "Access",
+        "When Alpha needs your OK",
+        "Ask for approval: always ask before editing files outside a module or using the "
+        "internet. Approve for me: only ask for actions detected as unsafe (deletes, sends, "
+        "payments). Full access: no approval prompts (a secret leak or a permanent delete of "
+        "your data still confirms).",
+        "choice",
+        "ask",
+        ACCESS_MODE_OPTIONS,
     ),
     SettingField(
         "look.density",

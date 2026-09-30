@@ -423,8 +423,10 @@ body.avatar-window #root { height: 100vh; }
 .avatar__turn { display: flex; flex-direction: column; gap: 4px; }
 .avatar__said { align-self: flex-end; background: var(--primary); color: var(--primary-ink); border-radius: 12px 12px 4px 12px; padding: 6px 10px; font-size: 13px; max-width: 90%; }
 .avatar__reply { align-self: flex-start; background: var(--hover); border-radius: 12px 12px 12px 4px; padding: 6px 10px; font-size: 13px; max-width: 92%; }
-.avatar__ask { display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
-.avatar__ask input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--bg); }
+.avatar__ask { display: flex; align-items: center; gap: 8px; margin: 8px; padding: 6px 6px 6px 14px; border-radius: 999px; background: var(--surface-2); }
+.avatar__ask textarea { flex: 1; min-width: 0; border: 0; resize: none; min-height: 20px; max-height: 100px; padding: 7px 0; line-height: 1.4; background: transparent; outline: none; font-size: 14px; font-family: inherit; }
+.avatar__send { border-radius: 999px; background: var(--primary); color: var(--bg); }
+.avatar__send:disabled { opacity: 0.4; }
 /* Character is now Bridge's Zazoo rig (avatar/zazoo/) — its animation runs via the director's
    own rAF loop and its own prefers-reduced-motion fallback, not CSS keyframes. */
 

@@ -9,3 +9,6 @@
 .attach-chip__size { flex: none; color: var(--text-3); }
 .attach-chip__remove { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 0; background: none; border-radius: 50%; color: var(--text-3); cursor: pointer; }
 .attach-chip__remove:hover { background: var(--hover); color: var(--text-1); }
+
+.attach-trigger { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.attach-trigger__chip { font-size: 10px; line-height: 1; color: var(--warning, #b35c00); background: var(--warning-bg, rgba(179, 92, 0, 0.12)); border-radius: 999px; padding: 3px 6px; white-space: nowrap; pointer-events: none; }

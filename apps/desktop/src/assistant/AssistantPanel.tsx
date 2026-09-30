@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
-import { isSessionsClient, type AttachmentWire, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
+import { isSessionsClient, type AdvancedOptions, type AttachmentWire, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
@@ -15,8 +15,8 @@ import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./Conversa
 import { ZazooIcon } from "../ui/ZazooIcon";
 import { Button, IconButton } from "../ui";
 import { Markdown } from "./markdown";
-import { AttachMenu, AttachmentChips, useAttachments } from "./AttachMenu";
-import { toWire, useComposerDrop, usePasteAttachments } from "./attachments";
+import { AttachMenu, AttachmentChips, useAdvanced, useAttachments } from "./AttachMenu";
+import { autoGrow, toWire, useComposerDrop, usePasteAttachments } from "./attachments";
 import { modelErrorOf, NotConnectedCard } from "./NotConnectedCard";
 import "./assistant.css";
 
@@ -70,6 +70,8 @@ export function AssistantPanel({
   const select = onSelectSession ?? setOwnSession;
   const { session, loading, error, busy, reconnecting, send, refresh } = useSession(sessions, selected, select, scope);
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const advanced = useAdvanced(selected ?? "draft", client);
   const attach = useAttachments();
   const onPaste = usePasteAttachments(attach.add);
   const { onDrop, onDragOver } = useComposerDrop(attach.add);
@@ -100,9 +102,10 @@ export function AssistantPanel({
     if (!clean || busy) return;
     onSelectConversation?.(null);
     setText("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     const wire = attach.items.map(toWire);
     attach.clear();
-    await send(clean, wire);
+    await send(clean, wire, { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
   }
 
   const label = scope.moduleName ?? scope.projectName ?? "Home";
@@ -246,15 +249,29 @@ export function AssistantPanel({
       <form className="composer" onSubmit={submit} onDrop={onDrop} onDragOver={onDragOver}>
         <AttachmentChips items={attach.items} onRemove={attach.remove} />
         <div className="composer__box">
-          <AttachMenu onAdd={attach.add} small />
+          <AttachMenu
+            onAdd={attach.add}
+            small
+            advanced={{
+              accessMode: advanced.accessMode,
+              onAccessModeChange: advanced.setAccessMode,
+              model: advanced.model,
+              onModelChange: advanced.setModel,
+              client,
+            }}
+          />
           <textarea
             id="goal"
+            ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              autoGrow(e.currentTarget);
+            }}
             onPaste={onPaste}
             placeholder={session ? "Ask Chief of Staff… say what to do, ask, or describe a change" : "Ask Chief of Staff… describe what you want done"}
             aria-label="Message"
-            rows={2}
+            rows={1}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -263,7 +280,7 @@ export function AssistantPanel({
             }}
           />
           <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-          <IconButton aria-label="Send" type="submit" disabled={busy || thinking || !text.trim()}>
+          <IconButton aria-label="Send" type="submit" className="composer__send" disabled={busy || thinking || !text.trim()}>
             <ArrowUp size={16} />
           </IconButton>
         </div>
@@ -354,7 +371,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
   }, [client, session]);
 
   const send = useCallback(
-    async (text: string, attachments?: AttachmentWire[]) => {
+    async (text: string, attachments?: AttachmentWire[], options?: AdvancedOptions) => {
       if (!client) {
         setError("This runtime cannot hold sessions yet.");
         return;
@@ -368,7 +385,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
           id = made.session_id;
           onSelect(id);
         }
-        setSession(await client.sendSession(id, text, scope.appId ?? null, attachments));
+        setSession(await client.sendSession(id, text, scope.appId ?? null, attachments, options));
       } catch (e) {
         setError(`Could not send: ${e instanceof Error ? e.message : String(e)}`);
       } finally {

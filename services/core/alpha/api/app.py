@@ -32,6 +32,7 @@ from alpha.api.connection_routes import register as register_connection_routes
 from alpha.api.creation_routes import register as register_creation_routes
 from alpha.api.models_routes import register as register_models_routes
 from alpha.api.profile_routes import register as register_profile_routes
+from alpha.api.session_routes import ModelChoice
 from alpha.api.session_routes import register as register_session_routes
 from alpha.api.skill_routes import register as register_skill_routes
 from alpha.assistant.acting import ActService, ActTurn
@@ -167,6 +168,9 @@ class ActRequest(BaseModel):
     # The module the person is looking at, when any; helps resolve "add one" or "check it".
     app_id: str | None = Field(default=None, max_length=80)
     attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+    # The + menu's Advanced choices for this one message; unset falls back to Settings -> Access.
+    access_mode: str | None = Field(default=None, pattern="^(ask|approve_for_me|full)$")
+    model: ModelChoice | None = None
 
 
 class ConversationMessage(BaseModel):
@@ -509,7 +513,13 @@ def register_act_routes(app: FastAPI, acting: ActService) -> None:
         """Do what the sentence asks, at once, and say what happened. Blocks while the run
         finishes (bounded), so the avatar can speak the outcome."""
         try:
-            return acting.act(body.text, context_app_id=body.app_id, attachments=body.attachments)
+            return acting.act(
+                body.text,
+                context_app_id=body.app_id,
+                attachments=body.attachments,
+                access_mode=body.access_mode,
+                model=body.model.model_dump() if body.model else None,
+            )
         except RouteUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
