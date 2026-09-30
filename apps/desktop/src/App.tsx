@@ -16,6 +16,7 @@ import { Activity, Settings, applyDensity } from "./shell/Info";
 import { Intelligence } from "./shell/Intelligence";
 import { ModulePage, type Section } from "./modules/ModulePage";
 import { ProjectPage } from "./shell/ProjectPage";
+import { NewProjectPage } from "./shell/NewProjectPage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
@@ -66,6 +67,7 @@ function surfaceFromPath(pathname: string): Surface {
   if (it) return { kind: "intelligence", tab: it[1] };
   const pr = path.match(/^\/p\/([^/]+)/);
   if (pr) return { kind: "project", projectId: pr[1] };
+  if (path === "/new-project") return { kind: "newProject" };
   const st = path.match(/^\/settings(?:\/([^/]+))?$/);
   if (st) return { kind: "settings", section: st[1] };
   const m = path.match(/^\/m\/([^/]+)/);
@@ -176,6 +178,9 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const [mobileDrawer, setMobileDrawer] = useState<"modules" | null>(null);
 
   const [draft, setDraft] = useState<string | null>(null);
+  // The blank "New project" draft's title, held here until Core actually has a project to save
+  // it to (createProject only runs once the person answers the opening question).
+  const [draftProjectTitle, setDraftProjectTitle] = useState("Untitled project");
   const [modules, setModules] = useState<AppSummary[]>([]);
   const [modulesTick, setModulesTick] = useState(0);
   const dev = devOverride ?? devTools();
@@ -323,8 +328,10 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
   // Where the assistant is: the project of the page (or of the module on it), else global.
   const currentProject = surface.kind === "project" ? projects.find((p) => p.project_id === surface.projectId) ?? null : surface.kind === "module" ? projects.find((p) => p.modules.includes(surface.appId)) ?? null : null;
-  // A module outside any project keeps sessions of its own; Home is the global scope.
-  const scopeKey = currentProject ? `project:${currentProject.project_id}` : currentModule ? `module:${currentModule.app_id}` : "global";
+  // A module outside any project keeps sessions of its own; Home is the global scope. The
+  // blank "New project" draft gets its own scope key so it never picks up (or pollutes) the
+  // global session, and starts fresh every time it's opened.
+  const scopeKey = surface.kind === "newProject" ? "draft-project" : currentProject ? `project:${currentProject.project_id}` : currentModule ? `module:${currentModule.app_id}` : "global";
   const sessionId = sessionByScope[scopeKey] ?? null;
   const selectSession = useCallback((id: string | null) => rememberSession(scopeKey, id), [rememberSession, scopeKey]);
   // A remembered project that no longer exists (archived, another data directory) goes Home.
@@ -346,16 +353,28 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
     setSurface({ kind: "home" });
     openAssistant("");
   }, [openAssistant, rememberSession, selectConversation, setSurface]);
-  const newProject = useCallback(async () => {
-    if (!client || !isSessionsClient(client)) return;
-    try {
-      const made = await client.createProject("New project");
+  // Opens the blank draft: no project exists in Core yet (createProject waits for the person's
+  // first answer, in the Chief of Staff panel's send() below), so there's nothing here yet to
+  // undo if they change their mind and go elsewhere.
+  const startNewProjectDraft = useCallback(() => {
+    selectConversation(null);
+    rememberSession("draft-project", null);
+    setDraftProjectTitle("Untitled project");
+    setAssistantOpen(true);
+    assistantPanel.setCollapsed(false);
+    setSurface({ kind: "newProject" });
+  }, [assistantPanel, rememberSession, selectConversation, setAssistantOpen, setSurface]);
+  // The project is made (with whatever title the person left in the draft header) the moment
+  // they answer; the session that carried the answer moves with it so nothing appears lost.
+  const handleProjectCreated = useCallback(
+    (project: Project, sessionId: string) => {
+      rememberSession(`project:${project.project_id}`, sessionId);
+      rememberSession("draft-project", null);
       setModulesTick((n) => n + 1);
-      setSurface({ kind: "project", projectId: made.project_id });
-    } catch {
-      /* the page will say */
-    }
-  }, [client, setSurface]);
+      setSurface({ kind: "project", projectId: project.project_id });
+    },
+    [rememberSession, setSurface],
+  );
   const handleModuleRemoved = useCallback(
     (appId: string) => {
       setModulesTick((n) => n + 1);
@@ -456,6 +475,14 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
         <Intelligence client={runtime.client} modules={modules} icons={icons} initialTab={surface.tab} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} />
       ) : surface.kind === "settings" ? (
         <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} section={surface.section} onSection={(section) => setSurface({ kind: "settings", section })} />
+      ) : surface.kind === "newProject" ? (
+        <NewProjectPage
+          title={draftProjectTitle}
+          onTitleChange={setDraftProjectTitle}
+          modules={modules}
+          client={isProfileClient(runtime.client) ? runtime.client : undefined}
+          onFill={(text) => openAssistant(text)}
+        />
       ) : surface.kind === "project" ? (
         isSessionsClient(runtime.client) ? (
           <ProjectPage
@@ -508,7 +535,13 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
       <div ref={assistRef} id="panel-right" className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow ? undefined : { width: assistantWidth }}>
         <AssistantPanel
           client={runtime.client}
-          scope={{ projectId: currentProject?.project_id ?? null, projectName: currentProject?.name ?? null, moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
+          scope={{
+            projectId: currentProject?.project_id ?? null,
+            projectName: currentProject?.name ?? null,
+            moduleName: currentModule?.name ?? null,
+            appId: currentModule?.app_id ?? null,
+            ...(surface.kind === "newProject" ? { newProject: true, draftTitle: draftProjectTitle, onProjectCreated: handleProjectCreated } : {}),
+          }}
           sessionId={sessionId}
           onSelectSession={selectSession}
           conversationId={conversationId}
@@ -565,7 +598,6 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
                   setSurface(s);
                   setMobileDrawer(null);
                 }}
-                onNew={startNew}
                 panel={{ ...railPanel, collapsed: false, displayWidth: 280 }}
                 client={client}
                 onModuleRemoved={handleModuleRemoved}
@@ -607,8 +639,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           icons={icons}
           runtime={runtime.kind}
           onGo={setSurface}
-          onNew={startNew}
-          onNewProject={client && isSessionsClient(client) ? () => void newProject() : undefined}
+          onNewProject={client && isSessionsClient(client) ? startNewProjectDraft : undefined}
           panel={{ ...railPanel, displayWidth: railWidth }}
           client={client}
           onModuleRemoved={handleModuleRemoved}
