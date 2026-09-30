@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { type AppSummary, type Nudge, type OnboardingStatus, type ProfileClient } from "../core/client";
 import { ArrowRight, Boxes, Sparkles, X, type LucideIcon } from "lucide-react";
 import { Badge } from "../ui/Badge";
+import { PageHeader } from "../ui/PageHeader";
 import "./pages.css";
 
 export const ATTENTION = new Set(["waiting_input", "waiting_approval", "waiting_connection", "needs_reconciliation", "failed"]);
@@ -173,11 +174,11 @@ export function Home({
   }
   return (
     <section className="page page--home" aria-labelledby="home-heading">
+      <PageHeader title={<span id="home-heading">{greeting()}</span>} />
       <div className="eyebrow">
         <Sparkles size={14} aria-hidden="true" />
         {today.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
       </div>
-      <h1 id="home-heading">{greeting()}</h1>
       <p className="subcopy">Open a module to work with its records, or describe a new one.</p>
       {client && onStart ? <FirstSteps client={client} onStart={onStart} /> : null}
       {client && onStart ? <Noticed client={client} onStart={onStart} /> : null}

@@ -13,6 +13,7 @@ import { Automations } from "./intelligence/Automations";
 import { ModuleLinks } from "./intelligence/ModuleLinks";
 import { SecondBrain } from "./intelligence/SecondBrain";
 import { Skills } from "./intelligence/Skills";
+import "../modules/module.css";
 
 type Tab = "brain" | "skills" | "automations" | "connections";
 const TABS: [Tab, string][] = [
@@ -42,12 +43,10 @@ export function Intelligence({
     <section className="page" aria-labelledby="intel-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <div>
-            <h2 id="intel-heading">Intelligence</h2>
-            <div className="faint">What Alpha knows and can do across your modules.</div>
-          </div>
+          <h2 id="intel-heading">Intelligence</h2>
         </div>
       </div>
+      <p className="modhead__desc">What Alpha knows and can do across your modules.</p>
       <div className="subtabs" role="tablist" aria-label="Intelligence sections">
         {TABS.map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>

@@ -132,7 +132,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
       {expanded ? (
         <section className="avatar__panel" aria-label="Alpha assistant">
           <header className="avatar__head" data-tauri-drag-region>
-            <b data-tauri-drag-region>Alpha</b>
+            <b data-tauri-drag-region>Chief of Staff</b>
             <span className="faint" data-tauri-drag-region>
               Say what to do
             </span>

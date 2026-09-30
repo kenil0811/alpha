@@ -51,11 +51,15 @@ export function CompanionZazooFace({
    * `size` box instead of the square head crop — the collapsed overlay uses
    * this so hops, waves and tail motion are actually visible. */
   crop = true,
+  /** `false` paints one resting frame instead of running the breathe/blink loop — icon slots
+   *  (rail mark, panel headers) want the same painted panda, held still. */
+  animate = true,
 }: {
   director: ZazooDirector;
   size?: number;
   label: string;
   crop?: boolean;
+  animate?: boolean;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   if (reducedMotion) {
@@ -78,7 +82,9 @@ export function CompanionZazooFace({
           alignItems: "flex-end",
         }}
       >
-        <ZazooAvatar director={director} width={size * FULL_BODY_ASPECT} />
+        <span aria-hidden="true">
+          <ZazooAvatar director={director} width={size * FULL_BODY_ASPECT} animate={animate} />
+        </span>
       </div>
     );
   }
@@ -95,8 +101,11 @@ export function CompanionZazooFace({
         alignItems: "flex-start",
       }}
     >
-      <div style={{ marginTop: size * HEAD_OFFSET_RATIO }}>
-        <ZazooAvatar director={director} width={size * BODY_WIDTH_RATIO} />
+      {/* aria-hidden: the wrapper already carries the name (`label`, possibly ""); without this
+       *  an empty aria-label is ignored by name computation and ZazooAvatar's own hardcoded
+       *  "Zazoo, your companion" svg label leaks into an ancestor button's accessible name. */}
+      <div aria-hidden="true" style={{ marginTop: size * HEAD_OFFSET_RATIO }}>
+        <ZazooAvatar director={director} width={size * BODY_WIDTH_RATIO} animate={animate} />
       </div>
     </div>
   );

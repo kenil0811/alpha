@@ -1,77 +1,16 @@
-import { useId } from "react";
+import { useMemo } from "react";
+import { CompanionZazooFace } from "../avatar/zazoo/CompanionZazooFace";
+import { ZazooDirector } from "../avatar/zazoo/director";
 
-/** Zazoo, the Chief of Staff, as a static icon. Ported from Bridge
- *  (platform/apps/web/src/app/avatar/zazoo/ZazooCompact.tsx). */
+/** Zazoo, the Chief of Staff, as a static icon — the same painted panda the floating
+ *  companion (avatar/Character.tsx) shows, held on one resting frame and cropped to the
+ *  head, so the rail mark, panel headers and module button all read as one character.
+ *  (prefers-reduced-motion users see the plush ZazooCompact head, same as the companion.) */
 export function ZazooIcon({ size = 32, className, label = "Chief of Staff" }: { size?: number; className?: string; label?: string }) {
-  const s = size;
-  // Unique per instance: several icons on one page must not share one gradient id.
-  const grad = `zc-body-${useId().replace(/:/g, "")}`;
+  const director = useMemo(() => new ZazooDirector(), []);
   return (
-    <svg
-      width={s}
-      height={s}
-      viewBox="0 0 64 64"
-      role="img"
-      aria-label={label}
-      className={className}
-      style={{ display: "block" }}
-    >
-      {/* Felt body glow */}
-      <radialGradient id={grad} cx="42%" cy="30%" r="70%">
-        <stop offset="0%" stopColor="#FAF0DF" />
-        <stop offset="100%" stopColor="#E8D4B0" />
-      </radialGradient>
-
-      {/* Left ear */}
-      <ellipse cx="18" cy="14" rx="7" ry="10" fill={`url(#${grad})`} stroke="#2E4057" strokeWidth="1.4"
-        transform="rotate(-18 18 14)" />
-      <ellipse cx="18" cy="14" rx="3.5" ry="5.5" fill="#F5C6B8" opacity="0.7"
-        transform="rotate(-18 18 14)" />
-
-      {/* Right ear */}
-      <ellipse cx="46" cy="14" rx="7" ry="10" fill={`url(#${grad})`} stroke="#2E4057" strokeWidth="1.4"
-        transform="rotate(18 46 14)" />
-      <ellipse cx="46" cy="14" rx="3.5" ry="5.5" fill="#F5C6B8" opacity="0.7"
-        transform="rotate(18 46 14)" />
-
-      {/* Head */}
-      <circle cx="32" cy="34" r="22" fill={`url(#${grad})`} stroke="#2E4057" strokeWidth="1.4" />
-
-      {/* Suit collar peeking in */}
-      <path d="M18 52 Q24 58 32 58 Q40 58 46 52 L44 56 Q36 64 28 64 L20 56 Z"
-        fill="#3E5A7E" opacity="0.85" />
-      <path d="M26 56 L32 62 L38 56" fill="white" opacity="0.9" />
-
-      {/* Left eye white */}
-      <ellipse cx="23" cy="33" rx="7.5" ry="9" fill="white" stroke="#2E4057" strokeWidth="1" />
-      {/* Left pupil */}
-      <ellipse cx="23" cy="34" rx="4.5" ry="5.5" fill="#1A2B3C" />
-      {/* Left eye sparkle */}
-      <circle cx="25.5" cy="31.5" r="2" fill="white" opacity="0.9" />
-      <circle cx="20.5" cy="36" r="1" fill="white" opacity="0.5" />
-
-      {/* Right eye white */}
-      <ellipse cx="41" cy="33" rx="7.5" ry="9" fill="white" stroke="#2E4057" strokeWidth="1" />
-      {/* Right pupil */}
-      <ellipse cx="41" cy="34" rx="4.5" ry="5.5" fill="#1A2B3C" />
-      {/* Right eye sparkle */}
-      <circle cx="43.5" cy="31.5" r="2" fill="white" opacity="0.9" />
-      <circle cx="38.5" cy="36" r="1" fill="white" opacity="0.5" />
-
-      {/* Nose — micro dot */}
-      <circle cx="32" cy="43" r="1.5" fill="#2E4057" opacity="0.6" />
-
-      {/* Mouth — thread line */}
-      <path d="M28.5 45 Q32 49 35.5 45" fill="none" stroke="#2E4057" strokeWidth="1.2"
-        strokeLinecap="round" opacity="0.7" />
-
-      {/* Whiskers left */}
-      <line x1="12" y1="42" x2="26" y2="44" stroke="#2E4057" strokeWidth="0.9" opacity="0.35" />
-      <line x1="12" y1="45" x2="26" y2="46" stroke="#2E4057" strokeWidth="0.9" opacity="0.3" />
-
-      {/* Whiskers right */}
-      <line x1="52" y1="42" x2="38" y2="44" stroke="#2E4057" strokeWidth="0.9" opacity="0.35" />
-      <line x1="52" y1="45" x2="38" y2="46" stroke="#2E4057" strokeWidth="0.9" opacity="0.3" />
-    </svg>
+    <span className={className} style={{ display: "block", width: size, height: size }}>
+      <CompanionZazooFace director={director} size={size} label={label} crop animate={false} />
+    </span>
   );
 }

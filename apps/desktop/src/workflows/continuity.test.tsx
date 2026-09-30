@@ -65,7 +65,10 @@ describe("a request and its creation stay reachable", () => {
     const progress = await screen.findByLabelText("Creating it");
     expect(within(progress).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect([...client.creations.keys()]).toEqual([creationId]);
-  });
+    // ZazooIcon now mounts the same painted-panda rig the floating companion uses (was a ~20-line
+    // static SVG); jsdom renders that heavier tree slowly enough across 5 surface changes to graze
+    // the default 5s budget. Real Chromium doesn't feel this — give jsdom more room instead.
+  }, 10_000);
 
   it("is restored when the window opens again", async () => {
     const client = briefedClient();

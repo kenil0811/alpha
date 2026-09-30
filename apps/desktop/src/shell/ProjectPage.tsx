@@ -9,6 +9,7 @@ import { ModuleIcon } from "../ui/ModuleIcon";
 import { useCallback, useEffect, useState } from "react";
 import type { AppSummary, ProfileFact, Project, SessionsClient, SessionSummary } from "../core/client";
 import { humanize } from "../modules/useModule";
+import "../modules/module.css";
 
 const SOURCE: Record<ProfileFact["provenance"], string> = {
   person: "You said so",
@@ -101,22 +102,13 @@ export function ProjectPage({
           <div className="modhead__ico" aria-hidden="true">
             <Folder size={18} strokeWidth={1.75} />
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            {editing === "name" ? (
-              <input autoFocus aria-label="Project name" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => void saveEdit()} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditing(null); }} />
-            ) : (
-              <h2 id="project-heading" className="editable" onClick={() => startEdit("name")} title="Click to rename">
-                {project?.name ?? "Opening…"}
-              </h2>
-            )}
-            {editing === "goal" ? (
-              <input autoFocus aria-label="Project goal" value={draft} placeholder="What this project is for, in your words" onChange={(e) => setDraft(e.target.value)} onBlur={() => void saveEdit()} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditing(null); }} style={{ width: "100%" }} />
-            ) : (
-              <div className="faint editable" onClick={() => startEdit("goal")} title="Click to edit the goal">
-                {project?.goal ?? "Add a goal: what this project is for, in your words."}
-              </div>
-            )}
-          </div>
+          {editing === "name" ? (
+            <input autoFocus aria-label="Project name" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => void saveEdit()} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditing(null); }} />
+          ) : (
+            <h2 id="project-heading" className="editable" onClick={() => startEdit("name")} title="Click to rename">
+              {project?.name ?? "Opening…"}
+            </h2>
+          )}
         </div>
         <div className="row">
           <button type="button" className="btn btn--sm btn--primary" onClick={() => onOpenSession(null)}>
@@ -129,6 +121,13 @@ export function ProjectPage({
           ) : null}
         </div>
       </div>
+      {editing === "goal" ? (
+        <input autoFocus aria-label="Project goal" value={draft} placeholder="What this project is for, in your words" onChange={(e) => setDraft(e.target.value)} onBlur={() => void saveEdit()} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditing(null); }} className="modhead__desc" style={{ width: "100%" }} />
+      ) : (
+        <div className="modhead__desc editable" onClick={() => startEdit("goal")} title="Click to edit the goal">
+          {project?.goal ?? "Add a goal: what this project is for, in your words."}
+        </div>
+      )}
       {error ? (
         <p className="notice" role="alert">
           {error}
