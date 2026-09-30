@@ -1,7 +1,7 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CircleCheck, Circle, Cpu, HardDrive, Hammer, Link2, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
+import { CircleCheck, Circle, Cpu, HardDrive, Hammer, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import { isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -519,7 +519,6 @@ const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = 
   { value: "models", label: "Models", icon: Cpu },
   { value: "look", label: "Look & Appearance", icon: Palette },
   { value: "builds", label: "Builds", icon: Hammer },
-  { value: "connections", label: "Connections", icon: Link2 },
   { value: "desktop", label: "Desktop", icon: Monitor },
   { value: "data", label: "Data & runtime", icon: HardDrive },
 ];
@@ -570,7 +569,6 @@ export function Settings({
           ))}
         </nav>
         <div className="settings-content">
-          {section === "connections" ? <Connections client={client} embedded /> : null}
           {section === "models" ? (
             <>
               <ModelAccessNotice />

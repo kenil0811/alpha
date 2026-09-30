@@ -493,6 +493,15 @@ body.avatar-window #root { height: 100vh; }
 .intel__modules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .intel__modules li { display: flex; flex-direction: column; gap: 1px; }
 .intel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 12px; }
+/* Second brain graph — egg-shaped force layout, adapted from the CV Naturals project. */
+.intel-graph-card { padding: 12px; }
+.intel-graph { width: 100%; height: 56vh; min-height: 360px; display: block; user-select: none; -webkit-user-select: none; }
+.intel-graph text { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.intel-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.intel-legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); background: none; border: 1px solid transparent; padding: 3px 8px; border-radius: 999px; cursor: pointer; }
+.intel-legend:hover { border-color: var(--border); color: var(--text); }
+.intel-legend.active { border-color: var(--primary); color: var(--text); background: var(--primary-soft); font-weight: 600; }
+.intel-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .skill__meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: -4px; }
 .skill__run { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .skill__result { display: flex; flex-direction: column; gap: 8px; }

@@ -57,8 +57,8 @@ describe("a request and its creation stay reachable", () => {
 
     const rail = screen.getByRole("navigation", { name: "Alpha" });
     await user.click(screen.getByRole("button", { name: /^Activity/ }));
-    await user.click(within(rail).getByRole("button", { name: "Settings" }));
-    await user.click(screen.getByRole("button", { name: "Connections" }));
+    await user.click(within(rail).getByRole("button", { name: "Intelligence" }));
+    await user.click(screen.getByRole("tab", { name: "Connections" }));
     await user.click(within(rail).getByRole("button", { name: "Home" }));
 
     expect(await screen.findByText("Keep a notes list for me")).toBeInTheDocument();
