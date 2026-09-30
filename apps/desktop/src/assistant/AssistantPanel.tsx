@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
-import { isSessionsClient, type AttachmentWire, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
+import { isSessionsClient, type AttachmentWire, type Conversation, type CoreClient, type Project, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
@@ -34,6 +34,15 @@ export interface AssistantScope {
   appId?: string | null;
   moduleName?: string | null;
   moduleHint?: string | null;
+  /** The blank "New project" draft: projectId is null because Core has no project yet — the
+   *  panel opens with a fixed question instead of the usual scope message, and the first
+   *  answer is what actually makes the project. */
+  newProject?: boolean;
+  /** The draft's current title (editable in the centre), used as the project's name once made. */
+  draftTitle?: string;
+  /** Fired right after the project (and the session carrying the answer) are made, so the
+   *  caller can move the remembered session onto the real project and swap the centre over. */
+  onProjectCreated?: (project: Project, sessionId: string) => void;
 }
 
 export function AssistantPanel({
@@ -145,7 +154,9 @@ export function AssistantPanel({
           ) : (
             <>
               <div className="msg msg--ai">
-                {scope.moduleName ? (
+                {scope.newProject ? (
+                  <>What do you want to accomplish with this new project?</>
+                ) : scope.moduleName ? (
                   <>
                     I'm looking at <b>{scope.moduleName}</b>. Ask about it, tell me to run something, or describe what to change or add and Alpha rebuilds it in place. Everything already saved in it is kept.
                     {scope.moduleHint ? <div className="faint" style={{ marginTop: 6 }}>{scope.moduleHint}</div> : null}
@@ -158,7 +169,7 @@ export function AssistantPanel({
                   <>Tell me what you want to keep track of, automate or get done. I'll ask at most a couple of questions, then build it.</>
                 )}
               </div>
-              {!scope.moduleName && !scope.projectName ? (
+              {!scope.moduleName && !scope.projectName && !scope.newProject ? (
                 <div className="assist-empty__chips" aria-label="Examples">
                   {EXAMPLES.map((example) => (
                     <Button key={example} variant="outline" className="assist-empty__chip" onClick={() => setText(example)}>
@@ -168,7 +179,7 @@ export function AssistantPanel({
                 </div>
               ) : null}
               {scope.appId ? <ModuleThread client={client} appId={scope.appId} onOpen={(id) => onSelectConversation?.(id)} /> : null}
-              {sessions ? <EarlierSessions client={sessions} scope={scope} onOpen={select} /> : null}
+              {sessions && !scope.newProject ? <EarlierSessions client={sessions} scope={scope} onOpen={select} /> : null}
             </>
           )
         ) : (
@@ -363,11 +374,20 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
       setBusy(true);
       try {
         let id = session?.session_id ?? selectedId;
+        let projectId = scope.projectId;
+        // The blank "New project" draft holds no project in Core until this first answer —
+        // make it now, named after whatever the person left in the draft header.
+        let madeProject: Project | null = null;
+        if (!id && !projectId && scope.newProject) {
+          madeProject = await client.createProject(scope.draftTitle?.trim() || "Untitled project");
+          projectId = madeProject.project_id;
+        }
         if (!id) {
-          const made = await client.createSession({ project_id: scope.projectId, focus_app_id: scope.appId ?? null });
+          const made = await client.createSession({ project_id: projectId, focus_app_id: scope.appId ?? null });
           id = made.session_id;
           onSelect(id);
         }
+        if (madeProject) scope.onProjectCreated?.(madeProject, id);
         setSession(await client.sendSession(id, text, scope.appId ?? null, attachments));
       } catch (e) {
         setError(`Could not send: ${e instanceof Error ? e.message : String(e)}`);
@@ -375,7 +395,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
         setBusy(false);
       }
     },
-    [client, onSelect, scope.appId, scope.projectId, selectedId, session],
+    [client, onSelect, scope, selectedId, session],
   );
 
   return { session, loading, error, busy, reconnecting, send, refresh };

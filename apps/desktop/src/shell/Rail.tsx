@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, FileUp, Trash2, type LucideIcon } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, FileUp, Trash2, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, Project } from "../core/client";
 import { isWorkflowsClient } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
@@ -24,7 +24,10 @@ export type Surface =
   | { kind: "intelligence"; tab?: string }
   | { kind: "settings"; section?: string }
   | { kind: "project"; projectId: string }
-  | { kind: "module"; appId: string };
+  | { kind: "module"; appId: string }
+  /** The blank "New project" draft: no project exists in Core yet, made only once the person
+   *  answers the Chief of Staff's opening question. */
+  | { kind: "newProject" };
 
 export function surfacePath(s: Surface): string {
   switch (s.kind) {
@@ -42,6 +45,8 @@ export function surfacePath(s: Surface): string {
       return s.section ? `/settings/${encodeURIComponent(s.section)}` : "/settings";
     case "module":
       return `/m/${encodeURIComponent(s.appId)}`;
+    case "newProject":
+      return "/new-project";
   }
 }
 
@@ -125,7 +130,6 @@ export function Rail({
   icons,
   runtime,
   onGo,
-  onNew,
   onNewProject,
   projects = [],
   panel,
@@ -140,7 +144,8 @@ export function Rail({
   icons: Record<string, LucideIcon>;
   runtime: "connecting" | "connected" | "unavailable";
   onGo: (surface: Surface) => void;
-  onNew: () => void;
+  /** Opens the blank "New project" draft (its centre stays blank until the person tells the
+   *  Chief of Staff what it's for). Only a module-capable, session-capable runtime offers it. */
   onNewProject?: () => void;
   panel: PanelControl;
   /** Export and Delete on the module's context menu, and "Add a module from a file" need Core. */
@@ -380,54 +385,35 @@ export function Rail({
             if (file) void importFile(file);
           }}
         />
-        {client && isWorkflowsClient(client) ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="navbtn navbtn--new"
-                aria-label="New module"
-                title={collapsed ? "New module" : undefined}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = Array.from(e.dataTransfer.files).find(isAlphaModuleFile);
-                  if (file) void importFile(file);
-                }}
-              >
-                <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
-                  <Plus size={16} strokeWidth={1.75} />
-                </span>
-                <span className="navbtn__text">New</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={onNew}>New module</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => importInputRef.current?.click()}>
-                <FileUp size={14} strokeWidth={1.75} aria-hidden="true" /> Add a module from a file…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <button
-            type="button"
-            className="navbtn navbtn--new"
-            onClick={onNew}
-            aria-label="New module"
-            title={collapsed ? "New module" : undefined}
-          >
-            <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
-              <Plus size={16} strokeWidth={1.75} />
-            </span>
-            <span className="navbtn__text">New</span>
-          </button>
-        )}
         {onNewProject ? (
-          <button type="button" className="navbtn navbtn--quiet" onClick={onNewProject} aria-label="New project" title={collapsed ? "New project" : undefined}>
-            <span className="navbtn__ico" aria-hidden="true">
+          <button type="button" className="navbtn navbtn--new" onClick={onNewProject} aria-label="New project" title={collapsed ? "New project" : undefined}>
+            <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
               <FolderPlus size={16} strokeWidth={1.75} />
             </span>
             <span className="navbtn__text">New project</span>
+          </button>
+        ) : null}
+        {client && isWorkflowsClient(client) ? (
+          // "Add a module from a file" used to hang off the old "New" (new module) button;
+          // module creation itself now only happens by asking the Chief of Staff, so this is
+          // the one thing left that needs its own entry point.
+          <button
+            type="button"
+            className="navbtn navbtn--quiet"
+            aria-label="Add a module from a file…"
+            title={collapsed ? "Add a module from a file…" : undefined}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = Array.from(e.dataTransfer.files).find(isAlphaModuleFile);
+              if (file) void importFile(file);
+            }}
+            onClick={() => importInputRef.current?.click()}
+          >
+            <span className="navbtn__ico" aria-hidden="true">
+              <FileUp size={16} strokeWidth={1.75} />
+            </span>
+            <span className="navbtn__text">Add a module from a file…</span>
           </button>
         ) : null}
         {!collapsed && hiddenCount > 0 ? (

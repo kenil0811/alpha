@@ -1,9 +1,10 @@
 /** The sidebar folds to icons and remembers it; the assistant panel is closed on a module page
  *  until asked for, and that choice is remembered too. */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { App } from "../App";
+import { NewProjectPage } from "./NewProjectPage";
 import { FakeWorkflowsClient, sampleDetail, sampleSummary } from "../test/fakeWorkflows";
 
 beforeEach(() => {
@@ -84,14 +85,73 @@ describe("adding a module from a file", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
-    await user.click(screen.getByRole("button", { name: "New module" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Add a module from a file…" }));
+    await user.click(await screen.findByRole("button", { name: "Add a module from a file…" }));
     const input = document.querySelector('input[type="file"][accept=".alphamodule"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     const file = new File(["zip-bytes"], "notes.alphamodule", { type: "application/zip" });
     await user.upload(input, file);
     expect(client.importedFiles).toEqual([file]);
     expect(await screen.findByRole("heading", { name: "Imported module" })).toBeInTheDocument();
+  });
+});
+
+describe("New project", () => {
+  it("shows only New project in the rail, not a separate New (module)", async () => {
+    const client = new FakeWorkflowsClient();
+    render(<App client={client} />);
+    await screen.findByText("Runtime connected");
+    expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New module" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
+  });
+
+  it("opens a blank centre and asks what to accomplish, without making a project yet", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByText("Runtime connected");
+    await user.click(screen.getByRole("button", { name: "New project" }));
+    expect(await screen.findByText("What do you want to accomplish with this new project?")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Untitled project" })).toBeInTheDocument();
+    // Nothing else on the page yet (no Alpha's notes / Modules / Sessions sections).
+    expect(screen.queryByRole("heading", { name: "Alpha's notes" })).not.toBeInTheDocument();
+    expect(client.projects.size).toBe(0);
+  });
+
+  it("makes the project only once the person answers, and moves the session onto it", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByText("Runtime connected");
+    await user.click(screen.getByRole("button", { name: "New project" }));
+    await screen.findByText("What do you want to accomplish with this new project?");
+    expect(client.projects.size).toBe(0);
+    const composer = screen.getByRole("textbox", { name: "Message" });
+    await user.type(composer, "Plan the product launch");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    // The project page (not the blank draft) lands once Core has made the project.
+    await screen.findByText("Alpha's notes");
+    expect(client.projects.size).toBe(1);
+    const [project] = [...client.projects.values()];
+    expect(project.name).toBe("Untitled project");
+    // The answer landed in the session now attached to the real project.
+    within(screen.getByRole("complementary", { name: "Chief of Staff" })).getByText("Plan the product launch");
+  });
+});
+
+describe("the New project centre's starter suggestions", () => {
+  it("shows nothing when the flag is off, even with modules and insights on hand", () => {
+    render(
+      <NewProjectPage
+        title="Untitled project"
+        onTitleChange={() => {}}
+        modules={[sampleSummary()]}
+        onFill={() => {}}
+        showSuggestions={false}
+      />,
+    );
+    expect(screen.queryByLabelText("Starter options")).not.toBeInTheDocument();
+    expect(screen.queryByText("Research insights")).not.toBeInTheDocument();
   });
 });
 
