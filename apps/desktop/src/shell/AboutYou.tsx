@@ -9,6 +9,7 @@ import type { ProfileClient, ProfileFact } from "../core/client";
 import { humanize } from "../modules/useModule";
 import { IconButton } from "../ui/IconButton";
 import { Button } from "../ui/Button";
+import "../modules/module.css";
 import "../modules/views/views.css";
 
 const SOURCE: Record<ProfileFact["provenance"], string> = {
@@ -77,12 +78,10 @@ export function AboutYou({ client }: { client: ProfileClient }) {
     <section className="page" aria-labelledby="about-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <div>
-            <h2 id="about-heading">About you</h2>
-            <div className="faint">What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it.</div>
-          </div>
+          <h2 id="about-heading">About you</h2>
         </div>
       </div>
+      <p className="modhead__desc">What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it.</p>
       {error ? (
         <p className="notice" role="alert">
           {error}

@@ -375,7 +375,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const mainContent = (
     <main className="main">
       {runtime.kind !== "connected" ? (
-        <section className="page">
+        <section className="page" style={{ paddingTop: 22 }}>
           <h2>Runtime</h2>
           {runtime.kind === "connecting" ? (
             <p className="panel__hint">Connecting to the local runtime…</p>
@@ -456,7 +456,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
         />
       ) : null}
       {dev && runtime.kind === "connected" ? (
-        <section className="page">
+        <section className="page" style={{ paddingTop: 22 }}>
           <GeneratedUiFixture client={runtime.client} />
         </section>
       ) : null}

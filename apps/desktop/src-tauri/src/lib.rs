@@ -598,8 +598,13 @@ pub fn run() {
                 MenuItem::with_id(app, "avatar", "Show or hide the assistant", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Alpha", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &avatar_item, &quit_item])?;
+            // A dedicated monochrome silhouette, not the app icon: macOS templates recolor a
+            // flat black-on-transparent shape to match the menu bar's light/dark state, and
+            // the full-color panda (rendered fully opaque) reads as a solid dark blob there.
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray@2x.png"))
+                .expect("tray icon");
             TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().cloned().expect("window icon"))
+                .icon(tray_icon)
                 .icon_as_template(true)
                 .tooltip("Alpha runtime is running")
                 .menu(&menu)

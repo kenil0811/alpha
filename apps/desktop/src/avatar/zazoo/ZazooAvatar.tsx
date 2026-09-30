@@ -222,9 +222,12 @@ interface Props {
    * gets a back view for free.
    */
   facing?: "front" | "back";
+  /** `false` paints one resting frame and skips the RAF loop — for icon slots that must not
+   *  animate (rail mark, panel headers). Defaults to animated, the companion's normal mode. */
+  animate?: boolean;
 }
 
-export function ZazooAvatar({ director, width = 340, appearance = DEFAULT_APPEARANCE, species = DEFAULT_SPECIES, facing = "front" }: Props) {
+export function ZazooAvatar({ director, width = 340, appearance = DEFAULT_APPEARANCE, species = DEFAULT_SPECIES, facing = "front", animate = true }: Props) {
   // The artist's registered layer stack IS the baseline: egg body, suit,
   // shirt, tie, brows, mouths and arms are wardrobe and anatomy every
   // species shares, so every species renders from it (the egg is duotoned
@@ -562,6 +565,11 @@ export function ZazooAvatar({ director, width = 340, appearance = DEFAULT_APPEAR
       r.zzz.current!.setAttribute("opacity", f.zzz ? (0.35 + 0.3 * Math.sin(f.tailWagPhase * 0.5)).toFixed(2) : "0");
     };
 
+    if (!animate) {
+      // Static icon use (rail mark, panel headers): paint one resting frame, no RAF loop.
+      apply(director.tick(performance.now() / 1000));
+      return;
+    }
     const loop = () => {
       apply(director.tick(performance.now() / 1000));
       raf = requestAnimationFrame(loop);
@@ -569,7 +577,7 @@ export function ZazooAvatar({ director, width = 340, appearance = DEFAULT_APPEAR
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
     // `painted` is captured by `apply`, so a species swap must restart the loop
-  }, [director, painted]);
+  }, [director, painted, animate]);
 
   const { body, suit, tie, shirt, accessory } = appearance;
   const bodyLight = shade(body, 0.5);

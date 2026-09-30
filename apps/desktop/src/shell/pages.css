@@ -2,10 +2,11 @@
  *  tokens from app.css (already 12px radius, 1px border, white surface) — only page-specific
  *  layout/typography lives here. */
 
-.page--home { max-width: 896px; margin: 0 auto; padding: 40px 24px; }
-.page--home .eyebrow { display: flex; align-items: center; gap: 6px; }
-.page--home h1 { font-family: var(--font-ed); font-size: 34px; font-weight: 400; margin: 6px 0 6px; }
-.page--home .subcopy { color: var(--text-2); font-size: 16px; max-width: 640px; margin: 0 0 28px; }
+/* No top padding: the page opens with a flush PageHeader (56px, aligned with the rail and
+ * assistant headers); .eyebrow supplies its own top gap below that bar. */
+.page--home { max-width: 896px; margin: 0 auto; padding: 0 24px 40px; }
+.page--home .eyebrow { display: flex; align-items: center; gap: 6px; margin-top: 24px; }
+.page--home .subcopy { color: var(--text-2); font-size: 16px; max-width: 640px; margin: 6px 0 28px; }
 
 .stat-row { display: flex; gap: 12px; margin: 0 0 28px; }
 .stat-card { flex: 1; padding: 14px 16px; }

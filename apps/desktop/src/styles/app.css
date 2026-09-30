@@ -86,7 +86,11 @@ a { color: var(--primary); }
 .theme button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(26, 43, 60, 0.12); font-weight: 500; }
 
 .main { flex: 1; min-width: 0; height: 100%; overflow: auto; display: flex; flex-direction: column; }
-.page { padding: 22px 28px 40px; max-width: 1480px; width: 100%; margin: 0 auto; }
+/* No top padding: pages that open with a .modhead/PageHeader bar need it flush with the top of
+ * .main so that bar's bottom edge lands at 56px, lined up with the rail's .brand and the
+ * assistant's .assist__head (both flush at the top of their own column, no page padding above
+ * them). A `.page` without a header restores its own top breathing room inline. */
+.page { padding: 0 28px 40px; max-width: 1480px; width: 100%; margin: 0 auto; }
 .page--wide { max-width: none; }
 
 /* ---------- common pieces ---------- */
@@ -139,10 +143,9 @@ a { color: var(--primary); }
 .modcard--new .link { color: var(--primary); font-weight: 500; background: none; border: 0; padding: 0; }
 
 /* ---------- module page ---------- */
-.modhead { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
-.modhead__title { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 280px; }
-.modhead__title .faint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.modhead__ico { width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 18px; flex: none; }
+/* .modhead / .modhead__title / .modhead__ico live in modules/module.css (the 56px, bordered
+ * version every page header aligns to) — this stale duplicate used to load after it and win
+ * the cascade, dropping the border/fixed-height and misaligning every column's header row. */
 .toggle { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; margin-left: auto; }
 .toggle button { padding: 6px 14px; border-radius: 7px; font-size: 13px; color: var(--text-2); background: none; border: 0; }
 .toggle button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(26, 43, 60, 0.12); font-weight: 500; }
