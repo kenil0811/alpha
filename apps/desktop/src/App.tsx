@@ -57,11 +57,13 @@ function surfaceFromPath(pathname: string): Surface {
   const path = decodeURIComponent(pathname);
   if (path === "/activity") return { kind: "activity" };
   if (path === "/about") return { kind: "about" };
-  if (path === "/intelligence") return { kind: "intelligence" };
+  // Connections live on Intelligence; old links to the standalone page or Settings' former
+  // section still land there.
+  if (path === "/connections" || path === "/settings/connections") return { kind: "intelligence", tab: "connections" };
+  const it = path.match(/^\/intelligence(?:\/([^/]+))?$/);
+  if (it) return { kind: "intelligence", tab: it[1] };
   const pr = path.match(/^\/p\/([^/]+)/);
   if (pr) return { kind: "project", projectId: pr[1] };
-  // Connections moved into Settings; the old link still lands there.
-  if (path === "/connections") return { kind: "settings", section: "connections" };
   const st = path.match(/^\/settings(?:\/([^/]+))?$/);
   if (st) return { kind: "settings", section: st[1] };
   const m = path.match(/^\/m\/([^/]+)/);
@@ -414,7 +416,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
       ) : surface.kind === "about" ? (
         isProfileClient(runtime.client) ? <AboutYou client={runtime.client} /> : null
       ) : surface.kind === "intelligence" ? (
-        <Intelligence client={runtime.client} modules={modules} icons={icons} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} onOpenAccounts={() => setSurface({ kind: "settings", section: "connections" })} />
+        <Intelligence client={runtime.client} modules={modules} icons={icons} initialTab={surface.tab} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} />
       ) : surface.kind === "settings" ? (
         <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} section={surface.section} onSection={(section) => setSurface({ kind: "settings", section })} />
       ) : surface.kind === "project" ? (

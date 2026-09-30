@@ -16,7 +16,7 @@ export type Surface =
   | { kind: "home" }
   | { kind: "activity" }
   | { kind: "about" }
-  | { kind: "intelligence" }
+  | { kind: "intelligence"; tab?: string }
   | { kind: "settings"; section?: string }
   | { kind: "project"; projectId: string }
   | { kind: "module"; appId: string };
@@ -30,7 +30,7 @@ export function surfacePath(s: Surface): string {
     case "about":
       return "/about";
     case "intelligence":
-      return "/intelligence";
+      return s.tab ? `/intelligence/${encodeURIComponent(s.tab)}` : "/intelligence";
     case "project":
       return `/p/${encodeURIComponent(s.projectId)}`;
     case "settings":

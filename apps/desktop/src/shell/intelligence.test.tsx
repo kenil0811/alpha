@@ -15,21 +15,31 @@ function setup() {
   client.scheduleRows = { jobs: [{ id: "daily", title: "Look for new roles", action: "scan", when: "every day at 09:00", enabled: true, last_run_at: null, last_run_id: null, last_error: null, next_run_at: null }] };
   const onOpenModule = vi.fn();
   const onOpenAbout = vi.fn();
-  render(<Intelligence client={client} modules={modules} icons={{}} onOpenModule={onOpenModule} onOpenAbout={onOpenAbout} onOpenAccounts={vi.fn()} />);
+  render(<Intelligence client={client} modules={modules} icons={{}} onOpenModule={onOpenModule} onOpenAbout={onOpenAbout} />);
   return { client, onOpenModule, onOpenAbout };
 }
 
 describe("Intelligence", () => {
-  it("shows the second brain: facts and what each module keeps", async () => {
+  it("shows the second brain as a graph of every module and fact, opening what you click", async () => {
     const { onOpenAbout, onOpenModule } = setup();
-    const facts = await screen.findByLabelText("Facts Alpha knows");
-    expect(within(facts).getByText("Occupation")).toBeInTheDocument();
-    expect(within(facts).getByText("founder")).toBeInTheDocument();
+    const graph = await screen.findByRole("img", { name: "Second brain graph" });
+    expect(await within(graph).findByText("Occupation: founder")).toBeInTheDocument();
+    expect(within(graph).getByText("Job profile")).toBeInTheDocument();
+    expect(within(graph).getByText("Academics")).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Manage what Alpha knows" }));
     expect(onOpenAbout).toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Job profile" }));
+    await user.click(within(graph).getByText("Job profile"));
     expect(onOpenModule).toHaveBeenCalledWith("jobs");
+  });
+
+  it("shows an honest empty state with no modules and no facts", async () => {
+    const client = new FakeWorkflowsClient();
+    const onOpenModule = vi.fn();
+    const onOpenAbout = vi.fn();
+    render(<Intelligence client={client} modules={[]} icons={{}} onOpenModule={onOpenModule} onOpenAbout={onOpenAbout} />);
+    expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Second brain graph" })).not.toBeInTheDocument();
   });
 
   it("shows the last kept run when a skill's run panel opens", async () => {
@@ -92,6 +102,9 @@ describe("Intelligence", () => {
     await waitFor(() => expect(client.scheduleRows.jobs[0].enabled).toBe(false));
 
     await user.click(screen.getByRole("tab", { name: "Connections" }));
+    // Accounts and services (formerly under Settings) now live on this tab too.
+    expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument();
+    expect(screen.getByText(/Accounts and services your modules may use/)).toBeInTheDocument();
     const links = await screen.findByRole("table", { name: "Module connections" });
     expect(within(links).getAllByText(/to list your courses/).length).toBeGreaterThan(0);
     await user.click(within(links).getAllByLabelText("Job profile reads Academics")[0]);

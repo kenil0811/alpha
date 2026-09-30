@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { type AppSummary, type CoreClient, type ModuleConnection, isConnectionsClient } from "../../core/client";
 import "../../modules/views/views.css";
 
-export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccounts }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void; onOpenAccounts: () => void }) {
+export function ModuleLinks({ client, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void }) {
   const [rows, setRows] = useState<{ module: AppSummary; link: ModuleConnection }[] | null>(null);
   const [version, setVersion] = useState(0);
   useEffect(() => {
@@ -29,11 +29,8 @@ export function ModuleLinks({ client, modules, icons, onOpenModule, onOpenAccoun
     <div className="stack">
       <div className="row">
         <p className="faint" style={{ flex: 1, margin: 0 }}>
-          A module reads another only when it asked to and you left it on. Accounts and signed-in sites live on their own page.
+          A module reads another only when it asked to and you left it on.
         </p>
-        <button type="button" className="btn btn--sm" onClick={onOpenAccounts}>
-          Accounts and sites
-        </button>
       </div>
       {rows === null ? <p className="faint">Loading…</p> : null}
       {rows && !rows.length ? <p className="empty">No module reads another yet. When one asks to, it shows here and in its Settings.</p> : null}
