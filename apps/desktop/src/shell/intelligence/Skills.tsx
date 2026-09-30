@@ -39,10 +39,7 @@ export function Skills({ client }: { client: CoreClient & { listSkills: () => Pr
   useEffect(load, [load]);
   return (
     <div className="stack">
-      <div className="row">
-        <p className="faint" style={{ flex: 1, margin: 0 }}>
-          A skill is a way Alpha knows to do one kind of job, on its own or when a sentence calls for it: find people to cold call, check a supplier, summarise a week.
-        </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
         <button type="button" className="btn btn--primary btn--sm" onClick={() => setMaking((v) => !v)} aria-expanded={making}>
           New skill
         </button>
@@ -63,7 +60,7 @@ export function Skills({ client }: { client: CoreClient & { listSkills: () => Pr
         />
       ) : null}
       {skills === null ? <p className="faint">Loading…</p> : null}
-      {skills && !skills.length && !making ? <p className="empty">No skills yet. Make one, or ask the assistant to teach Alpha how you do something.</p> : null}
+      {skills && !skills.length && !making ? <p className="empty">No skills yet.</p> : null}
       {(skills ?? []).map((s) => (
         <SkillCard
           key={s.id}

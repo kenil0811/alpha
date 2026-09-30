@@ -183,10 +183,7 @@ export function SecondBrain({ client, modules, onOpenModule, onOpenAbout }: { cl
 
   return (
     <div className="stack">
-      <div className="row">
-        <p className="faint" style={{ flex: 1, margin: 0 }}>
-          Every module and every fact Alpha holds, and how they connect.
-        </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
         <button type="button" className="btn btn--sm" onClick={onOpenAbout}>
           {pending ? `Manage (${pending} waiting for you)` : "Manage what Alpha knows"}
         </button>
@@ -194,7 +191,7 @@ export function SecondBrain({ client, modules, onOpenModule, onOpenAbout }: { cl
       {!loaded ? (
         <p className="faint">Loading…</p>
       ) : nodes.length === 0 ? (
-        <p className="empty">Nothing yet. Install a module or have a conversation, and this fills in.</p>
+        <p className="empty">Nothing yet.</p>
       ) : (
         <div className="card intel-graph-card">
           <div className="intel-controls">

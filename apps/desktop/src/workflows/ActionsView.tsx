@@ -5,6 +5,7 @@
  */
 import { useState, type FormEvent } from "react";
 import type { ActionSummary, OperationOutcome, WorkflowsClient } from "../core/client";
+import { InfoTip } from "../ui/InfoTip";
 import { formFields, humanize, toInput, type FormValues } from "./schemaForm";
 
 const DONE = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
@@ -139,10 +140,13 @@ export function ActionForm({
   }
 
   const headingId = `action-${action.id}`;
+  const shownDescription = description === null ? null : (description ?? action.description);
   return (
     <form className={primary ? "action action--primary" : "action"} onSubmit={submit} aria-labelledby={headingId}>
-      <h3 id={headingId}>{title ?? action.title}</h3>
-      {description === null ? null : <p className="panel__hint">{description ?? action.description}</p>}
+      <h3 id={headingId}>
+        {title ?? action.title}
+        {shownDescription ? <InfoTip content={shownDescription} label={`About ${title ?? action.title}`} /> : null}
+      </h3>
       {fields.map((field) => {
         const id = `${action.id}-${field.name}`;
         const hintId = field.hint ? `${id}-hint` : undefined;

@@ -27,7 +27,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
     };
   }, [client, modules, version]);
   if (rows === null) return <p className="faint">Loading…</p>;
-  if (!rows.length) return <p className="empty">Nothing runs on its own yet. A module that checks or reminds on a schedule appears here.</p>;
+  if (!rows.length) return <p className="empty">Nothing runs on its own yet.</p>;
   return (
     <div className="card">
       <div className="tablewrap">

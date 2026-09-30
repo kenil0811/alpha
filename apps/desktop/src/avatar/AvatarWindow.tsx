@@ -172,11 +172,8 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
     <div className={`avatar${expanded ? " avatar--open" : ""}`} onKeyDown={(e) => e.key === "Escape" && expanded && void toggle()}>
       {expanded ? (
         <section className="avatar__panel" aria-label="Alpha assistant">
-          <header className="avatar__head" data-tauri-drag-region>
+          <header className="avatar__head" data-tauri-drag-region title="Say what to do">
             <b data-tauri-drag-region>Chief of Staff</b>
-            <span className="faint" data-tauri-drag-region>
-              Say what to do
-            </span>
             <button type="button" className="iconbtn iconbtn--sm" aria-label="Close" onClick={() => void toggle()}>
               ×
             </button>

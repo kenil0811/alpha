@@ -431,10 +431,7 @@ export function Rail({
       <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         {deleting ? (
           <DialogContent title={`Delete ${deleting.name}?`}>
-            <p className="panel__hint">
-              Deletes the module and everything that exists because of it: its records, its history of runs and changes, and what was said about it in
-              the assistant. This cannot be undone.
-            </p>
+            <p className="panel__hint">Deletes the module, its records, run history, and assistant notes. This cannot be undone.</p>
             {deleteError ? (
               <p className="notice" role="alert">
                 {deleteError}

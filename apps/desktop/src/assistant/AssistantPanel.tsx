@@ -117,7 +117,7 @@ export function AssistantPanel({
     await send(clean, wire, { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
   }
 
-  const label = scope.moduleName ?? scope.projectName ?? "Home";
+  const label = scope.moduleName ?? scope.projectName ?? (scope.newProject ? scope.draftTitle || "New project" : "Home");
   const thinking = session?.state === "thinking";
   const cards = latestCardPerConversation(session?.turns ?? []);
   // An offer (a one-click yes) stands only on Alpha's newest turn; older ones are history.
@@ -291,19 +291,30 @@ export function AssistantPanel({
             }}
           />
           <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-          <IconButton aria-label="Send" type="submit" className="composer__send" disabled={busy || thinking || !text.trim()}>
+          <IconButton
+            aria-label="Send"
+            title="Replies use the model chosen in Settings → Models · Enter to send, Shift+Enter for a new line"
+            type="submit"
+            className="composer__send"
+            disabled={busy || thinking || !text.trim()}
+          >
             <ArrowUp size={16} />
           </IconButton>
         </div>
-        <div className="composer__row">
-          <span>{speech.error ?? "Replies use the model chosen in Settings → Models"}</span>
-          {session ? (
-            <IconButton aria-label="Refresh the session" size="sm" style={{ marginLeft: "auto" }} onClick={() => refresh()}>
-              <RotateCw size={12} />
-            </IconButton>
-          ) : null}
-          <span style={{ marginLeft: session ? 0 : "auto" }}>Enter to send · Shift+Enter for a new line</span>
-        </div>
+        {speech.error || session ? (
+          <div className="composer__row">
+            {speech.error ? (
+              <span className="notice" role="alert">
+                {speech.error}
+              </span>
+            ) : null}
+            {session ? (
+              <IconButton aria-label="Refresh the session" size="sm" style={{ marginLeft: "auto" }} onClick={() => refresh()}>
+                <RotateCw size={12} />
+              </IconButton>
+            ) : null}
+          </div>
+        ) : null}
       </form>
     </aside>
   );

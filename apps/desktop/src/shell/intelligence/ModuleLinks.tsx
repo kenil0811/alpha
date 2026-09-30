@@ -27,13 +27,8 @@ export function ModuleLinks({ client, modules, icons, onOpenModule }: { client: 
   }, [client, modules, version]);
   return (
     <div className="stack">
-      <div className="row">
-        <p className="faint" style={{ flex: 1, margin: 0 }}>
-          A module reads another only when it asked to and you left it on.
-        </p>
-      </div>
       {rows === null ? <p className="faint">Loading…</p> : null}
-      {rows && !rows.length ? <p className="empty">No module reads another yet. When one asks to, it shows here and in its Settings.</p> : null}
+      {rows && !rows.length ? <p className="empty">No module reads another yet.</p> : null}
       {rows && rows.length ? (
         <div className="card">
           <div className="tablewrap">

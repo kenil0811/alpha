@@ -58,7 +58,7 @@ export function RunList({
   appNames?: Record<string, string>;
 }) {
   if (runs.length === 0) {
-    return <p className="empty">Nothing has run yet. Each time one of your workflows runs, it appears here.</p>;
+    return <p className="empty">Nothing has run yet.</p>;
   }
   return (
     <ul className="runs" aria-label="Runs">

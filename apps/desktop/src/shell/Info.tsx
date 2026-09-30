@@ -296,14 +296,14 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                 />
                 <b>{p.label}</b>
                 {p.id === "claude" ? <Badge variant="neutral">Default</Badge> : null}
+                {(p.state === "needs_sign_in" || p.state === "cli_missing") && PROVIDER_SIGN_IN_HINT[p.id] ? (
+                  <InfoTip content={PROVIDER_SIGN_IN_HINT[p.id]} label={`How to sign in to ${p.label}`} />
+                ) : null}
               </span>
               <div className="item__sub">
                 {PROVIDER_STATE_LABEL[p.state]}
                 {p.key_last4 ? ` · saved key ending •••• ${p.key_last4}` : ""}
               </div>
-              {(p.state === "needs_sign_in" || p.state === "cli_missing") && PROVIDER_SIGN_IN_HINT[p.id] ? (
-                <div className="item__sub">{PROVIDER_SIGN_IN_HINT[p.id]}</div>
-              ) : null}
               {notes[p.id] ? (
                 <div className="item__sub" role="status">
                   {notes[p.id]}
@@ -389,8 +389,19 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
         <div key={group} className="card list" aria-label={group}>
           <div className="item">
             <div className="item__body">
-              <b>{group}</b>
-              <div className="item__sub">{group === "Models" ? "Which provider Alpha uses, and which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How a build runs, and how much it may spend before it is stopped."}</div>
+              <b>
+                {group}
+                <InfoTip
+                  content={
+                    group === "Models"
+                      ? "Which provider Alpha uses, and which Claude model each stage uses. Changes apply to the next request or build."
+                      : group === "Look"
+                        ? "How every module is drawn, and rules Alpha follows when it builds or changes one."
+                        : "How a build runs, and how much it may spend before it is stopped."
+                  }
+                  label={`About ${group}`}
+                />
+              </b>
             </div>
           </div>
           {fields
@@ -398,10 +409,10 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
             .map((f) => (
               <div key={f.id} className={f.kind === "text" ? "item item--stack" : "item"}>
                 <div className="item__body">
-                  <label htmlFor={`setting-${f.id}`}>
-                    <b>{f.title}</b>
-                  </label>
-                  <div className="item__sub">{f.description}</div>
+                  <b>
+                    <label htmlFor={`setting-${f.id}`}>{f.title}</label>
+                    {f.description ? <InfoTip content={f.description} label={`About ${f.title}`} /> : null}
+                  </b>
                 </div>
                 {f.kind === "text" ? (
                   <div className="stack" style={{ gap: 6, width: "100%" }}>

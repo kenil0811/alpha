@@ -156,10 +156,7 @@ export function CreationCard({
           Lost contact with Alpha's runtime for a moment. The work carries on; reconnecting…
         </p>
       ) : null}
-      <p className="panel__hint">
-        This usually takes several minutes. You can use other parts of Alpha meanwhile; this request stays under Recent
-        requests.
-      </p>
+      <p className="panel__hint">Usually a few minutes. Keep using Alpha — it stays under Recent requests.</p>
       <div className="row">
         {creation.state === "activating" ? (
           <span className="panel__hint">Switching it on now; this can no longer be stopped.</span>
