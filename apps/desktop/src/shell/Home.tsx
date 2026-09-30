@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { type AppSummary, type Nudge, type OnboardingStatus, type ProfileClient } from "../core/client";
 import { ArrowRight, Boxes, Sparkles, X, type LucideIcon } from "lucide-react";
 import { Badge } from "../ui/Badge";
+import { InfoTip } from "../ui/InfoTip";
 import { PageHeader } from "../ui/PageHeader";
 import "./pages.css";
 
@@ -174,12 +175,18 @@ export function Home({
   }
   return (
     <section className="page page--home" aria-labelledby="home-heading">
-      <PageHeader title={<span id="home-heading">{greeting()}</span>} />
+      <PageHeader
+        title={
+          <span id="home-heading">
+            {greeting()}
+            <InfoTip content="Open a module to work with its records, or describe a new one." label="About this page" />
+          </span>
+        }
+      />
       <div className="eyebrow">
         <Sparkles size={14} aria-hidden="true" />
         {today.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
       </div>
-      <p className="subcopy">Open a module to work with its records, or describe a new one.</p>
       {client && onStart ? <FirstSteps client={client} onStart={onStart} /> : null}
       {client && onStart ? <Noticed client={client} onStart={onStart} /> : null}
 
@@ -237,12 +244,14 @@ export function Home({
                       <Icon size={18} strokeWidth={1.75} />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <h2>{m.name}</h2>
+                      <h2>
+                        {m.name}
+                        {m.description ? <InfoTip content={m.description} label={`About ${m.name}`} /> : null}
+                      </h2>
                       <div className="faint">{m.has_ui ? "Has its own screen" : `${m.actions} action${m.actions === 1 ? "" : "s"}`}</div>
                     </div>
                     <Badge variant={m.state === "active" ? "success" : "neutral"}>{m.state === "active" ? "Active" : m.state}</Badge>
                   </div>
-                  <p>{m.description}</p>
                   <div className="module-card__meta">
                     <span>{last ? `Last ran ${ago(last.created_at)}` : `Made ${ago(m.created_at)}`}</span>
                     <button type="button" className="module-card__open" aria-label={`Open ${m.name}`} onClick={() => onOpen(m.app_id)}>
@@ -254,11 +263,10 @@ export function Home({
             })}
             <div className="card module-card module-card--new">
               <div className="eyebrow">New</div>
-              <h2>Describe what you want</h2>
-              <p>
-                “Track what I eat”, “Watch a page for price drops”, “Turn my receipts into a monthly summary”. Alpha asks a couple of questions,
-                then builds it here.
-              </p>
+              <h2>
+                Describe what you want
+                <InfoTip content={'"Track what I eat", "Watch a page for price drops", "Turn my receipts into a monthly summary". Alpha asks a couple of questions, then builds it here.'} label="About new modules" />
+              </h2>
               <button type="button" className="module-card__open" onClick={onNew}>
                 Start a new module <ArrowRight size={13} />
               </button>

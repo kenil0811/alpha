@@ -6,6 +6,7 @@ export { Badge } from "./Badge";
 export type { BadgeVariant } from "./Badge";
 export { Input, Textarea } from "./Input";
 export { Tooltip, TooltipProvider } from "./Tooltip";
+export { InfoTip } from "./InfoTip";
 export {
   DropdownMenu,
   DropdownMenuTrigger,

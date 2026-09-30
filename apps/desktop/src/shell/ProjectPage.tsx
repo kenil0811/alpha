@@ -1,6 +1,7 @@
 import { Folder, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ModuleIcon } from "../ui/ModuleIcon";
+import { InfoTip } from "../ui/InfoTip";
 /**
  * A project's page: its goal in the person's words, Alpha's own notes on it (editable, never
  * silently used to change anything), the modules filed under it, its sessions, and the facts
@@ -136,8 +137,10 @@ export function ProjectPage({
 
       <div className="section" style={{ marginTop: 0 }}>
         <div className="section__head">
-          <h2>Alpha's notes</h2>
-          <span className="faint">What Alpha keeps in mind about this project, from your sessions. Yours to edit or clear.</span>
+          <h2>
+            Alpha's notes
+            <InfoTip content="What Alpha keeps in mind about this project, from your sessions. Yours to edit or clear." label="About Alpha's notes" />
+          </h2>
         </div>
         <div className="card card--pad">
           {editing === "summary" ? (
@@ -181,7 +184,7 @@ export function ProjectPage({
                 <button type="button" className="linkbtn" onClick={() => onOpenModule(m.app_id)}>
                   <b>{m.name}</b>
                 </button>
-                <div className="item__sub">{m.description}</div>
+                {m.description ? <InfoTip content={m.description} label={`About ${m.name}`} /> : null}
               </div>
               <button type="button" className="btn btn--sm btn--ghost" onClick={() => void act(() => client.fileModule(m.app_id, null))} aria-label={`Take ${m.name} out of this project`}>
                 Take out
@@ -221,8 +224,10 @@ export function ProjectPage({
       {known.suggestions.length && facts ? (
         <div className="section">
           <div className="section__head">
-            <h2>Waiting for your yes</h2>
-            <span className="faint">Things Alpha thinks hold for this project; nothing uses them until you accept.</span>
+            <h2>
+              Waiting for your yes
+              <InfoTip content="Things Alpha thinks hold for this project; nothing uses them until you accept." label="About suggested project facts" />
+            </h2>
           </div>
           <div className="card list" aria-label="Suggested project facts">
             {known.suggestions.map((s) => (
@@ -253,8 +258,10 @@ export function ProjectPage({
       {known.facts.length ? (
         <div className="section">
           <div className="section__head">
-            <h2>Facts for this project</h2>
-            <span className="faint">Hold here only; About you keeps what holds everywhere.</span>
+            <h2>
+              Facts for this project
+              <InfoTip content="Hold here only; About you keeps what holds everywhere." label="About project facts" />
+            </h2>
           </div>
           <div className="card list" aria-label="Project facts">
             {known.facts.map((f) => (

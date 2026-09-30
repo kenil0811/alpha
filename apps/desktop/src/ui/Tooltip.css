@@ -3,3 +3,11 @@
   border-radius: var(--radius-sm); box-shadow: var(--shadow-2); z-index: 50;
 }
 .ui-tooltip__arrow { fill: var(--navy); }
+
+.ui-infotip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; margin-left: 4px; vertical-align: middle;
+  border: 0; border-radius: 999px; background: none; color: var(--text-3, var(--text-2));
+  cursor: pointer; transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.ui-infotip:hover, .ui-infotip:focus-visible { background: var(--hover); color: var(--text-2); }

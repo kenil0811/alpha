@@ -14,6 +14,7 @@ import { Automations } from "./intelligence/Automations";
 import { ModuleLinks } from "./intelligence/ModuleLinks";
 import { SecondBrain } from "./intelligence/SecondBrain";
 import { Skills } from "./intelligence/Skills";
+import { InfoTip } from "../ui/InfoTip";
 import "../modules/module.css";
 
 type Tab = "brain" | "skills" | "automations" | "connections";
@@ -45,10 +46,12 @@ export function Intelligence({
     <section className="page" aria-labelledby="intel-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <h2 id="intel-heading">Intelligence</h2>
+          <h2 id="intel-heading">
+            Intelligence
+            <InfoTip content="What Alpha knows and can do across your modules." label="About Intelligence" />
+          </h2>
         </div>
       </div>
-      <p className="modhead__desc">What Alpha knows and can do across your modules.</p>
       <div className="subtabs" role="tablist" aria-label="Intelligence sections">
         {TABS.map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>

@@ -9,17 +9,21 @@ import { ThemeControl, type Theme } from "./theme";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { setSpeakEnabled, speakEnabled } from "./tts";
 import { readTranscriptionMode, writeTranscriptionMode, type TranscriptionMode } from "./voice";
-import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, IconButton, PageHeader, useToast } from "../ui";
+import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, IconButton, InfoTip, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
   return (
     <section aria-labelledby="activity-heading">
-      <PageHeader title={<span id="activity-heading">Activity</span>} />
+      <PageHeader
+        title={
+          <span id="activity-heading">
+            Activity
+            <InfoTip content="What ran, what it produced, what needs you." label="About Activity" />
+          </span>
+        }
+      />
       <div className="page--wide">
-        <p className="faint" style={{ marginTop: -8, marginBottom: 16 }}>
-          What ran, what it produced, what needs you
-        </p>
         {error ? (
           <p className="notice" role="alert">
             {error}
@@ -82,8 +86,10 @@ function SignedInSites({ client }: { client: CoreClient }) {
   return (
     <div className="section">
       <div className="section__head">
-        <h2>Sites you are signed into</h2>
-        <span className="faint">Alpha opens the site in its own browser window; you sign in; Alpha never sees the password. A module reads through that session only when you switch it on in the module's Settings.</span>
+        <h2>
+          Sites you are signed into
+          <InfoTip content="Alpha opens the site in its own browser window; you sign in; Alpha never sees the password. A module reads through that session only when you switch it on in the module's Settings." label="About signed-in sites" />
+        </h2>
       </div>
       <div className="card list" aria-label="Signed-in sites">
         {sites.map((s) => (
@@ -114,9 +120,9 @@ function SignedInSites({ client }: { client: CoreClient }) {
             <label htmlFor="new-site">
               <b>Sign in to a site</b>
             </label>
-            <div className="item__sub">Type the site's name, for example linkedin.com or indeed.com. Sign in with the site's own email and password: sign-ins that go through Google or Apple do not complete in this window, because those services refuse a browser that another program opened.</div>
+            <InfoTip content="Type the site's name, for example linkedin.com or indeed.com. Sign in with the site's own email and password: sign-ins that go through Google or Apple do not complete in this window, because those services refuse a browser that another program opened." label="About signing in to a site" />
           </div>
-          <input id="new-site" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="linkedin.com" style={{ width: 200 }} disabled={!available} />
+          <input id="new-site" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="linkedin.com" style={{ width: 220 }} disabled={!available} />
           <button type="submit" className="btn btn--primary btn--sm" disabled={!available || !draft.trim()}>
             Sign in…
           </button>
@@ -141,14 +147,21 @@ export function Connections({ client, embedded = false }: { client: CoreClient; 
   return (
     <section aria-labelledby="connections-heading">
       {embedded ? (
-        <h3 id="connections-heading" className="settings-section__title">Connections</h3>
+        <h3 id="connections-heading" className="settings-section__title">
+          Connections
+          <InfoTip content="Accounts and services your modules may use. Alpha never shows or stores raw passwords here." label="About Connections" />
+        </h3>
       ) : (
-        <PageHeader title={<span id="connections-heading">Connections</span>} />
+        <PageHeader
+          title={
+            <span id="connections-heading">
+              Connections
+              <InfoTip content="Accounts and services your modules may use. Alpha never shows or stores raw passwords here." label="About Connections" />
+            </span>
+          }
+        />
       )}
       <div className={embedded ? undefined : "page--wide"}>
-        <p className="faint" style={{ marginTop: embedded ? 0 : -8, marginBottom: 16 }}>
-          Accounts and services your modules may use. Alpha never shows or stores raw passwords here.
-        </p>
         {error ? (
           <p className="notice" role="alert">
             {error}
@@ -455,8 +468,10 @@ function AvatarSetting() {
     <div className="card list" aria-label="Desktop assistant">
       <div className="item">
         <div className="item__body">
-          <b>Alpha on your desktop</b>
-          <div className="item__sub">A small Alpha stays above your other windows. Click it or speak to log something, ask a question, open a module or start something new.</div>
+          <b>
+            Alpha on your desktop
+            <InfoTip content="A small Alpha stays above your other windows. Click it or speak to log something, ask a question, open a module or start something new." label="About the desktop assistant" />
+          </b>
         </div>
         <div className="toggle" role="group" aria-label="Desktop assistant">
           <button type="button" aria-pressed={shown} onClick={() => void set(true)}>
@@ -489,8 +504,7 @@ function RemovedModules({ client }: { client: WorkflowsClient }) {
         <div className="item__body">
           <b>Removed modules still on this Mac</b>
           <div className="item__sub">
-            {items.length ? `${items.map((m) => m.name).join(", ")}. ` : ""}
-            {items.length ? "They were taken out of use earlier; their records, history and what was said about them are still stored. Deleting cannot be undone." : state}
+            {items.length ? `${items.map((m) => m.name).join(", ")}. Still stored. Deleting cannot be undone.` : state}
           </div>
         </div>
         {items.length ? (
@@ -542,8 +556,10 @@ function SpeakRepliesSetting() {
     <div className="card list" aria-label="Speak replies">
       <div className="item">
         <div className="item__body">
-          <b>Speak replies</b>
-          <div className="item__sub">Alpha says its replies aloud, in the desktop assistant.</div>
+          <b>
+            Speak replies
+            <InfoTip content="Alpha says its replies aloud, in the desktop assistant." label="About speak replies" />
+          </b>
         </div>
         <div className="toggle" role="group" aria-label="Speak replies">
           <button type="button" aria-pressed={on} onClick={() => set(true)}>
@@ -617,10 +633,12 @@ function PushToTalkSetting() {
     <div className="card list" aria-label="Push to talk">
       <div className="item">
         <div className="item__body">
-          <b>Push to talk</b>
+          <b>
+            Push to talk
+            <InfoTip content="Hold this key anywhere to speak to Alpha instead of typing. Release to stop." label="About push to talk" />
+          </b>
           {hasTauri() ? (
             <>
-              <div className="item__sub">Hold this key anywhere to speak to Alpha instead of typing. Release to stop.</div>
               {permission === false ? (
                 <div className="item__sub">
                   Alpha needs Input Monitoring permission to notice the key while another app is focused.{" "}
@@ -724,8 +742,10 @@ export function Settings({
           <SettingsIcon size={16} />
         </span>
         <div>
-          <h2 id="settings-heading">Settings</h2>
-          <p>How Alpha works on this Mac</p>
+          <h2 id="settings-heading">
+            Settings
+            <InfoTip content="How Alpha works on this Mac." label="About Settings" />
+          </h2>
         </div>
       </header>
       <div className="settings-layout">
@@ -757,8 +777,10 @@ export function Settings({
               <div className="card list">
                 <div className="item">
                   <div className="item__body">
-                    <b>Appearance</b>
-                    <div className="item__sub">Light or dark, or follow the Mac's setting.</div>
+                    <b>
+                      Appearance
+                      <InfoTip content="Light or dark, or follow the Mac's setting." label="About appearance" />
+                    </b>
                   </div>
                   <ThemeControl theme={theme} onChange={onTheme} />
                 </div>
@@ -775,8 +797,10 @@ export function Settings({
               <div className="card list">
                 <div className="item">
                   <div className="item__body">
-                    <b>Runs while Alpha is open</b>
-                    <div className="item__sub">Closing the window keeps Alpha running from the menu bar. Quit stops everything.</div>
+                    <b>
+                      Runs while Alpha is open
+                      <InfoTip content="Closing the window keeps Alpha running from the menu bar. Quit stops everything." label="About running in the background" />
+                    </b>
                   </div>
                 </div>
               </div>

@@ -382,6 +382,15 @@ class ClaudeCliHarness:
             else "Custom compiled screens are not available on this build: rely on the pages "
             "Alpha draws and leave ui out of app.yaml."
         )
+        ui_note += (
+            " UI copy and density: the person using this is an executive — titles and labels are "
+            "short and specific, never a descriptive sentence under a title or inside a card; put "
+            "any explanation in a field's `description` (shown as a hover/focus (i) tip) or a "
+            "native title, not as visible body text. Empty states are one short line. Size inputs "
+            "to their content: a key, id or model name is a compact single-line field, not a wide "
+            "one. Minimal, elegant, professional by default unless the person explicitly asks for "
+            "more."
+        )
         repair = (inputs.workspace / "REPAIR.md").is_file()
         minutes = max(1, inputs.request.budget.max_attempt_seconds // 60)
         return (
