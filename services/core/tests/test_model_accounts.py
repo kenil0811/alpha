@@ -40,9 +40,9 @@ def fake_security(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", f"{tmp_path}:/bin:/usr/bin")
 
 
-def test_lists_all_four_providers() -> None:
+def test_lists_all_providers() -> None:
     ids = {p["id"] for p in ModelAccounts().list_providers()}
-    assert ids == {"claude", "chatgpt", "openrouter", "grok"}
+    assert ids == {"claude", "chatgpt", "openrouter", "grok", "groq"}
 
 
 def test_claude_defaults_to_console_and_needs_sign_in_without_the_cli() -> None:

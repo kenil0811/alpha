@@ -316,7 +316,7 @@ export interface StreamItem {
 
 /** Settings -> Models: one provider's sign-in / key state, as Core reports it. */
 export interface ModelProviderAccount {
-  id: "claude" | "chatgpt" | "openrouter" | "grok";
+  id: "claude" | "chatgpt" | "openrouter" | "grok" | "groq";
   label: string;
   state: "connected" | "needs_sign_in" | "needs_key" | "cli_missing" | "key_saved" | "not_configured";
   cli_present: boolean | null;

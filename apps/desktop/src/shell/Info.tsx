@@ -8,6 +8,7 @@ import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { setSpeakEnabled, speakEnabled } from "./tts";
+import { readTranscriptionMode, writeTranscriptionMode, type TranscriptionMode } from "./voice";
 import { Badge, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
@@ -629,6 +630,48 @@ function PushToTalkSetting() {
   );
 }
 
+const TRANSCRIPTION_OPTIONS: { value: TranscriptionMode; label: string }[] = [
+  { value: "automatic", label: "Automatic" },
+  { value: "native", label: "On this Mac" },
+  { value: "groq", label: "Groq Whisper" },
+  { value: "openai", label: "OpenAI" },
+];
+
+/** Which speech-to-text a mic recording uses: cloud (Groq/OpenAI, needs a key in Settings ->
+ *  Models) or this Mac's own recognition. Compact by design: the choice's effect is one line,
+ *  in the (i) tooltip, not a paragraph under the field. */
+function TranscriptionSetting() {
+  const [mode, setMode] = useState<TranscriptionMode>(() => readTranscriptionMode());
+  return (
+    <div className="card list" aria-label="Transcription">
+      <div className="item">
+        <div className="item__body">
+          <span className="row" style={{ gap: 6, alignItems: "center" }}>
+            <b>Transcription</b>
+            <span title="Automatic uses Groq or OpenAI when a key is saved in Settings -> Models, otherwise this Mac's own speech recognition.">ⓘ</span>
+          </span>
+        </div>
+        <select
+          aria-label="Transcription"
+          className="btn btn--sm"
+          value={mode}
+          onChange={(e) => {
+            const next = e.target.value as TranscriptionMode;
+            writeTranscriptionMode(next);
+            setMode(next);
+          }}
+        >
+          {TRANSCRIPTION_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "models", label: "Models", icon: Cpu },
   { value: "look", label: "Look & Appearance", icon: Palette },
@@ -709,6 +752,7 @@ export function Settings({
               <AvatarSetting />
               <SpeakRepliesSetting />
               <PushToTalkSetting />
+              <TranscriptionSetting />
               <div className="card list">
                 <div className="item">
                   <div className="item__body">

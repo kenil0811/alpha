@@ -18,6 +18,7 @@ PROVIDERS: dict[str, dict[str, Any]] = {
     "chatgpt": {"label": "ChatGPT", "binary": "codex", "base_url": "https://api.openai.com/v1"},
     "openrouter": {"label": "OpenRouter", "binary": None, "base_url": "https://openrouter.ai/api/v1"},
     "grok": {"label": "Grok", "binary": None, "base_url": "https://api.x.ai/v1"},
+    "groq": {"label": "Groq", "binary": None, "base_url": "https://api.groq.com/openai/v1"},
 }
 
 
