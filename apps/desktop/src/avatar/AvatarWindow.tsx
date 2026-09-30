@@ -60,6 +60,35 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
     if (next) setTimeout(() => inputRef.current?.focus(), 50);
   }, [expanded, host]);
 
+  // Drag the avatar itself: past a small threshold the window follows the pointer so the
+  // avatar's centre sits under it; a press without movement stays a click.
+  const dragged = useRef(false);
+  const press = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
+  const dragHandlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      press.current = { x: e.screenX, y: e.screenY, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+      dragged.current = false;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+      const p = press.current;
+      if (!p) return;
+      if (!dragged.current && Math.hypot(e.screenX - p.x, e.screenY - p.y) < 4) return;
+      dragged.current = true;
+      const x = e.screenX - p.cx;
+      const y = e.screenY - p.cy;
+      void import("@tauri-apps/api/window")
+        .then(({ getCurrentWindow, LogicalPosition }) => getCurrentWindow().setPosition(new LogicalPosition(Math.round(x), Math.round(y))))
+        .catch(() => undefined);
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+      press.current = null;
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    },
+  };
+
   const tts = useTts();
   const say = useCallback(
     (reply: string, tone: Mood) => {
@@ -186,7 +215,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
         <div className="avatar__grip" data-tauri-drag-region title="Drag to move Alpha" aria-hidden="true">
           ⋯
         </div>
-        <button type="button" className="avatar__button" onClick={() => void toggle()} aria-label={expanded ? "Hide Alpha's panel" : "Ask Alpha"} aria-expanded={expanded} title={expanded ? "Hide" : "Ask Alpha"}>
+        <button type="button" className="avatar__button" {...dragHandlers} onClick={() => (dragged.current ? (dragged.current = false) : void toggle())} aria-label={expanded ? "Hide Alpha's panel" : "Ask Alpha"} aria-expanded={expanded} title={expanded ? "Hide" : "Ask Alpha"}>
           <Character mood={busy ? "thinking" : shownMood} size={expanded ? 56 : 88} />
         </button>
       </div>
