@@ -41,7 +41,7 @@ log = logging.getLogger("alpha.acting")
 CONVERSATION_WAITING = {"waiting_for_user", "proposed"}
 WAIT_GRACE_SECONDS = 30.0
 
-KINDS = ("run", "query", "skill", "open", "build", "change", "answer", "done")
+KINDS = ("run", "query", "skill", "open", "fix", "allow", "build", "change", "answer", "done")
 MAX_STEPS = 8
 MAX_RUNS_PER_STEP = 40
 TIME_BUDGET_SECONDS = 240.0
@@ -62,7 +62,9 @@ Step kinds:
 - "query": read a module's view to answer a question. Give app_id and view_id.
 - "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a module's actions if the person asked for that, or report.
 - "open": the person wants to look at a module or a tab. Give app_id and, when clear, tab_id.
-- "change": the person wants a listed module to work or look differently. Give app_id.
+- "fix": FACTS list a FAILED run of a module that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the module's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
+- "allow": FACTS say a module got a site's sign-in page because it has not been allowed to read through the person's sign-in, AND the person's message agrees to allow it or asks for it. Give app_id and site. Then, in the next step, run the action that needed it. Without their yes, do not allow: explain in one or two sentences what FACTS say (they are signed in; this module just has not been allowed to use that sign-in) and ask whether to allow it. Never tell them to sign in again when FACTS say they are signed in.
+- "change": the person wants a listed module to work or look differently (not a failure: those are "fix"). Give app_id.
 - "build": the person wants something no listed module can do. Alpha starts making it.
 - "done": the work for this sentence is finished (there are OBSERVATIONS). Finish as soon as the observations cover what was asked; do not keep adding. reply says exactly what happened: counts, numbers and dates from the observations, any failure named plainly. Never more than what the observations show.
 - "answer": nothing needs doing (a question you can answer, a greeting, a request outside the modules), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
@@ -110,6 +112,8 @@ def step_schema() -> dict[str, Any]:
             },
             "view_id": {"type": ["string", "null"]},
             "tab_id": {"type": ["string", "null"]},
+            "run_id": {"type": ["string", "null"]},
+            "site": {"type": ["string", "null"]},
             "skill_id": {"type": ["string", "null"]},
             "inputs": {"type": ["object", "null"]},
             "reply": {"type": "string", "maxLength": 400},
@@ -196,12 +200,16 @@ def fake_act(prompt: str) -> dict[str, Any]:
     """Control responder: a `fake:` directive in the sentence picks the steps."""
     said = prompt.split("THE PERSON SAID:")[-1].split("OBSERVATIONS")[0].strip()
     observed = "(none yet)" not in prompt.split("OBSERVATIONS")[-1]
-    match = re.search(r"fake:(runs|run|query|skill|open|change|build|answer)\s*(.*)$", said, re.S)
+    match = re.search(
+        r"fake:(runs|run|query|skill|open|fix|allow|change|build|answer)\s*(.*)$", said, re.S
+    )
     if not match:
         return {"kind": "answer", "reply": "I can't do that yet, but I could make it."}
     kind, rest = match.group(1), match.group(2).strip()
     if observed:
         results = prompt.split("OBSERVATIONS")[-1]
+        if '"step": "fix"' in results or '"step": "allow"' in results:
+            return {"kind": "done", "reply": ""}  # the summary carries the fix's own words
         succeeded = results.count('"succeeded"')
         failed = results.count('"failed')
         rows = results.count('"rows"')
@@ -227,6 +235,10 @@ def fake_act(prompt: str) -> dict[str, Any]:
         )
     elif kind == "open":
         out.update(app_id=words[0], tab_id=words[1] if len(words) > 1 else None)
+    elif kind == "fix":
+        out.update(app_id=words[0], run_id=words[1] if len(words) > 1 else None)
+    elif kind == "allow":
+        out.update(app_id=words[0], site=words[1] if len(words) > 1 else None)
     elif kind == "change":
         out.update(app_id=words[0])
     return out
@@ -245,6 +257,9 @@ def summary_reply(observations: list[dict[str, Any]]) -> str:
             read += 1
         if obs.get("step") == "skill":
             read += 1
+    fixes = [o for o in observations if o.get("step") in ("fix", "allow")]
+    if fixes:
+        return str(fixes[-1].get("message") or "Alpha looked into the failure.")
     parts = []
     if done:
         parts.append(f"{done} done")
@@ -292,6 +307,19 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
     used = [str(o.get("skill")) for o in observations if o.get("step") == "skill"]
     if used:
         return f"used the skill {', '.join(used)}; nothing was changed"
+    allowed = [o for o in observations if o.get("step") == "allow" and o.get("state") == "allowed"]
+    if allowed and not runs:
+        site = allowed[-1].get("site")
+        return f"allowed {app_name or 'the module'} to read {site} through the sign-in"
+    fixes = [o for o in observations if o.get("step") == "fix"]
+    if fixes:
+        state = str(fixes[-1].get("state") or "")
+        where = f" in {app_name}" if app_name else ""
+        return (
+            f"fixed the module's code{where} and ran the action again"
+            if state == "fixed"
+            else f"looked into a failure{where}: {state.replace('_', ' ') or 'no fix'}"
+        )
     if kind == "open":
         return f"opened {app_name or 'a module'} in Alpha's window"
     if kind in ("build", "change"):
@@ -299,6 +327,36 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
     if kind == "continue":
         return "answered the open request above"
     return "nothing was done; Alpha only replied"
+
+
+def access_facts(access: list[dict[str, Any]]) -> list[str]:
+    """Why a module got a site's sign-in page, in words the loop can act on."""
+    lines = []
+    for entry in access:
+        head = (
+            f"{entry['name']} read {entry['site']} {entry['reads']} time(s) lately and got "
+            f"the sign-in page {entry['walled']} time(s)."
+        )
+        if entry["connected"] and not entry["allowed"]:
+            lines.append(
+                f"{head} The person IS signed in to {entry['site']} in Alpha's browser; this "
+                "module has simply not been allowed to read through that sign-in yet. Say so "
+                "and ask whether to allow it (an allow step once they say yes), then run the "
+                "action again. Do not tell them to sign in again."
+            )
+        elif not entry["connected"]:
+            lines.append(
+                f"{head} {entry['site']} is not signed in in Alpha's browser. They sign in "
+                "from Connections (Sign in to a site): Alpha opens its own browser window for "
+                "it; being signed in in Safari or Chrome does not count."
+            )
+        elif entry["last_walled"]:
+            lines.append(
+                f"{head} The module is allowed and the person signed in earlier, so the "
+                f"sign-in to {entry['site']} has probably lapsed; they can sign in again from "
+                "Connections."
+            )
+    return lines
 
 
 @dataclass
@@ -318,6 +376,8 @@ class _Work:
     opened: dict[str, Any] | None = None
     reply: str = ""
     observations: list[dict[str, Any]] = field(default_factory=list)
+    # Sites a module could not read for want of the person's yes (see BrowserService.access).
+    access: list[dict[str, Any]] = field(default_factory=list)
 
     def observe(self, observation: dict[str, Any]) -> None:
         self.observations.append(observation)
@@ -349,6 +409,8 @@ class ActService:
         context: Callable[..., str] | None = None,
         skills: Any | None = None,
         projects: Any | None = None,
+        repair: Any | None = None,
+        browser: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
     ) -> None:
@@ -364,6 +426,8 @@ class ActService:
         self._context = context
         self._skills = skills
         self._projects = projects
+        self._repair = repair
+        self._browser = browser
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -492,9 +556,10 @@ class ActService:
         if waiting is not None:
             return self._continue_conversation(work, waiting)
         focus = context_app_id or session.focus_app_id
+        work.access = self._access(sources)
         prompt_parts = dict(
             catalogue=catalogue_text(sources),
-            facts=self._facts(names, session_id),
+            facts=self._facts(names, session_id) + access_facts(work.access),
             memory=self._memory(session_id, work.text),
             context_app=names.get(focus or "") if focus else None,
             known=self._known(work.text, focus, session.project_id),
@@ -626,6 +691,16 @@ class ActService:
             work.opened = {"app_id": step_app, "tab_id": output.get("tab_id")}
             work.reply = step_reply or f"Opening {work.names[step_app]}."
             return False
+        if step_kind == "allow" and step_app:
+            work.kind = work.kind if work.kind == "run" else "allow"
+            work.app_id = step_app
+            work.observe(self._allow(work, step_app, str(output.get("site") or "")))
+            return work.within_time()
+        if step_kind == "fix" and step_app:
+            work.kind = work.kind if work.kind == "run" else "fix"
+            work.app_id = step_app
+            work.observe(self._fix(step_app, work.names[step_app], output.get("run_id")))
+            return work.within_time()
         if step_kind in ("build", "change"):
             self._step_start(work, step_kind, step_app)
             return False
@@ -634,6 +709,94 @@ class ActService:
             work.kind = "answer"
         work.reply = step_reply
         return False
+
+    def _access(self, sources: list[tuple[str, AppSource]]) -> list[dict[str, Any]]:
+        if self._browser is None:
+            return []
+        found: list[dict[str, Any]] = []
+        for app_id, source in sources:
+            if "browser" not in source.capabilities:
+                continue
+            try:
+                found.extend(self._browser.access(app_id, source.name))
+            except Exception:
+                log.debug("could not read browser access of %s", app_id, exc_info=True)
+        return found
+
+    def _allow(self, work: _Work, app_id: str, site: str) -> dict[str, Any]:
+        """Let the module read a site through the person's sign-in, when that is what stood
+        in its way and the person is signed in there."""
+        name = work.names[app_id]
+        entry = next(
+            (
+                e
+                for e in work.access
+                if e["app_id"] == app_id and (not site or e["site"] == site) and not e["allowed"]
+            ),
+            None,
+        )
+        if entry is None or self._browser is None:
+            return {
+                "step": "allow",
+                "module": name,
+                "state": "nothing",
+                "message": f"{name} is not waiting on access to a site.",
+            }
+        if not entry["connected"]:
+            return {
+                "step": "allow",
+                "module": name,
+                "site": entry["site"],
+                "state": "not_signed_in",
+                "message": f"You are not signed in to {entry['site']} in Alpha's browser yet. "
+                "Sign in from Connections, then ask again.",
+            }
+        try:
+            self._browser.allow(app_id, entry["site"])
+        except OperationFailed as exc:
+            return {"step": "allow", "module": name, "state": "failed", "message": exc.message}
+        entry["allowed"] = True
+        return {
+            "step": "allow",
+            "module": name,
+            "site": entry["site"],
+            "state": "allowed",
+            "message": f"{name} may now read {entry['site']} through your sign-in.",
+        }
+
+    def _fix(self, app_id: str, app_name: str, run_id: Any) -> dict[str, Any]:
+        """Repair the module's code for one failed run and run it again (blocks, bounded)."""
+        if self._repair is None:
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "unavailable",
+                "message": "Fixing is not available on this host.",
+            }
+        chosen = str(run_id or "")
+        if not chosen:
+            recent = [
+                f for f in self._repair.recent(app_id, limit=3) if f.get("kind") == "module_code"
+            ]
+            chosen = str(recent[0]["run_id"]) if recent else ""
+        if not chosen:
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "nothing",
+                "message": f"No recent failure of {app_name} is in its own code, so there is nothing to fix.",
+            }
+        try:
+            result = self._repair.repair(chosen)
+        except Exception as exc:
+            log.exception("fix step failed")
+            return {
+                "step": "fix",
+                "module": app_name,
+                "state": "error",
+                "message": f"The fix could not run: {exc}",
+            }
+        return {"step": "fix", "module": app_name, "run_id": chosen, **result}
 
     def _step_run(self, work: _Work, app_id: str, runs: list[Any]) -> bool:
         work.app_id, work.kind = app_id, "run"
@@ -675,6 +838,9 @@ class ActService:
             "open": work.opened,
             "observations": work.observations,
         }
+        offer = self._offer(work)
+        if offer is not None:
+            detail["offer"] = offer
         turn = self._sessions.append(
             work.session_id,
             "alpha",
@@ -699,6 +865,24 @@ class ActService:
             created_at=turn.created_at,
             outcome=outcome_line(work.kind, detail, app_name),
         )
+
+    def _offer(self, work: _Work) -> dict[str, Any] | None:
+        """A one-click yes for the thing that stands in the way: a module the person is
+        signed in for but has not yet allowed. The click sends their yes as a message."""
+        waiting = [e for e in work.access if e["connected"] and not e["allowed"]]
+        if work.app_id:
+            waiting = [e for e in waiting if e["app_id"] == work.app_id] or waiting
+        if not waiting:
+            return None
+        entry = waiting[0]
+        return {
+            "kind": "allow_site",
+            "app_id": entry["app_id"],
+            "site": entry["site"],
+            "label": f"Allow {entry['site']} and try again",
+            "say": f"Yes, allow {entry['name']} to read {entry['site']} through my sign-in, "
+            "then try again.",
+        }
 
     def _as_act_turn(self, session_id: str, said: SessionTurn | None, turn: SessionTurn) -> ActTurn:
         detail = turn.detail or {}
@@ -765,6 +949,11 @@ class ActService:
                     facts.append(f"being made right now: {what} ({creation.label.lower()})")
             except Exception:
                 log.debug("could not list creations", exc_info=True)
+        if self._repair is not None:
+            try:
+                facts.extend(self._repair.facts(list(names)[:20]))
+            except Exception:
+                log.debug("could not list failures", exc_info=True)
         if session_id:
             for turn in self._sessions.window(session_id, 8):
                 detail = turn.detail or {}

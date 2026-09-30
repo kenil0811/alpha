@@ -634,6 +634,13 @@ class RecordService:
                 self._stores[app_id] = store
             return store
 
+    def drop(self, app_id: str) -> None:
+        """Close an App's store and forget it (its module is being removed)."""
+        with self._lock:
+            store = self._stores.pop(app_id, None)
+        if store is not None:
+            store.close()
+
     def close(self) -> None:
         with self._lock:
             for store in self._stores.values():

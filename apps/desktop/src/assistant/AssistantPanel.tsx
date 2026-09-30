@@ -100,6 +100,8 @@ export function AssistantPanel({
   const label = scope.moduleName ?? scope.projectName ?? "Home";
   const thinking = session?.state === "thinking";
   const cards = latestCardPerConversation(session?.turns ?? []);
+  // An offer (a one-click yes) stands only on Alpha's newest turn; older ones are history.
+  const lastAlpha = [...(session?.turns ?? [])].reverse().find((t) => t.role === "alpha")?.turn_id ?? null;
 
   return (
     <aside className="assist" aria-label="Chief of Staff">
@@ -193,6 +195,13 @@ export function AssistantPanel({
                     </div>
                   ) : null}
                   {turn.outcome && turn.kind === "work" ? <div className="faint" style={{ marginTop: 4 }}>{turn.outcome}</div> : null}
+                  {turn.turn_id === lastAlpha && offerOf(turn) ? (
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button type="button" className="btn btn--sm btn--primary" disabled={busy || thinking} onClick={() => void send(offerOf(turn)!.say)}>
+                        {offerOf(turn)!.label}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ),
             )}
@@ -243,6 +252,18 @@ export function AssistantPanel({
       </form>
     </aside>
   );
+}
+
+/** What Alpha offers to do on the person's yes (for example, letting a module use a sign-in). */
+function offerOf(turn: SessionTurn): { label: string; say: string } | null {
+  const offer = turn.detail?.offer as { label?: unknown; say?: unknown } | undefined;
+  return offer && typeof offer.label === "string" && typeof offer.say === "string" ? { label: offer.label, say: offer.say } : null;
+}
+
+/** Where a scope's sessions live: a project's, a module's own (outside any project), or global. */
+function scopeName(scope: AssistantScope): "project" | "module" | "global" {
+  if (scope.projectId) return "project";
+  return scope.appId ? "module" : "global";
 }
 
 /** Only the newest turn about a conversation draws its full card; earlier ones are one line. */
@@ -334,7 +355,7 @@ function SessionSwitcher({ client, scope, selected, onSelect }: { client: Sessio
     if (!open) return;
     let cancelled = false;
     client
-      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .listSessions(scopeName(scope), scope.projectId, scope.appId)
       .then((all) => {
         if (!cancelled) setItems(all.filter((s) => s.origin === "shell"));
       })
@@ -342,7 +363,7 @@ function SessionSwitcher({ client, scope, selected, onSelect }: { client: Sessio
     return () => {
       cancelled = true;
     };
-  }, [client, open, scope.projectId]);
+  }, [client, open, scope.projectId, scope.appId, scope]);
   return (
     <div className="switcher">
       <Button size="sm" variant="outline" className="switcher__history" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
@@ -376,7 +397,7 @@ function EarlierSessions({ client, scope, onOpen }: { client: SessionsClient; sc
   useEffect(() => {
     let cancelled = false;
     client
-      .listSessions(scope.projectId ? "project" : "global", scope.projectId)
+      .listSessions(scopeName(scope), scope.projectId, scope.appId)
       .then((all) => {
         if (!cancelled) setItems(all.filter((s) => s.origin === "shell").slice(0, 8));
       })
@@ -386,7 +407,7 @@ function EarlierSessions({ client, scope, onOpen }: { client: SessionsClient; sc
     return () => {
       cancelled = true;
     };
-  }, [client, scope.projectId]);
+  }, [client, scope.projectId, scope.appId, scope]);
   if (!items?.length) return null;
   return (
     <nav aria-label="Earlier sessions" className="recent">

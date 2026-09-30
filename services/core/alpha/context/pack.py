@@ -97,7 +97,7 @@ class ContextPacker:
             sections.append(
                 "RECORDS THAT LOOK RELEVANT (from their modules; say which module):\n" + relevant
             )
-        recent = self._recent()
+        recent = self._recent({app: source.name for app, source in sources})
         if recent:
             sections.append("RECENT ACTIVITY:\n" + recent)
         return "\n\n".join(sections)
@@ -184,15 +184,16 @@ class ContextPacker:
                 break
         return "; ".join(parts)
 
-    def _recent(self) -> str:
+    def _recent(self, names: dict[str, str]) -> str:
+        """What ran lately in the modules the person has now (never in one that is gone)."""
         try:
-            runs = self._store.list_runs(8)
+            runs = self._store.list_runs(30)
         except Exception:
             return ""
         lines = []
         for run in runs:
             owner = run.owner.model_dump() if hasattr(run.owner, "model_dump") else {}
-            if not owner.get("app_id"):
+            if owner.get("app_id") not in names:
                 continue
             when = (
                 run.created_at.strftime("%d %b %H:%M")
@@ -200,5 +201,6 @@ class ContextPacker:
                 else str(run.created_at)[:16]
             )
             state = "ran" if run.state is RunState.SUCCEEDED else run.state.value
-            lines.append(f"- {when}: {owner.get('action_id')} in {owner.get('app_id')} ({state})")
+            where = names[owner["app_id"]]
+            lines.append(f"- {when}: {owner.get('action_id')} in {where} ({state})")
         return "\n".join(lines[:6])

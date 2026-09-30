@@ -62,7 +62,9 @@ from alpha.models.structured import StructuredInference
 from alpha.solutions.creation import CreationRoutes, CreationService
 from alpha.solutions.describe import module_summary
 from alpha.solutions.planner import AcceptancePlanner
+from alpha.solutions.purge import ModulePurge
 from alpha.solutions.registry import AppRegistry
+from alpha.solutions.repair import RepairService
 from alpha.storage.control_store import ControlStore
 from alpha.storage.lock import DataDirectoryBusy, DataDirectoryLock
 
@@ -214,6 +216,27 @@ def build(
             log.info("filed %s under project %s", app_id, project_id)
 
     creations.on_made = file_made_module
+    platform.purge = ModulePurge(
+        store,
+        registry=platform.registry,
+        records=platform.records,
+        coordinator=coordinator,
+        creations=creations,
+        data_dir=settings.data_dir,
+        versions_root=settings.versions_root,
+        builds_root=settings.builds_root,
+        apps_root=settings.apps_root,
+        artifacts_root=settings.artifacts_root,
+    )
+    repair = RepairService(
+        store,
+        registry=platform.registry,
+        creations=creations,
+        runs=platform.runs,
+        names=lambda app_id: _app_name(platform.registry, app_id),
+    )
+    # A failed run is looked at as soon as it finishes; Alpha fixes its own modules' code.
+    platform.runs.on_finished = repair.consider
     idle = sessions.reconcile_on_startup()
     if idle:
         log.warning("marked %d session turn(s) interrupted by restart: %s", len(idle), idle)
@@ -232,6 +255,8 @@ def build(
         context=packer.build,
         skills=skills,
         projects=projects,
+        repair=repair,
+        browser=platform.browser,
     )
     app = create_app(
         settings,
@@ -258,8 +283,16 @@ def build(
         projects=projects,
         sessions=sessions,
     )
+    app.state.repair = repair
     review.start_if_due()
     return app, store, coordinator, builds
+
+
+def _app_name(registry: AppRegistry, app_id: str) -> str | None:
+    try:
+        return str(registry.current(app_id).source.name)
+    except Exception:
+        return None
 
 
 def _move_apps_to_current_runtime(registry: AppRegistry, inventory: ProfileInventory) -> list[str]:

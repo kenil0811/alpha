@@ -8,12 +8,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.solutions.creation import CreationRecord, CreationRefused, CreationService
 from alpha.storage.control_store import NotFoundError
+
+
+class RepairRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(min_length=1, max_length=80)
 
 
 class CreationRequest(BaseModel):
@@ -50,6 +56,23 @@ def register(app: FastAPI, creations: CreationService) -> None:
     def app_conversations(app_id: str) -> dict[str, Any]:
         """The module's own thread: its creation and every change since, newest first."""
         return {"conversations": creations.conversations_for_app(app_id)}
+
+    @app.get("/api/apps/{app_id}/repairs")
+    def app_repairs(app_id: str, request: Request) -> dict[str, Any]:
+        """Recent failures of the module with their cause in plain words, and what Alpha did."""
+        repair = getattr(request.app.state, "repair", None)
+        if repair is None:
+            return {"failures": [], "repairs": []}
+        return {"failures": repair.recent(app_id), "repairs": repair.list_repairs(app_id)}
+
+    @app.post("/api/apps/{app_id}/repairs")
+    def app_repair_now(app_id: str, body: RepairRequest, request: Request) -> dict[str, Any]:
+        """Fix the cause of one failed run now (the loop does this from a message; this is the
+        direct way). Blocks while the fix and the re-run happen."""
+        repair = getattr(request.app.state, "repair", None)
+        if repair is None:
+            raise HTTPException(status_code=409, detail="repairs are not available on this host")
+        return dict(repair.repair(body.run_id))
 
     @app.get("/api/apps/{app_id}/checks")
     def app_checks(app_id: str) -> dict[str, Any]:

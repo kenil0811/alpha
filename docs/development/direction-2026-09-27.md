@@ -364,6 +364,59 @@ hand-built:
   asks" pointable at a project; session-level Stop; embeddings later behind the same search
   interface. Then the failure-ownership design (recorded calls, undo on failure, repair cases).
 
+- 29 September, late afternoon: self-healing modules. Kenil's "the search new listings
+  feature is not working, help me fix it" had gone through the loop as a change and the
+  assistant, seeing no error, invented a reporting feature and briefed a rebuild. The rule he
+  set: one way in, you say what you want, Alpha works out what it takes, and a broken module
+  should fix itself before you ask. Built: `alpha/solutions/repair.py` (RepairService):
+  diagnose a failed run from its events (whose fault: the module's own code, Alpha's platform,
+  something outside, or a refusal of bad input; the line in `src/app_code`; a plain sentence);
+  fix a fault in the module's code through the quick path (`CreationService.start_repair`,
+  evidence = input, error, traceback; `plan_source` "repair", activation kind "repair", release
+  guarded, data kept); run the failed action again with the same input; one attempt per cause
+  per version (the same cause on the fixed version counts as tried), then it says so plainly.
+  Triggered by the failure itself (`AppRunService.on_finished` → `RepairService.consider`,
+  background) and by the loop: failures are FACTS lines with the cause and the fix's state, and
+  a `fix` step runs the repair and reports its own words; "change" is never used for something
+  the facts show broken. Plain words replace "Something went wrong in this workflow". Routes
+  `GET/POST /api/apps/{id}/repairs`; the module's Activity has "What went wrong" with the fix
+  state per failure. Tests: `test_repair.py` (8: diagnosis, faults named not fixed, fix and
+  rerun, one attempt, edit that does not hold, automatic trigger, the real quick path from
+  evidence, the loop's fix step). Not yet: recorded calls and undo of a failed run's writes,
+  replay as a permanent check, a repair proposal written into the session on its own (today
+  the Activity block and the next message carry it).
+
+- 29 September, evening: removing a module is a clean deletion. After Kenil took his modules
+  out of use to rebuild them, the assistant still answered "You already have a LinkedIn
+  connections tracker, it refreshed a few minutes ago" and Home counted 63 runs: "remove" only
+  set a state flag, and the context pack listed recent runs of any module. His rule: module
+  destruction should be very clean, related things should go away. Built
+  `alpha/solutions/purge.py` (ModulePurge): stops what is running, then deletes the module's
+  row, versions and releases, its records, every run with its events, tokens and model calls,
+  builds with attempts and events, the creations and the conversations that made or changed
+  it, its schedules, connections (both directions), browser access and visits, fixes, nudges
+  and project filing; sessions about it go whole, other sessions lose the turns about it (what
+  Alpha did and the message that asked) and their notes; on disk the record store, the sealed
+  version directories and the build directories, only ever inside Alpha's data directory.
+  Kept: accepted facts about the person, usage totals, sessions about other things.
+  `POST /api/apps/{id}/remove` now does this (release guard first); `GET /api/removed-modules`
+  and `POST /api/removed-modules/delete` finish removals made before; Settings names those
+  modules and deletes them after a second yes. The context pack lists recent activity only
+  for modules the person has now. Tests: `test_purge.py` (5), the integration removal test,
+  shell `removed.test.tsx`.
+
+- 29 September, evening: why a page came back as a sign-in wall. Kenil rebuilt the
+  connections module; its sync read LinkedIn four times as a visitor and the assistant told him
+  twice to "log in", although he was signed in (Connections, 15:51). Cause: a new module has no
+  access to a signed-in site until allowed in its Settings, and neither he nor the loop knew.
+  Now `BrowserService.access` says, per module and site, whether the person is signed in,
+  whether the module may use that sign-in and how its reads went; the loop gets it as FACTS
+  (signed in but not allowed; not signed in, with where to sign in; allowed but lapsed); an
+  `allow` step grants the site on the person's yes and the action runs again; Alpha's reply
+  carries a one-click yes ("Allow linkedin.com and try again") that sends the yes as the
+  person's own message. Consent stays explicit, in the place where the person is. Tests:
+  `test_access.py` (3), shell `offer.test.tsx`.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

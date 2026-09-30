@@ -81,7 +81,11 @@ def plain_worker_error(message: dict[str, Any]) -> dict[str, Any]:
     if match is None:
         return message
     kind, said = match.group(1).rsplit(".", 1)[-1], match.group(2).strip()
-    plain = said if kind in _REFUSALS and said else "Something went wrong in this workflow."
+    plain = (
+        said
+        if kind in _REFUSALS and said
+        else "This module's own code hit an error and stopped; Alpha looks into these on its own."
+    )
     return {**message, "message": plain, "technical": text, "exception": kind}
 
 

@@ -106,7 +106,9 @@ def test_handler_exceptions_reach_people_in_plain_words() -> None:
     crash = plain_worker_error(
         {"kind": "error", "code": "handler_exception", "message": "KeyError: 'calories'"}
     )
-    assert crash["message"] == "Something went wrong in this workflow."
+    assert crash["message"] == (
+        "This module's own code hit an error and stopped; Alpha looks into these on its own."
+    )
     assert crash["exception"] == "KeyError"
     sdk = {"kind": "error", "code": "operation_failed", "message": "Food is needed."}
     assert plain_worker_error(sdk) == sdk

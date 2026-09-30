@@ -501,6 +501,30 @@ export interface CreationChecks {
 }
 
 /** Where a module's latest fast-lane checks stand, from its own page. */
+/** A failed run of a module, diagnosed in plain words, and what Alpha did about it. */
+export interface ModuleFailure {
+  run_id: string;
+  app_id: string;
+  action_id: string;
+  at: string;
+  kind: "module_code" | "platform" | "outside" | "refusal" | "unknown";
+  where: string | null;
+  said: string;
+  repair: { repair_id: string; state: "fixing" | "fixed" | "not_fixed"; summary: string } | null;
+}
+
+export interface ModuleRepair {
+  repair_id: string;
+  app_id: string;
+  run_id: string;
+  action_id: string | null;
+  kind: string;
+  state: "fixing" | "fixed" | "not_fixed";
+  summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppChecks extends CreationChecks {
   creation_id: string;
   change_of: string | null;
@@ -616,7 +640,7 @@ export interface SessionsClient {
   /** Put a module in a project, or (null) take it out of every project. */
   fileModule(appId: string, projectId: string | null): Promise<void>;
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }>;
-  listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]>;
+  listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]>;
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
   /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
@@ -773,10 +797,16 @@ export interface WorkflowsClient {
   recentCreations(): Promise<Creation[]>;
   /** The module's latest behaviour checks (fast lane), or null when none apply. */
   appChecks(appId: string): Promise<AppChecks | null>;
+  /** Recent failures of the module with their cause in words, and the fixes Alpha made. */
+  appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }>;
   /** Back to the previous version; records are kept. */
   revertApp(appId: string, expectedReleaseId?: string | null): Promise<{ release_id: string }>;
-  /** Take the module out of use; nothing on disk is deleted. */
+  /** Remove the module for good, with its records, history and what was said about it. */
   removeApp(appId: string, expectedReleaseId?: string | null): Promise<void>;
+  /** Modules taken out of use before removal deleted things: still on this Mac. */
+  removedModules(): Promise<{ app_id: string; name: string }[]>;
+  /** Delete those for good. */
+  deleteRemovedModules(): Promise<number>;
   runAppAction(appId: string, actionId: string, input: Record<string, unknown>, origin?: "ui" | "user"): Promise<Run>;
   operationOutcome(runId: string): Promise<OperationOutcome>;
   cancelRun(runId: string): Promise<Run>;
@@ -1226,6 +1256,20 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return page.turns;
   }
 
+  async removedModules(): Promise<{ app_id: string; name: string }[]> {
+    const page = await this.request<{ modules: { app_id: string; name: string }[] }>("/api/removed-modules");
+    return page.modules;
+  }
+
+  async deleteRemovedModules(): Promise<number> {
+    const page = await this.request<{ deleted: unknown[] }>("/api/removed-modules/delete", { method: "POST", signal: AbortSignal.timeout(120_000) });
+    return page.deleted.length;
+  }
+
+  appRepairs(appId: string): Promise<{ failures: ModuleFailure[]; repairs: ModuleRepair[] }> {
+    return this.request(`/api/apps/${encodeURIComponent(appId)}/repairs`);
+  }
+
   async appChecks(appId: string): Promise<AppChecks | null> {
     const page = await this.request<{ checks: AppChecks | null }>(`/api/apps/${encodeURIComponent(appId)}/checks`);
     return page.checks;
@@ -1278,9 +1322,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request(`/api/projects/${encodeURIComponent(projectId)}`);
   }
 
-  async listSessions(scope: "all" | "global" | "project", projectId?: string | null): Promise<SessionSummary[]> {
+  async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {
     const query = new URLSearchParams({ scope });
     if (projectId) query.set("project_id", projectId);
+    if (focusAppId) query.set("focus_app_id", focusAppId);
     const page = await this.request<{ sessions: SessionSummary[] }>(`/api/sessions?${query.toString()}`);
     return page.sessions;
   }
