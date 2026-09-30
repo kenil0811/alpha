@@ -322,6 +322,9 @@ export interface ModelProviderAccount {
   cli_present: boolean | null;
   signed_in: boolean | null;
   key_last4: string | null;
+  /** The Settings -> Models status dot: grey (not connected), green (connected), red (error) -
+   *  tooltip is the exact state to show on hover. Cached in Core for about a minute. */
+  dot: { color: "green" | "grey" | "red"; tooltip: string };
 }
 
 /** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
@@ -330,6 +333,9 @@ export interface ModelAccountsClient {
   saveModelKey(provider: string, key: string): Promise<ModelProviderAccount>;
   removeModelKey(provider: string): Promise<ModelProviderAccount>;
   testModelAccount(provider: string): Promise<{ ok: boolean; message: string }>;
+  /** Clear Alpha's own cached connection state and re-probe; for a key-based provider this also
+   *  clears the saved key so the person is prompted again. Never touches a CLI sign-in itself. */
+  reconnectModelAccount(provider: string): Promise<ModelProviderAccount>;
 }
 
 export function isModelAccountsClient(client: unknown): client is ModelAccountsClient {
@@ -616,6 +622,14 @@ export interface ActTurn {
   created_at: string;
   outcome?: string | null;
   attachments?: AttachmentSummary[] | null;
+  model_error?: ModelErrorInfo | null;
+}
+
+/** A model call itself failed: which guided fix applies (a CLI sign-in, a key, or nothing
+ *  actionable beyond trying again) and which Settings -> Models provider it was about. */
+export interface ModelErrorInfo {
+  kind: "sign_in" | "key" | "generic";
+  provider: string;
 }
 
 /** A goal in the person's life that groups modules and the sessions about them. Optional. */
@@ -1227,6 +1241,11 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
     return this.request(`/api/model-accounts/${encodeURIComponent(provider)}/test`, { method: "POST" });
+  }
+
+  async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/reconnect`, { method: "POST" });
+    return page.provider;
   }
 
   async listConversations(): Promise<Conversation[]> {

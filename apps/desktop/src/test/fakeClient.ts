@@ -170,29 +170,48 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
   }
 
   providers: ModelProviderAccount[] = [
-    { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null },
-    { id: "chatgpt", label: "ChatGPT", state: "needs_sign_in", cli_present: false, signed_in: null, key_last4: null },
-    { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null },
-    { id: "grok", label: "Grok", state: "not_configured", cli_present: null, signed_in: null, key_last4: null },
+    { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null, dot: { color: "green", tooltip: "Connected · Claude Console" } },
+    { id: "chatgpt", label: "ChatGPT", state: "needs_sign_in", cli_present: false, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not signed in" } },
+    { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
+    { id: "grok", label: "Grok", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
   ];
   testResults = new Map<string, { ok: boolean; message: string }>();
 
+  private describeDot(provider: ModelProviderAccount): ModelProviderAccount["dot"] {
+    if (provider.state === "connected" || provider.state === "key_saved") {
+      const result = this.testResults.get(provider.id);
+      return result && !result.ok ? { color: "red", tooltip: result.message } : { color: "green", tooltip: result?.message ?? "Connected." };
+    }
+    const grey: Record<string, string> = { needs_sign_in: "Not signed in", needs_key: "No key saved", cli_missing: "The command-line tool isn't installed", not_configured: "Not connected" };
+    return { color: "grey", tooltip: grey[provider.state] ?? "Not connected" };
+  }
+
   async listModelAccounts(): Promise<ModelProviderAccount[]> {
-    return this.providers;
+    return this.providers.map((p) => ({ ...p, dot: this.describeDot(p) }));
   }
 
   async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
     this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "key_saved", key_last4: key.slice(-4) } : p));
     const updated = this.providers.find((p) => p.id === provider);
     if (!updated) throw new Error("unknown provider");
-    return updated;
+    return { ...updated, dot: this.describeDot(updated) };
   }
 
   async removeModelKey(provider: string): Promise<ModelProviderAccount> {
     this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "not_configured", key_last4: null } : p));
     const updated = this.providers.find((p) => p.id === provider);
     if (!updated) throw new Error("unknown provider");
-    return updated;
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
+    this.testResults.delete(provider);
+    const spec = this.providers.find((p) => p.id === provider);
+    const keyBased = spec?.id !== "claude" && spec?.id !== "chatgpt" ? true : spec?.key_last4 != null;
+    this.providers = this.providers.map((p) => (p.id === provider && keyBased ? { ...p, state: "not_configured", key_last4: null } : p));
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return { ...updated, dot: this.describeDot(updated) };
   }
 
   async testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {

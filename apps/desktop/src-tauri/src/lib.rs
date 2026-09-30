@@ -232,6 +232,27 @@ fn show_main(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// The "not connected" card's "Open Terminal to sign in": launches Terminal.app running one of
+/// a fixed set of sign-in commands. `which` is never taken from the person's own typing, so the
+/// allowlist is only a second line of defense, not the reason this is safe.
+/// ponytail: macOS-only (`osascript` + Terminal.app); add another host's terminal if desktop
+/// ever targets one.
+#[tauri::command]
+fn open_terminal_sign_in(which: String) -> Result<(), String> {
+    let command = match which.as_str() {
+        "claude" => "claude",
+        "codex" => "codex login",
+        _ => return Err(format!("no sign-in command for {which:?}")),
+    };
+    let script = format!("tell application \"Terminal\"\nactivate\ndo script \"{command}\"\nend tell");
+    std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Save an exported module (or any small file) to this Mac's Downloads folder and reveal it in
 /// Finder, so a person can hand the file to someone else. `filename` is used as-is if free, else
 /// suffixed `(2)`, `(3)`, ... to avoid overwriting an earlier export.
@@ -595,6 +616,7 @@ pub fn run() {
             avatar_is_visible,
             show_main,
             save_to_downloads,
+            open_terminal_sign_in,
             ptt::ptt_permission,
             ptt::ptt_request_permission,
             ptt::ptt_set_shortcut,

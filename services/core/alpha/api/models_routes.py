@@ -46,3 +46,13 @@ def register(app: FastAPI, accounts: ModelAccounts) -> None:
             return accounts.test_connection(provider)
         except UnknownProvider as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/model-accounts/{provider}/reconnect")
+    def reconnect(provider: str) -> dict[str, Any]:
+        """Clear Alpha's own cached connection state and re-probe. Never touches a CLI sign-in
+        (claude/codex); for a key-based provider it also clears the saved key so the person is
+        prompted again."""
+        try:
+            return {"provider": accounts.reconnect(provider)}
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc

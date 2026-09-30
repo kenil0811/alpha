@@ -26,3 +26,9 @@ packages = ["alpha"]
 # Rebuild the installed (non-editable) package whenever its source changes, not only when
 # pyproject.toml changes; the platform runtime must never run stale Core code.
 cache-keys = [{ file = "pyproject.toml" }, { file = "**/*.py" }]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
