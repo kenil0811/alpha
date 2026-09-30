@@ -9,6 +9,8 @@ import type { ActClient, ActTurn } from "../core/client";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
 import { useTts } from "../shell/tts";
+import { AttachMenu, AttachmentChips, useAttachments } from "../assistant/AttachMenu";
+import { toWire, useComposerDrop, usePasteAttachments } from "../assistant/attachments";
 import { Character, type Mood } from "./Character";
 
 export const HANDOFF_KEY = "alpha.handoff";
@@ -38,6 +40,9 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attach = useAttachments();
+  const onPaste = usePasteAttachments(attach.add);
+  const { onDrop, onDragOver } = useComposerDrop(attach.add);
 
   useEffect(() => {
     client
@@ -83,8 +88,10 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
       setError(null);
       setMood("thinking");
       setText("");
+      const wire = attach.items.map(toWire);
+      attach.clear();
       try {
-        const turn = await client.act(clean);
+        const turn = await client.act(clean, undefined, wire);
         setTurns((all) => [...all, turn].slice(-30));
         say(turn.reply, turn.kind === "answer" && /can't|couldn't|didn't/i.test(turn.reply) ? "sorry" : "talking");
         if (turn.open && (turn.open.app_id || turn.open.conversation_id || turn.open.session_id)) {
@@ -103,7 +110,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
         setBusy(false);
       }
     },
-    [busy, client, host, say],
+    [busy, client, host, say, attach],
   );
 
   const speech = useSpeech((final, interim) => {
@@ -144,7 +151,12 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
             {turns.length === 0 ? <p className="panel__hint">{greeting}</p> : null}
             {turns.map((turn) => (
               <div key={turn.turn_id} className="avatar__turn">
-                <div className="avatar__said">{turn.text}</div>
+                <div className="avatar__said">
+                  {turn.text}
+                  {turn.attachments?.length ? (
+                    <span className="faint"> · {turn.attachments.map((a) => a.name).join(", ")}</span>
+                  ) : null}
+                </div>
                 <div className={`avatar__reply avatar__reply--${turn.kind}`}>
                   {turn.reply}
                   {turn.app_name ? <span className="faint"> · {turn.app_name}</span> : null}
@@ -162,15 +174,27 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
               </p>
             ) : null}
           </div>
+          <AttachmentChips items={attach.items} onRemove={attach.remove} />
           <form
             className="avatar__ask"
             onSubmit={(e) => {
               e.preventDefault();
               void send(text);
             }}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
           >
+            <AttachMenu onAdd={attach.add} small />
             <MicButton listening={speech.listening} supported={speech.supported} onToggle={speech.toggle} small />
-            <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder="Log two eggs… how many calories today… open the job radar" aria-label="What should Alpha do" disabled={busy} />
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onPaste={onPaste}
+              placeholder="Log two eggs… how many calories today… open the job radar"
+              aria-label="What should Alpha do"
+              disabled={busy}
+            />
             <button type="button" className="btn btn--sm btn--primary" disabled={busy || !text.trim()} onClick={() => void send(text)}>
               Do it
             </button>

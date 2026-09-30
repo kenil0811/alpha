@@ -150,6 +150,8 @@ class SessionTurn(BaseModel):
     open: dict[str, Any] | None = None
     outcome: str | None = None
     detail: dict[str, Any] | None = None
+    # What was attached to this turn (name, kind, size only — never bytes or the raw path).
+    attachments: list[dict[str, Any]] | None = None
     created_at: str
 
 
@@ -676,6 +678,7 @@ class SessionService:
             conversation_id=detail.get("conversation_id"),
             open=detail.get("open"),
             detail=detail or None,
+            attachments=detail.get("attachments") or None,
             created_at=row["created_at"],
         )
         if turn.role == "alpha" and self._outcome is not None:

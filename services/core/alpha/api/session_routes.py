@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.assistant.acting import ActService
+from alpha.assistant.attachments import MAX_ATTACHMENTS, AttachmentIn
 from alpha.assistant.sessions import Session, SessionService, SessionSummary
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.context.profile import ProfileService, project_scope
@@ -64,6 +65,7 @@ class SessionMessage(BaseModel):
     wait: bool = False
     # The module on screen when the message was typed, a hint for the loop.
     app_id: str | None = Field(default=None, max_length=120)
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
 
 
 def _fail(exc: OperationFailed) -> HTTPException:
@@ -190,7 +192,13 @@ def register(
         """Say something in the session. Alpha works it through in the background (poll the
         session; its state is `thinking`), or, with `wait`, before this returns."""
         try:
-            acting.send(session_id, body.text, wait=body.wait, context_app_id=body.app_id)
+            acting.send(
+                session_id,
+                body.text,
+                wait=body.wait,
+                context_app_id=body.app_id,
+                attachments=body.attachments,
+            )
         except OperationFailed as exc:
             raise _fail(exc) from exc
         except RouteUnavailable as exc:

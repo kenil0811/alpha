@@ -156,6 +156,27 @@ export interface CoreSession {
   token: string;
 }
 
+/** One thing attached to a message, as Core reads it (see AttachmentIn, services/core). `path`
+ *  is a local file or folder Core reads directly (desktop); `content_b64` is its bytes when the
+ *  browser sent them instead (web) — only ever set for a single file, never a folder. */
+export interface AttachmentWire {
+  kind: "file" | "image" | "folder" | "audio";
+  name: string;
+  size?: number | null;
+  mime?: string | null;
+  path?: string | null;
+  content_b64?: string | null;
+}
+
+/** What was attached to a turn, as kept on its own record (name, kind, size — never bytes or
+ *  the raw path). */
+export interface AttachmentSummary {
+  kind: "file" | "image" | "folder" | "audio";
+  name: string;
+  size?: number | null;
+  mime?: string | null;
+}
+
 export interface SyntheticRunRequest {
   text: string;
   mode?: "succeed" | "fail" | "hang" | "crash" | "exit_without_result";
@@ -572,6 +593,7 @@ export interface ActTurn {
   reply: string;
   created_at: string;
   outcome?: string | null;
+  attachments?: AttachmentSummary[] | null;
 }
 
 /** A goal in the person's life that groups modules and the sessions about them. Optional. */
@@ -600,6 +622,7 @@ export interface SessionTurn {
   /** One line of truth about what the turn led to, current when read. */
   outcome?: string | null;
   detail?: Record<string, unknown> | null;
+  attachments?: AttachmentSummary[] | null;
   created_at: string;
 }
 
@@ -644,7 +667,7 @@ export interface SessionsClient {
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
   /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
-  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session>;
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session>;
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session>;
 }
 
@@ -781,7 +804,7 @@ export function isProfileClient(client: unknown): client is ProfileClient {
 
 export interface ActClient {
   /** Do what the sentence asks, at once; resolves when Alpha can say what happened. */
-  act(text: string, appId?: string | null): Promise<ActTurn>;
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<ActTurn>;
   recentActs(): Promise<ActTurn[]>;
 }
 
@@ -1246,9 +1269,13 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     await this.request(`/api/profile/facts/${encodeURIComponent(factId)}/forget`, { method: "POST" });
   }
 
-  act(text: string, appId?: string | null): Promise<ActTurn> {
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<ActTurn> {
     // A run may take a while; the avatar waits for the outcome rather than a promise.
-    return this.request<ActTurn>("/api/act", { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }), signal: AbortSignal.timeout(300_000) });
+    return this.request<ActTurn>("/api/act", {
+      method: "POST",
+      body: JSON.stringify({ text, app_id: appId ?? null, attachments: attachments ?? [] }),
+      signal: AbortSignal.timeout(300_000),
+    });
   }
 
   async recentActs(): Promise<ActTurn[]> {
@@ -1338,8 +1365,11 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`);
   }
 
-  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
-    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }) });
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[]): Promise<Session> {
+    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text, app_id: appId ?? null, attachments: attachments ?? [] }),
+    });
   }
 
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session> {
