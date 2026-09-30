@@ -12,7 +12,7 @@ fn main() {
 /// output, so `speech.rs` can spawn it by a path baked in at compile time (`STT_HELPER_PATH`).
 #[cfg(target_os = "macos")]
 fn build_stt_helper() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let source = manifest_dir.join("native/stt_helper.swift");
     println!("cargo:rerun-if-changed={}", source.display());
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));

@@ -126,7 +126,10 @@ const SESSION_WAIT: Duration = Duration::from_secs(600);
 const AVATAR_LABEL: &str = "avatar";
 const AVATAR_IDLE: (f64, f64) = (132.0, 148.0);
 const AVATAR_OPEN: (f64, f64) = (380.0, 560.0);
-const AVATAR_MARGIN: f64 = 20.0;
+/// Default spot, measured from the screen's bottom-right corner (not the work area), so the
+/// avatar rests beside the Dock rather than above it (chosen by the person 2026-09-30).
+const AVATAR_MARGIN_RIGHT: f64 = 17.0;
+const AVATAR_MARGIN_BOTTOM: f64 = 8.0;
 /// Present in the data directory when the person hid the avatar; it stays hidden until shown.
 const AVATAR_HIDDEN_MARKER: &str = "avatar-hidden";
 
@@ -141,9 +144,9 @@ fn place_bottom_right(window: &WebviewWindow, size: (f64, f64)) -> tauri::Result
     };
     if let Some(monitor) = monitor {
         let scale = monitor.scale_factor();
-        let area = monitor.work_area();
-        let x = area.position.x as f64 + area.size.width as f64 - (size.0 + AVATAR_MARGIN) * scale;
-        let y = area.position.y as f64 + area.size.height as f64 - (size.1 + AVATAR_MARGIN) * scale;
+        let (origin, frame) = (monitor.position(), monitor.size());
+        let x = origin.x as f64 + frame.width as f64 - (size.0 + AVATAR_MARGIN_RIGHT) * scale;
+        let y = origin.y as f64 + frame.height as f64 - (size.1 + AVATAR_MARGIN_BOTTOM) * scale;
         window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32))?;
     }
     Ok(())
