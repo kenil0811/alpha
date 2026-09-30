@@ -280,7 +280,7 @@ export function AssistantPanel({
               autoGrow(e.currentTarget);
             }}
             onPaste={onPaste}
-            placeholder={session ? "Ask Chief of Staff… say what to do, ask, or describe a change" : "Ask Chief of Staff… describe what you want done"}
+            placeholder="Ask Chief of Staff…"
             aria-label="Message"
             rows={1}
             onKeyDown={(e) => {

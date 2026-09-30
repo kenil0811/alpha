@@ -279,11 +279,12 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
       {providers.map((p) => {
         const showKeyField = p.id !== "claude" || p.state === "needs_key" || p.state === "key_saved";
         return (
-          <div className="item item--stack" key={p.id}>
+          <div className="item" key={p.id}>
             <div className="item__body">
               <span className="row" style={{ gap: 8, alignItems: "center" }}>
                 <span
-                  aria-label={p.dot.tooltip}
+                  role="img"
+                  aria-label={`${PROVIDER_STATE_LABEL[p.state]}${p.key_last4 ? ` · key •••• ${p.key_last4}` : ""}`}
                   title={p.dot.tooltip}
                   style={{
                     display: "inline-block",
@@ -300,17 +301,13 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                   <InfoTip content={PROVIDER_SIGN_IN_HINT[p.id]} label={`How to sign in to ${p.label}`} />
                 ) : null}
               </span>
-              <div className="item__sub">
-                {PROVIDER_STATE_LABEL[p.state]}
-                {p.key_last4 ? ` · saved key ending •••• ${p.key_last4}` : ""}
-              </div>
               {notes[p.id] ? (
                 <div className="item__sub" role="status">
                   {notes[p.id]}
                 </div>
               ) : null}
             </div>
-            <div className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
+            <div className="row" style={{ gap: 6, alignItems: "center" }}>
               {showKeyField ? (
                 <span className="row" style={{ gap: 6 }}>
                   <input
@@ -318,7 +315,9 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     placeholder={p.key_last4 ? `•••• ${p.key_last4}` : "Paste a key"}
                     value={drafts[p.id] ?? ""}
                     onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                    style={{ width: 160 }}
+                    aria-label={`${p.label} key`}
+                    className="input--compact"
+                    style={{ width: 200, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm" disabled={busy === p.id || !(drafts[p.id] ?? "").trim()} onClick={() => void save(p.id, p.label)}>
                     Save

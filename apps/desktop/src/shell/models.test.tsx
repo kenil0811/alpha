@@ -22,10 +22,10 @@ describe("Settings -> Models provider accounts", () => {
     const providers = await screen.findByLabelText("Model providers");
     expect(within(providers).getByText("Claude")).toBeInTheDocument();
     expect(within(providers).getByText("Default")).toBeInTheDocument();
-    expect(within(providers).getByText("Connected")).toBeInTheDocument();
+    expect(within(providers).getByLabelText("Connected")).toBeInTheDocument();
     expect(within(providers).getByText("ChatGPT")).toBeInTheDocument();
-    expect(within(providers).getByText("Not signed in")).toBeInTheDocument();
-    expect(within(providers).getAllByText("Not connected").length).toBeGreaterThanOrEqual(2); // OpenRouter, Grok
+    expect(within(providers).getByLabelText("Not signed in")).toBeInTheDocument();
+    expect(within(providers).getAllByLabelText("Not connected").length).toBeGreaterThanOrEqual(2); // OpenRouter, Grok
   });
 
   it("saves an OpenRouter key and shows only its last 4 characters afterwards", async () => {
@@ -36,7 +36,7 @@ describe("Settings -> Models provider accounts", () => {
     await user.type(input, "sk-or-abcd1234");
     await user.click(within(openrouterItem).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(client.providers.find((p) => p.id === "openrouter")?.state).toBe("key_saved"));
-    expect(await within(openrouterItem).findByText(/saved key ending/)).toHaveTextContent("1234");
+    expect(await within(openrouterItem).findByLabelText(/•••• 1234/)).toBeInTheDocument();
   });
 
   it("removes a saved key", async () => {
