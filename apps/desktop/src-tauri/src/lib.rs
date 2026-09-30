@@ -608,8 +608,7 @@ pub fn run() {
             // A dedicated monochrome silhouette, not the app icon: macOS templates recolor a
             // flat black-on-transparent shape to match the menu bar's light/dark state, and
             // the full-color panda (rendered fully opaque) reads as a solid dark blob there.
-            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray@2x.png"))
-                .expect("tray icon");
+            let tray_icon = tauri::include_image!("icons/tray@2x.png");
             TrayIconBuilder::with_id("main")
                 .icon(tray_icon)
                 .icon_as_template(true)
