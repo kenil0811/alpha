@@ -286,6 +286,10 @@ def model_error_reply(exc: InferenceError) -> str:
         )
     if exc.code == "cli_missing":
         return "I can't reach the model: the `claude` command isn't installed on this machine."
+    if exc.code == "no_key":
+        return "I can't reach the model: no key is saved for it yet. Add one in Settings → Models."
+    if exc.code == "provider_error":
+        return f"I can't reach the model: {exc}."
     if exc.code == "timeout":
         return "I can't reach the model: it took too long to respond. Try again."
     if exc.code == "cancelled":

@@ -293,6 +293,28 @@ export interface StreamItem {
   run: Run;
 }
 
+/** Settings -> Models: one provider's sign-in / key state, as Core reports it. */
+export interface ModelProviderAccount {
+  id: "claude" | "chatgpt" | "openrouter" | "grok";
+  label: string;
+  state: "connected" | "needs_sign_in" | "needs_key" | "cli_missing" | "key_saved" | "not_configured";
+  cli_present: boolean | null;
+  signed_in: boolean | null;
+  key_last4: string | null;
+}
+
+/** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
+export interface ModelAccountsClient {
+  listModelAccounts(): Promise<ModelProviderAccount[]>;
+  saveModelKey(provider: string, key: string): Promise<ModelProviderAccount>;
+  removeModelKey(provider: string): Promise<ModelProviderAccount>;
+  testModelAccount(provider: string): Promise<{ ok: boolean; message: string }>;
+}
+
+export function isModelAccountsClient(client: unknown): client is ModelAccountsClient {
+  return typeof (client as Partial<ModelAccountsClient>)?.listModelAccounts === "function";
+}
+
 export interface CoreClient {
   health(): Promise<HealthInfo>;
   listRuns(): Promise<Run[]>;
@@ -903,7 +925,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient, ModelAccountsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -1133,6 +1155,28 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {
     const page = await this.request<{ settings: SettingField[] }>("/api/settings", { method: "PUT", body: JSON.stringify({ values }) });
     return page.settings;
+  }
+
+  async listModelAccounts(): Promise<ModelProviderAccount[]> {
+    const page = await this.request<{ providers: ModelProviderAccount[] }>("/api/model-accounts");
+    return page.providers;
+  }
+
+  async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/key`, {
+      method: "PUT",
+      body: JSON.stringify({ key }),
+    });
+    return page.provider;
+  }
+
+  async removeModelKey(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/key`, { method: "DELETE" });
+    return page.provider;
+  }
+
+  testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/model-accounts/${encodeURIComponent(provider)}/test`, { method: "POST" });
   }
 
   async listConversations(): Promise<Conversation[]> {

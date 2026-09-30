@@ -1,8 +1,10 @@
 """Structured inference through the model gateway's routes.
 
-`fake` answers deterministically from request text (control fixture). `claude-code-cli` runs
-the CLI non-agentically (no tools, one turn, settings ignored) with a JSON schema; the result's
-`structured_output` is validated by the caller's Pydantic model and usage is recorded.
+`fake` answers deterministically from request text (control fixture). `claude-code-cli` and
+`chatgpt-codex-cli` run their CLI non-agentically (no tools, one turn, settings ignored) with a
+JSON schema; `chatgpt-api`, `openrouter` and `grok` call an OpenAI-compatible HTTPS endpoint
+directly with the key saved in the Keychain. Every route's result is validated by the caller's
+Pydantic model against the full schema, and usage is recorded either way.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import pwd
+import re
 import subprocess
 import threading
 import time
@@ -18,7 +21,16 @@ from typing import Any
 
 from alpha_contracts.builds import BuildUsage, CostBasis
 
+from alpha.models import keychain
 from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models.providers import ProviderHTTPError, chat_structured
+
+# route_id -> (provider id the key/CLI is saved under in the Keychain, base URL for HTTP routes)
+_HTTP_PROVIDER: dict[str, tuple[str, str]] = {
+    "chatgpt-api": ("chatgpt", "https://api.openai.com/v1"),
+    "openrouter": ("openrouter", "https://openrouter.ai/api/v1"),
+    "grok": ("grok", "https://api.x.ai/v1"),
+}
 
 # The JSON Schema keywords the CLI's strict validator knows. Anything else (Pydantic's
 # `discriminator`, a vendor extension) makes the CLI refuse the whole call before the model runs,
@@ -135,11 +147,13 @@ class StructuredInference:
             return StructuredResult(
                 output, usage, "fake", int((time.monotonic() - started) * 1000), ""
             )
-        if route.route_id != "claude-code-cli":
-            raise InferenceError(
-                "route_unavailable", f"no structured inference for {route.route_id}"
-            )
-        return self._claude_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        if route.route_id == "claude-code-cli":
+            return self._claude_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        if route.route_id == "chatgpt-codex-cli":
+            return self._codex_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        if route.route_id in _HTTP_PROVIDER:
+            return self._http_provider(route, system, prompt, schema, scope_kind, scope_ref)
+        raise InferenceError("route_unavailable", f"no structured inference for {route.route_id}")
 
     def _claude_cli(
         self,
@@ -161,9 +175,19 @@ class StructuredInference:
             "DISABLE_AUTOUPDATER": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
-        # Pass an Anthropic API key through when Core's own environment has one, so the CLI can
-        # authenticate that way when a Claude subscription route is unavailable. Never logged.
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Default is a Console account sign-in owned by the CLI itself (`claude` -> /login): no
+        # key is passed, so the person's own logged-in session is used. Only when they chose
+        # "Anthropic API key" in Settings -> Models is a key read from the Keychain (falling back
+        # to Core's own environment, e.g. for a host that sets ANTHROPIC_API_KEY directly) and
+        # passed through. Never logged. Without a Preferences store at all (some tests), the
+        # legacy env-passthrough behaviour is kept.
+        prefs = self._gateway.preferences
+        auth_mode = str(prefs.get("models.claude_auth_mode")) if prefs is not None else None
+        api_key = None
+        if auth_mode == "api_key":
+            api_key = keychain.get_key("claude") or os.environ.get("ANTHROPIC_API_KEY")
+        elif prefs is None:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
         if api_key:
             env["ANTHROPIC_API_KEY"] = api_key
         argv = [
@@ -241,6 +265,106 @@ class StructuredInference:
         return StructuredResult(
             output, usage, models[0] if models else "unknown", elapsed, text[:300]
         )
+
+    def _codex_cli(
+        self,
+        route: ModelRoute,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any],
+        scope_kind: str,
+        scope_ref: str,
+    ) -> StructuredResult:
+        """ChatGPT via the Codex CLI (`codex login`), the person's sign-in choice. Codex's `exec`
+        subcommand has no schema flag of its own, so the schema is folded into the prompt and the
+        JSON object is picked out of the CLI's last answer; best-effort, unverified against a real
+        `codex` binary in this environment."""
+        owner = pwd.getpwuid(os.getuid()).pw_name
+        env = {
+            "PATH": self._path,
+            "HOME": self._home or pwd.getpwuid(os.getuid()).pw_dir,
+            "USER": owner,
+            "LOGNAME": owner,
+            "LANG": "C.UTF-8",
+            "TERM": "dumb",
+        }
+        full_prompt = (
+            f"{system}\n\nReply with exactly one JSON object matching this JSON Schema, and "
+            f"nothing else, no prose, no code fence:\n{json.dumps(cli_schema(schema))}\n\n{prompt}"
+        )
+        argv = ["codex", "exec", "--json", "--skip-git-repo-check"]
+        if route.model != "default":
+            argv += ["--model", route.model]
+        argv.append(full_prompt)
+        started = time.monotonic()
+        try:
+            proc = subprocess.run(
+                argv, capture_output=True, text=True, env=env, timeout=self._timeout
+            )
+        except FileNotFoundError as exc:
+            raise InferenceError("cli_missing", f"codex CLI not found: {exc}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+        elapsed = int((time.monotonic() - started) * 1000)
+        combined = f"{proc.stdout}\n{proc.stderr}"
+        if "not logged in" in combined.lower() or "codex login" in proc.stderr.lower():
+            raise InferenceError("cli_not_logged_in", (proc.stderr or proc.stdout)[:200])
+        text = None
+        for line in reversed(proc.stdout.splitlines()):
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            msg = event.get("msg")
+            candidate = msg.get("message") if isinstance(msg, dict) else event.get("text")
+            if candidate:
+                text = str(candidate)
+                break
+        if text is None:
+            tail = (proc.stderr or proc.stdout)[-300:] or "no output"
+            raise InferenceError("cli_no_output", tail)
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise InferenceError("no_structured_output", text[:300])
+        try:
+            output = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise InferenceError("cli_bad_json", str(exc)) from exc
+        if not isinstance(output, dict):
+            raise InferenceError("no_structured_output", text[:300])
+        usage = BuildUsage(
+            turns=1, duration_ms=elapsed, cost_basis=CostBasis.SUBSCRIPTION_UNMETERED
+        )
+        self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
+        return StructuredResult(output, usage, route.model, elapsed, text[:300])
+
+    def _http_provider(
+        self,
+        route: ModelRoute,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any],
+        scope_kind: str,
+        scope_ref: str,
+    ) -> StructuredResult:
+        keychain_provider, base_url = _HTTP_PROVIDER[route.route_id]
+        api_key = keychain.get_key(keychain_provider)
+        if not api_key:
+            raise InferenceError(
+                "no_key", f"no key saved for {route.provider} (Settings -> Models)"
+            )
+        try:
+            output, usage, elapsed = chat_structured(
+                base_url, api_key, route.model, system, prompt, cli_schema(schema),
+                timeout=self._timeout,
+            )
+        except ProviderHTTPError as exc:
+            raise InferenceError("provider_error", str(exc)) from exc
+        self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
+        return StructuredResult(output, usage, route.model, elapsed, json.dumps(output)[:300])
 
     @staticmethod
     def _usage(result: dict[str, Any]) -> BuildUsage:

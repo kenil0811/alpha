@@ -330,7 +330,12 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     command
         .args(["-I", "-m", "alpha.main"])
         .env_clear()
-        .env("ALPHA_ENABLED_MODEL_ROUTES", "fake,claude-code-cli")
+        // Enabling a route only allows it to be chosen in Settings -> Models; it costs nothing
+        // until the person actually connects an account/key and picks it as the provider.
+        .env(
+            "ALPHA_ENABLED_MODEL_ROUTES",
+            "fake,claude-code-cli,chatgpt-codex-cli,chatgpt-api,openrouter,grok",
+        )
         .env("ALPHA_BUILDER_PATH", builder_path)
         .env("ALPHA_BUILDER_HOME", &user_home)
         .env("ALPHA_DATA_DIR", &data_dir)

@@ -5,6 +5,8 @@ import type {
   ConversationReply,
   CoreClient,
   HealthInfo,
+  ModelAccountsClient,
+  ModelProviderAccount,
   Project,
   Session,
   SessionsClient,
@@ -19,7 +21,7 @@ import type {
 } from "../core/client";
 
 /** In-memory CoreClient that reproduces Core's observable state machine for shell tests. */
-export class FakeCoreClient implements CoreClient, SessionsClient {
+export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccountsClient {
   runs = new Map<string, Run>();
   items: StreamItem[] = [];
   listeners: ((item: StreamItem) => void)[] = [];
@@ -164,6 +166,36 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
 
   async getSettings(): Promise<SettingField[]> {
     return this.settingsFields;
+  }
+
+  providers: ModelProviderAccount[] = [
+    { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null },
+    { id: "chatgpt", label: "ChatGPT", state: "needs_sign_in", cli_present: false, signed_in: null, key_last4: null },
+    { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null },
+    { id: "grok", label: "Grok", state: "not_configured", cli_present: null, signed_in: null, key_last4: null },
+  ];
+  testResults = new Map<string, { ok: boolean; message: string }>();
+
+  async listModelAccounts(): Promise<ModelProviderAccount[]> {
+    return this.providers;
+  }
+
+  async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "key_saved", key_last4: key.slice(-4) } : p));
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return updated;
+  }
+
+  async removeModelKey(provider: string): Promise<ModelProviderAccount> {
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "not_configured", key_last4: null } : p));
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return updated;
+  }
+
+  async testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
+    return this.testResults.get(provider) ?? { ok: true, message: "Connected." };
   }
 
   async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {

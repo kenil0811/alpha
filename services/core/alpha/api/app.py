@@ -28,6 +28,7 @@ from alpha.api.auth import make_auth_middleware
 from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.connection_routes import register as register_connection_routes
 from alpha.api.creation_routes import register as register_creation_routes
+from alpha.api.models_routes import register as register_models_routes
 from alpha.api.profile_routes import register as register_profile_routes
 from alpha.api.session_routes import register as register_session_routes
 from alpha.api.skill_routes import register as register_skill_routes
@@ -45,6 +46,7 @@ from alpha.context.profile import ProfileService
 from alpha.context.review import ReviewService
 from alpha.context.skills import SkillService
 from alpha.execution.coordinator import RunCoordinator
+from alpha.models.accounts import ModelAccounts
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
 from alpha.solutions.creation import CreationService
@@ -203,6 +205,7 @@ def create_app(
     skills: SkillService | None = None,
     projects: Any | None = None,
     sessions: Any | None = None,
+    model_accounts: ModelAccounts | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -300,6 +303,8 @@ def create_app(
         register_profile_routes(app, profile, onboarding, review)
     if connections is not None:
         register_connection_routes(app, connections)
+    if model_accounts is not None:
+        register_models_routes(app, model_accounts)
     if skills is not None:
         register_skill_routes(app, skills)
     if platform is not None and platform.browser is not None:

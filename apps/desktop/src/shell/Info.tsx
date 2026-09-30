@@ -2,7 +2,7 @@
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CircleCheck, Circle, Cpu, HardDrive, Hammer, Link2, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
-import { isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type SettingField, type WorkflowsClient } from "../core/client";
+import { isModelAccountsClient, isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type ModelProviderAccount, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
@@ -182,21 +182,135 @@ export function applyDensity(density: string): void {
   document.documentElement.dataset.density = density === "comfortable" ? "comfortable" : "compact";
 }
 
-/** Alpha has no secret store yet (nothing in the host or Core keeps a key safely), so this is
- *  instructions, not a form: entering a key here would only be able to land in plaintext, which
- *  is worse than not offering the field. If replies say Alpha can't reach the model, one of these
- *  fixes it. */
-function ModelAccessNotice() {
+const PROVIDER_STATE_LABEL: Record<ModelProviderAccount["state"], string> = {
+  connected: "Connected",
+  needs_sign_in: "Not signed in",
+  needs_key: "Needs a key",
+  cli_missing: "Not installed on this Mac",
+  key_saved: "Key saved",
+  not_configured: "Not connected",
+};
+
+const PROVIDER_SIGN_IN_HINT: Record<string, string> = {
+  claude: "Run `claude` in a terminal, then choose /login and sign in with your Anthropic Console account.",
+  chatgpt: "Run `codex` in a terminal, then `codex login`, and sign in with ChatGPT — or add an API key instead.",
+};
+
+/** Claude (Console account by default), ChatGPT, OpenRouter and Grok: sign-in state and keys,
+ *  which live only in the macOS Keychain — never shown here once saved, only their last 4
+ *  characters. The model id each key-based provider uses, and Claude's console/API-key choice,
+ *  are the "Models" settings just below this card. */
+function ProviderAccounts({ client }: { client: CoreClient }) {
+  const [providers, setProviders] = useState<ModelProviderAccount[] | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const toast = useToast();
+
+  const load = useCallback(() => {
+    if (!isModelAccountsClient(client)) return;
+    client.listModelAccounts().then(setProviders).catch(() => setProviders([]));
+  }, [client]);
+  useEffect(load, [load]);
+
+  if (!isModelAccountsClient(client) || !providers) return null;
+
+  async function save(id: string, label: string) {
+    const key = (drafts[id] ?? "").trim();
+    if (!key || !isModelAccountsClient(client)) return;
+    setBusy(id);
+    try {
+      const updated = await client.saveModelKey(id, key);
+      setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
+      setDrafts((d) => ({ ...d, [id]: "" }));
+      toast.show(`${label}: key saved.`);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function remove(id: string, label: string) {
+    if (!isModelAccountsClient(client)) return;
+    setBusy(id);
+    try {
+      const updated = await client.removeModelKey(id);
+      setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
+      toast.show(`${label}: key removed.`);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function test(id: string, label: string) {
+    if (!isModelAccountsClient(client)) return;
+    setBusy(id);
+    try {
+      const result = await client.testModelAccount(id);
+      setNotes((n) => ({ ...n, [id]: result.message }));
+      toast.show(`${label}: ${result.ok ? "Connected." : result.message}`);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
-    <div className="card list" aria-label="Model access">
-      <div className="item">
-        <div className="item__body">
-          <b>If Alpha can't reach the model</b>
-          <div className="item__sub">
-            Alpha runs on the Claude Code CLI under your own sign-in. If a reply says your organization turned off Claude sign-in for Claude Code, either: run <code>claude</code> in a terminal and sign in with an Anthropic Console account, or set an <code>ANTHROPIC_API_KEY</code> environment variable before opening Alpha (there is nowhere in this app yet to enter a key safely, so it can't be typed in here).
+    <div className="card list" aria-label="Model providers">
+      {providers.map((p) => {
+        const showKeyField = p.id !== "claude" || p.state === "needs_key" || p.state === "key_saved";
+        return (
+          <div className="item item--stack" key={p.id}>
+            <div className="item__body">
+              <span className="row" style={{ gap: 8, alignItems: "center" }}>
+                {p.state === "connected" || p.state === "key_saved" ? <CircleCheck size={16} /> : <Circle size={16} />}
+                <b>{p.label}</b>
+                {p.id === "claude" ? <Badge variant="neutral">Default</Badge> : null}
+              </span>
+              <div className="item__sub">
+                {PROVIDER_STATE_LABEL[p.state]}
+                {p.key_last4 ? ` · saved key ending •••• ${p.key_last4}` : ""}
+              </div>
+              {(p.state === "needs_sign_in" || p.state === "cli_missing") && PROVIDER_SIGN_IN_HINT[p.id] ? (
+                <div className="item__sub">{PROVIDER_SIGN_IN_HINT[p.id]}</div>
+              ) : null}
+              {notes[p.id] ? (
+                <div className="item__sub" role="status">
+                  {notes[p.id]}
+                </div>
+              ) : null}
+            </div>
+            <div className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
+              {showKeyField ? (
+                <span className="row" style={{ gap: 6 }}>
+                  <input
+                    type="password"
+                    placeholder={p.key_last4 ? `•••• ${p.key_last4}` : "Paste a key"}
+                    value={drafts[p.id] ?? ""}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                    style={{ width: 160 }}
+                  />
+                  <button type="button" className="btn btn--sm" disabled={busy === p.id || !(drafts[p.id] ?? "").trim()} onClick={() => void save(p.id, p.label)}>
+                    Save
+                  </button>
+                  {p.key_last4 ? (
+                    <button type="button" className="btn btn--sm btn--ghost" disabled={busy === p.id} onClick={() => void remove(p.id, p.label)}>
+                      Remove
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
+              <button type="button" className="btn btn--sm" disabled={busy === p.id} onClick={() => void test(p.id, p.label)}>
+                {busy === p.id ? "Testing…" : "Test connection"}
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -243,7 +357,7 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
           <div className="item">
             <div className="item__body">
               <b>{group}</b>
-              <div className="item__sub">{group === "Models" ? "Which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How a build runs, and how much it may spend before it is stopped."}</div>
+              <div className="item__sub">{group === "Models" ? "Which provider Alpha uses, and which Claude model each stage uses. Changes apply to the next request or build." : group === "Look" ? "How every module is drawn, and rules Alpha follows when it builds or changes one." : "How a build runs, and how much it may spend before it is stopped."}</div>
             </div>
           </div>
           {fields
@@ -573,7 +687,7 @@ export function Settings({
           {section === "connections" ? <Connections client={client} embedded /> : null}
           {section === "models" ? (
             <>
-              <ModelAccessNotice />
+              <ProviderAccounts client={client} />
               <ConfigurableSettings client={client} only={["Models"]} />
             </>
           ) : null}
