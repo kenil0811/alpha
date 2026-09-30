@@ -9,14 +9,40 @@ from types import SimpleNamespace
 from typing import Any
 
 import yaml
-from alpha.assistant.acting import ActService, catalogue_text, outcome_line, summary_reply
+from alpha.assistant.acting import (
+    ActService,
+    catalogue_text,
+    model_error_reply,
+    outcome_line,
+    summary_reply,
+)
 from alpha.assistant.sessions import SessionService
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
-from alpha.models.structured import StructuredInference
+from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore
 from alpha_contracts.apps import AppSource
 from alpha_contracts.runs import RunOrigin, RunState
+
+
+def test_model_error_reply_names_disabled_subscription() -> None:
+    exc = InferenceError(
+        "cli_error",
+        "Your organization has disabled Claude subscription access for Claude Code",
+    )
+    reply = model_error_reply(exc)
+    assert "Anthropic API key" in reply
+    assert "Settings" in reply
+
+
+def test_model_error_reply_names_missing_binary() -> None:
+    reply = model_error_reply(InferenceError("cli_missing", "no such file"))
+    assert "claude` command" in reply
+
+
+def test_model_error_reply_generic_fallback() -> None:
+    reply = model_error_reply(InferenceError("cli_no_output", "garbage"))
+    assert reply == "I can't reach the model right now. Try again in a moment."
 
 FIXTURE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "builds" / "notes_ok"
 

@@ -7,6 +7,7 @@ import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
+import { setSpeakEnabled, speakEnabled } from "./tts";
 import { Badge, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
@@ -181,6 +182,25 @@ export function applyDensity(density: string): void {
   document.documentElement.dataset.density = density === "comfortable" ? "comfortable" : "compact";
 }
 
+/** Alpha has no secret store yet (nothing in the host or Core keeps a key safely), so this is
+ *  instructions, not a form: entering a key here would only be able to land in plaintext, which
+ *  is worse than not offering the field. If replies say Alpha can't reach the model, one of these
+ *  fixes it. */
+function ModelAccessNotice() {
+  return (
+    <div className="card list" aria-label="Model access">
+      <div className="item">
+        <div className="item__body">
+          <b>If Alpha can't reach the model</b>
+          <div className="item__sub">
+            Alpha runs on the Claude Code CLI under your own sign-in. If a reply says your organization turned off Claude sign-in for Claude Code, either: run <code>claude</code> in a terminal and sign in with an Anthropic Console account, or set an <code>ANTHROPIC_API_KEY</code> environment variable before opening Alpha (there is nowhere in this app yet to enter a key safely, so it can't be typed in here).
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Every setting Core exposes, grouped, editable in place; a change is saved as it is made.
  *  `only`, when given, renders just those groups (the section a Settings tab owns); omitted
  *  renders every group Core reports, for a section that hasn't reserved specific group names. */
@@ -320,6 +340,34 @@ function AvatarSetting() {
 /** Hold a key to speak to Alpha instead of typing. Fn by default (a hardware modifier flag, so
  *  it is watched natively — see `src-tauri/src/ptt.rs`); recording another key/combination goes
  *  through the same native watcher. Web-only preview has no host to watch anything, so it says so. */
+/** Whether the Chief of Staff says its replies aloud (native macOS speech, or the browser's on
+ *  the web preview). On by default; the person can turn it off from either place. */
+function SpeakRepliesSetting() {
+  const [on, setOn] = useState(() => speakEnabled());
+  const set = (next: boolean) => {
+    setSpeakEnabled(next);
+    setOn(next);
+  };
+  return (
+    <div className="card list" aria-label="Speak replies">
+      <div className="item">
+        <div className="item__body">
+          <b>Speak replies</b>
+          <div className="item__sub">Alpha says its replies aloud, in the desktop assistant.</div>
+        </div>
+        <div className="toggle" role="group" aria-label="Speak replies">
+          <button type="button" aria-pressed={on} onClick={() => set(true)}>
+            On
+          </button>
+          <button type="button" aria-pressed={!on} onClick={() => set(false)}>
+            Off
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PushToTalkSetting() {
   const [shortcut, setShortcut] = useState<PttShortcut>(() => readShortcut());
   const [recording, setRecording] = useState(false);
@@ -467,7 +515,12 @@ export function Settings({
         </nav>
         <div className="settings-content">
           {section === "connections" ? <Connections client={client} embedded /> : null}
-          {section === "models" ? <ConfigurableSettings client={client} only={["Models"]} /> : null}
+          {section === "models" ? (
+            <>
+              <ModelAccessNotice />
+              <ConfigurableSettings client={client} only={["Models"]} />
+            </>
+          ) : null}
           {section === "look" ? (
             <>
               <ConfigurableSettings client={client} only={["Look"]} />
@@ -486,6 +539,7 @@ export function Settings({
           {section === "desktop" ? (
             <>
               <AvatarSetting />
+              <SpeakRepliesSetting />
               <PushToTalkSetting />
               <div className="card list">
                 <div className="item">

@@ -22,6 +22,8 @@ use tauri::{
 
 #[cfg(target_os = "macos")]
 mod ptt;
+#[cfg(target_os = "macos")]
+mod speech;
 
 const READY_PREFIX: &str = "ALPHA_CORE_READY ";
 /// Generated-UI qualification fixture, served from its own origin (`alpha-ui://<app-id>/`) so
@@ -551,6 +553,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(HostState::default())
         .manage(ptt::PttState::default())
+        .manage(speech::SpeechState::default())
         .register_uri_scheme_protocol("alpha-ui", |_ctx, request| generated_ui_response(&request))
         .invoke_handler(tauri::generate_handler![
             core_session,
@@ -561,7 +564,11 @@ pub fn run() {
             show_main,
             ptt::ptt_permission,
             ptt::ptt_request_permission,
-            ptt::ptt_set_shortcut
+            ptt::ptt_set_shortcut,
+            speech::stt_start,
+            speech::stt_stop,
+            speech::tts_speak,
+            speech::tts_stop
         ])
         .setup(|app| {
             ptt::start(app.handle().clone(), app.state::<ptt::PttState>().inner());

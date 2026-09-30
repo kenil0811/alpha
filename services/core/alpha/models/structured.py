@@ -161,6 +161,11 @@ class StructuredInference:
             "DISABLE_AUTOUPDATER": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
+        # Pass an Anthropic API key through when Core's own environment has one, so the CLI can
+        # authenticate that way when a Claude subscription route is unavailable. Never logged.
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            env["ANTHROPIC_API_KEY"] = api_key
         argv = [
             self._binary,
             "-p",

@@ -255,6 +255,29 @@ def summary_reply(observations: list[dict[str, Any]]) -> str:
     return ("Finished: " + ", ".join(parts) + ".") if parts else "Nothing was done."
 
 
+def model_error_reply(exc: InferenceError) -> str:
+    """A plain-language reason the model call failed, for known failure shapes; a generic honest
+    fallback otherwise. Never hides that something failed."""
+    text = str(exc).lower()
+    if "subscription" in text and "disabled" in text:
+        return (
+            "I can't reach the model: your organization turned off Claude sign-in for Claude "
+            "Code. Add an Anthropic API key in Settings → Models."
+        )
+    if exc.code == "cli_not_logged_in" or "not logged in" in text:
+        return (
+            "I can't reach the model: Claude Code isn't signed in. Run `claude` and sign in, "
+            "or add an Anthropic API key in Settings → Models."
+        )
+    if exc.code == "cli_missing":
+        return "I can't reach the model: the `claude` command isn't installed on this machine."
+    if exc.code == "timeout":
+        return "I can't reach the model: it took too long to respond. Try again."
+    if exc.code == "cancelled":
+        return "That was stopped."
+    return "I can't reach the model right now. Try again in a moment."
+
+
 def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str:
     """One line of truth about a past sentence, for the person's record and for grounding."""
     observations = detail.get("observations") or []
@@ -575,7 +598,10 @@ class ActService:
             return decided.output if isinstance(decided.output, dict) else {}
         except InferenceError as exc:
             log.warning("act step failed: %s", exc)
-            return {"kind": "done" if work.observations else "answer", "reply": ""}
+            return {
+                "kind": "done" if work.observations else "answer",
+                "reply": model_error_reply(exc),
+            }
 
     def _apply(self, work: _Work, output: dict[str, Any]) -> bool:
         """Carry out the decided step. True to decide again; False when the message is done."""

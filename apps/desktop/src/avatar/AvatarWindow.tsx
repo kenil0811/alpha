@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActClient, ActTurn } from "../core/client";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
+import { useTts } from "../shell/tts";
 import { Character, type Mood } from "./Character";
 
 export const HANDOFF_KEY = "alpha.handoff";
@@ -59,15 +60,20 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
     if (next) setTimeout(() => inputRef.current?.focus(), 50);
   }, [expanded, host]);
 
-  const say = useCallback((reply: string, tone: Mood) => {
-    setMood(tone);
-    setBubble(reply);
-    if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
-    bubbleTimer.current = setTimeout(() => {
-      setBubble(null);
-      setMood("idle");
-    }, 9000);
-  }, []);
+  const tts = useTts();
+  const say = useCallback(
+    (reply: string, tone: Mood) => {
+      setMood(tone);
+      setBubble(reply);
+      if (tone === "talking") tts.speak(reply);
+      if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+      bubbleTimer.current = setTimeout(() => {
+        setBubble(null);
+        setMood("idle");
+      }, 9000);
+    },
+    [tts],
+  );
 
   const send = useCallback(
     async (sentence: string) => {
@@ -106,7 +112,9 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
   });
   useEffect(() => {
     setMood((m) => (speech.listening ? "listening" : m === "listening" ? "idle" : m));
-  }, [speech.listening]);
+    // Barge-in: the person started talking, so whatever Alpha was saying stops at once.
+    if (speech.listening) tts.stop();
+  }, [speech.listening, tts]);
   usePushToTalk(
     useCallback(() => {
       if (!expanded) void toggle();
@@ -114,6 +122,10 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
     }, [expanded, toggle, speech]),
     useCallback(() => speech.stop(), [speech]),
   );
+
+  // The mouth moves for as long as speech is actually playing, on top of whatever mood the last
+  // reply set (its tone still colours the pose/expression via `EMOTION`).
+  const shownMood: Mood = speech.listening ? "listening" : tts.speaking ? "talking" : mood;
 
   return (
     <div className={`avatar${expanded ? " avatar--open" : ""}`} onKeyDown={(e) => e.key === "Escape" && expanded && void toggle()}>
@@ -175,7 +187,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
           ⋯
         </div>
         <button type="button" className="avatar__button" onClick={() => void toggle()} aria-label={expanded ? "Hide Alpha's panel" : "Ask Alpha"} aria-expanded={expanded} title={expanded ? "Hide" : "Ask Alpha"}>
-          <Character mood={busy ? "thinking" : mood} size={expanded ? 56 : 88} />
+          <Character mood={busy ? "thinking" : shownMood} size={expanded ? 56 : 88} />
         </button>
       </div>
     </div>
