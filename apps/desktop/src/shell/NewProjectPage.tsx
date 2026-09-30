@@ -1,6 +1,7 @@
 import { FolderPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AppSummary, Nudge, ProfileClient } from "../core/client";
+import { InfoTip } from "../ui";
 import "./pages.css";
 import "../modules/module.css";
 
@@ -117,7 +118,7 @@ export function NewProjectPage({
         <div className="section">
           <div className="section__head">
             <h2>Research insights</h2>
-            <span className="faint">What Alpha already noticed, in case it's relevant here.</span>
+            <InfoTip label="About research insights" content="What Alpha already noticed across your modules." />
           </div>
           <div className="card list" aria-label="Research insights">
             {nudges.slice(0, 4).map((n) => (
