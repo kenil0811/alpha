@@ -232,6 +232,32 @@ fn show_main(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Save an exported module (or any small file) to this Mac's Downloads folder and reveal it in
+/// Finder, so a person can hand the file to someone else. `filename` is used as-is if free, else
+/// suffixed `(2)`, `(3)`, ... to avoid overwriting an earlier export.
+/// ponytail: macOS-only (`open -R`, `$HOME/Downloads`); add a Windows/Linux path if the desktop
+/// app ever targets them.
+#[tauri::command]
+fn save_to_downloads(filename: String, data: Vec<u8>) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|_| "no home directory".to_string())?;
+    let downloads = PathBuf::from(home).join("Downloads");
+    std::fs::create_dir_all(&downloads).map_err(|e| e.to_string())?;
+    let stem_ext = filename.rsplit_once('.');
+    let mut path = downloads.join(&filename);
+    let mut n = 2;
+    while path.exists() {
+        let candidate = match stem_ext {
+            Some((stem, ext)) => format!("{stem} ({n}).{ext}"),
+            None => format!("{filename} ({n})"),
+        };
+        path = downloads.join(candidate);
+        n += 1;
+    }
+    std::fs::write(&path, data).map_err(|e| e.to_string())?;
+    let _ = std::process::Command::new("open").arg("-R").arg(&path).status();
+    Ok(path.to_string_lossy().into_owned())
+}
+
 fn random_token() -> Result<String, String> {
     use std::io::Read;
     let mut file = std::fs::File::open("/dev/urandom").map_err(|e| format!("urandom: {e}"))?;
@@ -568,6 +594,7 @@ pub fn run() {
             avatar_visible,
             avatar_is_visible,
             show_main,
+            save_to_downloads,
             ptt::ptt_permission,
             ptt::ptt_request_permission,
             ptt::ptt_set_shortcut,

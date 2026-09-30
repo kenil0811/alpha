@@ -358,6 +358,21 @@ export class FakeWorkflowsClient extends FakeCoreClient implements WorkflowsClie
     this.imagesRequested.push(path);
     return `blob:${path}`;
   }
+
+  exportedModules: string[] = [];
+  importedFiles: (File | Blob)[] = [];
+  /** Test control: what `importModuleFile` resolves to. */
+  importResult: { app_id: string; name: string } = { app_id: "imported-module", name: "Imported module" };
+
+  async exportModule(appId: string): Promise<Blob> {
+    this.exportedModules.push(appId);
+    return new Blob([JSON.stringify({ app_id: appId })], { type: "application/zip" });
+  }
+
+  async importModuleFile(file: File | Blob): Promise<{ app_id: string; name: string }> {
+    this.importedFiles.push(file);
+    return this.importResult;
+  }
 }
 
 export function sampleSummary(overrides: Partial<AppSummary> = {}): AppSummary {

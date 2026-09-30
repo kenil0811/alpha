@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.artifacts.service import ArtifactService
 from alpha.capabilities.browser import BrowserService
-from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
+from alpha.capabilities.errors import HTTP_STATUS, OperationFailed, invalid
 from alpha.context.connections import ConnectionService
 from alpha.data.store import RecordService, WriteContext
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
@@ -36,6 +36,7 @@ from alpha.execution.profiles import ProfileInventory
 from alpha.execution.scheduler import Scheduler
 from alpha.models.disclosure import app_data_notice
 from alpha.models.runtime import AppModelService
+from alpha.solutions.module_export import export_module, import_module
 from alpha.solutions.registry import ANY_RELEASE, AppRegistry
 
 _FIXTURE_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -89,6 +90,13 @@ class ActionRunRequest(BaseModel):
 
     input: dict[str, Any] = Field(default_factory=dict)
     origin: RunOrigin = RunOrigin.USER
+
+
+class ModuleImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # base64-encoded bytes of a `.alphamodule` file.
+    data_base64: str
 
 
 def _app_notice(platform: AppPlatform, capabilities: list[str]) -> str:
@@ -156,6 +164,42 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
             return {"deleted": platform.purge.purge_leftovers()}
         except OperationFailed as exc:
             raise _fail(exc) from exc
+
+    @app.get("/api/apps/{app_id}/export")
+    def export_app(app_id: str) -> Response:
+        """The module's current source as a portable `.alphamodule` file: its code and a
+        manifest, never a record, a memory, a secret or a run."""
+        try:
+            data = export_module(platform.registry, app_id)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{app_id}.alphamodule"'},
+        )
+
+    @app.post("/api/modules/import")
+    def import_module_route(body: ModuleImportRequest) -> dict[str, Any]:
+        """Install a `.alphamodule` file as a new module, through the same build pipeline a
+        fresh module goes through."""
+        import base64
+        import binascii
+
+        try:
+            data = base64.b64decode(body.data_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise _fail(invalid("that file couldn't be read")) from exc
+        try:
+            imported = import_module(platform.registry, data)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return {
+            "app_id": imported.app_id,
+            "name": imported.name,
+            "version_id": imported.version_id,
+            "release_id": imported.release_id,
+        }
 
     @app.get("/api/apps/{app_id}")
     def get_app(app_id: str) -> dict[str, Any]:

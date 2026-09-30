@@ -863,6 +863,11 @@ export interface WorkflowsClient {
   listRuns(): Promise<Run[]>;
   /** An authenticated image from Core (check screenshots), as an object URL. */
   imageUrl(path: string): Promise<string>;
+  /** The module's current source, packaged as a portable `.alphamodule` file (a zip): later,
+   *  an attachment anyone else building on Alpha can add as a new module. */
+  exportModule(appId: string): Promise<Blob>;
+  /** Install a `.alphamodule` file (from disk, or dropped/attached) as a new module. */
+  importModuleFile(file: File | Blob): Promise<{ app_id: string; name: string }>;
 }
 
 export function isWorkflowsClient(client: unknown): client is WorkflowsClient {
@@ -1066,6 +1071,25 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     });
     if (!response.ok) throw new CoreError("image unavailable", response.status);
     return URL.createObjectURL(await response.blob());
+  }
+
+  async exportModule(appId: string): Promise<Blob> {
+    const response = await this.fetchImpl(`${this.session.baseUrl}/api/apps/${encodeURIComponent(appId)}/export`, {
+      headers: { Authorization: `Bearer ${this.session.token}` },
+    });
+    if (!response.ok) throw new CoreError("couldn't export this module", response.status);
+    return response.blob();
+  }
+
+  async importModuleFile(file: File | Blob): Promise<{ app_id: string; name: string }> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    const data_base64 = btoa(binary);
+    return this.request<{ app_id: string; name: string }>("/api/modules/import", {
+      method: "POST",
+      body: JSON.stringify({ data_base64 }),
+    });
   }
 
   queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown> {
