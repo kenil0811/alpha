@@ -1,10 +1,15 @@
 import { useCallback, useRef, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, type LucideIcon } from "lucide-react";
-import type { AppSummary, Project } from "../core/client";
+import { Home as HomeIcon, Settings as SettingsIcon, Plus, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, FileUp, Trash2, type LucideIcon } from "lucide-react";
+import type { AppSummary, CoreClient, Project } from "../core/client";
+import { isWorkflowsClient } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
 import { ZazooIcon } from "../ui/ZazooIcon";
 import { CollapseToggleButton, ResizeHandle, type PanelControl } from "../ui/panel";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "../ui/DropdownMenu";
+import { Dialog, DialogContent } from "../ui/Dialog";
+import { useToast } from "../ui/toast";
+import { moduleFilename, saveExportedModule } from "../modules/exportModule";
+import { isAlphaModuleFile } from "../modules/alphaModuleAttachment";
 
 /** Route paths the rail links to. Kept as a small helper rather than a routing dependency here,
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
@@ -124,6 +129,9 @@ export function Rail({
   onNewProject,
   projects = [],
   panel,
+  client,
+  onModuleRemoved,
+  onModuleImported,
 }: {
   surface: Surface;
   modules: AppSummary[];
@@ -135,10 +143,64 @@ export function Rail({
   onNew: () => void;
   onNewProject?: () => void;
   panel: PanelControl;
+  /** Export and Delete on the module's context menu, and "Add a module from a file" need Core. */
+  client?: CoreClient | null;
+  onModuleRemoved?: (appId: string) => void;
+  onModuleImported?: (appId: string) => void;
 }) {
   const collapsed = panel.collapsed;
   const { visible, hiddenCount, reorder, hide, showAll } = useModuleOrdering(modules);
   const dragId = useRef<string | null>(null);
+  const toast = useToast();
+  const [deleting, setDeleting] = useState<AppSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  // Controlled so a right-click can open the same menu the ⋯ button does.
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+
+  const exportModuleFile = useCallback(
+    async (m: AppSummary) => {
+      if (!client || !isWorkflowsClient(client)) return;
+      try {
+        const blob = await client.exportModule(m.app_id);
+        const { savedTo } = await saveExportedModule(moduleFilename(m.app_id), blob);
+        toast.show(savedTo ? "Saved to Downloads" : `Exported ${m.name}`);
+      } catch (e) {
+        toast.show(e instanceof Error ? e.message : `Couldn't export ${m.name}`);
+      }
+    },
+    [client, toast],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleting || !client || !isWorkflowsClient(client)) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await client.removeApp(deleting.app_id, null);
+      onModuleRemoved?.(deleting.app_id);
+      setDeleting(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Couldn't remove this module.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [client, deleting, onModuleRemoved]);
+
+  const importFile = useCallback(
+    async (file: File) => {
+      if (!client || !isWorkflowsClient(client)) return;
+      try {
+        const result = await client.importModuleFile(file);
+        onModuleImported?.(result.app_id);
+        toast.show(`Added ${result.name}`);
+      } catch (e) {
+        toast.show(e instanceof Error ? e.message : "Couldn't add that module.");
+      }
+    },
+    [client, onModuleImported, toast],
+  );
 
   const filed = new Set(projects.flatMap((p) => p.modules));
   const byId = new Map(modules.map((m) => [m.app_id, m]));
@@ -177,7 +239,12 @@ export function Rail({
           if (dragId.current) reorder(dragId.current, m.app_id);
           dragId.current = null;
         }}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Right-click opens the same menu the ⋯ button does — one menu to keep in sync,
+          // driven by the same open/closed state rather than two separate ones.
+          setOpenMenuFor(m.app_id);
+        }}
       >
         <button
           type="button"
@@ -196,7 +263,7 @@ export function Rail({
           <span className="navbtn__text">{m.name}</span>
         </button>
         {!collapsed ? (
-          <DropdownMenu>
+          <DropdownMenu open={openMenuFor === m.app_id} onOpenChange={(open) => setOpenMenuFor(open ? m.app_id : null)}>
             <DropdownMenuTrigger asChild>
               <button type="button" className="iconbtn iconbtn--sm navrow__menu" aria-label={`${m.name} options`}>
                 <MoreVertical size={14} />
@@ -205,6 +272,22 @@ export function Rail({
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={() => onGo(target)}>Open</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => hide(m.app_id)}>Hide from sidebar</DropdownMenuItem>
+              {client && isWorkflowsClient(client) ? (
+                <DropdownMenuItem onSelect={() => void exportModuleFile(m)}>
+                  <FileUp size={14} strokeWidth={1.75} aria-hidden="true" /> Export…
+                </DropdownMenuItem>
+              ) : null}
+              {client && isWorkflowsClient(client) ? (
+                <DropdownMenuItem
+                  className="ui-menu__item--danger"
+                  onSelect={() => {
+                    setDeleteError(null);
+                    setDeleting(m);
+                  }}
+                >
+                  <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Delete
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -284,12 +367,61 @@ export function Rail({
           </div>
         ))}
         {unfiled.map(moduleRow)}
-        <button type="button" className="navbtn navbtn--new" onClick={onNew} aria-label="New module" title={collapsed ? "New module" : undefined}>
-          <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
-            <Plus size={16} strokeWidth={1.75} />
-          </span>
-          <span className="navbtn__text">New</span>
-        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".alphamodule"
+          className="sr-only"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void importFile(file);
+          }}
+        />
+        {client && isWorkflowsClient(client) ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="navbtn navbtn--new"
+                aria-label="New module"
+                title={collapsed ? "New module" : undefined}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = Array.from(e.dataTransfer.files).find(isAlphaModuleFile);
+                  if (file) void importFile(file);
+                }}
+              >
+                <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
+                  <Plus size={16} strokeWidth={1.75} />
+                </span>
+                <span className="navbtn__text">New</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={onNew}>New module</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => importInputRef.current?.click()}>
+                <FileUp size={14} strokeWidth={1.75} aria-hidden="true" /> Add a module from a file…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <button
+            type="button"
+            className="navbtn navbtn--new"
+            onClick={onNew}
+            aria-label="New module"
+            title={collapsed ? "New module" : undefined}
+          >
+            <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
+              <Plus size={16} strokeWidth={1.75} />
+            </span>
+            <span className="navbtn__text">New</span>
+          </button>
+        )}
         {onNewProject ? (
           <button type="button" className="navbtn navbtn--quiet" onClick={onNewProject} aria-label="New project" title={collapsed ? "New project" : undefined}>
             <span className="navbtn__ico" aria-hidden="true">
@@ -310,6 +442,29 @@ export function Rail({
       {!collapsed ? (
         <ResizeHandle side="left" onMouseDown={panel.startDrag} onStep={panel.resizeBy} label="Resize the sidebar" value={panel.displayWidth} min={76} max={360} isDragging={panel.isDragging} />
       ) : null}
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        {deleting ? (
+          <DialogContent title={`Delete ${deleting.name}?`}>
+            <p className="panel__hint">
+              Deletes the module and everything that exists because of it: its records, its history of runs and changes, and what was said about it in
+              the assistant. This cannot be undone.
+            </p>
+            {deleteError ? (
+              <p className="notice" role="alert">
+                {deleteError}
+              </p>
+            ) : null}
+            <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn--sm" disabled={deleteBusy} onClick={() => setDeleting(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn--sm btn--danger" disabled={deleteBusy} onClick={() => void confirmDelete()}>
+                Delete
+              </button>
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </nav>
   );
 }

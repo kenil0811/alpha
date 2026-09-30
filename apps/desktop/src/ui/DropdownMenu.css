@@ -10,3 +10,4 @@
 .ui-menu__item[data-disabled] { opacity: 0.5; cursor: not-allowed; }
 .ui-menu__label { padding: 6px 10px 2px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
 .ui-menu__sep { height: 1px; background: var(--border); margin: 4px 0; }
+.ui-menu__item--danger { color: var(--danger, #c0392b); }

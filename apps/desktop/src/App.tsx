@@ -352,6 +352,20 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
       /* the page will say */
     }
   }, [client, setSurface]);
+  const handleModuleRemoved = useCallback(
+    (appId: string) => {
+      setModulesTick((n) => n + 1);
+      if (surface.kind === "module" && surface.appId === appId) setSurface({ kind: "home" });
+    },
+    [surface, setSurface],
+  );
+  const handleModuleImported = useCallback(
+    (appId: string) => {
+      setModulesTick((n) => n + 1);
+      setSurface({ kind: "module", appId });
+    },
+    [setSurface],
+  );
 
   // Escape steps whichever panel has focus (extended -> expanded -> collapsed); it never
   // steals Escape from an open dialog/menu, and does nothing when focus is in neither panel.
@@ -528,6 +542,9 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
                 }}
                 onNew={startNew}
                 panel={{ ...railPanel, collapsed: false, displayWidth: 280 }}
+                client={client}
+                onModuleRemoved={handleModuleRemoved}
+                onModuleImported={handleModuleImported}
               />
             </div>
           </div>
@@ -558,7 +575,20 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   return (
     <div className="app">
       <div ref={railRef}>
-        <Rail surface={surface} modules={modules} projects={projects} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} onNewProject={client && isSessionsClient(client) ? () => void newProject() : undefined} panel={{ ...railPanel, displayWidth: railWidth }} />
+        <Rail
+          surface={surface}
+          modules={modules}
+          projects={projects}
+          icons={icons}
+          runtime={runtime.kind}
+          onGo={setSurface}
+          onNew={startNew}
+          onNewProject={client && isSessionsClient(client) ? () => void newProject() : undefined}
+          panel={{ ...railPanel, displayWidth: railWidth }}
+          client={client}
+          onModuleRemoved={handleModuleRemoved}
+          onModuleImported={handleModuleImported}
+        />
       </div>
       {mainContent}
       {assistantContent}
