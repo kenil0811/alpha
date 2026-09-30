@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlarmClock, ArrowLeftRight, Ban, Boxes, Check, Cog, History, icons as lucideIcons, MessageSquare, Settings2, ShieldCheck, Sparkles, Trash2, type LucideIcon } from "lucide-react";
-import { Badge, Tabs } from "../ui";
+import { Badge, InfoTip, Tabs } from "../ui";
 import { ZazooIcon } from "../ui/ZazooIcon";
 import "./module.css";
 import { type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ModuleConnection, type ScheduleStatus, isConnectionsClient } from "../core/client";
@@ -122,8 +122,10 @@ function ConnectionSwitches({ client, appId }: { client: ModuleClient; appId: st
   return (
     <div className="section" style={{ marginTop: 0 }}>
       <div className="section__head">
-        <h2>Reads from other modules</h2>
-        <span className="faint">Read-only, through the views those modules declare. Switch any off; the module then says it cannot read it.</span>
+        <h2>
+          Reads from other modules
+          <InfoTip content="Read-only, through the views those modules declare. Switch any off; the module then says it cannot read it." label="About reading other modules" />
+        </h2>
       </div>
       {error ? (
         <p className="notice" role="alert">
@@ -207,8 +209,10 @@ function BrowserAccessSwitches({ client, appId }: { client: ModuleClient; appId:
   return (
     <div className="section">
       <div className="section__head">
-        <h2>Your signed-in browser</h2>
-        <span className="faint">Sites you signed into on Connections. Reading only, paced, every page listed under Activity.</span>
+        <h2>
+          Your signed-in browser
+          <InfoTip content="Sites you signed into on Connections. Reading only, paced, every page listed under Activity." label="About signed-in browser access" />
+        </h2>
       </div>
       <div className="card list" aria-label="Signed-in browser access">
         {rows.length === 0 ? <p className="empty">No sites yet. Sign in to one on Connections first.</p> : null}
@@ -244,8 +248,10 @@ function BrowserVisits({ client, appId, version }: { client: ModuleClient; appId
   return (
     <div className="section">
       <div className="section__head">
-        <h2>Pages opened in your browser</h2>
-        <span className="faint">Through your signed-in session or a rendered page, newest first</span>
+        <h2>
+          Pages opened in your browser
+          <InfoTip content="Through your signed-in session or a rendered page, newest first." label="About pages opened" />
+        </h2>
       </div>
       <div className="card list" aria-label="Pages opened in your browser">
         {rows.map((v) => (
@@ -294,8 +300,10 @@ function Automations({ client, appId, version, onChanged }: { client: ModuleClie
   return (
     <div className="section">
       <div className="section__head">
-        <h2>Automations</h2>
-        <span className="faint">Run while Alpha is open on this Mac</span>
+        <h2>
+          Automations
+          <InfoTip content="Run while Alpha is open on this Mac." label="About automations" />
+        </h2>
       </div>
       {error ? (
         <p className="notice" role="alert">
@@ -359,8 +367,10 @@ function Failures({ client, appId, version }: { client: ModuleClient; appId: str
   return (
     <div className="section">
       <div className="section__head">
-        <h2>What went wrong</h2>
-        <span className="faint">Recent failures in plain words, and what Alpha did about them</span>
+        <h2>
+          What went wrong
+          <InfoTip content="Recent failures in plain words, and what Alpha did about them." label="About failures" />
+        </h2>
       </div>
       <div className="card list" aria-label="What went wrong">
         {items.map((f) => (
@@ -467,7 +477,10 @@ export function ModulePage({
           <div className="modhead__ico" aria-hidden="true">
             <HeadIcon size={18} strokeWidth={1.75} />
           </div>
-          <h2 id="module-heading">{detail?.name ?? "Opening…"}</h2>
+          <h2 id="module-heading">
+            {detail?.name ?? "Opening…"}
+            {detail?.description ? <InfoTip content={detail.description} label={`About ${detail.name}`} /> : null}
+          </h2>
         </div>
         {tabs.length > 1 ? (
           <Tabs className="modhead__tabs" items={tabs.map((t) => ({ value: t.id, label: t.title }))} value={currentTab?.id ?? tabs[0].id} onChange={setTab} aria-label={`${detail?.name ?? "Module"} tabs`} />
@@ -477,7 +490,6 @@ export function ModulePage({
           Chief of Staff
         </button>
       </header>
-      {detail?.description ? <p className="modhead__desc">{detail.description}</p> : null}
       {error ? (
         <p className="notice" role="alert">
           {error}
@@ -591,7 +603,7 @@ export function ModulePage({
               </div>
               {(detail.uses ?? []).length ? <ConnectionSwitches client={client} appId={appId} /> : null}
               {(detail.capabilities ?? []).includes("browser") ? <BrowserAccessSwitches client={client} appId={appId} /> : null}
-              <p className="faint">Changes to what it can reach happen through the Chief of Staff.</p>
+              <p className="item__sub">Changes to what it can reach happen through the Chief of Staff.</p>
             </section>
 
             <section className="mod-section" id="mod-settings" aria-labelledby="mod-settings-title">

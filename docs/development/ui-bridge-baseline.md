@@ -152,6 +152,22 @@ lighter than desktop — no drag-resize, no reorder/hide menu inside the drawer'
 the same `Rail` component, so those still technically work, just untested at this width) — flag for
 a dedicated mobile-pass task if that matters before ship.
 
+## UI copy and density (strong rule)
+
+The audience is executives: to the point, minimal distraction.
+
+- Titles/labels are short and specific. No descriptive sentence under a title or inside a card
+  (kill `item__sub`/`faint`/`modhead__desc`-style paragraph descriptors) — the explanation goes in
+  an `InfoTip` (`ui/InfoTip.tsx`, hover/focus tooltip) next to the title, or a native `title=`
+  attribute, never as visible body text.
+- Empty states are one short line.
+- Inputs are sized to their content, not full width. A key/id/model-name field is a compact
+  single-line input, roughly 240–320px, not a stretched full-row field. Only genuinely long
+  content (notes, prompts, free text) gets a wide or multi-line field.
+- Minimal, elegant, professional by default. Depart from it only when explicitly asked.
+- Never drop information needed to act — errors, warnings, destructive confirmations stay
+  visible, just kept to one line.
+
 ## Deps added
 `lucide-react`, `@radix-ui/react-{dialog,dropdown-menu,popover,select,tooltip}`, `react-router`
 (now wired — `HashRouter`), `@fontsource-variable/geist`, `@fontsource-variable/source-serif-4`.

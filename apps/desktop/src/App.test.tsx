@@ -16,7 +16,7 @@ describe("connections moved to Intelligence", () => {
     window.location.hash = hash;
     render(<App client={new FakeCoreClient()} />);
     expect(await screen.findByRole("tab", { name: "Connections", selected: true })).toBeInTheDocument();
-    expect(screen.getByText(/Accounts and services your modules may use/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Connections/ })).toBeInTheDocument();
     // The old Settings section is gone; Connections lives only on Intelligence now.
     await userEvent.setup().click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.queryByRole("button", { name: "Connections" })).not.toBeInTheDocument();

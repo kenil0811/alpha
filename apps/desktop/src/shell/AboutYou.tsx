@@ -9,6 +9,7 @@ import type { ProfileClient, ProfileFact } from "../core/client";
 import { humanize } from "../modules/useModule";
 import { IconButton } from "../ui/IconButton";
 import { Button } from "../ui/Button";
+import { InfoTip } from "../ui/InfoTip";
 import "../modules/module.css";
 import "../modules/views/views.css";
 
@@ -78,10 +79,12 @@ export function AboutYou({ client }: { client: ProfileClient }) {
     <section className="page" aria-labelledby="about-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <h2 id="about-heading">About you</h2>
+          <h2 id="about-heading">
+            About you
+            <InfoTip content="What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it." label="About this page" />
+          </h2>
         </div>
       </div>
-      <p className="modhead__desc">What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it.</p>
       {error ? (
         <p className="notice" role="alert">
           {error}
@@ -90,8 +93,10 @@ export function AboutYou({ client }: { client: ProfileClient }) {
       {suggestions.length ? (
         <div className="section" style={{ marginTop: 0 }}>
           <div className="section__head">
-            <h2>Waiting for your yes</h2>
-            <span className="faint">Modules and the assistant proposed these; nothing uses them until you accept.</span>
+            <h2>
+              Waiting for your yes
+              <InfoTip content="Modules and the assistant proposed these; nothing uses them until you accept." label="About suggested facts" />
+            </h2>
           </div>
           <div className="card list" aria-label="Suggested facts">
             {suggestions.map((s) => (
