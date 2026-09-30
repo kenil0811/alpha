@@ -1,7 +1,7 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CircleCheck, Circle, Cpu, HardDrive, Hammer, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
+import { CircleCheck, Circle, Cpu, HardDrive, Hammer, MoreVertical, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import { isModelAccountsClient, isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type ModelProviderAccount, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -9,7 +9,7 @@ import { ThemeControl, type Theme } from "./theme";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { setSpeakEnabled, speakEnabled } from "./tts";
 import { readTranscriptionMode, writeTranscriptionMode, type TranscriptionMode } from "./voice";
-import { Badge, PageHeader, useToast } from "../ui";
+import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, IconButton, PageHeader, useToast } from "../ui";
 import "./pages.css";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
@@ -246,13 +246,14 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
     }
   }
 
-  async function test(id: string, label: string) {
+  async function reconnect(id: string, label: string) {
     if (!isModelAccountsClient(client)) return;
     setBusy(id);
     try {
-      const result = await client.testModelAccount(id);
-      setNotes((n) => ({ ...n, [id]: result.message }));
-      toast.show(`${label}: ${result.ok ? "Connected." : result.message}`);
+      const updated = await client.reconnectModelAccount(id);
+      setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
+      setNotes((n) => ({ ...n, [id]: updated.dot.tooltip }));
+      toast.show(`${label}: reconnecting…`);
     } catch (e) {
       toast.show(e instanceof Error ? e.message : String(e));
     } finally {
@@ -268,7 +269,18 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
           <div className="item item--stack" key={p.id}>
             <div className="item__body">
               <span className="row" style={{ gap: 8, alignItems: "center" }}>
-                {p.state === "connected" || p.state === "key_saved" ? <CircleCheck size={16} /> : <Circle size={16} />}
+                <span
+                  aria-label={p.dot.tooltip}
+                  title={p.dot.tooltip}
+                  style={{
+                    display: "inline-block",
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    background: p.dot.color === "green" ? "var(--status-ok, #22c55e)" : p.dot.color === "red" ? "var(--status-error, #ef4444)" : "var(--status-off, #9ca3af)",
+                    flexShrink: 0,
+                  }}
+                />
                 <b>{p.label}</b>
                 {p.id === "claude" ? <Badge variant="neutral">Default</Badge> : null}
               </span>
@@ -305,9 +317,16 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                   ) : null}
                 </span>
               ) : null}
-              <button type="button" className="btn btn--sm" disabled={busy === p.id} onClick={() => void test(p.id, p.label)}>
-                {busy === p.id ? "Testing…" : "Test connection"}
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton aria-label={`${p.label} options`} size="sm" disabled={busy === p.id}>
+                    <MoreVertical size={14} aria-hidden="true" />
+                  </IconButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => void reconnect(p.id, p.label)}>Reconnect</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         );

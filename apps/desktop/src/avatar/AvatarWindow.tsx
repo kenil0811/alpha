@@ -11,6 +11,7 @@ import { usePushToTalk } from "../shell/ptt";
 import { useTts } from "../shell/tts";
 import { AttachMenu, AttachmentChips, useAttachments } from "../assistant/AttachMenu";
 import { toWire, useComposerDrop, usePasteAttachments } from "../assistant/attachments";
+import { NotConnectedCard } from "../assistant/NotConnectedCard";
 import { Character, type Mood } from "./Character";
 
 export const HANDOFF_KEY = "alpha.handoff";
@@ -186,10 +187,14 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
                     <span className="faint"> · {turn.attachments.map((a) => a.name).join(", ")}</span>
                   ) : null}
                 </div>
-                <div className={`avatar__reply avatar__reply--${turn.kind}`}>
-                  {turn.reply}
-                  {turn.app_name ? <span className="faint"> · {turn.app_name}</span> : null}
-                </div>
+                {turn.model_error ? (
+                  <NotConnectedCard info={turn.model_error} client={client} onResend={() => void send(turn.text)} />
+                ) : (
+                  <div className={`avatar__reply avatar__reply--${turn.kind}`}>
+                    {turn.reply}
+                    {turn.app_name ? <span className="faint"> · {turn.app_name}</span> : null}
+                  </div>
+                )}
               </div>
             ))}
             {busy ? (

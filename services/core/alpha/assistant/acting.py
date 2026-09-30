@@ -91,6 +91,9 @@ class ActTurn(BaseModel):
     outcome: str | None = None
     # What was attached to the person's message (name, kind, size only).
     attachments: list[dict[str, Any]] | None = None
+    # Set when the reply is a model-call failure: drives a "not connected" card with a guided
+    # fix instead of plain text. {"kind": "sign_in"|"key"|"generic", "provider": route.provider}.
+    model_error: dict[str, Any] | None = None
 
 
 def step_schema() -> dict[str, Any]:
@@ -303,6 +306,35 @@ def model_error_reply(exc: InferenceError) -> str:
     return "I can't reach the model right now. Try again in a moment."
 
 
+# The three shapes the Chief of Staff's "not connected" card knows how to guide someone through:
+# a CLI sign-in (claude/codex), a missing/rejected key, or nothing actionable but "try again".
+MODEL_ERROR_SIGN_IN_CODES = {"cli_not_logged_in", "cli_missing"}
+MODEL_ERROR_KEY_CODES = {"no_key", "provider_error"}
+
+
+# The gateway's route.provider ids (alpha.models.gateway.ModelGateway) aren't the Settings ->
+# Models account ids (alpha.models.accounts.PROVIDERS) - map so the "not connected" card can
+# point at the right row (and, for a key, call saveModelKey with an id Core recognizes).
+ROUTE_PROVIDER_TO_ACCOUNT = {
+    "anthropic-claude-code-cli": "claude",
+    "openai-codex-cli": "chatgpt",
+    "openai-api": "chatgpt",
+    "openrouter": "openrouter",
+    "xai-grok": "grok",
+}
+
+
+def model_error_kind(exc: InferenceError) -> str:
+    text = str(exc).lower()
+    if "subscription" in text and "disabled" in text:
+        return "key"
+    if exc.code in MODEL_ERROR_SIGN_IN_CODES or "not logged in" in text:
+        return "sign_in"
+    if exc.code in MODEL_ERROR_KEY_CODES:
+        return "key"
+    return "generic"
+
+
 def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str:
     """One line of truth about a past sentence, for the person's record and for grounding."""
     observations = detail.get("observations") or []
@@ -385,6 +417,9 @@ class _Work:
     conversation_id: str | None = None
     opened: dict[str, Any] | None = None
     reply: str = ""
+    # Set when a model call itself failed (see model_error_kind): drives the Chief of Staff's
+    # "not connected" card instead of a plain text reply. None on every ordinary turn.
+    model_error: dict[str, Any] | None = None
     observations: list[dict[str, Any]] = field(default_factory=list)
     # Sites a module could not read for want of the person's yes (see BrowserService.access).
     access: list[dict[str, Any]] = field(default_factory=list)
@@ -714,6 +749,10 @@ class ActService:
             return {
                 "kind": "done" if work.observations else "answer",
                 "reply": model_error_reply(exc),
+                "model_error": {
+                    "kind": model_error_kind(exc),
+                    "provider": ROUTE_PROVIDER_TO_ACCOUNT.get(route.provider, route.provider),
+                },
             }
 
     def _apply(self, work: _Work, output: dict[str, Any]) -> bool:
@@ -756,6 +795,8 @@ class ActService:
         if not work.observations:
             work.kind = "answer"
         work.reply = step_reply
+        if isinstance(output.get("model_error"), dict):
+            work.model_error = output["model_error"]
         return False
 
     def _access(self, sources: list[tuple[str, AppSource]]) -> list[dict[str, Any]]:
@@ -887,6 +928,8 @@ class ActService:
             "observations": work.observations,
             "attachments": work.attachments,
         }
+        if work.model_error is not None:
+            detail["model_error"] = work.model_error
         offer = self._offer(work)
         if offer is not None:
             detail["offer"] = offer
@@ -914,6 +957,7 @@ class ActService:
             created_at=turn.created_at,
             outcome=outcome_line(work.kind, detail, app_name),
             attachments=work.attachments or None,
+            model_error=work.model_error,
         )
 
     def _offer(self, work: _Work) -> dict[str, Any] | None:
@@ -951,6 +995,7 @@ class ActService:
             created_at=turn.created_at,
             outcome=turn.outcome,
             attachments=said.attachments if said else None,
+            model_error=detail.get("model_error"),
         )
 
     # ----- steps --------------------------------------------------------------------------

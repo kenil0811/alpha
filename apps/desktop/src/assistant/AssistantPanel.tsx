@@ -17,6 +17,7 @@ import { Button, IconButton } from "../ui";
 import { Markdown } from "./markdown";
 import { AttachMenu, AttachmentChips, useAttachments } from "./AttachMenu";
 import { toWire, useComposerDrop, usePasteAttachments } from "./attachments";
+import { modelErrorOf, NotConnectedCard } from "./NotConnectedCard";
 import "./assistant.css";
 
 const EXAMPLES = [
@@ -178,7 +179,7 @@ export function AssistantPanel({
                 <p>{session.summary}</p>
               </details>
             ) : null}
-            {session.turns.map((turn) =>
+            {session.turns.map((turn, index) =>
               turn.role === "user" ? (
                 <div key={turn.turn_id} className="msg msg--user">
                   {turn.text}
@@ -200,6 +201,13 @@ export function AssistantPanel({
                     {turn.text}
                   </div>
                 )
+              ) : modelErrorOf(turn.detail) ? (
+                <NotConnectedCard
+                  key={turn.turn_id}
+                  info={modelErrorOf(turn.detail)!}
+                  client={client}
+                  onResend={() => void send(precedingUserText(session.turns, index))}
+                />
               ) : (
                 <div key={turn.turn_id} className="msg msg--ai">
                   <Markdown text={turn.text} />
@@ -283,6 +291,13 @@ function offerOf(turn: SessionTurn): { label: string; say: string } | null {
 function scopeName(scope: AssistantScope): "project" | "module" | "global" {
   if (scope.projectId) return "project";
   return scope.appId ? "module" : "global";
+}
+
+/** The message a "not connected" card's Try again / I've signed in resends: the person's own
+ *  turn right before it. */
+function precedingUserText(turns: SessionTurn[], index: number): string {
+  for (let i = index - 1; i >= 0; i--) if (turns[i].role === "user") return turns[i].text;
+  return "";
 }
 
 /** Only the newest turn about a conversation draws its full card; earlier ones are one line. */

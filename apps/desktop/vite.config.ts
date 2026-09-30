@@ -23,6 +23,9 @@ export default defineConfig(({ command }) => ({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Whole-app tests remount the painted avatar rig several times; under full-suite contention
+    // they graze the 5s default while passing in ~3s alone.
+    testTimeout: 15000,
     globals: false,
   },
 }));

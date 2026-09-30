@@ -50,12 +50,33 @@ describe("Settings -> Models provider accounts", () => {
     await waitFor(() => expect(client.providers.find((p) => p.id === "grok")?.state).toBe("not_configured"));
   });
 
-  it("runs a connection test and shows the result", async () => {
-    const { client, user } = await openModels();
-    client.testResults.set("claude", { ok: true, message: "Signed in with Claude." });
+  it("shows a status dot per provider whose tooltip names the exact state", async () => {
+    await openModels();
     const providers = await screen.findByLabelText("Model providers");
     const claudeItem = within(providers).getByText("Claude").closest(".item") as HTMLElement;
-    await user.click(within(claudeItem).getByRole("button", { name: "Test connection" }));
-    expect(await within(claudeItem).findByText("Signed in with Claude.")).toBeInTheDocument();
+    expect(within(claudeItem).getByTitle("Connected.")).toBeInTheDocument();
+    const chatgptItem = within(providers).getByText("ChatGPT").closest(".item") as HTMLElement;
+    expect(within(chatgptItem).getByTitle("Not signed in", { exact: true })).toBeInTheDocument();
+  });
+
+  it("reconnects a provider from its ⋮ menu, clearing cached state and re-probing", async () => {
+    const { client, user } = await openModels();
+    const providers = await screen.findByLabelText("Model providers");
+    const claudeItem = within(providers).getByText("Claude").closest(".item") as HTMLElement;
+    await user.click(within(claudeItem).getByRole("button", { name: "Claude options" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Reconnect" }));
+    await waitFor(() => expect(client.testResults.has("claude")).toBe(false));
+  });
+
+  it("reconnecting a key-based provider clears the saved key so it prompts again", async () => {
+    const { client, user } = await openModels();
+    const providers = await screen.findByLabelText("Model providers");
+    const grokItem = within(providers).getByText("Grok").closest(".item") as HTMLElement;
+    await user.type(within(grokItem).getByPlaceholderText("Paste a key"), "xai-test-9999");
+    await user.click(within(grokItem).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(client.providers.find((p) => p.id === "grok")?.state).toBe("key_saved"));
+    await user.click(within(grokItem).getByRole("button", { name: "Grok options" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Reconnect" }));
+    await waitFor(() => expect(client.providers.find((p) => p.id === "grok")?.state).toBe("not_configured"));
   });
 });
