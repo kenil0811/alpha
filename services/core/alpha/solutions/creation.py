@@ -195,6 +195,7 @@ def build_instructions(
     lines = [
         f"App name for the person: {app_name}",
         "",
+        f"The goal, in the person's terms: {brief.goal}",
         f"What success looks like: {brief.success_summary}",
     ]
     if change:
@@ -228,8 +229,18 @@ def build_instructions(
         ]
     if brief.constraints:
         lines += ["", "Constraints:"] + [f"- {c}" for c in brief.constraints]
-    if brief.assumptions:
-        lines += ["", "Agreed assumptions:"] + [f"- {a.text}" for a in brief.assumptions]
+    # What the person said (their role, the outcomes they want, the tools they use) is a
+    # requirement; what the model chose on its own is a reversible default.
+    told = [a.text for a in brief.assumptions if a.source != "model_default"]
+    defaults = [a.text for a in brief.assumptions if a.source == "model_default"]
+    if told:
+        lines += [
+            "",
+            "What the person told Alpha (requirements: build for exactly this person, role, "
+            "outcomes and tools; never fall back to a generic version):",
+        ] + [f"- {t}" for t in told]
+    if defaults:
+        lines += ["", "Defaults chosen for them (reversible):"] + [f"- {t}" for t in defaults]
     if modules:
         lines += [
             "",
