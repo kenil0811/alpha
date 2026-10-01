@@ -39,7 +39,7 @@ class AssistantTurnOutput(BaseModel):
     delivery: Delivery
     interpretation: Interpretation
     reply: str = Field(min_length=1, description="What to say to the user, in plain language.")
-    questions: list[OpenQuestion] = Field(max_length=3)
+    questions: list[OpenQuestion] = Field(max_length=4)
     assumptions: list[str]
     brief_draft: BriefDraft | None = None
 

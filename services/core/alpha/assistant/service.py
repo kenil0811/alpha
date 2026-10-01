@@ -445,7 +445,7 @@ class AssistantService:
             result = self._inference.call(
                 route,
                 system=PROPOSE_SYSTEM,
-                prompt=propose_prompt(goal, brief, evidence, known),
+                prompt=propose_prompt(goal, brief, evidence, known, self._told(conversation_id)),
                 schema=propose_schema(),
                 scope_kind="proposal",
                 scope_ref=conversation_id,
@@ -469,6 +469,19 @@ class AssistantService:
             "default": default if default in ids else str(options[0].get("id")),
             "evidence": [e.as_dict() for e in evidence],
         }
+
+    def _told(self, conversation_id: str) -> list[str]:
+        """What the person said and chose in this conversation, oldest first, for the options."""
+        told: list[str] = []
+        for turn in self.get(conversation_id).turns:
+            if turn.role != "user":
+                continue
+            content = turn.content
+            if content.get("text"):
+                told.append(f"- said: {content['text']}")
+            for key, value in (content.get("answers") or {}).items():
+                told.append(f"- {key}: {value}")
+        return told
 
     def _known(self, text: str) -> str | None:
         if self._context is None:
@@ -649,9 +662,9 @@ class AssistantService:
         if latest.get("answers"):
             answered_texts = {str(v).strip().lower() for v in latest["answers"].values()}
         source_for_new: Literal["model_default", "user_answer", "user_correction"]
-        if latest.get("answers") or latest.get("use_defaults"):
-            source_for_new = "user_answer"
-        elif latest.get("text") and previous:
+        # Only assumptions that restate an answer are the person's (matched below); everything
+        # else the model added, even on a turn that carried answers, is its own default.
+        if latest.get("text") and previous and not latest.get("answers"):
             source_for_new = "user_correction"
         else:
             source_for_new = "model_default"
