@@ -162,13 +162,23 @@ class ModelAccounts:
         return self._describe(provider)
 
     def reconnect(self, provider: str) -> dict[str, Any]:
-        """Drop Alpha's own cached state and re-probe. For a key-based provider this also clears
-        the saved key so the person is prompted for a fresh one inline; a CLI sign-in (claude,
-        codex) is never touched here - only Alpha's cache of whether it looked signed in."""
+        """Disconnect, so the caller can connect again: a key row loses its saved key, Claude
+        loses the sign-in Alpha holds, ChatGPT is signed out of `codex`. The UI then starts the
+        sign-in (or asks for a key) straight away."""
         spec = self._spec(provider)
         self._status_cache.pop(provider, None)
         if spec["base_url"] is not None and keychain.last4(provider):
             keychain.delete_key(provider)
+        if provider == "claude":
+            claude_oauth.sign_out()
+        path = shutil.which(spec["binary"], path=self._env["PATH"]) if spec["binary"] else None
+        if provider == "chatgpt" and path:
+            try:
+                subprocess.run(
+                    [path, "logout"], env=self._env, capture_output=True, timeout=10, check=False
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass  # the sign-in that follows still replaces it
         return self._describe(provider)
 
     def sign_in(self, provider: str) -> dict[str, Any]:

@@ -345,13 +345,19 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
     if (!isModelAccountsClient(client)) return;
     setBusy(id);
     try {
+      // Disconnect, then connect again at once: a sign-in row opens its sign-in, a key row
+      // waits in its (now empty) key field.
       const updated = await client.reconnectModelAccount(id);
       setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
-      setNotes((n) => ({ ...n, [id]: updated.dot.tooltip }));
-      toast.show(`${label}: reconnecting…`);
+      setBusy(null);
+      if (id in PROVIDER_SIGN_IN_HINT) await signIn(id);
+      else {
+        setNotes((n) => ({ ...n, [id]: "Paste a new key." }));
+        document.getElementById(`key-${id}`)?.focus();
+      }
+      toast.show(`${label}: disconnected. Connect again to carry on.`);
     } catch (e) {
       toast.show(e instanceof Error ? e.message : String(e));
-    } finally {
       setBusy(null);
     }
   }
@@ -430,6 +436,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
               {!signInRow ? (
                 <span className="row" style={{ gap: 6, flexWrap: "nowrap", minWidth: 0 }}>
                   <input
+                    id={`key-${p.id}`}
                     type="password"
                     placeholder={p.key_last4 ? `•••• ${p.key_last4}` : "Paste a key"}
                     value={drafts[p.id] ?? ""}
@@ -466,6 +473,8 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
   );
 }
 
+const HIDDEN_SETTINGS = new Set(["models.provider", "models.chatgpt_model", "models.openrouter_model", "models.grok_model"]);
+
 /** Every setting Core exposes, grouped, editable in place; a change is saved as it is made.
  *  `only`, when given, renders just those groups (the section a Settings tab owns); omitted
  *  renders every group Core reports, for a section that hasn't reserved specific group names. */
@@ -499,8 +508,9 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
     }
   }
   if (!fields?.length) return null;
-  // The default provider is the star on each Settings -> Models row, not a dropdown here.
-  const shown = fields.filter((f) => f.id !== "models.provider");
+  // The default provider is the star on each Settings -> Models row, not a dropdown here; the
+  // key providers' model ids keep their defaults and aren't shown (one key field per provider).
+  const shown = fields.filter((f) => !HIDDEN_SETTINGS.has(f.id));
   const groups = [...new Set(shown.map((f) => f.group))].filter((g) => (!only || only.includes(g)) && !exclude?.includes(g));
   if (!groups.length) return null;
   return (

@@ -125,3 +125,10 @@ def test_test_connection_reports_a_rejected_key(monkeypatch: pytest.MonkeyPatch)
     result = accounts.test_connection("grok")
     assert result["ok"] is False
     assert "rejected" in result["message"]
+
+
+def test_reconnect_signs_claude_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr("alpha.models.claude_oauth.sign_out", lambda: calls.append("out"))
+    ModelAccounts().reconnect("claude")
+    assert calls == ["out"]

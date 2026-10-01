@@ -135,6 +135,7 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
   settingsFields: SettingField[] = [
     { id: "models.assistant", group: "Models", title: "Model for the assistant", description: "Understands your request.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
     { id: "models.builder_new", group: "Models", title: "Model for building a new module", description: "Writes the module.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "models.grok_model", group: "Models", title: "Grok model", description: "The xAI model id.", kind: "text", options: [], minimum: null, maximum: null, unit: null, default: "grok-4", value: "grok-4" },
     { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
   ];
   settingsUpdates: Record<string, unknown>[] = [];
@@ -210,8 +211,10 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
   async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
     this.testResults.delete(provider);
     const spec = this.providers.find((p) => p.id === provider);
-    const keyBased = spec?.id !== "claude" && spec?.id !== "chatgpt" ? true : spec?.key_last4 != null;
-    this.providers = this.providers.map((p) => (p.id === provider && keyBased ? { ...p, state: "not_configured", key_last4: null } : p));
+    const signInRow = spec?.id === "claude" || spec?.id === "chatgpt";
+    this.providers = this.providers.map((p) =>
+      p.id !== provider ? p : signInRow ? { ...p, state: "needs_sign_in", signed_in: false } : { ...p, state: "not_configured", key_last4: null },
+    );
     const updated = this.providers.find((p) => p.id === provider);
     if (!updated) throw new Error("unknown provider");
     return { ...updated, dot: this.describeDot(updated) };

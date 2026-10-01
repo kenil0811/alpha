@@ -69,13 +69,20 @@ describe("Settings -> Models provider accounts", () => {
     expect(within(chatgptItem).getByTitle("Not signed in", { exact: true })).toBeInTheDocument();
   });
 
-  it("reconnects a provider from its ⋮ menu, clearing cached state and re-probing", async () => {
+  it("Reconnect signs Claude out and starts its sign-in again at once", async () => {
     const { client, user } = await openModels();
     const providers = await screen.findByLabelText("Model providers");
     const claudeItem = within(providers).getByText("Claude").closest(".item") as HTMLElement;
     await user.click(within(claudeItem).getByRole("button", { name: "Claude options" }));
     await user.click(await screen.findByRole("menuitem", { name: "Reconnect" }));
-    await waitFor(() => expect(client.testResults.has("claude")).toBe(false));
+    await waitFor(() => expect(client.signInCalls).toEqual(["claude"]));
+    expect(client.providers.find((p) => p.id === "claude")?.state).toBe("needs_sign_in");
+    expect(await within(claudeItem).findByLabelText("Claude sign-in code")).toBeInTheDocument();
+  });
+
+  it("shows one key field per provider, no separate model-id fields", async () => {
+    await openModels();
+    expect(screen.queryByLabelText(/ChatGPT model|OpenRouter model|Grok model/)).not.toBeInTheDocument();
   });
 
   it("reconnecting a key-based provider clears the saved key so it prompts again", async () => {
