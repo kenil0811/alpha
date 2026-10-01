@@ -35,7 +35,7 @@ def test_no_key_saved_raises_no_provider_available(monkeypatch: pytest.MonkeyPat
 
 
 def test_uses_groq_first_when_both_keys_are_saved(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(transcription.keychain, "get_key", _keys(groq="g-key", chatgpt="o-key"))
+    monkeypatch.setattr(transcription.keychain, "get_key", _keys(groq="g-key", chatgpt_api="o-key"))
     seen: dict[str, Any] = {}
 
     def fake_urlopen(req: Any, timeout: int = 60) -> FakeResponse:
@@ -51,7 +51,7 @@ def test_uses_groq_first_when_both_keys_are_saved(monkeypatch: pytest.MonkeyPatc
 
 
 def test_preferred_provider_goes_first(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(transcription.keychain, "get_key", _keys(groq="g-key", chatgpt="o-key"))
+    monkeypatch.setattr(transcription.keychain, "get_key", _keys(groq="g-key", chatgpt_api="o-key"))
     seen: dict[str, Any] = {}
 
     def fake_urlopen(req: Any, timeout: int = 60) -> FakeResponse:
@@ -59,12 +59,12 @@ def test_preferred_provider_goes_first(monkeypatch: pytest.MonkeyPatch) -> None:
         return FakeResponse({"text": "hi"})
 
     monkeypatch.setattr(transcription.urllib.request, "urlopen", fake_urlopen)
-    transcription.transcribe(b"audio-bytes", "audio/webm", preferred="chatgpt")
+    transcription.transcribe(b"audio-bytes", "audio/webm", preferred="chatgpt_api")
     assert "openai.com" in seen["url"]
 
 
 def test_falls_back_to_openai_when_only_that_key_is_saved(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(transcription.keychain, "get_key", _keys(chatgpt="o-key"))
+    monkeypatch.setattr(transcription.keychain, "get_key", _keys(chatgpt_api="o-key"))
     monkeypatch.setattr(
         transcription.urllib.request,
         "urlopen",

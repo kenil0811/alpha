@@ -7,10 +7,8 @@ import stat
 from pathlib import Path
 
 import pytest
-from alpha.models.accounts import ModelAccounts, UnknownProvider
-from alpha.models.preferences import Preferences
+from alpha.models.accounts import ModelAccounts, SignInUnavailable, UnknownProvider
 from alpha.models.providers import ProviderHTTPError
-from alpha.storage.control_store import ControlStore
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +40,7 @@ def fake_security(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_lists_all_providers() -> None:
     ids = {p["id"] for p in ModelAccounts().list_providers()}
-    assert ids == {"claude", "chatgpt", "openrouter", "grok", "groq"}
+    assert ids == {"claude", "claude_api", "chatgpt", "chatgpt_api", "openrouter", "grok", "groq"}
 
 
 def test_claude_defaults_to_console_and_needs_sign_in_without_the_cli() -> None:
@@ -50,14 +48,31 @@ def test_claude_defaults_to_console_and_needs_sign_in_without_the_cli() -> None:
     assert described["state"] == "cli_missing"  # no `claude` on PATH in this test
 
 
-def test_claude_in_api_key_mode_reports_needs_key_then_key_saved(tmp_path: Path) -> None:
-    store = ControlStore(tmp_path / "control.sqlite")
-    prefs = Preferences(store)
-    prefs.update({"models.claude_auth_mode": "api_key"})
-    accounts = ModelAccounts(prefs)
-    assert next(p for p in accounts.list_providers() if p["id"] == "claude")["state"] == "needs_key"
-    accounts.save_key("claude", "sk-ant-test")
-    assert next(p for p in accounts.list_providers() if p["id"] == "claude")["state"] == "key_saved"
+def test_claude_api_is_its_own_key_row() -> None:
+    accounts = ModelAccounts()
+    row = next(p for p in accounts.list_providers() if p["id"] == "claude_api")
+    assert row["state"] == "not_configured"
+    accounts.save_key("claude_api", "sk-ant-test")
+    rows = {p["id"]: p["state"] for p in accounts.list_providers()}
+    assert rows["claude_api"] == "key_saved"
+    assert rows["claude"] == "cli_missing"  # the sign-in row is untouched by a key
+
+
+def test_claude_sign_in_opens_the_browser_page_and_waits_for_a_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr("alpha.models.claude_oauth.open_in_browser", opened.append)
+    row = ModelAccounts().sign_in("claude")
+    assert row["needs_code"] is True
+    assert opened and opened[0].startswith("https://claude.ai/oauth/authorize?")
+
+
+def test_sign_in_is_refused_for_key_rows_and_a_missing_cli() -> None:
+    with pytest.raises(SignInUnavailable):
+        ModelAccounts().sign_in("claude_api")
+    with pytest.raises(SignInUnavailable):
+        ModelAccounts().sign_in("chatgpt")  # no `codex` on PATH in this test
 
 
 def test_openrouter_starts_not_configured_then_key_saved_with_last4() -> None:
@@ -94,7 +109,7 @@ def test_test_connection_without_a_key_says_so() -> None:
 def test_test_connection_probes_the_saved_key(monkeypatch: pytest.MonkeyPatch) -> None:
     accounts = ModelAccounts()
     accounts.save_key("grok", "xai-key-123")
-    monkeypatch.setattr("alpha.models.accounts.probe", lambda base_url, key: None)
+    monkeypatch.setattr("alpha.models.accounts.probe", lambda base_url, key, headers=None: None)
     result = accounts.test_connection("grok")
     assert result == {"ok": True, "message": "Connected."}
 
@@ -103,7 +118,7 @@ def test_test_connection_reports_a_rejected_key(monkeypatch: pytest.MonkeyPatch)
     accounts = ModelAccounts()
     accounts.save_key("grok", "xai-key-bad")
 
-    def fail(base_url: str, key: str) -> None:
+    def fail(base_url: str, key: str, headers: object = None) -> None:
         raise ProviderHTTPError("The key was rejected. Check it and try again.")
 
     monkeypatch.setattr("alpha.models.accounts.probe", fail)

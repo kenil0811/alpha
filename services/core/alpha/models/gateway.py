@@ -107,6 +107,8 @@ ROUTES: dict[str, ModelRoute] = {
 # otherwise use (the desktop host's static ALPHA_ASSISTANT_ROUTE / ALPHA_BUILDER_ROUTE / etc).
 PROVIDER_ROUTE_ID: dict[str, str] = {
     "claude": "claude-code-cli",
+    # The same CLI, given the Anthropic API key from the Keychain (structured.py).
+    "claude_api": "claude-code-cli",
     "chatgpt_codex": "chatgpt-codex-cli",
     "chatgpt_api": "chatgpt-api",
     "openrouter": "openrouter",
@@ -128,6 +130,7 @@ MODEL_PREFERENCE_BY_ROUTE: dict[str, str] = {
 ACCOUNT_TO_ROUTE_ID: dict[str, str] = {
     "claude": "claude-code-cli",
     "chatgpt": "chatgpt-codex-cli",
+    "chatgpt_api": "chatgpt-api",
     "openrouter": "openrouter",
     "grok": "grok",
 }

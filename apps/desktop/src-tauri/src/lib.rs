@@ -235,27 +235,6 @@ fn show_main(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// The "not connected" card's "Open Terminal to sign in": launches Terminal.app running one of
-/// a fixed set of sign-in commands. `which` is never taken from the person's own typing, so the
-/// allowlist is only a second line of defense, not the reason this is safe.
-/// ponytail: macOS-only (`osascript` + Terminal.app); add another host's terminal if desktop
-/// ever targets one.
-#[tauri::command]
-fn open_terminal_sign_in(which: String) -> Result<(), String> {
-    let command = match which.as_str() {
-        "claude" => "claude",
-        "codex" => "codex login",
-        _ => return Err(format!("no sign-in command for {which:?}")),
-    };
-    let script = format!("tell application \"Terminal\"\nactivate\ndo script \"{command}\"\nend tell");
-    std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(script)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 /// Save an exported module (or any small file) to this Mac's Downloads folder and reveal it in
 /// Finder, so a person can hand the file to someone else. `filename` is used as-is if free, else
 /// suffixed `(2)`, `(3)`, ... to avoid overwriting an earlier export.
@@ -375,7 +354,8 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     // Builder toolchain (founder decision 2026-09-25): the Claude Code CLI route runs from the
     // user's own login, so the builder profile gets the user's HOME and a fixed toolchain PATH.
     let user_home = std::env::var("HOME").unwrap_or_default();
-    let builder_path = "/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin";
+    // `~/.local/bin` is where Claude Code's own installer puts `claude`.
+    let builder_path = format!("{user_home}/.local/bin:/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin");
     let mut command = Command::new(&python);
     command
         .args(["-I", "-m", "alpha.main"])
@@ -386,7 +366,7 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
             "ALPHA_ENABLED_MODEL_ROUTES",
             "fake,claude-code-cli,chatgpt-codex-cli,chatgpt-api,openrouter,grok",
         )
-        .env("ALPHA_BUILDER_PATH", builder_path)
+        .env("ALPHA_BUILDER_PATH", &builder_path)
         .env("ALPHA_BUILDER_HOME", &user_home)
         .env("ALPHA_DATA_DIR", &data_dir)
         // Published App runtime profiles (`just bundle-core`); Core verifies, never installs.
@@ -619,7 +599,6 @@ pub fn run() {
             avatar_is_visible,
             show_main,
             save_to_downloads,
-            open_terminal_sign_in,
             ptt::ptt_permission,
             ptt::ptt_request_permission,
             ptt::ptt_set_shortcut,

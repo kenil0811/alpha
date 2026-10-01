@@ -33,27 +33,27 @@ QUESTIONS: tuple[dict[str, str], ...] = (
     {
         "id": "occupation",
         "label": "What do you do?",
-        "hint": "Your work or study, and a hobby or two if you like.",
+        "hint": "Work, study, a hobby or two.",
     },
     {
         "id": "week",
         "label": "What fills your week?",
-        "hint": "The three or four things you spend most time on.",
+        "hint": "Where most of your week goes.",
     },
     {
         "id": "goal",
         "label": "What are you trying to get better at right now?",
-        "hint": "A job hunt, a habit, a course, a business.",
+        "hint": "A job hunt, a habit, a course.",
     },
     {
         "id": "tools",
         "label": "Where does your work live?",
-        "hint": "Email, LinkedIn, spreadsheets, Notion, a learning platform…",
+        "hint": "Email, Notion, spreadsheets…",
     },
     {
         "id": "begin",
         "label": "Where would you like Alpha to begin?",
-        "hint": "Anything; Alpha proposes a first shape from your answers.",
+        "hint": "Anything. Alpha suggests a start.",
     },
 )
 FACT_FIELDS = {

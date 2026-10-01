@@ -22,16 +22,12 @@ MODEL_OPTIONS: tuple[tuple[str, str], ...] = (
 # key and keeps working even where a Claude subscription sign-in is turned off (founder decision
 # 2026-09-25). The others are the person's explicit choice, made in Settings -> Models.
 PROVIDER_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("claude", "Claude"),
+    ("claude", "Claude (signed in)"),
+    ("claude_api", "Claude (API key)"),
     ("chatgpt_codex", "ChatGPT (signed in with Codex)"),
     ("chatgpt_api", "ChatGPT (API key)"),
     ("openrouter", "OpenRouter"),
     ("grok", "Grok"),
-)
-
-CLAUDE_AUTH_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("console", "Console account (sign in with `claude`)"),
-    ("api_key", "Anthropic API key"),
 )
 
 # The person's default governance stance, shown in Settings and offered as the + menu's starting
@@ -106,16 +102,6 @@ FIELDS: tuple[SettingField, ...] = (
         "choice",
         "claude",
         PROVIDER_OPTIONS,
-    ),
-    SettingField(
-        "models.claude_auth_mode",
-        "Models",
-        "Claude sign-in",
-        "Console account: sign in once with `claude` in a terminal, no key needed. API key: use "
-        "an Anthropic API key instead, for example where Console sign-in is turned off.",
-        "choice",
-        "console",
-        CLAUDE_AUTH_OPTIONS,
     ),
     SettingField(
         "models.chatgpt_model",

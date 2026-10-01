@@ -18,14 +18,21 @@ class ProviderHTTPError(Exception):
 
 
 def _request(
-    url: str, api_key: str, body: dict[str, Any] | None, timeout: int
+    url: str,
+    api_key: str,
+    body: dict[str, Any] | None,
+    timeout: int,
+    headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(
         url,
         data=data,
         method="POST" if body is not None else "GET",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            **(headers or {"Authorization": f"Bearer {api_key}"}),
+            "Content-Type": "application/json",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - fixed https hosts
@@ -41,10 +48,13 @@ def _request(
         raise ProviderHTTPError("The provider took too long to answer.") from exc
 
 
-def probe(base_url: str, api_key: str, timeout: int = 10) -> None:
+def probe(
+    base_url: str, api_key: str, timeout: int = 10, headers: dict[str, str] | None = None
+) -> None:
     """A cheap authenticated call (list models) used only to prove a key works. Raises
-    ProviderHTTPError on failure; returns nothing on success."""
-    _request(f"{base_url}/models", api_key, None, timeout)
+    ProviderHTTPError on failure; returns nothing on success. `headers` replaces the default
+    Bearer header for a provider that authenticates differently (Anthropic's x-api-key)."""
+    _request(f"{base_url}/models", api_key, None, timeout, headers)
 
 
 def chat_structured(

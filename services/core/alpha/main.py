@@ -100,7 +100,9 @@ def build(
         max_total_seconds=settings.build_max_total_seconds,
         preferences=preferences,
     )
-    model_accounts = ModelAccounts(preferences)
+    model_accounts = ModelAccounts(
+        preferences, tool_path=settings.builder_path, home=settings.builder_home
+    )
     inference = StructuredInference(
         gateway,
         claude_binary="claude",

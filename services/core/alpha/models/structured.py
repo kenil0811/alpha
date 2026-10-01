@@ -21,13 +21,13 @@ from typing import Any
 
 from alpha_contracts.builds import BuildUsage, CostBasis
 
-from alpha.models import keychain
+from alpha.models import claude_oauth, keychain
 from alpha.models.gateway import ModelGateway, ModelRoute
 from alpha.models.providers import ProviderHTTPError, chat_structured
 
 # route_id -> (provider id the key/CLI is saved under in the Keychain, base URL for HTTP routes)
 _HTTP_PROVIDER: dict[str, tuple[str, str]] = {
-    "chatgpt-api": ("chatgpt", "https://api.openai.com/v1"),
+    "chatgpt-api": ("chatgpt_api", "https://api.openai.com/v1"),
     "openrouter": ("openrouter", "https://openrouter.ai/api/v1"),
     "grok": ("grok", "https://api.x.ai/v1"),
 }
@@ -175,21 +175,28 @@ class StructuredInference:
             "DISABLE_AUTOUPDATER": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
-        # Default is a Console account sign-in owned by the CLI itself (`claude` -> /login): no
-        # key is passed, so the person's own logged-in session is used. Only when they chose
-        # "Anthropic API key" in Settings -> Models is a key read from the Keychain (falling back
-        # to Core's own environment, e.g. for a host that sets ANTHROPIC_API_KEY directly) and
-        # passed through. Never logged. Without a Preferences store at all (some tests), the
-        # legacy env-passthrough behaviour is kept.
+        # Default is the CLI's own sign-in (`claude auth login`): no key is passed, so the
+        # person's logged-in session is used. Only when "Claude API" is the default provider in
+        # Settings -> Models is its key read from the Keychain (falling back to Core's own
+        # environment, e.g. a host that sets ANTHROPIC_API_KEY directly) and passed through.
+        # Never logged. Without a Preferences store at all (some tests), the legacy
+        # env-passthrough behaviour is kept.
+        # ponytail: follows the default provider, not a per-session + Advanced choice of Claude
+        # API; carry the account on ModelRoute if sessions need to pick it on their own.
         prefs = self._gateway.preferences
-        auth_mode = str(prefs.get("models.claude_auth_mode")) if prefs is not None else None
         api_key = None
-        if auth_mode == "api_key":
-            api_key = keychain.get_key("claude") or os.environ.get("ANTHROPIC_API_KEY")
+        if prefs is not None and prefs.get("models.provider") == "claude_api":
+            api_key = keychain.get_key("claude_api") or os.environ.get("ANTHROPIC_API_KEY")
         elif prefs is None:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
         if api_key:
             env["ANTHROPIC_API_KEY"] = api_key
+        elif prefs is not None:
+            # Signed in through Alpha (Settings -> Models -> Sign in): hand the CLI that token,
+            # which wins over whatever the CLI's own login holds.
+            oauth_token = claude_oauth.access_token()
+            if oauth_token:
+                env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
         argv = [
             self._binary,
             "-p",

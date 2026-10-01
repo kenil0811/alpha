@@ -193,7 +193,7 @@ class TranscribeRequest(BaseModel):
 
     audio_b64: str = Field(min_length=1, max_length=34_000_000)
     mime: str = Field(default="audio/webm", max_length=60)
-    # A Keychain provider id ("groq" or "chatgpt") to try first; omitted tries Groq then OpenAI.
+    # A Keychain provider id ("groq" or "chatgpt_api") to try first; omitted tries Groq then OpenAI.
     provider: str | None = Field(default=None, max_length=20)
 
 

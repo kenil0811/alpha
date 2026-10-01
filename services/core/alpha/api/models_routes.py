@@ -7,8 +7,14 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from alpha.models.accounts import ModelAccounts, UnknownProvider
+from alpha.models.accounts import ModelAccounts, SignInUnavailable, UnknownProvider
 from alpha.models.keychain import KeychainError
+
+
+class CodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=2000)
 
 
 class KeyRequest(BaseModel):
@@ -56,3 +62,25 @@ def register(app: FastAPI, accounts: ModelAccounts) -> None:
             return {"provider": accounts.reconnect(provider)}
         except UnknownProvider as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/model-accounts/{provider}/sign-in")
+    def sign_in(provider: str) -> dict[str, Any]:
+        """Open the provider CLI's browser sign-in; poll GET /api/model-accounts to see it land."""
+        try:
+            return {"provider": accounts.sign_in(provider)}
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SignInUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/model-accounts/{provider}/sign-in/finish")
+    def finish_sign_in(provider: str, body: CodeRequest) -> dict[str, Any]:
+        """Claude: the code its sign-in page showed, exchanged for tokens kept in the Keychain."""
+        try:
+            return {"provider": accounts.finish_sign_in(provider, body.code)}
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SignInUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except KeychainError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc

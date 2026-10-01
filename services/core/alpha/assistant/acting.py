@@ -367,7 +367,7 @@ MODEL_ERROR_KEY_CODES = {"no_key", "provider_error"}
 ROUTE_PROVIDER_TO_ACCOUNT = {
     "anthropic-claude-code-cli": "claude",
     "openai-codex-cli": "chatgpt",
-    "openai-api": "chatgpt",
+    "openai-api": "chatgpt_api",
     "openrouter": "openrouter",
     "xai-grok": "grok",
 }

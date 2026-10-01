@@ -61,7 +61,7 @@ def test_claude_console_mode_passes_no_key_even_if_core_env_has_one(
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-core-env")
     gateway, prefs = make_gateway(tmp_path, frozenset({"claude-code-cli"}))
-    assert prefs.get("models.claude_auth_mode") == "console"
+    assert prefs.get("models.provider") == "claude"
     inference = StructuredInference(gateway, claude_binary=str(echo_env_cli(tmp_path)))
     result = inference.call(
         gateway.route("claude-code-cli"),
@@ -78,8 +78,8 @@ def test_claude_api_key_mode_uses_the_keychain(
     tmp_path: Path, fake_security: None
 ) -> None:
     gateway, prefs = make_gateway(tmp_path, frozenset({"claude-code-cli"}))
-    prefs.update({"models.claude_auth_mode": "api_key"})
-    keychain.set_key("claude", "sk-ant-from-keychain")
+    prefs.update({"models.provider": "claude_api"})
+    keychain.set_key("claude_api", "sk-ant-from-keychain")
     inference = StructuredInference(gateway, claude_binary=str(echo_env_cli(tmp_path)))
     result = inference.call(
         gateway.route("claude-code-cli"),

@@ -21,7 +21,7 @@ MAX_AUDIO_BYTES = 25 * 1024 * 1024
 # `preferred` id is given (and has a saved key), in which case it goes first.
 _PROVIDERS: tuple[tuple[str, str, str], ...] = (
     ("groq", "https://api.groq.com/openai/v1/audio/transcriptions", "whisper-large-v3-turbo"),
-    ("chatgpt", "https://api.openai.com/v1/audio/transcriptions", "whisper-1"),
+    ("chatgpt_api", "https://api.openai.com/v1/audio/transcriptions", "whisper-1"),
 )
 
 
@@ -81,7 +81,7 @@ def _call(url: str, model: str, api_key: str, audio: bytes, mime: str) -> str:
 
 def transcribe(audio: bytes, mime: str, preferred: str | None = None) -> str:
     """Transcribes `audio` through the first provider with a saved key: `preferred` (a Keychain
-    provider id, "groq" or "chatgpt") first when given and its key is saved, then Groq, then
+    provider id, "groq" or "chatgpt_api") first when given and its key is saved, then Groq, then
     OpenAI. Raises NoProviderAvailable when neither key is saved, TranscriptionError on any
     provider failure."""
     if len(audio) > MAX_AUDIO_BYTES:
