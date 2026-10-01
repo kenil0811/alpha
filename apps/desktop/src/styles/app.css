@@ -166,7 +166,10 @@ a { color: var(--primary); }
 
 .toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .toolbar select.btn { padding-right: 24px; }
-.search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; background: var(--surface); flex: 1; min-width: 160px; max-width: 320px; color: var(--text-3); }
+.search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; background: var(--surface); flex: 1 100 240px; min-width: 96px; max-width: 320px; color: var(--text-3); }
+/* Fit order: a search bar or an empty field gives up its width first (down to a usable minimum),
+   before labels and filled values start to truncate. */
+input:placeholder-shown:not([type="checkbox"]):not([type="radio"]) { flex-shrink: 100; }
 .search input { border: 0; background: transparent; flex: 1; min-width: 0; color: var(--text); }
 .toolbar__hint { margin-left: auto; font-size: 12px; color: var(--text-3); }
 .tablewrap { overflow-x: auto; }

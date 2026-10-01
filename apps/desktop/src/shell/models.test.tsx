@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
 import { App } from "../App";
 import { FakeWorkflowsClient } from "../test/fakeWorkflows";
 
-async function openModels() {
+async function openModels(setup?: (client: FakeWorkflowsClient) => void) {
   const client = new FakeWorkflowsClient();
+  setup?.(client);
   const user = userEvent.setup();
   render(<App client={client} />);
   expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
@@ -67,6 +68,18 @@ describe("Settings -> Models provider accounts", () => {
     expect(within(claudeItem).getByTitle("Connected.")).toBeInTheDocument();
     const chatgptItem = within(providers).getByText("ChatGPT").closest(".item") as HTMLElement;
     expect(within(chatgptItem).getByTitle("Not signed in", { exact: true })).toBeInTheDocument();
+  });
+
+  it("ChatGPT without Codex offers Install Codex, then Connect", async () => {
+    const { client, user } = await openModels((c) => {
+      c.providers = c.providers.map((p) => (p.id === "chatgpt" ? { ...p, state: "cli_missing", cli_present: false } : p));
+    });
+    const providers = await screen.findByLabelText("Model providers");
+    const chatgptItem = within(providers).getByText("ChatGPT").closest(".item") as HTMLElement;
+    await user.click(within(chatgptItem).getByRole("button", { name: "Install Codex" }));
+    expect(client.installCalls).toEqual(["chatgpt"]);
+    await user.click(await within(chatgptItem).findByRole("button", { name: "Connect" }));
+    expect(client.signInCalls).toEqual(["chatgpt"]);
   });
 
   it("Reconnect signs Claude out and starts its sign-in again at once", async () => {

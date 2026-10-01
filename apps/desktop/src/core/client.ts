@@ -327,6 +327,10 @@ export interface ModelProviderAccount {
   dot: { color: "green" | "grey" | "red"; tooltip: string };
   /** Set on a sign-in answer when the browser page shows a code to paste back (Claude). */
   needs_code?: boolean;
+  /** Codex is being installed in the background (npm); poll until it clears. */
+  installing?: boolean;
+  /** The last background install failed. */
+  install_failed?: boolean;
 }
 
 /** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
@@ -343,6 +347,8 @@ export interface ModelAccountsClient {
   signInModelAccount(provider: string): Promise<ModelProviderAccount>;
   /** Claude: the code its sign-in page showed, exchanged by Core for tokens (Keychain). */
   finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount>;
+  /** Make the provider's CLI available without a terminal (ChatGPT: link or install Codex). */
+  installModelCli(provider: string): Promise<ModelProviderAccount>;
 }
 
 /** A Core older than the status dot sends rows without one; draw those grey rather than crash. */
@@ -1271,6 +1277,11 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   async signInModelAccount(provider: string): Promise<ModelProviderAccount> {
     const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/sign-in`, { method: "POST" });
+    return withDot(page.provider);
+  }
+
+  async installModelCli(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/install`, { method: "POST" });
     return withDot(page.provider);
   }
 

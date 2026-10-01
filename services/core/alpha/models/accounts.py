@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from alpha.models import claude_oauth, keychain
@@ -47,8 +48,15 @@ PROVIDERS: dict[str, dict[str, Any]] = {
 SIGN_IN_ARGS: dict[str, list[str]] = {
     "chatgpt": ["login"],
 }
-# Where to get a sign-in row's CLI when it isn't installed.
+# Where to get a sign-in row's CLI when it can't be installed for the person.
 INSTALL_PAGES: dict[str, str] = {"chatgpt": "https://github.com/openai/codex"}
+# Copies of `codex` that come with the ChatGPT app (not a terminal command until linked).
+CODEX_BUNDLES = (
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+    "~/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+)
+CODEX_PACKAGE = "@openai/codex"
+INSTALL_SECONDS = 300.0
 # An unfinished browser sign-in is stopped after this long.
 SIGN_IN_SECONDS = 300.0
 
@@ -78,6 +86,9 @@ class ModelAccounts:
         # provider -> (monotonic time it was probed, the test_connection result)
         self._status_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._sign_ins: dict[str, subprocess.Popen[bytes]] = {}
+        # A background `npm install` of a CLI, and whether the last one failed.
+        self._installs: dict[str, subprocess.Popen[bytes]] = {}
+        self._install_failed: set[str] = set()
         self._lock = threading.Lock()
 
     def _spec(self, provider: str) -> dict[str, Any]:
@@ -121,10 +132,13 @@ class ModelAccounts:
             state = "connected" if signed_in and cli_present else missing
         else:
             state = "key_saved" if saved else "not_configured"
+        install = self._installs.get(provider)
         return {
             "id": provider,
             "label": spec["label"],
             "state": state,
+            "installing": install is not None and install.poll() is None,
+            "install_failed": provider in self._install_failed,
             "cli_present": cli_present,
             "signed_in": signed_in,
             "key_last4": saved,
@@ -197,12 +211,7 @@ class ModelAccounts:
         if args is None:
             raise SignInUnavailable(f"{spec['label']} signs in with a key, not a browser.")
         if path is None:
-            # The next step, not a dead end: open where to get the CLI.
-            claude_oauth.open_in_browser(INSTALL_PAGES[provider])
-            raise SignInUnavailable(
-                f"{spec['label']} needs Codex on this Mac. Its install page is open in your"
-                f" browser; or paste a key in {spec['label']} API."
-            )
+            raise SignInUnavailable(f"Install {spec['binary'].title()} first.")
         with self._lock:
             running = self._sign_ins.get(provider)
             if running is None or running.poll() is not None:
@@ -220,6 +229,63 @@ class ModelAccounts:
                 timer.start()
         self._status_cache.pop(provider, None)
         return self._describe(provider)
+
+    def install(self, provider: str) -> dict[str, Any]:
+        """Make the provider's CLI a terminal command without showing a terminal: link the copy
+        the ChatGPT app ships into ~/.local/bin (instant), else `npm install` it there in the
+        background (the row reports `installing` until it lands). Only when neither can work is
+        its install page opened in the browser."""
+        spec = self._spec(provider)
+        if provider != "chatgpt":
+            raise SignInUnavailable(f"{spec['label']} has nothing to install.")
+        self._status_cache.pop(provider, None)
+        self._install_failed.discard(provider)
+        if shutil.which("codex", path=self._env["PATH"]):
+            return self._describe(provider)
+        local = Path(self._env["HOME"]) / ".local"
+        bundle = next(
+            (p for p in map(os.path.expanduser, CODEX_BUNDLES) if os.access(p, os.X_OK)), None
+        )
+        if bundle:
+            link = local / "bin" / "codex"
+            link.parent.mkdir(parents=True, exist_ok=True)
+            if link.is_symlink():
+                link.unlink()  # a stale link to a moved app
+            link.symlink_to(bundle)
+            return self._describe(provider)
+        npm = shutil.which("npm", path=self._env["PATH"])
+        if npm is None:
+            claude_oauth.open_in_browser(INSTALL_PAGES[provider])
+            raise SignInUnavailable(
+                "Codex couldn't be installed here. Its install page is open in your browser; "
+                "or paste a key in ChatGPT API."
+            )
+        with self._lock:
+            running = self._installs.get(provider)
+            if running is None or running.poll() is not None:
+                proc = subprocess.Popen(
+                    [npm, "install", "-g", "--prefix", str(local), CODEX_PACKAGE],
+                    env=self._env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                self._installs[provider] = proc
+                threading.Thread(
+                    target=self._watch_install, args=(provider, proc), daemon=True
+                ).start()
+        return self._describe(provider)
+
+    def _watch_install(self, provider: str, proc: subprocess.Popen[bytes]) -> None:
+        try:
+            code = proc.wait(timeout=INSTALL_SECONDS)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            code = -1
+        if code != 0:
+            self._install_failed.add(provider)
+        self._status_cache.pop(provider, None)
 
     def finish_sign_in(self, provider: str, code: str) -> dict[str, Any]:
         """Claude only: the code the sign-in page showed, exchanged for tokens (Keychain)."""

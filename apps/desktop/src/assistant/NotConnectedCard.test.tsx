@@ -36,6 +36,18 @@ describe("NotConnectedCard", () => {
     await waitFor(() => expect(onResend).toHaveBeenCalledTimes(1), { timeout: 5000 });
   });
 
+  it("without Codex shows Install Codex, then Connect, never a terminal", async () => {
+    const client = new FakeWorkflowsClient();
+    client.providers = client.providers.map((p) => (p.id === "chatgpt" ? { ...p, state: "cli_missing", cli_present: false } : p));
+    const user = userEvent.setup();
+    render(<NotConnectedCard info={{ kind: "sign_in", provider: "chatgpt" }} client={client} onResend={() => undefined} auto />);
+    await user.click(await screen.findByRole("button", { name: "Install Codex" }));
+    expect(client.installCalls).toEqual(["chatgpt"]);
+    expect(client.signInCalls).toEqual([]);
+    await user.click(await screen.findByRole("button", { name: "Connect ChatGPT" }));
+    expect(client.signInCalls).toEqual(["chatgpt"]);
+  });
+
   it("an older card waits for a click", async () => {
     const client = signedOutClient();
     render(<NotConnectedCard info={{ kind: "sign_in", provider: "claude" }} client={client} onResend={() => undefined} />);

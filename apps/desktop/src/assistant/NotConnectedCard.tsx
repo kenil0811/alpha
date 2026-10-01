@@ -32,6 +32,9 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState("");
   const [note, setNote] = useState<string | null>(null);
+  // ChatGPT without Codex on this Mac: Install Codex first (Core links or installs it, never a
+  // terminal), then Connect.
+  const [install, setInstall] = useState<"needed" | "running" | null>(null);
   const label = PROVIDER_LABEL[info.provider] ?? info.provider;
   const accounts = isModelAccountsClient(client) ? client : null;
   const browser = info.kind === "sign_in" && BROWSER_SIGN_IN.has(info.provider);
@@ -63,8 +66,54 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
   }, [accounts, info.provider]);
 
   useEffect(() => {
-    if (auto && browser) void signIn();
-  }, [auto, browser, signIn]);
+    if (!browser || !accounts) return;
+    let live = true;
+    const check = info.provider === "chatgpt" ? accounts.listModelAccounts().then((all) => all.find((p) => p.id === info.provider)?.state === "cli_missing") : Promise.resolve(false);
+    void check
+      .catch(() => false)
+      .then((missing) => {
+        if (!live) return;
+        if (missing) setInstall("needed");
+        else if (auto) void signIn();
+      });
+    return () => {
+      live = false;
+    };
+  }, [auto, browser, accounts, info.provider, signIn]);
+
+  // While Codex installs in the background, check every few seconds until it lands.
+  useEffect(() => {
+    if (install !== "running" || !accounts) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      void accounts
+        .listModelAccounts()
+        .then((all) => {
+          const row = all.find((p) => p.id === info.provider);
+          if (row?.installing && Date.now() - started < GIVE_UP_MS) return;
+          if (row?.state === "cli_missing") {
+            setInstall("needed");
+            setNote("Codex didn't install. Try again, or add a ChatGPT API key in Settings.");
+          } else setInstall(null);
+        })
+        .catch(() => undefined);
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [install, accounts, info.provider]);
+
+  async function installCli() {
+    if (!accounts) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const row = await accounts.installModelCli(info.provider);
+      setInstall(row.installing ? "running" : row.state === "cli_missing" ? "needed" : null);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // While the browser sign-in is open, check every few seconds and resend once it lands.
   useEffect(() => {
@@ -150,10 +199,16 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
           </button>
         </div>
       ) : null}
-      {browser ? (
+      {browser && install ? (
+        <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+          <button type="button" className="btn btn--sm btn--primary" disabled={busy || install === "running"} onClick={() => void installCli()}>
+            {install === "running" ? "Installing Codex…" : "Install Codex"}
+          </button>
+        </div>
+      ) : browser ? (
         <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
           <button type="button" className="btn btn--sm btn--primary" disabled={busy || !accounts} onClick={() => void signIn()}>
-            {waiting || needsCode ? "Open sign-in again" : `Sign in to ${label}`}
+            {waiting || needsCode ? "Open sign-in again" : info.provider === "chatgpt" ? `Connect ${label}` : `Sign in to ${label}`}
           </button>
           <button type="button" className="btn btn--sm" disabled={busy || !accounts} onClick={() => void recheck()}>
             I've signed in

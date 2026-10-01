@@ -254,6 +254,13 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
       window.clearTimeout(stop);
     };
   }, [signingIn, load]);
+  // While Codex installs in the background, refresh until it lands.
+  const installing = providers?.some((p) => p.installing) ?? false;
+  useEffect(() => {
+    if (!installing) return;
+    const timer = window.setInterval(load, 3000);
+    return () => window.clearInterval(timer);
+  }, [installing, load]);
   useEffect(() => {
     if (signingIn && providers?.find((p) => p.id === signingIn)?.state === "connected") {
       setNotes((n) => ({ ...n, [signingIn]: "" }));
@@ -304,6 +311,20 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
         setNotes((n) => ({ ...n, [id]: "Finish signing in in your browser." }));
         setSigningIn(id);
       }
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function install(id: string) {
+    if (!isModelAccountsClient(client)) return;
+    setBusy(id);
+    try {
+      const updated = await client.installModelCli(id);
+      setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
+      setNotes((n) => ({ ...n, [id]: updated.installing ? "" : updated.state === "connected" ? "" : "Codex is ready. Connect to sign in." }));
     } catch (e) {
       toast.show(e instanceof Error ? e.message : String(e));
     } finally {
@@ -406,11 +427,14 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                   <InfoTip content={PROVIDER_SIGN_IN_HINT[p.id]} label={`How to sign in to ${p.label}`} />
                 ) : null}
               </span>
-              {notes[p.id] ? (
-                <div className="item__sub truncate" role="status" title={notes[p.id]}>
-                  {notes[p.id]}
-                </div>
-              ) : null}
+              {(() => {
+                const note = p.installing ? "Installing Codex…" : p.install_failed && p.state === "cli_missing" ? "Codex didn't install. Retry, or use ChatGPT API." : notes[p.id];
+                return note ? (
+                  <div className="item__sub truncate" role="status" title={note}>
+                    {note}
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="row item__controls" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
               {codeFor === p.id ? (
@@ -421,7 +445,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     onChange={(e) => setCode(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void connectCode(p.id, p.label)}
                     aria-label={`${p.label} sign-in code`}
-                    style={{ flex: "0 1 auto", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
+                    style={{ width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm btn--primary" disabled={busy === p.id || !code.trim()} onClick={() => void connectCode(p.id, p.label)}>
                     Connect
@@ -429,9 +453,15 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                 </span>
               ) : null}
               {signInRow && codeFor !== p.id && (p.state === "needs_sign_in" || p.state === "cli_missing") ? (
-                <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id} onClick={() => void signIn(p.id)}>
-                  {p.id === "chatgpt" && p.state === "cli_missing" ? "Get Codex" : "Sign in"}
-                </button>
+                p.state === "cli_missing" ? (
+                  <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id || p.installing} onClick={() => void install(p.id)}>
+                    {p.installing ? "Installing…" : p.install_failed ? "Retry install" : "Install Codex"}
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id} onClick={() => void signIn(p.id)}>
+                    {p.id === "chatgpt" ? "Connect" : "Sign in"}
+                  </button>
+                )
               ) : null}
               {!signInRow ? (
                 <span className="row" style={{ gap: 6, flexWrap: "nowrap", minWidth: 0 }}>
@@ -443,7 +473,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
                     aria-label={`${p.label} key`}
                     className="input--compact"
-                    style={{ flex: "0 1 auto", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
+                    style={{ width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm" disabled={busy === p.id || !(drafts[p.id] ?? "").trim()} onClick={() => void save(p.id, p.label)}>
                     Save

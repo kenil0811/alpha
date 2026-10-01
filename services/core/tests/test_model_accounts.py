@@ -68,16 +68,11 @@ def test_claude_sign_in_opens_the_browser_page_and_waits_for_a_code(
     assert opened and opened[0].startswith("https://claude.ai/oauth/authorize?")
 
 
-def test_sign_in_is_refused_for_key_rows_and_a_missing_cli_opens_its_install_page(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    opened: list[str] = []
-    monkeypatch.setattr("alpha.models.claude_oauth.open_in_browser", opened.append)
+def test_sign_in_is_refused_for_key_rows_and_a_missing_cli() -> None:
     with pytest.raises(SignInUnavailable):
         ModelAccounts().sign_in("claude_api")
-    with pytest.raises(SignInUnavailable, match="install page"):
+    with pytest.raises(SignInUnavailable, match="Install Codex"):
         ModelAccounts().sign_in("chatgpt")  # no `codex` on PATH in this test
-    assert opened == ["https://github.com/openai/codex"]
 
 
 def test_openrouter_starts_not_configured_then_key_saved_with_last4() -> None:
@@ -137,3 +132,55 @@ def test_reconnect_signs_claude_out(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("alpha.models.claude_oauth.sign_out", lambda: calls.append("out"))
     ModelAccounts().reconnect("claude")
     assert calls == ["out"]
+
+
+def _script(path: Path, body: str) -> Path:
+    path.write_text("#!/bin/sh\n" + body)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    return path
+
+
+def test_install_links_the_codex_that_ships_with_the_chatgpt_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _script(tmp_path / "bundled-codex", 'echo "Logged in using ChatGPT"\n')
+    monkeypatch.setattr("alpha.models.accounts.CODEX_BUNDLES", (str(bundle),))
+    home = tmp_path / "home"
+    accounts = ModelAccounts(tool_path=f"{home}/.local/bin:/bin:/usr/bin", home=str(home))
+    row = accounts.install("chatgpt")
+    assert (home / ".local/bin/codex").resolve() == bundle.resolve()
+    assert row["state"] == "connected"  # already signed in through the app
+
+
+def test_install_falls_back_to_npm_in_the_background(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("alpha.models.accounts.CODEX_BUNDLES", ())
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    home = tmp_path / "home"
+    # A fake npm that "installs" codex where `--prefix` says.
+    _script(
+        tools / "npm",
+        'mkdir -p "$4/bin"\n'
+        'printf \'#!/bin/sh\\necho "Not logged in"\\nexit 1\\n\' > "$4/bin/codex"\n'
+        'chmod +x "$4/bin/codex"\n',
+    )
+    accounts = ModelAccounts(tool_path=f"{home}/.local/bin:{tools}:/bin:/usr/bin", home=str(home))
+    accounts.install("chatgpt")
+    accounts._installs["chatgpt"].wait(timeout=10)
+    row = next(p for p in accounts.list_providers() if p["id"] == "chatgpt")
+    assert row["installing"] is False and row["install_failed"] is False
+    assert row["state"] == "needs_sign_in"  # installed; Connect is next
+
+
+def test_install_without_npm_opens_the_install_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("alpha.models.accounts.CODEX_BUNDLES", ())
+    opened: list[str] = []
+    monkeypatch.setattr("alpha.models.claude_oauth.open_in_browser", opened.append)
+    accounts = ModelAccounts(tool_path="/bin:/usr/bin", home=str(tmp_path))
+    with pytest.raises(SignInUnavailable, match="install page"):
+        accounts.install("chatgpt")
+    assert opened == ["https://github.com/openai/codex"]

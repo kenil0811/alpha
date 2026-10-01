@@ -84,3 +84,16 @@ def register(app: FastAPI, accounts: ModelAccounts) -> None:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except KeychainError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.post("/api/model-accounts/{provider}/install")
+    def install(provider: str) -> dict[str, Any]:
+        """Make the provider's CLI available (link the ChatGPT app's copy, or install it in the
+        background); poll GET /api/model-accounts while the row reports `installing`."""
+        try:
+            return {"provider": accounts.install(provider)}
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SignInUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Couldn't set Codex up: {exc}") from exc

@@ -229,6 +229,15 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
     return { ...found, dot: this.describeDot(found), ...(provider === "claude" ? { needs_code: true } : {}) };
   }
 
+  installCalls: string[] = [];
+
+  async installModelCli(provider: string): Promise<ModelProviderAccount> {
+    this.installCalls.push(provider);
+    this.providers = this.providers.map((p) => (p.id === provider && p.state === "cli_missing" ? { ...p, state: "needs_sign_in", cli_present: true } : p));
+    const updated = this.providers.find((p) => p.id === provider)!;
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
   finishCodes: string[] = [];
 
   async finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount> {

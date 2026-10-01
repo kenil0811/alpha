@@ -20,8 +20,8 @@
   flex: none;
 }
 .dv-search {
-  min-width: 0;
-  flex: 1 1 120px;
+  min-width: 96px;
+  flex: 1 100 120px; /* shrinks before the toolbar's other controls */
 }
 .dv-search input {
   min-width: 0;
