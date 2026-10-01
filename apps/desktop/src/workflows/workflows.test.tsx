@@ -74,6 +74,24 @@ describe("creating a result", () => {
     expect(screen.queryByRole("button", { name: "Open Notes list" })).not.toBeInTheDocument();
   });
 
+  it("says plainly when a module was checked only on the request's examples", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    client.nextCreationState = (c) => ready(c, { checks: { status: "preliminary", full: "pending", checks_passed: 2 } });
+    const card = await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
+    expect(card).toHaveTextContent("It was checked only against the examples in your request (2 checks)");
+    expect(card).toHaveTextContent("full checks are being written again");
+    expect(card).not.toHaveTextContent("passed all");
+
+    // The retry could not write them either: said once, and it stays on.
+    const current = client.creations.get([...client.creations.keys()][0])!;
+    client.creations.set(current.creation_id, { ...current, result: { ...current.result!, checks: { status: "preliminary", full: "unavailable", checks_passed: 2 } } });
+    await screen.findByText(/Alpha couldn't write its full checks/, {}, { timeout: 5000 });
+    expect(screen.getByRole("button", { name: "Open Notes list" })).toBeInTheDocument();
+  });
+
   it("says what went wrong and what to do next when it could not be made", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();

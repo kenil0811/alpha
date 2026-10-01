@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CREATION_DONE, type Creation, type WorkflowsClient } from "../core/client";
+import { CREATION_DONE, checksOwed, type Creation, type WorkflowsClient } from "../core/client";
 import { usePoll } from "../core/usePoll";
 
 /** The creation for a conversation's current brief revision, followed until it finishes. Core
@@ -32,7 +32,7 @@ export function useCreation(client: WorkflowsClient, conversationId: string, bri
 
   // Followed until it finishes, and on (more slowly) while a fast-lane module's behaviour
   // checks are still running after it was switched on.
-  const checksPending = creation?.state === "active" && creation.result?.checks?.status === "pending";
+  const checksPending = creation?.state === "active" && checksOwed(creation.result?.checks);
   const following = creation && (!CREATION_DONE.has(creation.state) || checksPending) ? creation.creation_id : null;
   const { reconnecting, refresh } = usePoll(following, () => client.creation(following!), setCreation, checksPending ? Math.max(pollMs, 3000) : pollMs);
 

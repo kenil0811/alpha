@@ -58,6 +58,28 @@ class SettingField:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+EFFORT_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("low", "Low (fastest)"),
+    ("medium", "Medium"),
+    ("high", "High (slowest)"),
+    ("default", "Claude Code's default"),
+)
+
+
+def _effort(stage: str, title: str, description: str) -> SettingField:
+    return SettingField(
+        f"effort.{stage}", "Models", title, description, "choice", "low", EFFORT_OPTIONS
+    )
+
+
+def stage_effort(prefs: Any, stage: str) -> str:
+    """How hard the model thinks for `stage` ("default" leaves it to the CLI). Measured on
+    28 September: the planner on Sonnet spent 20k of 24k output tokens thinking and took 240 s;
+    at low effort 69 s."""
+    key = f"effort.{stage}"
+    return str(prefs.get(key) if prefs is not None else BY_ID[key].default)
+
+
 def _model(id: str, title: str, description: str, default: str = "default") -> SettingField:
     return SettingField(id, "Models", title, description, "choice", default, MODEL_OPTIONS)
 
@@ -70,11 +92,23 @@ FIELDS: tuple[SettingField, ...] = (
         "half the time of Opus and is enough for this.",
         "sonnet",
     ),
+    _effort(
+        "triage",
+        "Thinking for sorting a change",
+        "How long the assistant thinks before deciding whether a change is a quick edit. Low "
+        "answers in seconds.",
+    ),
     _model(
         "models.planner",
         "Model for the checks",
         "Writes the checks a project must pass before it is switched on.",
         "sonnet",
+    ),
+    _effort(
+        "planner",
+        "Thinking for the checks",
+        "How long the model thinks while writing the checks. Low takes about a minute; high "
+        "can take four and run out of time.",
     ),
     _model(
         "models.builder_new",

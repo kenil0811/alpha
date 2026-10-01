@@ -561,10 +561,18 @@ export interface CreationResult {
 }
 
 export interface CreationChecks {
-  status: "pending" | "passed" | "failed" | "not_run";
+  /** "preliminary": checked only on the request's own examples, because Alpha's full checks
+   *  were not ready in time; `full` says whether they are still coming. */
+  status: "pending" | "passed" | "failed" | "not_run" | "preliminary";
+  full?: "pending" | "unavailable";
   checks_passed?: number;
   failed_checks?: string[];
   reason?: string;
+}
+
+/** Checks that are still running after the module was switched on. */
+export function checksOwed(checks: CreationChecks | null | undefined): boolean {
+  return checks?.status === "pending" || (checks?.status === "preliminary" && checks.full === "pending");
 }
 
 /** Where a module's latest fast-lane checks stand, from its own page. */

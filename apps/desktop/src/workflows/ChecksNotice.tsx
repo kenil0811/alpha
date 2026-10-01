@@ -51,6 +51,17 @@ export function ChecksNotice({
       </p>
     );
   }
+  if (checks.status === "preliminary") {
+    const counted = checks.checks_passed ? ` (${checks.checks_passed} checks)` : "";
+    return (
+      <p className={checks.full === "pending" ? "panel__hint" : "notice notice--quiet"} role="status">
+        It was checked only against the examples in your request{counted}, because Alpha's full checks were not ready in time.{" "}
+        {checks.full === "pending"
+          ? "The full checks are being written again and will run shortly; you can use it meanwhile."
+          : "Alpha couldn't write its full checks. It stays switched on; tell Alpha if something is off."}
+      </p>
+    );
+  }
   if (checks.status === "not_run") {
     return (
       <p className="notice notice--quiet" role="status">

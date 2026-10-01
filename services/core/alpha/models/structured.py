@@ -138,7 +138,11 @@ class StructuredInference:
         scope_kind: str,
         scope_ref: str,
         fake: Any | None = None,
+        timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
+        """`effort` is the CLI's reasoning effort (low, medium, high); None or "default" leaves
+        it to the CLI."""
         if route.route_id == "fake":
             if fake is None:
                 raise InferenceError("route_unavailable", "fake route needs a fake responder")
@@ -150,7 +154,9 @@ class StructuredInference:
                 output, usage, "fake", int((time.monotonic() - started) * 1000), ""
             )
         if route.route_id == "claude-code-cli":
-            return self._claude_cli(route, system, prompt, schema, scope_kind, scope_ref)
+            return self._claude_cli(
+                route, system, prompt, schema, scope_kind, scope_ref, timeout_seconds, effort
+            )
         if route.route_id == "chatgpt-codex-cli":
             return self._codex_cli(route, system, prompt, schema, scope_kind, scope_ref)
         if route.route_id in _HTTP_PROVIDER:
@@ -165,7 +171,10 @@ class StructuredInference:
         schema: dict[str, Any],
         scope_kind: str,
         scope_ref: str,
+        timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
+        timeout = timeout_seconds or self._timeout
         owner = pwd.getpwuid(os.getuid()).pw_name
         env = {
             "PATH": self._path,
@@ -222,6 +231,8 @@ class StructuredInference:
         ]
         if route.model != "default":
             argv += ["--model", route.model]
+        if effort and effort != "default":
+            argv += ["--effort", effort]
         started = time.monotonic()
         try:
             proc = subprocess.Popen(
@@ -238,11 +249,11 @@ class StructuredInference:
             self._cancelled.discard(scope_ref)
             self._running[scope_ref] = proc
         try:
-            stdout, stderr = proc.communicate(timeout=self._timeout)
+            stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             proc.kill()
             proc.communicate()
-            raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+            raise InferenceError("timeout", f"model call exceeded {timeout}s") from exc
         finally:
             with self._lock:
                 self._running.pop(scope_ref, None)

@@ -9,7 +9,7 @@ import { AlarmClock, ArrowLeftRight, Ban, Boxes, Check, Cog, History, icons as l
 import { Badge, InfoTip, Tabs } from "../ui";
 import { ZazooIcon } from "../ui/ZazooIcon";
 import "./module.css";
-import { type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ModuleConnection, type ScheduleStatus, isConnectionsClient } from "../core/client";
+import { checksOwed, type AppChecks, type AppDetail, type BrowserAccess, type BrowserVisit, type ModuleConnection, type ScheduleStatus, isConnectionsClient } from "../core/client";
 import { ChecksNotice } from "../workflows/ChecksNotice";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
@@ -168,7 +168,7 @@ function ChecksBanner({ client, appId, releaseId, onReverted, onRemoved }: { cli
         .then((next) => {
           if (cancelled) return;
           setChecks(next);
-          if (next?.status === "pending") timer = setTimeout(load, 3000);
+          if (checksOwed(next)) timer = setTimeout(load, 3000);
         })
         .catch(() => undefined);
     };
