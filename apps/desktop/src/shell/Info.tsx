@@ -421,7 +421,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     onChange={(e) => setCode(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void connectCode(p.id, p.label)}
                     aria-label={`${p.label} sign-in code`}
-                    style={{ flex: "0 1 150px", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
+                    style={{ flex: "0 1 auto", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm btn--primary" disabled={busy === p.id || !code.trim()} onClick={() => void connectCode(p.id, p.label)}>
                     Connect
@@ -430,7 +430,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
               ) : null}
               {signInRow && codeFor !== p.id && (p.state === "needs_sign_in" || p.state === "cli_missing") ? (
                 <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id} onClick={() => void signIn(p.id)}>
-                  Sign in
+                  {p.id === "chatgpt" && p.state === "cli_missing" ? "Get Codex" : "Sign in"}
                 </button>
               ) : null}
               {!signInRow ? (
@@ -443,7 +443,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
                     aria-label={`${p.label} key`}
                     className="input--compact"
-                    style={{ flex: "0 1 150px", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
+                    style={{ flex: "0 1 auto", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm" disabled={busy === p.id || !(drafts[p.id] ?? "").trim()} onClick={() => void save(p.id, p.label)}>
                     Save
@@ -967,9 +967,10 @@ export function Settings({
               className={value === section ? "settings-nav__item settings-nav__item--current" : "settings-nav__item"}
               aria-current={value === section ? "page" : undefined}
               onClick={() => setSection(value)}
+              title={label}
             >
               <Icon size={16} aria-hidden="true" />
-              {label}
+              <span className="settings-nav__label">{label}</span>
               {value === section ? <span className="settings-nav__dot" aria-hidden="true" /> : null}
             </button>
           ))}

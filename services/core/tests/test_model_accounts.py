@@ -68,11 +68,16 @@ def test_claude_sign_in_opens_the_browser_page_and_waits_for_a_code(
     assert opened and opened[0].startswith("https://claude.ai/oauth/authorize?")
 
 
-def test_sign_in_is_refused_for_key_rows_and_a_missing_cli() -> None:
+def test_sign_in_is_refused_for_key_rows_and_a_missing_cli_opens_its_install_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr("alpha.models.claude_oauth.open_in_browser", opened.append)
     with pytest.raises(SignInUnavailable):
         ModelAccounts().sign_in("claude_api")
-    with pytest.raises(SignInUnavailable):
+    with pytest.raises(SignInUnavailable, match="install page"):
         ModelAccounts().sign_in("chatgpt")  # no `codex` on PATH in this test
+    assert opened == ["https://github.com/openai/codex"]
 
 
 def test_openrouter_starts_not_configured_then_key_saved_with_last4() -> None:

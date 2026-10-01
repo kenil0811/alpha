@@ -40,7 +40,7 @@
 .settings__head h2 { margin: 0; font-family: var(--font-ui); font-size: 14px; font-weight: 700; line-height: 1.2; color: var(--text); }
 .settings__head p { margin: 0; font-size: 12px; color: var(--text-2); }
 .settings__headico { width: 32px; height: 32px; border-radius: 8px; background: var(--bg); display: grid; place-items: center; color: var(--text-2); }
-.settings-layout { flex: 1; min-height: 0; display: flex; }
+.settings-layout { flex: 1; min-height: 0; display: flex; container-type: inline-size; }
 .settings-nav { flex: none; width: 224px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
 .settings-nav__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 14px; font-weight: 500; color: var(--text-2); cursor: pointer; }
 .settings-nav__item svg { color: var(--bridge-warm-gray, var(--text-3)); flex: none; }
@@ -49,9 +49,17 @@
 .settings-nav__item--current svg { color: var(--primary); }
 .settings-nav__dot { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .settings-content { flex: 1; min-width: 0; overflow-y: auto; padding: 32px; display: flex; flex-direction: column; gap: 16px; }
+.settings-nav__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A narrow Settings area gives its room to the rows: the section list becomes icons (names on
+   hover) and the page padding tightens. */
+@container (max-width: 720px) {
+  .settings-nav { width: 56px; padding: 12px 8px; }
+  .settings-nav__item { justify-content: center; padding: 10px; }
+  .settings-nav__label, .settings-nav__dot { display: none; }
+  .settings-content { padding: 16px; }
+}
 .settings-content > * { width: 100%; max-width: 672px; margin-left: auto; margin-right: auto; }
 .settings-section__title { margin: 0 0 4px; }
-@media (max-width: 900px) { .settings-nav { width: 180px; } .settings-content { padding: 16px; } }
 
 /* Command menu */
 .command-menu__list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 320px; overflow-y: auto; }

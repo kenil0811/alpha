@@ -219,10 +219,12 @@ a { color: var(--primary); }
 /* Bridge's rule for a row that runs out of room: controls shrink to their minimum first, then
    the label truncates with "…" (full text in title=). Nothing wraps or spills. */
 .truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item__body { flex: 1 1 0; min-width: 48px; }
+.item__body { flex: 1 1 auto; min-width: min(96px, 40%); }
 .item__body > b { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .item__body > b > label, .item__body > b > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item > :not(.item__body):not(.item__ico) { min-width: 0; flex: 0 1 auto; }
+/* Controls give way ten times faster than the label, but never below their own minimum. */
+.item > :not(.item__body):not(.item__ico) { flex: 0 10 auto; min-width: 0; }
+.item select { min-width: 140px; text-overflow: ellipsis; }
 .item .btn, .item .iconbtn { flex-shrink: 0; }
 .item__body b { font-weight: 500; }
 .item__sub { font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }

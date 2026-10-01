@@ -25,6 +25,7 @@ REDIRECT = "https://console.anthropic.com/oauth/code/callback"
 TOKEN_URL = "https://console.anthropic.com/v1/oauth/token"
 SCOPE = "org:create_api_key user:profile user:inference"
 KEYCHAIN_ID = "claude_oauth"
+USER_AGENT = "alpha-desktop/0.1"
 
 # ponytail: one sign-in in flight per Core; a second Sign in replaces the first.
 _verifier: str | None = None
@@ -121,7 +122,9 @@ def _token_request(body: dict[str, str]) -> dict[str, object]:
         TOKEN_URL,
         data=json.dumps(body).encode(),
         method="POST",
-        headers={"Content-Type": "application/json"},
+        # Cloudflare in front of the token endpoint refuses Python's default User-Agent (error
+        # 1010, a 403) before the request is even read.
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 - fixed https host

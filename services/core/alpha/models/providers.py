@@ -32,6 +32,8 @@ def _request(
         headers={
             **(headers or {"Authorization": f"Bearer {api_key}"}),
             "Content-Type": "application/json",
+            # Python's default User-Agent is refused by Cloudflare-fronted APIs (error 1010).
+            "User-Agent": "alpha-desktop/0.1",
         },
     )
     try:

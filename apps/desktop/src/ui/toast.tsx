@@ -26,7 +26,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((message: string, action?: Toast["action"]) => {
     const id = nextId.current++;
-    setToasts((current) => [...current, { id, message, action }]);
+    // The same message again replaces the one showing (and restarts its timer) - never a stack.
+    setToasts((current) => [...current.filter((t) => t.message !== message), { id, message, action }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((t) => t.id !== id));
     }, 5000);

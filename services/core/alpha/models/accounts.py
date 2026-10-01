@@ -47,6 +47,8 @@ PROVIDERS: dict[str, dict[str, Any]] = {
 SIGN_IN_ARGS: dict[str, list[str]] = {
     "chatgpt": ["login"],
 }
+# Where to get a sign-in row's CLI when it isn't installed.
+INSTALL_PAGES: dict[str, str] = {"chatgpt": "https://github.com/openai/codex"}
 # An unfinished browser sign-in is stopped after this long.
 SIGN_IN_SECONDS = 300.0
 
@@ -195,7 +197,12 @@ class ModelAccounts:
         if args is None:
             raise SignInUnavailable(f"{spec['label']} signs in with a key, not a browser.")
         if path is None:
-            raise SignInUnavailable(f"The `{spec['binary']}` command isn't installed on this Mac.")
+            # The next step, not a dead end: open where to get the CLI.
+            claude_oauth.open_in_browser(INSTALL_PAGES[provider])
+            raise SignInUnavailable(
+                f"{spec['label']} needs Codex on this Mac. Its install page is open in your"
+                f" browser; or paste a key in {spec['label']} API."
+            )
         with self._lock:
             running = self._sign_ins.get(provider)
             if running is None or running.poll() is not None:
