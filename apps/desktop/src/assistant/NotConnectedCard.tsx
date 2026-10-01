@@ -177,7 +177,7 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
 
   return (
     <div className="msg msg--ai notconnected" role="alert">
-      <b>Not connected to {label}.</b>
+      <b>{info.kind === "generic" ? `${label} couldn't answer.` : `Not connected to ${label}.`}</b>
       {waiting || needsCode ? (
         <div className="faint" role="status">
           {needsCode ? "Approve in your browser, then paste the code it shows." : "Finish signing in in your browser. Alpha carries on by itself."}

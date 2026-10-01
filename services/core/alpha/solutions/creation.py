@@ -326,11 +326,11 @@ class CreationService:
         change_of: str | None = getattr(conversation, "change_of", None)
         if change_of is not None:
             if self._registry is None:
-                raise CreationRefused("changing a module is not available on this host")
+                raise CreationRefused("changing a project is not available on this host")
             try:
                 self._registry.current(change_of)
             except OperationFailed as exc:
-                raise CreationRefused(f"the module to change is not installed: {exc}") from exc
+                raise CreationRefused(f"the project to change is not installed: {exc}") from exc
         creation_id = new_id("create")
         now = _now()
         with self._store.transaction() as conn:
@@ -420,7 +420,7 @@ class CreationService:
         try:
             current = self._registry.current(app_id)
         except OperationFailed as exc:
-            raise CreationRefused(f"the module to change is not installed: {exc}") from exc
+            raise CreationRefused(f"the project to change is not installed: {exc}") from exc
         request = next((t.content.get("text") for t in conversation.turns if t.role == "user"), "")
         creation_id = new_id("create")
         now = _now()
@@ -463,7 +463,7 @@ class CreationService:
         try:
             current = self._registry.current(app_id)
         except OperationFailed as exc:
-            raise CreationRefused(f"the module to repair is not installed: {exc}") from exc
+            raise CreationRefused(f"the project to repair is not installed: {exc}") from exc
         creation_id = new_id("create")
         now = _now()
         with self._store.transaction() as conn:
@@ -540,7 +540,7 @@ class CreationService:
                 None,
                 {
                     "reason": "needs_full_build",
-                    "message": "This module is too large to edit in one go; ask for the change "
+                    "message": "This project is too large to edit in one go; ask for the change "
                     "again and say 'full rebuild'.",
                     "next_step": "revise",
                 },
@@ -598,7 +598,7 @@ class CreationService:
                     {
                         "reason": "nothing_to_change",
                         "message": str(
-                            output.get("reason") or "Nothing in the module needed to change."
+                            output.get("reason") or "Nothing in the project needed to change."
                         )[:400],
                         "next_step": "revise",
                     },
@@ -950,7 +950,7 @@ class CreationService:
         if current is not None:
             app_id, app_name = current.app_id, current.source.name
         else:
-            app_name = " ".join(brief.goal.split()[:4]).strip(" .,:;") or "New module"
+            app_name = " ".join(brief.goal.split()[:4]).strip(" .,:;") or "New project"
             app_name = app_name[:1].upper() + app_name[1:]
             app_id = app_slug(app_name, creation_id.removeprefix("create_")[:6])
         try:

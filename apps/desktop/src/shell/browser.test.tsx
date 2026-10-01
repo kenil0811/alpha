@@ -34,7 +34,7 @@ describe("the signed-in browser", () => {
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
     const access = await screen.findByLabelText("Signed-in browser access");
-    expect(within(access).getByText(/Off: this module reads it as a visitor/)).toBeInTheDocument();
+    expect(within(access).getByText(/Off: this project reads it as a visitor/)).toBeInTheDocument();
     await user.click(within(access).getByLabelText("Allow linkedin.com"));
     await waitFor(() => expect(client.access.get("notes-list-1a2b3c")).toEqual(["linkedin.com"]));
     expect(await within(access).findByText(/may read through your session/)).toBeInTheDocument();

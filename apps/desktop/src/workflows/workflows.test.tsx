@@ -132,7 +132,7 @@ describe("home and the rail", () => {
     expect(await screen.findByRole("heading", { name: "Tracker" })).toBeInTheDocument();
     expect(within(rail).getByRole("button", { name: "Tracker" })).toHaveAttribute("aria-current", "page");
     await user.click(within(rail).getByRole("button", { name: "Home" }));
-    expect(await screen.findByRole("heading", { name: "Your modules" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your projects" })).toBeInTheDocument();
     await act(async () => undefined);
   });
 });

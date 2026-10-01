@@ -38,8 +38,8 @@ def fake_security(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         f'STORE_DIR="{store_dir}"\n'
         'if [ "$1" = "-i" ]; then\n'
         "  read -r line\n"
-        "  svc=$(echo \"$line\" | sed -n 's/.*-s \"\\([^\"]*\\)\".*/\\1/p')\n"
-        "  val=$(echo \"$line\" | sed -n 's/.*-w \"\\(.*\\)\"$/\\1/p')\n"
+        '  svc=$(echo "$line" | sed -n \'s/.*-s "\\([^"]*\\)".*/\\1/p\')\n'
+        '  val=$(echo "$line" | sed -n \'s/.*-w "\\(.*\\)"$/\\1/p\')\n'
         '  printf "%s" "$val" > "$STORE_DIR/$svc"\n'
         'elif [ "$1" = "find-generic-password" ]; then\n'
         '  [ -f "$STORE_DIR/$3" ] && cat "$STORE_DIR/$3" || exit 44\n'
@@ -74,9 +74,7 @@ def test_claude_console_mode_passes_no_key_even_if_core_env_has_one(
     assert result.output["has_key"] == "", "console mode never leaks Core's own env var"
 
 
-def test_claude_api_key_mode_uses_the_keychain(
-    tmp_path: Path, fake_security: None
-) -> None:
+def test_claude_api_key_mode_uses_the_keychain(tmp_path: Path, fake_security: None) -> None:
     gateway, prefs = make_gateway(tmp_path, frozenset({"claude-code-cli"}))
     prefs.update({"models.provider": "claude_api"})
     keychain.set_key("claude_api", "sk-ant-from-keychain")
@@ -202,3 +200,32 @@ def test_codex_cli_parses_the_last_json_event(
         scope_ref="c7",
     )
     assert result.output == {"answer": "42"}
+
+
+def test_codex_answer_reads_current_events_and_api_errors() -> None:
+    from alpha.models.structured import codex_answer
+
+    item = {"type": "agent_message", "text": '{"ok": true}'}
+    ok = '{"type":"turn.started"}\n' + json.dumps({"type": "item.completed", "item": item})
+    assert codex_answer(ok) == ('{"ok": true}', None)
+    body = json.dumps({"error": {"message": "The 'x' model is not supported."}})
+    failed = json.dumps({"type": "turn.failed", "error": {"message": body}})
+    assert codex_answer(failed) == (None, "The 'x' model is not supported.")
+
+
+def test_codex_model_falls_back_when_the_configured_one_is_not_listed(tmp_path: Path) -> None:
+    from alpha.models.structured import codex_model
+
+    codex = tmp_path / ".codex"
+    codex.mkdir()
+    models = [
+        {"slug": "b", "visibility": "list", "priority": 2},
+        {"slug": "a", "visibility": "list", "priority": 1},
+        {"slug": "h", "visibility": "hide", "priority": 0},
+    ]
+    (codex / "models_cache.json").write_text(json.dumps({"models": models}))
+    (codex / "config.toml").write_text('model = "gone"\n')
+    assert codex_model(str(tmp_path)) == "a"
+    (codex / "config.toml").write_text('model = "b"\n')
+    assert codex_model(str(tmp_path)) is None  # Codex's own choice works; leave it
+    assert codex_model(str(tmp_path / "nowhere")) is None

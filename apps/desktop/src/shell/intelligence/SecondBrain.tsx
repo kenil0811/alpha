@@ -26,7 +26,7 @@ interface GraphNode {
 }
 
 const COLORS: Record<GraphNode["kind"], string> = { module: "var(--primary)", fact: "var(--bridge-sage)" };
-const KIND_LABEL: Record<GraphNode["kind"], string> = { module: "Modules", fact: "Facts" };
+const KIND_LABEL: Record<GraphNode["kind"], string> = { module: "Projects", fact: "Facts" };
 
 const VIEW_W = 640;
 const VIEW_H = 640 * 1.32;

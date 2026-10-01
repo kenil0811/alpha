@@ -84,7 +84,7 @@ def plain_worker_error(message: dict[str, Any]) -> dict[str, Any]:
     plain = (
         said
         if kind in _REFUSALS and said
-        else "This module's own code hit an error and stopped; Alpha looks into these on its own."
+        else "This project's own code hit an error and stopped; Alpha looks into these on its own."
     )
     return {**message, "message": plain, "technical": text, "exception": kind}
 

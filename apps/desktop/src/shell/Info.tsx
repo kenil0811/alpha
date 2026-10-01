@@ -37,9 +37,9 @@ export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[];
 }
 
 const FAMILY_WORDS: Record<string, { title: string; sub: string }> = {
-  records: { title: "Saved data", sub: "Tables your modules keep on this Mac" },
-  artifacts: { title: "Files", sub: "Files your modules produce" },
-  models: { title: "Claude (your subscription)", sub: "Builds modules and answers questions inside them" },
+  records: { title: "Saved data", sub: "Tables your projects keep on this Mac" },
+  artifacts: { title: "Files", sub: "Files your projects produce" },
+  models: { title: "Claude (your subscription)", sub: "Builds projects and answers questions inside them" },
   web: { title: "The web", sub: "Fetching pages and searching" },
   browser: { title: "A browser Alpha keeps", sub: "Pages drawn by scripts, and sites you sign into below" },
   schedules: { title: "Schedules", sub: "Running on a timer while Alpha is open" },
@@ -89,7 +89,7 @@ function SignedInSites({ client }: { client: CoreClient }) {
       <div className="section__head">
         <h2>
           Sites you are signed into
-          <InfoTip content="Alpha opens the site in its own browser window; you sign in; Alpha never sees the password. A module reads through that session only when you switch it on in the module's Settings." label="About signed-in sites" />
+          <InfoTip content="Alpha opens the site in its own browser window; you sign in; Alpha never sees the password. A project reads through that session only when you switch it on in the project's Settings." label="About signed-in sites" />
         </h2>
       </div>
       <div className="card list" aria-label="Signed-in sites">
@@ -103,7 +103,7 @@ function SignedInSites({ client }: { client: CoreClient }) {
               <div className="item__sub">
                 {STATE[s.state]}
                 {s.last_error ? ` · ${s.last_error}` : ""}
-                {s.apps.length ? ` · used by ${s.apps.length} module${s.apps.length === 1 ? "" : "s"}` : ""}
+                {s.apps.length ? ` · used by ${s.apps.length} project${s.apps.length === 1 ? "" : "s"}` : ""}
               </div>
             </div>
             {s.state !== "connected" && s.state !== "signing_in" ? (
@@ -150,14 +150,14 @@ export function Connections({ client, embedded = false }: { client: CoreClient; 
       {embedded ? (
         <h3 id="connections-heading" className="settings-section__title">
           Connections
-          <InfoTip content="Accounts and services your modules may use. Alpha never shows or stores raw passwords here." label="About Connections" />
+          <InfoTip content="Accounts and services your projects may use. Alpha never shows or stores raw passwords here." label="About Connections" />
         </h3>
       ) : (
         <PageHeader
           title={
             <span id="connections-heading">
               Connections
-              <InfoTip content="Accounts and services your modules may use. Alpha never shows or stores raw passwords here." label="About Connections" />
+              <InfoTip content="Accounts and services your projects may use. Alpha never shows or stores raw passwords here." label="About Connections" />
             </span>
           }
         />
@@ -216,6 +216,8 @@ const PROVIDER_SIGN_IN_HINT: Record<string, string> = {
   claude: "Sign in opens your browser to sign in to Claude. Needs Claude Code installed on this Mac.",
   chatgpt: "Sign in opens your browser to sign in with ChatGPT. Needs Codex installed on this Mac.",
 };
+
+const DOT_ORDER = { red: 0, green: 1, grey: 2 } as const;
 
 /** Claude (Console account by default), ChatGPT, OpenRouter and Grok: sign-in state and keys,
  *  which live only in the macOS Keychain — never shown here once saved, only their last 4
@@ -385,7 +387,8 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
 
   return (
     <div className="card list" aria-label="Model providers">
-      {providers.map((p) => {
+      {/* Errors first (they need attention), then connected, then not connected; stable within each. */}
+      {[...providers].sort((a, b) => DOT_ORDER[a.dot.color] - DOT_ORDER[b.dot.color]).map((p) => {
         // A sign-in row (Claude, ChatGPT) signs in through its CLI; every other row takes a key.
         const signInRow = p.id in PROVIDER_SIGN_IN_HINT;
         const choice = providerChoice(p);
@@ -453,7 +456,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                 </span>
               ) : null}
               {signInRow && codeFor !== p.id && (p.state === "needs_sign_in" || p.state === "cli_missing") ? (
-                p.state === "cli_missing" ? (
+                p.id === "chatgpt" && p.state === "cli_missing" ? (
                   <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id || p.installing} onClick={() => void install(p.id)}>
                     {p.installing ? "Installing…" : p.install_failed ? "Retry install" : "Install Codex"}
                   </button>
@@ -556,7 +559,7 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
                     group === "Models"
                       ? "Which provider Alpha uses, and which Claude model each stage uses. Changes apply to the next request or build."
                       : group === "Look"
-                        ? "How every module is drawn, and rules Alpha follows when it builds or changes one."
+                        ? "How every project is drawn, and rules Alpha follows when it builds or changes one."
                         : "How a build runs, and how much it may spend before it is stopped."
                   }
                   label={`About ${group}`}
@@ -641,7 +644,7 @@ function AvatarSetting() {
         <div className="item__body">
           <b>
             Alpha on your desktop
-            <InfoTip content="A small Alpha stays above your other windows. Click it or speak to log something, ask a question, open a module or start something new." label="About the desktop assistant" />
+            <InfoTip content="A small Alpha stays above your other windows. Click it or speak to log something, ask a question, open a project or start something new." label="About the desktop assistant" />
           </b>
         </div>
         <div className="toggle" role="group" aria-label="Desktop assistant">
@@ -670,10 +673,10 @@ function RemovedModules({ client }: { client: WorkflowsClient }) {
   useEffect(load, [load]);
   if (!items.length && state === "idle") return null;
   return (
-    <div className="card list" style={{ marginBottom: 14 }} aria-label="Removed modules">
+    <div className="card list" style={{ marginBottom: 14 }} aria-label="Removed projects">
       <div className="item">
         <div className="item__body">
-          <b>Removed modules still on this Mac</b>
+          <b>Removed projects still on this Mac</b>
           <div className="item__sub">
             {items.length ? `${items.map((m) => m.name).join(", ")}. Still stored. Deleting cannot be undone.` : state}
           </div>
@@ -689,7 +692,7 @@ function RemovedModules({ client }: { client: WorkflowsClient }) {
                   client
                     .deleteRemovedModules()
                     .then((n) => {
-                      setState(`Deleted ${n} module${n === 1 ? "" : "s"} and everything about ${n === 1 ? "it" : "them"}.`);
+                      setState(`Deleted ${n} project${n === 1 ? "" : "s"} and everything about ${n === 1 ? "it" : "them"}.`);
                       load();
                     })
                     .catch((e: unknown) => setState(e instanceof Error ? e.message : String(e)));
@@ -951,7 +954,7 @@ function AppearanceSettings({ theme, onTheme }: { theme: Theme; onTheme: (next: 
 const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "models", label: "Models", icon: Cpu },
   { value: "appearance", label: "Appearance", icon: Palette },
-  { value: "look", label: "Module look", icon: Shapes },
+  { value: "look", label: "Project look", icon: Shapes },
   { value: "builds", label: "Builds", icon: Hammer },
   { value: "desktop", label: "Desktop", icon: Monitor },
   { value: "data", label: "Data & runtime", icon: HardDrive },

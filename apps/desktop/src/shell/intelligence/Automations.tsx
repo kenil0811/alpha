@@ -34,7 +34,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
       <table className="table dv-table" aria-label="Automations">
         <thead>
           <tr>
-            <th>Module</th>
+            <th>Project</th>
             <th>What</th>
             <th>When</th>
             <th>Last ran</th>

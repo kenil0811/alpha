@@ -64,9 +64,9 @@ FACT_FIELDS = {
     "begin": "wants_to_begin_with",
 }
 
-ONBOARD_SYSTEM = """A person just told Alpha, in five short answers, what they do, what fills their week, what they want to get better at, where their work lives, and where they would like to begin. Alpha builds small personal modules on their Mac: trackers, lists, watchers of web pages, summaries, things that run on a schedule.
+ONBOARD_SYSTEM = """A person just told Alpha, in five short answers, what they do, what fills their week, what they want to get better at, where their work lives, and where they would like to begin. Alpha builds small personal projects on their Mac: trackers, lists, watchers of web pages, summaries, things that run on a schedule.
 
-Propose two or three modules to start with, in the order they should be made. Each: a short title, one sentence the person could send as a request ("Keep a list of the courses I am taking with assignments and due dates"), and one line on why it fits what they said. Prefer what serves their stated goal; the first one should be usable the same day. When the person already has modules (listed), propose what adds to them, not the same again. intro is at most 50 words, warm, specific, no technical words. Output only the structured object."""
+Propose two or three projects to start with, in the order they should be made. Each: a short title, one sentence the person could send as a request ("Keep a list of the courses I am taking with assignments and due dates"), and one line on why it fits what they said. Prefer what serves their stated goal; the first one should be usable the same day. When the person already has projects (listed), propose what adds to them, not the same again. intro is at most 50 words, warm, specific, no technical words. Output only the structured object."""
 
 
 def onboard_schema() -> dict[str, Any]:

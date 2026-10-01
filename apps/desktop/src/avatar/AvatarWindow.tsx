@@ -32,7 +32,7 @@ export interface Handoff {
   at: number;
 }
 
-export function AvatarWindow({ client, host, greeting = "Tell me what to do: log a meal, check the boards, open a module, or ask for something new." }: { client: ActClient; host?: AvatarHost; greeting?: string }) {
+export function AvatarWindow({ client, host, greeting = "Tell me what to do: log a meal, check the boards, open a project, or ask for something new." }: { client: ActClient; host?: AvatarHost; greeting?: string }) {
   const [expanded, setExpanded] = useState(false);
   const [turns, setTurns] = useState<ActTurn[]>([]);
   const [text, setText] = useState("");

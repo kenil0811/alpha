@@ -14,7 +14,7 @@ import "../modules/module.css";
 
 const SOURCE: Record<ProfileFact["provenance"], string> = {
   person: "You said so",
-  module: "From a module",
+  module: "From a sub project",
   assistant: "From a session",
   inferred: "Alpha worked it out",
 };
@@ -155,19 +155,19 @@ export function ProjectPage({
 
       <div className="section">
         <div className="section__head">
-          <h2>Modules</h2>
+          <h2>Sub projects</h2>
           <span className="faint">{inProject.length ? `${inProject.length} in this project` : "None filed here yet."}</span>
           {elsewhere.length ? (
             <select
               className="section__right"
-              aria-label="Add a module to this project"
+              aria-label="Add a sub project"
               value=""
               onChange={(e) => {
                 const appId = e.target.value;
                 if (appId) void act(() => client.fileModule(appId, projectId));
               }}
             >
-              <option value="">Add a module…</option>
+              <option value="">Add a sub project…</option>
               {elsewhere.map((m) => (
                 <option key={m.app_id} value={m.app_id}>
                   {m.name}
@@ -176,7 +176,7 @@ export function ProjectPage({
             </select>
           ) : null}
         </div>
-        <div className="card list" aria-label="Modules in this project">
+        <div className="card list" aria-label="Sub projects">
           {inProject.map((m) => (
             <div className="item" key={m.app_id}>
               <ModuleIcon icon={icons[m.app_id]} />
@@ -191,7 +191,7 @@ export function ProjectPage({
               </button>
             </div>
           ))}
-          {!inProject.length ? <p className="empty">Add a module above, or ask for a new one in a session here and it is filed under this project.</p> : null}
+          {!inProject.length ? <p className="empty">Add a sub project above, or ask for a new one in a session here.</p> : null}
         </div>
       </div>
 

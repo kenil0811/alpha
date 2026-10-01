@@ -134,7 +134,7 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
 
   settingsFields: SettingField[] = [
     { id: "models.assistant", group: "Models", title: "Model for the assistant", description: "Understands your request.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
-    { id: "models.builder_new", group: "Models", title: "Model for building a new module", description: "Writes the module.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "models.builder_new", group: "Models", title: "Model for building a new project", description: "Writes the project.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
     { id: "models.grok_model", group: "Models", title: "Grok model", description: "The xAI model id.", kind: "text", options: [], minimum: null, maximum: null, unit: null, default: "grok-4", value: "grok-4" },
     { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
   ];

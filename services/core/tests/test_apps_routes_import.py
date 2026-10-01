@@ -60,7 +60,7 @@ def test_import_by_path_rejects_wrong_suffix(tmp_path: Path) -> None:
     with pytest.raises(HTTPException) as excinfo:
         endpoint(ModuleImportRequest(path=str(other)))
     assert excinfo.value.status_code == 422
-    assert "Alpha module file" in excinfo.value.detail["message"]
+    assert "Alpha project file" in excinfo.value.detail["message"]
 
 
 def test_import_by_path_rejects_missing_file(tmp_path: Path) -> None:
@@ -71,7 +71,7 @@ def test_import_by_path_rejects_missing_file(tmp_path: Path) -> None:
     with pytest.raises(HTTPException) as excinfo:
         endpoint(ModuleImportRequest(path=str(missing)))
     assert excinfo.value.status_code == 422
-    assert "Alpha module file" in excinfo.value.detail["message"]
+    assert "Alpha project file" in excinfo.value.detail["message"]
 
 
 def test_import_by_path_rejects_oversize_file(tmp_path: Path) -> None:

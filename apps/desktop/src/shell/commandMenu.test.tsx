@@ -46,8 +46,8 @@ describe("command menu", () => {
     const { onNew } = setup();
     await user.keyboard("{Meta>}k{/Meta}");
     const input = await screen.findByRole("combobox", { name: "Command menu" });
-    await user.type(input, "new module");
-    expect(screen.getByRole("option", { name: /New module/ })).toHaveAttribute("aria-selected", "true");
+    await user.type(input, "new project");
+    expect(screen.getByRole("option", { name: /New project/ })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Enter}");
     expect(onNew).toHaveBeenCalledTimes(1);
   });

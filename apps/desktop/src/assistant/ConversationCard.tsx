@@ -68,8 +68,8 @@ export function ConversationCard({
   const changing = Boolean(conversation.change_of);
 
   return (
-    <div className="convo" aria-label={changing ? "Changing a module" : "New module"}>
-      <div className="convo__label">{changing ? "Changing a module" : "New module"}</div>
+    <div className="convo" aria-label={changing ? "Changing a project" : "New project"}>
+      <div className="convo__label">{changing ? "Changing a project" : "New project"}</div>
       {showRequest ? <div className="msg msg--user">{requestText(conversation)}</div> : null}
       {conversation.interpretation ? (
         <div className="interpretation" aria-label="How Alpha understood it">
@@ -126,8 +126,8 @@ export function ConversationCard({
         <div className="after-made" aria-label="After it was made">
           <p className="panel__hint">
             {creation?.change_of
-              ? `${creation?.result?.name ?? creation?.app_name ?? "Your module"} is updated and its data is kept. To change it again, just say so here.`
-              : `${creation?.result?.name ?? creation?.app_name ?? "Your module"} is in the sidebar. To change it later, open it and describe the change here.`}
+              ? `${creation?.result?.name ?? creation?.app_name ?? "Your project"} is updated and its data is kept. To change it again, just say so here.`
+              : `${creation?.result?.name ?? creation?.app_name ?? "Your project"} is in the sidebar. To change it later, open it and describe the change here.`}
           </p>
         </div>
       ) : null}

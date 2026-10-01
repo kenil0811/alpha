@@ -105,7 +105,7 @@ describe("Intelligence", () => {
     // Accounts and services (formerly under Settings) now live on this tab too.
     expect(await screen.findByRole("heading", { name: /Connections/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About Connections" })).toBeInTheDocument();
-    const links = await screen.findByRole("table", { name: "Module connections" });
+    const links = await screen.findByRole("table", { name: "Project connections" });
     expect(within(links).getAllByText(/to list your courses/).length).toBeGreaterThan(0);
     await user.click(within(links).getAllByLabelText("Job profile reads Academics")[0]);
     await waitFor(() => expect(client.connectionRows[0].enabled).toBe(false));

@@ -221,7 +221,7 @@ class Scheduler:
     ) -> None:
         spec = next((s for s in specs if s.id == schedule_id), None)
         if spec is None:
-            raise not_found(f"this module has no schedule {schedule_id!r}")
+            raise not_found(f"this project has no schedule {schedule_id!r}")
         now = self._now()
         if self._row(app_id, schedule_id) is None:
             self._insert(app_id, spec, now)
@@ -241,7 +241,7 @@ class Scheduler:
     def run_now(self, app_id: str, specs: list[ScheduleSpec], schedule_id: str) -> str | None:
         spec = next((s for s in specs if s.id == schedule_id), None)
         if spec is None:
-            raise not_found(f"this module has no schedule {schedule_id!r}")
+            raise not_found(f"this project has no schedule {schedule_id!r}")
         now = self._now()
         if self._row(app_id, schedule_id) is None:
             self._insert(app_id, spec, now)

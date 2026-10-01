@@ -28,14 +28,14 @@ export function ModuleLinks({ client, modules, icons, onOpenModule }: { client: 
   return (
     <div className="stack">
       {rows === null ? <p className="faint">Loading…</p> : null}
-      {rows && !rows.length ? <p className="empty">No module reads another yet.</p> : null}
+      {rows && !rows.length ? <p className="empty">No project reads another yet.</p> : null}
       {rows && rows.length ? (
         <div className="card">
           <div className="tablewrap">
-          <table className="table dv-table" aria-label="Module connections">
+          <table className="table dv-table" aria-label="Project connections">
             <thead>
               <tr>
-                <th>Module</th>
+                <th>Project</th>
                 <th>Reads</th>
                 <th>Why</th>
                 <th>On</th>

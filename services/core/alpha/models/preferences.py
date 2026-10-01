@@ -73,23 +73,23 @@ FIELDS: tuple[SettingField, ...] = (
     _model(
         "models.planner",
         "Model for the checks",
-        "Writes the checks a module must pass before it is switched on.",
+        "Writes the checks a project must pass before it is switched on.",
         "sonnet",
     ),
     _model(
         "models.builder_new",
-        "Model for building a new module",
-        "Writes the module's code and screen. The most capable model gives the best modules.",
+        "Model for building a new project",
+        "Writes the project's code and screen. The most capable model gives the best projects.",
     ),
     _model(
         "models.builder_change",
-        "Model for changing a module",
-        "Edits an existing module when you ask for a change.",
+        "Model for changing a project",
+        "Edits an existing project when you ask for a change.",
     ),
     _model(
         "models.app",
-        "Model modules use while running",
-        "Estimates, scoring and summaries a module asks for while you use it. Faster models "
+        "Model projects use while running",
+        "Estimates, scoring and summaries a project asks for while you use it. Faster models "
         "make checks and scoring feel quick.",
         "sonnet",
     ),
@@ -133,8 +133,8 @@ FIELDS: tuple[SettingField, ...] = (
     SettingField(
         "build.fast_lane",
         "Building limits",
-        "Modules go live early",
-        "A module is switched on as soon as its structure checks out (its package, code and "
+        "Projects go live early",
+        "A project is switched on as soon as its structure checks out (its package, code and "
         "actions are sound); the deeper behaviour checks run while you already use it, and you "
         "can go back with one click if they find a problem. Off waits for every check first.",
         "choice",
@@ -177,7 +177,7 @@ FIELDS: tuple[SettingField, ...] = (
         "build.max_repair_attempts",
         "Building limits",
         "Repair attempts",
-        "How many times a module that failed its checks is repaired before giving up.",
+        "How many times a project that failed its checks is repaired before giving up.",
         "integer",
         2,
         minimum=0,
@@ -190,7 +190,7 @@ FIELDS = (
         "browser.pages_per_hour",
         "Signed-in browser",
         "Pages per hour, per site",
-        "How many pages a module may open through your signed-in browser in an hour. Low "
+        "How many pages a project may open through your signed-in browser in an hour. Low "
         "numbers look like a person and keep accounts safe.",
         "integer",
         30,
@@ -212,7 +212,7 @@ FIELDS = (
         "access.mode",
         "Access",
         "When Alpha needs your OK",
-        "Ask for approval: always ask before editing files outside a module or using the "
+        "Ask for approval: always ask before editing files outside a project or using the "
         "internet. Approve for me: only ask for actions detected as unsafe (deletes, sends, "
         "payments). Full access: no approval prompts (a secret leak or a permanent delete of "
         "your data still confirms).",
@@ -232,8 +232,8 @@ FIELDS = (
     SettingField(
         "look.rules",
         "Look",
-        "Rules for how modules should look and behave",
-        "Alpha's defaults, in plain sentences, followed when it builds or changes any module. "
+        "Rules for how projects should look and behave",
+        "Alpha's defaults, in plain sentences, followed when it builds or changes any project. "
         "Edit them to your taste or reset to Alpha's.",
         "text",
         DEFAULT_CONVENTIONS,

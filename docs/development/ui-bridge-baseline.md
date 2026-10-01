@@ -162,7 +162,9 @@ collapse choices come back once the window is wide again.
 Nothing spills out of its box at any window size from the 768x560 minimum up.
 
 - Text fits its place: shorten the copy first; a one-line ellipsis (with the full text in
-  `title=`) only where the text is the person's own (a module name, a session title).
+  `title=`) only where the text is the person's own (a project name, a session title).
+- Shrink order: a search bar or an empty field gives up width first (down to a usable
+  minimum, ~64-96px) before labels or filled values truncate.
 - Placeholders fit their field. Write them short enough not to clip at the narrowest width.
 - Rows wrap rather than squeeze: `.item__body` keeps 180px before its controls wrap below it.
 - Check before shipping a layout change: run `apps/desktop/tools/layout-check.js` in the dev
@@ -176,6 +178,19 @@ Nothing spills out of its box at any window size from the 768x560 minimum up.
 - The star on a row is the only place the default provider is chosen; one row is always starred.
 - Not connected means the next step happens by itself: the "not connected" card on the newest
   turn opens the provider's browser sign-in straight away and resends the message once it lands.
+
+- Rows sort by status: errors first, then connected, then not connected.
+- Codex is installed for the person, never through a terminal: "Install Codex" links the copy
+  the ChatGPT app ships (or installs it with npm in the background), then "Connect".
+- The composer never shows the chosen model; it lives in + -> Advanced.
+
+## Vocabulary (strong rule)
+
+- A module is a **project** in everything a person reads; one filed inside a project folder is
+  a **sub project**. Code identifiers, routes, the `.alphamodule` format and SDK names keep
+  "module".
+- New project opens one picker: search, Import a project… first, Blank project, then Commons
+  (from `GET /api/commons`; the section shows nothing at all while it's empty).
 
 ## UI copy and density (strong rule)
 

@@ -118,7 +118,7 @@ export function NewProjectPage({
         <div className="section">
           <div className="section__head">
             <h2>Research insights</h2>
-            <InfoTip label="About research insights" content="What Alpha already noticed across your modules." />
+            <InfoTip label="About research insights" content="What Alpha already noticed across your projects." />
           </div>
           <div className="card list" aria-label="Research insights">
             {nudges.slice(0, 4).map((n) => (

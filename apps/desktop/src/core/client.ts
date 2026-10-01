@@ -1133,7 +1133,7 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     const response = await this.fetchImpl(`${this.session.baseUrl}/api/apps/${encodeURIComponent(appId)}/export`, {
       headers: { Authorization: `Bearer ${this.session.token}` },
     });
-    if (!response.ok) throw new CoreError("couldn't export this module", response.status);
+    if (!response.ok) throw new CoreError("couldn't export this project", response.status);
     return response.blob();
   }
 

@@ -16,7 +16,9 @@ import re
 import subprocess
 import threading
 import time
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from alpha_contracts.builds import BuildUsage, CostBasis
@@ -300,13 +302,19 @@ class StructuredInference:
             f"nothing else, no prose, no code fence:\n{json.dumps(cli_schema(schema))}\n\n{prompt}"
         )
         argv = ["codex", "exec", "--json", "--skip-git-repo-check"]
-        if route.model != "default":
-            argv += ["--model", route.model]
+        model = route.model if route.model != "default" else codex_model(env["HOME"])
+        if model:
+            argv += ["--model", model]
         argv.append(full_prompt)
         started = time.monotonic()
         try:
             proc = subprocess.run(
-                argv, capture_output=True, text=True, env=env, timeout=self._timeout
+                argv,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=self._timeout,
+                stdin=subprocess.DEVNULL,
             )
         except FileNotFoundError as exc:
             raise InferenceError("cli_missing", f"codex CLI not found: {exc}") from exc
@@ -316,20 +324,9 @@ class StructuredInference:
         combined = f"{proc.stdout}\n{proc.stderr}"
         if "not logged in" in combined.lower() or "codex login" in proc.stderr.lower():
             raise InferenceError("cli_not_logged_in", (proc.stderr or proc.stdout)[:200])
-        text = None
-        for line in reversed(proc.stdout.splitlines()):
-            line = line.strip()
-            if not line.startswith("{"):
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            msg = event.get("msg")
-            candidate = msg.get("message") if isinstance(msg, dict) else event.get("text")
-            if candidate:
-                text = str(candidate)
-                break
+        text, failure = codex_answer(proc.stdout)
+        if text is None and failure:
+            raise InferenceError("cli_error", failure[:300])
         if text is None:
             tail = (proc.stderr or proc.stdout)[-300:] or "no output"
             raise InferenceError("cli_no_output", tail)
@@ -365,7 +362,12 @@ class StructuredInference:
             )
         try:
             output, usage, elapsed = chat_structured(
-                base_url, api_key, route.model, system, prompt, cli_schema(schema),
+                base_url,
+                api_key,
+                route.model,
+                system,
+                prompt,
+                cli_schema(schema),
                 timeout=self._timeout,
             )
         except ProviderHTTPError as exc:
@@ -393,3 +395,59 @@ class StructuredInference:
             cost_basis=CostBasis.SUBSCRIPTION_UNMETERED,
             models=models,
         )
+
+
+def codex_model(home: str) -> str | None:
+    """The model to pass to `codex exec`, or None for Codex's own default. The ChatGPT app can
+    leave a model in ~/.codex/config.toml that this CLI and account can't use (seen: a 400
+    "not supported when using Codex with a ChatGPT account"); then the account's first listed
+    model from Codex's own cache is used instead."""
+    base = Path(home) / ".codex"
+    try:
+        cache = json.loads((base / "models_cache.json").read_text())
+        listed = sorted(
+            (m for m in cache.get("models", []) if m.get("visibility") == "list"),
+            key=lambda m: m.get("priority", 0),
+        )
+    except (OSError, ValueError, AttributeError):
+        return None
+    slugs = [str(m["slug"]) for m in listed if m.get("slug")]
+    if not slugs:
+        return None
+    try:
+        configured = tomllib.loads((base / "config.toml").read_text()).get("model")
+    except (OSError, tomllib.TOMLDecodeError):
+        configured = None
+    return None if configured in slugs else slugs[0]
+
+
+def codex_answer(stdout: str) -> tuple[str | None, str | None]:
+    """(last answer text, failure message) from `codex exec --json` events. Current Codex sends
+    `item.completed` with an `agent_message` item; older ones sent `msg.message` / `text`."""
+    text: str | None = None
+    failure: str | None = None
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item")
+        msg = event.get("msg")
+        if isinstance(item, dict) and item.get("type") == "agent_message" and item.get("text"):
+            text = str(item["text"])
+        elif isinstance(msg, dict) and msg.get("message"):
+            text = str(msg["message"])
+        elif event.get("type") in ("turn.failed", "error"):
+            raw = (event.get("error") or {}).get("message") if event.get("error") else None
+            raw = raw or event.get("message") or ""
+            try:  # the message is often itself an API error body
+                raw = json.loads(raw)["error"]["message"]
+            except (ValueError, TypeError, KeyError):
+                pass
+            failure = str(raw) or "Codex stopped with an error"
+        elif event.get("text"):
+            text = str(event["text"])
+    return text, failure

@@ -123,27 +123,27 @@ def import_module(registry: AppRegistry, data: bytes) -> ImportedModule:
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
-        raise invalid("that file isn't a module export — it's not even a zip file") from None
+        raise invalid("that file isn't a project export — it's not even a zip file") from None
 
     names = set(zf.namelist())
     if MANIFEST_NAME not in names:
-        raise invalid("that file is missing its module manifest — it isn't a valid module export")
+        raise invalid("that file is missing its project manifest — it isn't a valid project export")
     try:
         manifest = json.loads(zf.read(MANIFEST_NAME))
     except json.JSONDecodeError:
-        raise invalid("the module manifest is unreadable") from None
+        raise invalid("the project manifest is unreadable") from None
 
     if manifest.get("format_version") != FORMAT_VERSION:
-        raise invalid(f"this Alpha only reads module exports in format {FORMAT_VERSION}")
+        raise invalid(f"this Alpha only reads project exports in format {FORMAT_VERSION}")
 
     files = manifest.get("files")
     if not isinstance(files, dict) or not files:
-        raise invalid("the module manifest lists no files")
+        raise invalid("the project manifest lists no files")
     for rel in files:
         if rel not in names:
             raise conflict(f"{rel} is listed in the manifest but missing from the file")
         if _FORBIDDEN_NAME.match(Path(rel).name):
-            raise invalid(f"{rel} looks like data or a secret — modules can't carry either")
+            raise invalid(f"{rel} looks like data or a secret — projects can't carry either")
     extra = names - set(files) - {MANIFEST_NAME}
     if extra:
         raise invalid(f"{sorted(extra)[0]} isn't declared in the manifest — it can't be trusted")
@@ -162,10 +162,10 @@ def import_module(registry: AppRegistry, data: bytes) -> ImportedModule:
             target.write_bytes(raw)
 
         if not (root / "app.yaml").is_file():
-            raise invalid("the module has no app.yaml — it isn't a valid module export")
+            raise invalid("the project has no app.yaml — it isn't a valid project export")
         declared = manifest.get("app_id")
         if not isinstance(declared, str) or not declared:
-            raise invalid("the module manifest names no module id")
+            raise invalid("the project manifest names no project id")
 
         app_id = _unique_app_id(registry, declared)
         if app_id != declared:

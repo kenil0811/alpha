@@ -82,14 +82,14 @@ function when(iso: string | null): string {
 
 /** What a capability family means for the person, in plain words. */
 const ACCESS: Record<string, { title: string; sub: string }> = {
-  records: { title: "Its own tables on this Mac", sub: "Only this module reads and writes them; no other module can see them." },
+  records: { title: "Its own tables on this Mac", sub: "Only this project reads and writes them; no other project can see them." },
   models: { title: "Model estimates through your Claude subscription", sub: "What you type into an action that asks for an estimate is sent to Anthropic's Claude service. Results are labelled as estimates." },
   http: { title: "Public web pages and web search", sub: "Fetches on your behalf; nothing on this Mac or a private network, no sign-ins." },
   schedules: { title: "Runs on a timer while Alpha is open", sub: "Its schedules are listed under Automations with an on/off switch." },
-  browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this module's Settings. Read-only and paced; every page is listed above." },
+  browser: { title: "Your signed-in browser, when you allow it", sub: "Reads sites you signed into on Connections, only for the sites switched on in this project's Settings. Read-only and paced; every page is listed above." },
   artifacts: { title: "Files it produces", sub: "Kept by Alpha; opening them from Alpha arrives in a later release." },
   profile: { title: "What Alpha knows about you", sub: "Reads the facts on your About you page and passes on what you tell it; anything it works out waits there for your yes." },
-  connections: { title: "Other modules' data, read-only", sub: "Reads what the modules listed under Settings keep, through the views they declare. Each one has a switch." },
+  connections: { title: "Other projects' data, read-only", sub: "Reads what the projects listed under Settings keep, through the views they declare. Each one has a switch." },
 };
 
 /** What this module reads from other modules, with the person's switch on each. */
@@ -123,8 +123,8 @@ function ConnectionSwitches({ client, appId }: { client: ModuleClient; appId: st
     <div className="section" style={{ marginTop: 0 }}>
       <div className="section__head">
         <h2>
-          Reads from other modules
-          <InfoTip content="Read-only, through the views those modules declare. Switch any off; the module then says it cannot read it." label="About reading other modules" />
+          Reads from other projects
+          <InfoTip content="Read-only, through the views those projects declare. Switch any off; the project then says it cannot read it." label="About reading other projects" />
         </h2>
       </div>
       {error ? (
@@ -220,7 +220,7 @@ function BrowserAccessSwitches({ client, appId }: { client: ModuleClient; appId:
           <div className="item" key={r.site}>
             <div className="item__body">
               <b>{r.site}</b>
-              <div className="item__sub">{r.state === "connected" ? (r.allowed ? "This module may read through your session." : "Off: this module reads it as a visitor.") : "Not signed in."}</div>
+              <div className="item__sub">{r.state === "connected" ? (r.allowed ? "This project may read through your session." : "Off: this project reads it as a visitor.") : "Not signed in."}</div>
             </div>
             <label className="switch">
               <input type="checkbox" checked={r.allowed} disabled={r.state !== "connected"} onChange={(e) => void toggle(r.site, e.target.checked)} aria-label={`Allow ${r.site}`} />
@@ -338,7 +338,7 @@ function Automations({ client, appId, version, onChanged }: { client: ModuleClie
             />
           </div>
         ))}
-        {items && !items.length ? <p className="empty">This module runs nothing on its own. Everything happens when you use it.</p> : null}
+        {items && !items.length ? <p className="empty">This project runs nothing on its own. Everything happens when you use it.</p> : null}
       </div>
     </div>
   );
@@ -483,7 +483,7 @@ export function ModulePage({
           </h2>
         </div>
         {tabs.length > 1 ? (
-          <Tabs className="modhead__tabs" items={tabs.map((t) => ({ value: t.id, label: t.title }))} value={currentTab?.id ?? tabs[0].id} onChange={setTab} aria-label={`${detail?.name ?? "Module"} tabs`} />
+          <Tabs className="modhead__tabs" items={tabs.map((t) => ({ value: t.id, label: t.title }))} value={currentTab?.id ?? tabs[0].id} onChange={setTab} aria-label={`${detail?.name ?? "Project"} tabs`} />
         ) : null}
         <button type="button" className="btn btn--sm modhead__assist" onClick={onAsk}>
           <ZazooIcon size={18} label="" />
@@ -596,7 +596,7 @@ export function ModulePage({
                     </div>
                     <div className="item__body">
                       <b>Nothing else</b>
-                      <div className="item__sub">No files on this Mac, no other module's data, no sign-ins, no messages. {detail.data_notice ?? "Its records stay on this Mac."}</div>
+                      <div className="item__sub">No files on this Mac, no other project's data, no sign-ins, no messages. {detail.data_notice ?? "Its records stay on this Mac."}</div>
                     </div>
                   </div>
                 </div>
@@ -678,8 +678,8 @@ export function ModulePage({
                       <Trash2 size={16} />
                     </div>
                     <div className="item__body">
-                      <b>Remove this module</b>
-                      <div className="item__sub">Deletes the module and everything that exists because of it: its records, its history of runs and changes, and what was said about it in the assistant. This cannot be undone.</div>
+                      <b>Remove this project</b>
+                      <div className="item__sub">Deletes the project and everything that exists because of it: its records, its history of runs and changes, and what was said about it in the assistant. This cannot be undone.</div>
                       {typeof removing === "string" && removing !== "ask" && removing !== "busy" ? (
                         <p className="notice" role="alert">
                           {removing}
@@ -698,7 +698,7 @@ export function ModulePage({
                       </span>
                     ) : (
                       <button type="button" className="btn btn--sm" disabled={removing === "busy"} onClick={() => setRemoving("ask")}>
-                        Remove this module
+                        Remove this project
                       </button>
                     )}
                   </div>

@@ -105,19 +105,19 @@ ACTIVE_RUN_STATES = {
     RunState.WAITING_CONNECTION,
 }
 
-STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one thing in an ongoing session. You work in short steps; each answer is one step, using only the modules listed. THIS SESSION SO FAR and the notes are your memory of this session: build on them, never ask again for what is there, and treat "it", "that one", "the same" as referring to what was just discussed.
+STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one thing in an ongoing session. You work in short steps; each answer is one step, using only the projects listed. THIS SESSION SO FAR and the notes are your memory of this session: build on them, never ask again for what is there, and treat "it", "that one", "the same" as referring to what was just discussed.
 
 Step kinds:
-- "run": do something with a module through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
-- "query": read a module's view to answer a question. Give app_id and view_id.
-- "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a module's actions if the person asked for that, or report.
-- "open": the person wants to look at a module or a tab. Give app_id and, when clear, tab_id.
-- "fix": FACTS list a FAILED run of a module that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the module's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
-- "allow": FACTS say a module got a site's sign-in page because it has not been allowed to read through the person's sign-in, AND the person's message agrees to allow it or asks for it. Give app_id and site. Then, in the next step, run the action that needed it. Without their yes, do not allow: explain in one or two sentences what FACTS say (they are signed in; this module just has not been allowed to use that sign-in) and ask whether to allow it. Never tell them to sign in again when FACTS say they are signed in.
-- "change": the person wants a listed module to work or look differently (not a failure: those are "fix"). Give app_id.
-- "build": the person wants something no listed module can do. Alpha starts making it.
+- "run": do something with a project through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
+- "query": read a project's view to answer a question. Give app_id and view_id.
+- "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a project's actions if the person asked for that, or report.
+- "open": the person wants to look at a project or a tab. Give app_id and, when clear, tab_id.
+- "fix": FACTS list a FAILED run of a project that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the project's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
+- "allow": FACTS say a project got a site's sign-in page because it has not been allowed to read through the person's sign-in, AND the person's message agrees to allow it or asks for it. Give app_id and site. Then, in the next step, run the action that needed it. Without their yes, do not allow: explain in one or two sentences what FACTS say (they are signed in; this project just has not been allowed to use that sign-in) and ask whether to allow it. Never tell them to sign in again when FACTS say they are signed in.
+- "change": the person wants a listed project to work or look differently (not a failure: those are "fix"). Give app_id.
+- "build": the person wants something no listed project can do. Alpha starts making it.
 - "done": the work for this sentence is finished (there are OBSERVATIONS). Finish as soon as the observations cover what was asked; do not keep adding. reply says exactly what happened: counts, numbers and dates from the observations, any failure named plainly. Never more than what the observations show.
-- "answer": nothing needs doing (a question you can answer, a greeting, a request outside the modules), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
+- "answer": nothing needs doing (a question you can answer, a greeting, a request outside the projects), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
 
 reply is what the person hears: at most 40 words, warm, specific, no technical words, no field names. For "run" and "query" steps the reply is provisional; the "done" step replaces it. Output only the structured object."""
 
@@ -180,7 +180,7 @@ def catalogue_text(sources: list[tuple[str, AppSource]]) -> str:
     """The modules, in the words the model needs: actions it may run, views it may read."""
     lines: list[str] = []
     for app_id, source in sources[:20]:
-        lines.append(f"MODULE {app_id}: {source.name}. {source.description}")
+        lines.append(f"PROJECT {app_id}: {source.name}. {source.description}")
         actions = [a for a in source.actions if Invocable.ASSISTANT in a.invocable_from][:12]
         for action in actions:
             schema = action.input_schema or {}
@@ -205,7 +205,7 @@ def catalogue_text(sources: list[tuple[str, AppSource]]) -> str:
             lines.append(f"  tabs: {tabs}")
         if source.screen is not None and source.screen.assistant_hint:
             lines.append(f"  note: {source.screen.assistant_hint}")
-    return "\n".join(lines) if lines else "No modules yet."
+    return "\n".join(lines) if lines else "No projects yet."
 
 
 def step_prompt(
@@ -221,7 +221,7 @@ def step_prompt(
     project: str = "",
     attachments: str = "",
 ) -> str:
-    parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
+    parts = [f"TODAY: {today}", "", "PROJECTS:", catalogue, ""]
     if skills:
         parts += ["SKILLS (usable with a skill step):", skills, ""]
     if project:
@@ -394,25 +394,25 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
         where = f" in {app_name}" if app_name else ""
         return f"ran {', '.join(names)} {len(runs)} time(s){where}: {ok} succeeded, {len(runs) - ok} failed"
     if any("rows" in o for o in observations):
-        return f"read {app_name or 'a module'}; nothing was changed"
+        return f"read {app_name or 'a project'}; nothing was changed"
     used = [str(o.get("skill")) for o in observations if o.get("step") == "skill"]
     if used:
         return f"used the skill {', '.join(used)}; nothing was changed"
     allowed = [o for o in observations if o.get("step") == "allow" and o.get("state") == "allowed"]
     if allowed and not runs:
         site = allowed[-1].get("site")
-        return f"allowed {app_name or 'the module'} to read {site} through the sign-in"
+        return f"allowed {app_name or 'the project'} to read {site} through the sign-in"
     fixes = [o for o in observations if o.get("step") == "fix"]
     if fixes:
         state = str(fixes[-1].get("state") or "")
         where = f" in {app_name}" if app_name else ""
         return (
-            f"fixed the module's code{where} and ran the action again"
+            f"fixed the project's code{where} and ran the action again"
             if state == "fixed"
             else f"looked into a failure{where}: {state.replace('_', ' ') or 'no fix'}"
         )
     if kind == "open":
-        return f"opened {app_name or 'a module'} in Alpha's window"
+        return f"opened {app_name or 'a project'} in Alpha's window"
     if kind in ("build", "change"):
         return f"started a request to {'change ' + app_name if kind == 'change' and app_name else 'make something new'}"
     if kind == "continue":
@@ -431,7 +431,7 @@ def access_facts(access: list[dict[str, Any]]) -> list[str]:
         if entry["connected"] and not entry["allowed"]:
             lines.append(
                 f"{head} The person IS signed in to {entry['site']} in Alpha's browser; this "
-                "module has simply not been allowed to read through that sign-in yet. Say so "
+                "project has simply not been allowed to read through that sign-in yet. Say so "
                 "and ask whether to allow it (an allow step once they say yes), then run the "
                 "action again. Do not tell them to sign in again."
             )
@@ -443,7 +443,7 @@ def access_facts(access: list[dict[str, Any]]) -> list[str]:
             )
         elif entry["last_walled"]:
             lines.append(
-                f"{head} The module is allowed and the person signed in earlier, so the "
+                f"{head} The project is allowed and the person signed in earlier, so the "
                 f"sign-in to {entry['site']} has probably lapsed; they can sign in again from "
                 "Connections."
             )
@@ -1190,7 +1190,7 @@ class ActService:
         try:
             for run in self._store.list_runs_in_states(ACTIVE_RUN_STATES):
                 owner = run.owner.model_dump() if hasattr(run.owner, "model_dump") else {}
-                app = names.get(str(owner.get("app_id")), str(owner.get("app_id") or "a module"))
+                app = names.get(str(owner.get("app_id")), str(owner.get("app_id") or "a project"))
                 facts.append(f"running now: {owner.get('action_id')} in {app} ({run.state.value})")
         except Exception:
             log.debug("could not list running runs", exc_info=True)
@@ -1199,7 +1199,7 @@ class ActService:
                 for creation in self._creations.list_recent(10):
                     if creation.state in ("active", "failed", "cancelled"):
                         continue
-                    what = names.get(creation.change_of or "", creation.app_name or "a module")
+                    what = names.get(creation.change_of or "", creation.app_name or "a project")
                     facts.append(f"being made right now: {what} ({creation.label.lower()})")
             except Exception:
                 log.debug("could not list creations", exc_info=True)

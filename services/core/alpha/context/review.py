@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS review_runs (
 );
 """
 
-REVIEW_SYSTEM = """You look over what a person keeps in Alpha once a week and notice at most three things worth a nudge: a table that has stayed empty since it was made, a source that has not been read for days, two modules that would help each other if connected, a goal on the profile with no module behind it, a routine that never runs. Only what the facts show; never invent. Each nudge: one plain sentence of what you noticed (at most 30 words) and one next step the person could send Alpha as a request (at most 20 words). If nothing stands out, return no nudges. No technical words. Output only the structured object."""
+REVIEW_SYSTEM = """You look over what a person keeps in Alpha once a week and notice at most three things worth a nudge: a table that has stayed empty since it was made, a source that has not been read for days, two projects that would help each other if connected, a goal on the profile with no project behind it, a routine that never runs. Only what the facts show; never invent. Each nudge: one plain sentence of what you noticed (at most 30 words) and one next step the person could send Alpha as a request (at most 20 words). If nothing stands out, return no nudges. No technical words. Output only the structured object."""
 
 EVERY = timedelta(days=7)
 
@@ -130,7 +130,7 @@ class ReviewService:
         with self._lock:
             route = self._gateway.route(self._default_route, stage="assistant")
             pack = self._context("weekly review of everything")
-            if "THEIR MODULES" not in pack:
+            if "THEIR PROJECTS" not in pack:
                 self._record(0)
                 return []
             try:

@@ -151,12 +151,12 @@ class ConnectionService:
         )
         if row and not row[0]["enabled"]:
             raise forbidden(
-                f"reading {module} is switched off in this module's Settings", module=module
+                f"reading {module} is switched off in this project's Settings", module=module
             )
         try:
             other = self.registry.current(module).source
         except OperationFailed:
-            raise not_found(f"the module {module} is not installed", module=module) from None
+            raise not_found(f"the project {module} is not installed", module=module) from None
         return use, other
 
     def available(self, app_id: str) -> list[dict[str, Any]]:

@@ -66,7 +66,7 @@ export function CommandMenu({
       icon: icons[m.app_id] ?? Boxes,
       run: () => go(surfacePath({ kind: "module", appId: m.app_id })),
     }));
-    const create: CommandItem = { id: "new-module", label: "New module", icon: Plus, run: onNew };
+    const create: CommandItem = { id: "new-module", label: "New project", icon: Plus, run: onNew };
     return [...nav, ...openModules, create];
   }, [modules, icons, onNew, go]);
 
@@ -109,7 +109,7 @@ export function CommandMenu({
             setActiveIndex(0);
           }}
           onKeyDown={onKeyDown}
-          placeholder="Go to a page, open a module…"
+          placeholder="Go to a page, open a project…"
           aria-label="Command menu"
           role="combobox"
           aria-expanded={open}

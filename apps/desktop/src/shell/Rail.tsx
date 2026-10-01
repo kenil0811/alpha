@@ -190,7 +190,7 @@ export function Rail({
       onModuleRemoved?.(deleting.app_id);
       setDeleting(null);
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "Couldn't remove this module.");
+      setDeleteError(e instanceof Error ? e.message : "Couldn't remove this project.");
     } finally {
       setDeleteBusy(false);
     }
@@ -258,7 +258,7 @@ export function Rail({
         onModuleImported?.(result.app_id);
         toast.show(`Added ${result.name}`);
       } catch (e) {
-        toast.show(e instanceof Error ? e.message : "Couldn't add that module.");
+        toast.show(e instanceof Error ? e.message : "Couldn't add that project.");
       }
     },
     [client, onModuleImported, toast],
@@ -481,7 +481,7 @@ export function Rail({
       <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         {deleting ? (
           <DialogContent title={`Delete ${deleting.name}?`}>
-            <p className="panel__hint">Deletes the module, its records, run history, and assistant notes. This cannot be undone.</p>
+            <p className="panel__hint">Deletes the project, its records, run history, and assistant notes. This cannot be undone.</p>
             {deleteError ? (
               <p className="notice" role="alert">
                 {deleteError}

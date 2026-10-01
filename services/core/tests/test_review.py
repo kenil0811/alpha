@@ -21,7 +21,7 @@ def service(tmp_path: Path, pack: str) -> ReviewService:
 def test_a_review_writes_nudges_and_a_dismissal_sticks(tmp_path: Path) -> None:
     svc = service(
         tmp_path,
-        "ABOUT THE PERSON:\n- nothing\n\nTHEIR MODULES:\n"
+        "ABOUT THE PERSON:\n- nothing\n\nTHEIR PROJECTS:\n"
         "- Notes [notes]: A list. Keeps: notes (0).",
     )
     assert svc.due() is True

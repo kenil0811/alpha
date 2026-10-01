@@ -189,7 +189,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     await screen.findByLabelText("Creating it");
     const started = [...client.conversations.values()][0];
     expect(started.change_of).toBe("notes-list-1a2b3c");
-    expect(panel).toHaveTextContent("Changing a module");
+    expect(panel).toHaveTextContent("Changing a project");
     expect(within(panel).queryByRole("button", { name: "Create it" })).not.toBeInTheDocument();
     client.nextCreationState = (c) => {
       const made = ready(c);
@@ -256,11 +256,11 @@ describe("a module's own thread", () => {
     await user.click(await screen.findByRole("button", { name: "Notes list" }));
     await screen.findByRole("heading", { name: "Notes list" });
     await user.click(screen.getAllByRole("button", { name: "Chief of Staff" })[0]);
-    const thread = await screen.findByRole("navigation", { name: "This module's requests" });
+    const thread = await screen.findByRole("navigation", { name: "This project's requests" });
     expect(within(thread).getByText("Add a mood to each note")).toBeInTheDocument();
     expect(within(thread).getByText(/Change · Planned/)).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Recent requests" })).not.toBeInTheDocument();
     await user.click(within(thread).getByText("Add a mood to each note"));
-    expect(await screen.findByText("Changing a module")).toBeInTheDocument();
+    expect(await screen.findByText("Changing a project")).toBeInTheDocument();
   });
 });

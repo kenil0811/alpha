@@ -19,10 +19,10 @@ import "../modules/module.css";
 
 type Tab = "brain" | "skills" | "automations" | "connections";
 const TABS: [Tab, string, string][] = [
-  ["brain", "Second brain", "Every module and every fact Alpha holds, and how they connect."],
-  ["skills", "Skills", "A reusable ability outside any module: on its own, or when a sentence calls for it."],
-  ["automations", "Automations", "Every schedule across your modules, switchable in place."],
-  ["connections", "Connections", "A module reads another only when it asked to and you left it on."],
+  ["brain", "Second brain", "Every project and every fact Alpha holds, and how they connect."],
+  ["skills", "Skills", "A reusable ability outside any project: on its own, or when a sentence calls for it."],
+  ["automations", "Automations", "Every schedule across your projects, switchable in place."],
+  ["connections", "Connections", "A project reads another only when it asked to and you left it on."],
 ];
 const isTab = (t?: string): t is Tab => t === "brain" || t === "skills" || t === "automations" || t === "connections";
 
@@ -48,7 +48,7 @@ export function Intelligence({
         <div className="modhead__title">
           <h2 id="intel-heading">
             Intelligence
-            <InfoTip content="What Alpha knows and can do across your modules." label="About Intelligence" />
+            <InfoTip content="What Alpha knows and can do across your projects." label="About Intelligence" />
           </h2>
         </div>
       </div>

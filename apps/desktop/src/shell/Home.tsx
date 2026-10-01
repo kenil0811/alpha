@@ -179,7 +179,7 @@ export function Home({
         title={
           <span id="home-heading">
             {greeting()}
-            <InfoTip content="Open a module to work with its records, or describe a new one." label="About this page" />
+            <InfoTip content="Open a project to work with its records, or describe a new one." label="About this page" />
           </span>
         }
       />
@@ -192,7 +192,7 @@ export function Home({
 
       <div className="stat-row">
         <div className="card stat-card">
-          <div className="stat-card__label">Modules</div>
+          <div className="stat-card__label">Projects</div>
           <div className="stat-card__value">{modules.length}</div>
           <div className="stat-card__sub">{modules.length ? "Ready to use on this Mac" : "Describe what you want to make the first one"}</div>
         </div>
@@ -218,7 +218,7 @@ export function Home({
 
       <div className="section" style={{ marginTop: 0 }}>
         <div className="section__head">
-          <h2>Your modules</h2>
+          <h2>Your projects</h2>
           <div className="section__right">
             <button type="button" className="module-card__open" onClick={onActivity}>
               See all activity
@@ -228,10 +228,10 @@ export function Home({
 
         {error ? (
           <p className="home-state home-state--error" role="alert">
-            Modules could not be loaded: {error}
+            Projects could not be loaded: {error}
           </p>
         ) : loading ? (
-          <p className="home-state">Loading modules…</p>
+          <p className="home-state">Loading projects…</p>
         ) : (
           <div className="module-grid">
             {modules.map((m) => {
@@ -255,7 +255,7 @@ export function Home({
                   <div className="module-card__meta">
                     <span>{last ? `Last ran ${ago(last.created_at)}` : `Made ${ago(m.created_at)}`}</span>
                     <button type="button" className="module-card__open" aria-label={`Open ${m.name}`} onClick={() => onOpen(m.app_id)}>
-                      Open module <ArrowRight size={13} />
+                      Open project <ArrowRight size={13} />
                     </button>
                   </div>
                 </div>
@@ -265,10 +265,10 @@ export function Home({
               <div className="eyebrow">New</div>
               <h2>
                 Describe what you want
-                <InfoTip content={'"Track what I eat", "Watch a page for price drops", "Turn my receipts into a monthly summary". Alpha asks a couple of questions, then builds it here.'} label="About new modules" />
+                <InfoTip content={'"Track what I eat", "Watch a page for price drops", "Turn my receipts into a monthly summary". Alpha asks a couple of questions, then builds it here.'} label="About new projects" />
               </h2>
               <button type="button" className="module-card__open" onClick={onNew}>
-                Start a new module <ArrowRight size={13} />
+                Start a new project <ArrowRight size={13} />
               </button>
             </div>
           </div>

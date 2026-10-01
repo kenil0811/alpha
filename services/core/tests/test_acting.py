@@ -164,7 +164,7 @@ def service(tmp_path: Path, runs: Runs, assistant: Assistant) -> ActService:
 
 def test_the_catalogue_names_only_what_the_assistant_may_run() -> None:
     text = catalogue_text([("notes", notes_source())])
-    assert "MODULE notes: Notes (fixture)" in text
+    assert "PROJECT notes: Notes (fixture)" in text
     assert "action add_note" in text and "title (string, required)" in text
     assert "action count_notes" in text, "count_notes is invocable from the assistant"
     assert "view notes.recent: Latest notes" in text

@@ -414,14 +414,14 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
       (a) => a.name.toLowerCase().endsWith(ALPHAMODULE_EXTENSION),
       (a) => {
         const source = a.path ? { path: a.path } : a.contentB64 ? new Blob([Uint8Array.from(atob(a.contentB64), (c) => c.charCodeAt(0))]) : null;
-        if (!source) return toast.show("Couldn't read that module file.");
+        if (!source) return toast.show("Couldn't read that project file.");
         client
           .importModuleFile(source)
           .then((r) => {
             handleModuleImported(r.app_id);
             toast.show(`Added ${r.name}`);
           })
-          .catch((e: unknown) => toast.show(e instanceof Error ? e.message : "Couldn't add that module."));
+          .catch((e: unknown) => toast.show(e instanceof Error ? e.message : "Couldn't add that project."));
       },
     );
   }, [client, handleModuleImported, toast]);
@@ -634,7 +634,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           </button>
           <button type="button" className="tabbar__btn" aria-current={mobileDrawer === "modules" ? "page" : undefined} onClick={() => setMobileDrawer("modules")}>
             <Boxes size={18} />
-            Modules
+            Projects
           </button>
           <button type="button" className="tabbar__btn" aria-current={assistantOpen ? "page" : undefined} onClick={() => setAssistantOpen(!assistantOpen)}>
             <ZazooIcon size={20} label="" />

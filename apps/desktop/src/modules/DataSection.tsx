@@ -44,7 +44,7 @@ function inputType(kind: string): string {
 }
 
 export function DataSection({ client, detail, version, onChanged }: { client: ModuleClient; detail: AppDetail; version: number; onChanged: () => void }) {
-  if (!detail.collections.length) return <p className="empty">This module keeps no tables.</p>;
+  if (!detail.collections.length) return <p className="empty">This project keeps no tables.</p>;
   return (
     <div className="stack">
       {detail.collections.map((collection) => (

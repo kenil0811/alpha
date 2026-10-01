@@ -13,10 +13,10 @@ describe("settings the person can change", () => {
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Settings" }));
     const models = await screen.findByLabelText("Models");
-    const builder = within(models).getByLabelText("Model for building a new module");
+    const builder = within(models).getByLabelText("Model for building a new project");
     await user.selectOptions(builder, "sonnet");
     await waitFor(() => expect(client.settingsUpdates).toEqual([{ "models.builder_new": "sonnet" }]));
-    expect(await screen.findByText(/^Saved\. Model for building a new module/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Saved\. Model for building a new project/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Builds" }));
     const limits = screen.getByLabelText("Building limits");

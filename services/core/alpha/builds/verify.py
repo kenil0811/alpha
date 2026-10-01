@@ -320,7 +320,7 @@ class CandidateVerifier:
                 stage="behavior",
                 required=False,
                 status=CheckStatus.SKIPPED,
-                summary="runs once the module is switched on",
+                summary="runs once the project is switched on",
             )
         )
         run.reached = "ui"  # nothing after the handlers is marked as not run

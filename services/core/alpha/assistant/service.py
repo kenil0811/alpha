@@ -189,7 +189,7 @@ class AssistantService:
         session it is a card in."""
         route = self._gateway.route(route_id or self._default_route, stage="assistant")
         if change_of is not None and self._describe_app(change_of) is None:
-            raise UnknownApp(f"there is no module {change_of!r} to change")
+            raise UnknownApp(f"there is no project {change_of!r} to change")
         conversation_id = new_id("conv")
         now = _dt(utc_now())
         with self._store.transaction() as conn:
@@ -524,8 +524,8 @@ class AssistantService:
                     "delivery": "app",
                     "interpretation": {
                         "outcome": summary,
-                        "main_input": "The module as it is today.",
-                        "useful_result": "The same module with this change, data kept.",
+                        "main_input": "The project as it is today.",
+                        "useful_result": "The same project with this change, data kept.",
                         "important_assumptions": [],
                     },
                     "questions": [],

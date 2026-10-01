@@ -15,7 +15,7 @@ import "../modules/views/views.css";
 
 const SOURCE: Record<ProfileFact["provenance"], string> = {
   person: "You said so",
-  module: "From a module",
+  module: "From a project",
   assistant: "From a conversation",
   inferred: "Alpha worked it out",
 };
@@ -81,7 +81,7 @@ export function AboutYou({ client }: { client: ProfileClient }) {
         <div className="modhead__title">
           <h2 id="about-heading">
             About you
-            <InfoTip content="What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it." label="About this page" />
+            <InfoTip content="What Alpha knows and uses across your projects. Every line says where it came from; correct or forget any of it." label="About this page" />
           </h2>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function AboutYou({ client }: { client: ProfileClient }) {
           <div className="section__head">
             <h2>
               Waiting for your yes
-              <InfoTip content="Modules and the assistant proposed these; nothing uses them until you accept." label="About suggested facts" />
+              <InfoTip content="Projects and the assistant proposed these; nothing uses them until you accept." label="About suggested facts" />
             </h2>
           </div>
           <div className="card list" aria-label="Suggested facts">
@@ -127,7 +127,7 @@ export function AboutYou({ client }: { client: ProfileClient }) {
       <div className="section" style={{ marginTop: suggestions.length ? undefined : 0 }}>
         <div className="section__head">
           <h2>Facts</h2>
-          <span className="faint">{facts.length ? `${facts.length} known` : loaded ? "Nothing yet. Add what you'd like every module to know." : "Loading…"}</span>
+          <span className="faint">{facts.length ? `${facts.length} known` : loaded ? "Nothing yet. Add what you'd like every project to know." : "Loading…"}</span>
         </div>
         <div className="card">
           <div className="tablewrap">

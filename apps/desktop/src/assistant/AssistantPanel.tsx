@@ -168,7 +168,7 @@ export function AssistantPanel({
                   </>
                 ) : scope.projectName ? (
                   <>
-                    This session is about <b>{scope.projectName}</b>. Ask anything about it, tell me to do something with its modules, or describe something new to make for it.
+                    This session is about <b>{scope.projectName}</b>. Ask anything about it, tell me to do something with its sub projects, or describe something new to make for it.
                   </>
                 ) : (
                   <>Tell me what you want to keep track of, automate or get done. I'll ask at most a couple of questions, then build it.</>
@@ -486,8 +486,8 @@ function ModuleThread({ client, appId, onOpen }: { client: CoreClient; appId: st
   }, [client, appId]);
   if (!items?.length) return null;
   return (
-    <nav aria-label="This module's requests" className="recent">
-      <h3 className="recent__title">This module's requests</h3>
+    <nav aria-label="This project's requests" className="recent">
+      <h3 className="recent__title">This project's requests</h3>
       <ul>
         {items.map((c) => (
           <li key={c.conversation_id}>

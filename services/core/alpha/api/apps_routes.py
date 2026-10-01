@@ -190,9 +190,9 @@ def register(app: FastAPI, platform: AppPlatform) -> None:
         if body.path is not None:
             source = Path(body.path).expanduser()
             if source.suffix.lower() != ".alphamodule" or not source.is_file():
-                raise _fail(invalid("that isn't an Alpha module file"))
+                raise _fail(invalid("that isn't an Alpha project file"))
             if source.stat().st_size > 10 * 1024 * 1024:
-                raise _fail(invalid("that module file is larger than 10 MB"))
+                raise _fail(invalid("that project file is larger than 10 MB"))
             data = source.read_bytes()
         else:
             try:
