@@ -45,12 +45,6 @@ interface ModelAccountsLike {
   listModelAccounts(): Promise<ModelProviderAccount[]>;
 }
 
-function advancedLabel(advanced: AdvancedControls): string {
-  const parts: string[] = [];
-  if (advanced.accessMode !== "ask") parts.push(ACCESS_MODE_COPY[advanced.accessMode].title);
-  if (advanced.model) parts.push(advanced.model.provider);
-  return parts.join(" · ");
-}
 
 export interface AdvancedControls {
   accessMode: AccessMode;
@@ -72,7 +66,8 @@ export function AttachMenu({
    *  Advanced submenu entirely rather than rendering a broken one. */
   advanced?: AdvancedControls;
 }) {
-  const label = advanced && (advanced.accessMode !== "ask" || advanced.model) ? advancedLabel(advanced) : null;
+  // Only a non-default access mode is flagged next to "+"; the model choice stays inside Advanced.
+  const label = advanced && advanced.accessMode !== "ask" ? ACCESS_MODE_COPY[advanced.accessMode].title : null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

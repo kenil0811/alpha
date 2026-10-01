@@ -309,6 +309,12 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
    *  always starts one, a change when the session focuses on a module). */
   sessionScript: ((session: Session, text: string) => SessionTurn | null) | null = null;
 
+  commons: { id: string; name: string; summary?: string | null }[] = [];
+
+  async listCommons() {
+    return this.commons;
+  }
+
   async listProjects(): Promise<Project[]> {
     return [...this.projects.values()].filter((p) => !p.archived_at);
   }

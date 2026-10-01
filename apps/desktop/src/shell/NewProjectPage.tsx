@@ -10,7 +10,7 @@ import "../modules/module.css";
  * project" centre offers a few starter chips and real insights. Flip this to `false` to go
  * back to a fully blank centre — that's the whole revert.
  */
-export const NEW_PROJECT_CENTRE_SUGGESTIONS = true;
+export const NEW_PROJECT_CENTRE_SUGGESTIONS = false;
 
 /**
  * The blank "New project" draft: just an editable title until the person tells the Chief of

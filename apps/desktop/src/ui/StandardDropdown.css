@@ -10,3 +10,6 @@
 .ui-std-dropdown__add:hover:not(:disabled) { background: var(--hover); }
 .ui-std-dropdown__add:disabled { color: var(--text-3); cursor: not-allowed; }
 .ui-std-dropdown__reason { font-size: var(--text-xs); color: var(--text-3); font-weight: 400; margin-left: auto; }
+.ui-std-dropdown__item--icon { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ui-std-dropdown__item--icon > svg { flex-shrink: 0; color: var(--text-3); }
+.ui-std-dropdown__section { padding: 8px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-3); }

@@ -364,10 +364,10 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   // Opens the blank draft: no project exists in Core yet (createProject waits for the person's
   // first answer, in the Chief of Staff panel's send() below), so there's nothing here yet to
   // undo if they change their mind and go elsewhere.
-  const startNewProjectDraft = useCallback(() => {
+  const startNewProjectDraft = useCallback((title?: string) => {
     selectConversation(null);
     rememberSession("draft-project", null);
-    setDraftProjectTitle("Untitled project");
+    setDraftProjectTitle(title ?? "Untitled project");
     setAssistantOpen(true);
     assistantPanel.setCollapsed(false);
     setSurface({ kind: "newProject" });
@@ -387,6 +387,13 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
     (appId: string) => {
       setModulesTick((n) => n + 1);
       if (surface.kind === "module" && surface.appId === appId) setSurface({ kind: "home" });
+    },
+    [surface, setSurface],
+  );
+  const handleProjectRemoved = useCallback(
+    (projectId: string) => {
+      setModulesTick((n) => n + 1);
+      if (surface.kind === "project" && surface.projectId === projectId) setSurface({ kind: "home" });
     },
     [surface, setSurface],
   );
@@ -613,6 +620,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
                 panel={{ ...railPanel, collapsed: false, displayWidth: 280 }}
                 client={client}
                 onModuleRemoved={handleModuleRemoved}
+                onProjectRemoved={handleProjectRemoved}
                 onModuleImported={handleModuleImported}
               />
             </div>
@@ -659,6 +667,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           }
           client={client}
           onModuleRemoved={handleModuleRemoved}
+                onProjectRemoved={handleProjectRemoved}
           onModuleImported={handleModuleImported}
         />
       </div>

@@ -734,6 +734,21 @@ export interface SessionsClient {
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session>;
 }
 
+/** A shared starting point listed under Commons in the New project picker (loaded from Core). */
+export interface CommonsProject {
+  id: string;
+  name: string;
+  summary?: string | null;
+}
+
+export interface CommonsClient {
+  listCommons(): Promise<CommonsProject[]>;
+}
+
+export function isCommonsClient(client: unknown): client is CommonsClient {
+  return typeof (client as Partial<CommonsClient>)?.listCommons === "function";
+}
+
 export function isSessionsClient(client: unknown): client is SessionsClient {
   return typeof (client as Partial<SessionsClient>)?.sendSession === "function";
 }
@@ -994,7 +1009,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient, ModelAccountsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient, ModelAccountsClient, CommonsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -1467,6 +1482,11 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async capabilities(): Promise<CapabilityEntry[]> {
     const page = await this.request<{ capabilities: CapabilityEntry[] }>("/api/capabilities");
     return page.capabilities;
+  }
+
+  async listCommons(): Promise<CommonsProject[]> {
+    const page = await this.request<{ projects: CommonsProject[] }>("/api/commons");
+    return page.projects;
   }
 
   async listProjects(): Promise<Project[]> {
