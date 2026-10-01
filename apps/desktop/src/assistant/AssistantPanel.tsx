@@ -56,6 +56,8 @@ export function AssistantPanel({
   headerStart,
   headerEnd,
   draft,
+  sendNow,
+  cardsOnPage = false,
 }: {
   client: CoreClient;
   scope?: AssistantScope;
@@ -72,6 +74,12 @@ export function AssistantPanel({
   headerEnd?: ReactNode;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
+  /** A message typed somewhere else (the blank project's "Describe your project"), sent here
+   *  as if typed in the composer; `id` changes once per message. */
+  sendNow?: { text: string; id: number } | null;
+  /** The page beside the chat shows the creation card (a project page): the chat only points
+   *  to it, so the questions and options live in one place. */
+  cardsOnPage?: boolean;
 }) {
   const sessions = isSessionsClient(client) ? client : null;
   const [ownSession, setOwnSession] = useState<string | null>(null);
@@ -100,6 +108,12 @@ export function AssistantPanel({
   useEffect(() => {
     if (draft) setText(draft);
   }, [draft]);
+  const sentNow = useRef<number | null>(null);
+  useEffect(() => {
+    if (!sendNow || sentNow.current === sendNow.id || busy) return;
+    sentNow.current = sendNow.id;
+    void send(sendNow.text, [], { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
+  }, [sendNow, busy, send, advanced.accessMode, advanced.model]);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bodyRef.current?.scrollTo?.({ top: bodyRef.current.scrollHeight });
@@ -210,7 +224,11 @@ export function AssistantPanel({
                   ) : null}
                 </div>
               ) : turn.kind === "work" && turn.conversation_id ? (
-                cards.get(turn.conversation_id) === turn.turn_id ? (
+                cards.get(turn.conversation_id) === turn.turn_id && cardsOnPage ? (
+                  <div key={turn.turn_id} className="msg msg--ai faint">
+                    Questions and options are on the page.
+                  </div>
+                ) : cards.get(turn.conversation_id) === turn.turn_id ? (
                   <ConversationCard key={turn.turn_id} client={client} conversationId={turn.conversation_id} onOpenApp={onOpenApp} onStartOver={setText} />
                 ) : (
                   <div key={turn.turn_id} className="msg msg--ai faint">

@@ -92,12 +92,6 @@ def register(
 ) -> None:
     # ----- projects ------------------------------------------------------------------------
 
-    @app.get("/api/commons")
-    def list_commons() -> dict[str, Any]:
-        """Shared starting points for the New project picker. ponytail: none are published
-        yet, so this is an empty list until a Commons source exists."""
-        return {"projects": []}
-
     @app.get("/api/projects")
     def list_projects(include_archived: bool = False) -> dict[str, Any]:
         return {"projects": projects.list_projects(include_archived=include_archived)}

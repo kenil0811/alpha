@@ -31,6 +31,8 @@ from alpha.assistant.research import (
     PROPOSE_SYSTEM,
     Evidence,
     Researcher,
+    build_queries,
+    domain_queries,
     fake_propose,
     fake_research,
     propose_prompt,
@@ -354,7 +356,15 @@ class AssistantService:
             current = record.current_brief.model_dump(mode="json") if record.current_brief else None
             existing = self._describe_app(record.change_of) if record.change_of else None
             known = self._known(str(latest.get("text") or ""))
-            prompt = turn_prompt(history, current, latest, existing=existing, known=known)
+            # The person answered the options: research how to build what they chose.
+            build_research = (
+                self._build_research(record, route, str(latest.get("text") or ""))
+                if record.proposal and not record.change_of
+                else None
+            )
+            prompt = turn_prompt(
+                history, current, latest, existing=existing, known=known, research=build_research
+            )
             result = self._inference.call(
                 route,
                 system=system_prompt(self._notice(route)),
@@ -439,7 +449,10 @@ class AssistantService:
             if route.route_id == "fake":
                 evidence = fake_research(goal)
             elif self._researcher is not None:
-                evidence = self._researcher.run(goal, brief, scope_ref=conversation_id)
+                queries = domain_queries(goal, self._answers(conversation_id))
+                evidence = self._researcher.run(
+                    goal, brief, scope_ref=conversation_id, queries=queries
+                )
         except Exception:
             log.exception("research failed for %s; proposing without it", conversation_id)
         try:
@@ -464,12 +477,59 @@ class AssistantService:
             return None
         ids = {str(o.get("id")) for o in options}
         default = str(proposal.get("default") or "")
+        questions = [
+            q
+            for q in (proposal.get("questions") or [])
+            if isinstance(q, dict) and q.get("id") and q.get("question") and q.get("options")
+        ][:3]
         return {
             "intro": str(proposal.get("intro") or ""),
+            "findings": [str(f) for f in (proposal.get("findings") or []) if f][:4],
+            "questions": questions,
             "options": options,
             "default": default if default in ids else str(options[0].get("id")),
             "evidence": [e.as_dict() for e in evidence],
         }
+
+    def _answers(self, conversation_id: str) -> dict[str, str]:
+        """Every answer the person gave in this conversation, by question id (later wins)."""
+        merged: dict[str, str] = {}
+        for turn in self.get(conversation_id).turns:
+            if turn.role == "user":
+                merged.update(
+                    {str(k): str(v) for k, v in (turn.content.get("answers") or {}).items()}
+                )
+        return merged
+
+    def _build_research(
+        self, record: ConversationRecord, route: ModelRoute, choice: str
+    ) -> str | None:
+        """Once the person chose what to make: open-source projects that already do it and APIs
+        that can do it or part of it, as a section of the next turn's prompt. Kept on the
+        proposal so it runs once."""
+        proposal = record.proposal or {}
+        if "build_evidence" in proposal:
+            evidence = [Evidence(**e) for e in proposal["build_evidence"]]
+        else:
+            goal = record.current_brief.goal if record.current_brief else choice
+            evidence = []
+            if route.route_id != "fake" and self._researcher is not None:
+                try:
+                    queries = build_queries(goal, self._answers(record.conversation_id), choice)
+                    evidence = self._researcher.run(
+                        goal, {}, scope_ref=f"{record.conversation_id}:build", queries=queries
+                    )
+                except Exception:
+                    log.exception("build research failed for %s", record.conversation_id)
+            proposal["build_evidence"] = [e.as_dict() for e in evidence]
+            with self._store.transaction() as conn:
+                conn.execute(
+                    "UPDATE conversations SET proposal_json = ? WHERE conversation_id = ?",
+                    (json.dumps(proposal), record.conversation_id),
+                )
+        if not evidence:
+            return None
+        return "\n".join(f"<<< {e.kind}: {e.title} ({e.url})\n{e.note}\n>>>" for e in evidence)
 
     def _told(self, conversation_id: str) -> list[str]:
         """What the person said and chose in this conversation, oldest first, for the options."""

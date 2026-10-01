@@ -72,6 +72,15 @@ Rules:
   you may use WebFetch and WebSearch to look at the real sites the goal names and write the
   reader for their actual structure (which links are items, where the details live); note what
   you learned in a comment so a later change can follow it.
+- What the person told Alpha (their role, outcomes and tools) is the requirement: build for
+  exactly that person, never a generic version. When the instructions name an open-source
+  project to follow or an API or source to use, read it first with WebFetch and follow its
+  approach (what it tracks, how it names statuses, how it reads that source). Clean room: never
+  copy, paraphrase or translate its code; write your own. Record what you followed (name,
+  address, license) in a comment at the top of the handler that uses it.
+- Everything the person reads in the App (labels, messages, empty states) is plain,
+  professional language with no technical words. Real data or an honest empty state: never
+  seed example or placeholder rows.
 - Model calls are slow (seconds each): never call ctx.models once per item in a loop. Send one
   structured call for a batch of items (up to ~20, input under 60 KB) asking for a `json` field
   that holds a list with one entry per item (name the keys in the instruction; see SDK.md), and

@@ -151,6 +151,8 @@ describe("a turn that takes long", () => {
       ],
       default: "full",
       evidence: [{ kind: "search", title: "How people keep notes", url: "https://example.com/notes", note: "Title, date, tags." }],
+      findings: ["People on Reddit lose notes they never tag."],
+      questions: [{ id: "share", question: "Who else reads these?", options: ["Only me", "My team"], why_it_matters: "Decides sharing." }],
     };
     client.assistantScript = (c: Conversation, reply: ConversationReply | null): Conversation =>
       reply === null ? { ...c, state: "proposed", delivery: "app", current_brief: sampleBrief(), proposal } : { ...c, state: "briefed", delivery: "app", current_brief: sampleBrief() };
@@ -164,8 +166,11 @@ describe("a turn that takes long", () => {
     expect(within(card).getByText("Alpha's pick")).toBeInTheDocument();
     await user.click(within(card).getByRole("button", { name: "What Alpha looked at (1)" }));
     expect(within(card).getByRole("link", { name: "How people keep notes" })).toBeInTheDocument();
+    expect(within(card).getByText("People on Reddit lose notes they never tag.")).toBeInTheDocument();
+    await user.click(within(card).getByRole("checkbox", { name: "My team" }));
     await user.click(within(card).getByRole("button", { name: "Go with this" }));
     await waitFor(() => expect(String(client.conversations.get("conv_1")?.turns.at(-1)?.content.text)).toMatch(/^Go with "List with tags"/));
+    expect(client.conversations.get("conv_1")?.turns.at(-1)?.content.answers).toEqual({ share: "My team" });
     await waitFor(() => expect(screen.queryByLabelText("Options")).not.toBeInTheDocument());
   });
 });

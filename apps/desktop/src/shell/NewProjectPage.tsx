@@ -1,58 +1,31 @@
-import { FolderPlus } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { AppSummary, Nudge, ProfileClient } from "../core/client";
-import { InfoTip } from "../ui";
+import { FileUp, FolderPlus } from "lucide-react";
+import { useRef, useState } from "react";
+import { isAlphaModuleFile } from "../modules/alphaModuleAttachment";
 import "./pages.css";
 import "../modules/module.css";
 
 /**
- * Trial flag (AP-182): while the person decides if this is worth keeping, the blank "New
- * project" centre offers a few starter chips and real insights. Flip this to `false` to go
- * back to a fully blank centre — that's the whole revert.
- */
-export const NEW_PROJECT_CENTRE_SUGGESTIONS = false;
-
-/**
- * The blank "New project" draft: just an editable title until the person tells the Chief of
- * Staff what it's for (that's where the actual project gets made). While it's otherwise empty,
- * it can show a few starter chips built from real signals already on hand — installed modules,
- * and whatever Alpha has already noticed — never anything invented.
+ * The blank project New project opens: an editable name, one "Describe your project" box and
+ * Import. What the person types goes to the Chief of Staff as their first message (the project
+ * is made then), and the page moves on to the project, where Alpha's questions and options show.
  */
 export function NewProjectPage({
   title,
   onTitleChange,
-  modules,
-  client,
-  onFill,
-  showSuggestions = NEW_PROJECT_CENTRE_SUGGESTIONS,
+  onStart,
+  onImport,
 }: {
   title: string;
   onTitleChange: (title: string) => void;
-  modules: AppSummary[];
-  /** Absent when the runtime keeps no profile; the insights strip then just stays blank. */
-  client?: ProfileClient;
-  /** Fills the composer with a chip's text; sending is still up to the person. */
-  onFill: (text: string) => void;
-  /** Defaults to the trial flag; a test can flip it independently of that module constant. */
-  showSuggestions?: boolean;
+  /** The first message, handed to the chat panel and sent there. */
+  onStart: (text: string) => void;
+  /** Absent when the runtime can't install a project file. */
+  onImport?: (file: File) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
-  const [nudges, setNudges] = useState<Nudge[]>([]);
-
-  useEffect(() => {
-    if (!client) return;
-    let cancelled = false;
-    client
-      .nudges()
-      .then((r) => {
-        if (!cancelled) setNudges(r.nudges);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
+  const [text, setText] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function save() {
     setEditing(false);
@@ -61,10 +34,10 @@ export function NewProjectPage({
     else setDraft(title);
   }
 
-  const chips = modules.slice(0, 4).map((m) => ({
-    label: `File alongside ${m.name}`,
-    text: `File this new project alongside ${m.name}.`,
-  }));
+  function start() {
+    const clean = text.trim();
+    if (clean) onStart(clean);
+  }
 
   return (
     <section className="page" aria-labelledby="new-project-heading">
@@ -104,34 +77,54 @@ export function NewProjectPage({
         </div>
       </div>
 
-      {showSuggestions && chips.length ? (
-        <div className="row" style={{ flexWrap: "wrap", gap: 8, marginTop: 24 }} aria-label="Starter options">
-          {chips.map((c) => (
-            <button key={c.label} type="button" className="btn btn--sm" onClick={() => onFill(c.text)}>
-              {c.label}
-            </button>
-          ))}
+      <form
+        className="newproject"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start();
+        }}
+      >
+        <textarea
+          autoFocus
+          className="newproject__input"
+          aria-label="Describe your project"
+          placeholder="Describe your project"
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              start();
+            }
+          }}
+        />
+        <div className="row newproject__actions">
+          {onImport ? (
+            <>
+              <button type="button" className="btn btn--sm" onClick={() => fileRef.current?.click()}>
+                <FileUp size={14} strokeWidth={1.75} aria-hidden="true" /> Import a project…
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".alphamodule"
+                hidden
+                aria-label="Project file"
+                onChange={(e) => {
+                  const file = Array.from(e.target.files ?? []).find(isAlphaModuleFile);
+                  if (file) onImport(file);
+                  e.target.value = "";
+                }}
+              />
+            </>
+          ) : null}
+          <span className="rail__spacer" />
+          <button type="submit" className="btn btn--sm btn--primary" disabled={!text.trim()}>
+            Start
+          </button>
         </div>
-      ) : null}
-
-      {showSuggestions && nudges.length ? (
-        <div className="section">
-          <div className="section__head">
-            <h2>Research insights</h2>
-            <InfoTip label="About research insights" content="What Alpha already noticed across your projects." />
-          </div>
-          <div className="card list" aria-label="Research insights">
-            {nudges.slice(0, 4).map((n) => (
-              <div className="item" key={n.nudge_id}>
-                <div className="item__body">{n.text}</div>
-                <button type="button" className="btn btn--sm" onClick={() => onFill(n.next_step)}>
-                  {n.next_step}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      </form>
     </section>
   );
 }

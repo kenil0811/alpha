@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CREATION_DONE, isWorkflowsClient, type Conversation, type CoreClient, type Creation, type Proposal } from "../core/client";
 import { CreationCard } from "../workflows/CreationCard";
 import { BriefCard } from "./BriefCard";
-import { QuestionsForm } from "./QuestionsForm";
+import { QuestionsForm, useAnswers } from "./QuestionsForm";
 import { useConversation } from "./useConversation";
 
 export const STATE_WORDS: Record<Conversation["state"], string> = {
@@ -109,7 +109,7 @@ export function ConversationCard({
       {conversation.state === "waiting_for_user" && conversation.questions.length ? (
         <QuestionsForm questions={conversation.questions} busy={busy} onAnswer={(answers) => reply({ answers })} onDefaults={() => reply({ use_defaults: true })} />
       ) : null}
-      {conversation.state === "proposed" && conversation.proposal ? <ProposalCard proposal={conversation.proposal} busy={busy} onChoose={(option) => reply({ text: `Go with "${option.title}": ${option.summary}` })} /> : null}
+      {conversation.state === "proposed" && conversation.proposal ? <ProposalCard proposal={conversation.proposal} busy={busy} onChoose={(option, answers) => reply({ text: `Go with "${option.title}": ${option.summary}`, ...(Object.keys(answers).length ? { answers } : {}) })} /> : null}
       {conversation.current_brief && !thinking && conversation.state !== "proposed" ? <BriefCard brief={conversation.current_brief} dataNotice={conversation.data_notice} /> : null}
       {conversation.state === "briefed" && conversation.delivery === "app" && (conversation.current_brief || conversation.quick_change) && isWorkflowsClient(client) ? (
         <CreationCard
@@ -143,11 +143,20 @@ export function ConversationCard({
 }
 
 /** Two or three shapes Alpha proposes after looking around; the person picks one. */
-function ProposalCard({ proposal, busy, onChoose }: { proposal: Proposal; busy: boolean; onChoose: (option: Proposal["options"][number]) => void }) {
+function ProposalCard({ proposal, busy, onChoose }: { proposal: Proposal; busy: boolean; onChoose: (option: Proposal["options"][number], answers: Record<string, string>) => void }) {
   const [showEvidence, setShowEvidence] = useState(false);
+  const decisions = useAnswers(proposal.questions ?? []);
   return (
     <div className="card card--pad proposal" aria-label="Options">
       <p style={{ marginTop: 0 }}>{proposal.intro}</p>
+      {proposal.findings?.length ? (
+        <ul className="proposal__findings" aria-label="What Alpha found">
+          {proposal.findings.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      ) : null}
+      {proposal.questions?.length ? <div className="questions">{decisions.fields}</div> : null}
       <div className="proposal__options">
         {proposal.options.map((option) => (
           <div key={option.id} className={`proposal__option${option.id === proposal.default ? " proposal__option--default" : ""}`}>
@@ -157,7 +166,7 @@ function ProposalCard({ proposal, busy, onChoose }: { proposal: Proposal; busy: 
             </b>
             <p>{option.summary}</p>
             <p className="faint">{option.why}</p>
-            <button type="button" className={`btn btn--sm${option.id === proposal.default ? " btn--primary" : ""}`} disabled={busy} onClick={() => onChoose(option)}>
+            <button type="button" className={`btn btn--sm${option.id === proposal.default ? " btn--primary" : ""}`} disabled={busy} onClick={() => onChoose(option, decisions.answers())}>
               {option.id === proposal.default ? "Go with this" : "Go with this instead"}
             </button>
           </div>

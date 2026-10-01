@@ -491,6 +491,8 @@ body.avatar-window #root { height: 100vh; }
 .proposal__option p { margin: 0; }
 .proposal__option--default { border-color: var(--primary); background: var(--primary-soft); }
 .proposal__evidence { margin: 8px 0 0; padding-left: 18px; font-size: 12px; }
+.proposal__findings { margin: 0 0 10px; padding-left: 18px; font-size: 13px; color: var(--text-2); }
+.proposal__findings li + li { margin-top: 2px; }
 .firststeps { margin-bottom: 14px; }
 .firststeps__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 12px; margin: 10px 0; }
 .noticed { margin-bottom: 14px; }

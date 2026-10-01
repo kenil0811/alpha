@@ -35,6 +35,7 @@ export function ProjectPage({
   onChanged,
   onRemoved,
   facts,
+  creation,
 }: {
   client: SessionsClient;
   projectId: string;
@@ -47,6 +48,8 @@ export function ProjectPage({
   onRemoved?: () => void;
   /** Accepting or rejecting a project fact; absent when the runtime keeps no profile. */
   facts?: { accept: (factId: string) => Promise<unknown>; reject: (factId: string) => Promise<unknown>; forget: (factId: string) => Promise<unknown> };
+  /** The project being made (its questions, options and build), shown above everything else. */
+  creation?: React.ReactNode;
 }) {
   const [project, setProject] = useState<Project | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -135,6 +138,7 @@ export function ProjectPage({
         </p>
       ) : null}
 
+      {creation}
       <div className="section" style={{ marginTop: 0 }}>
         <div className="section__head">
           <h2>

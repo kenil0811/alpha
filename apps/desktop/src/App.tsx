@@ -17,6 +17,7 @@ import { Intelligence } from "./shell/Intelligence";
 import { ModulePage, type Section } from "./modules/ModulePage";
 import { ProjectPage } from "./shell/ProjectPage";
 import { NewProjectPage } from "./shell/NewProjectPage";
+import { CreationOnPage } from "./assistant/CreationOnPage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
 import { TooltipProvider } from "./ui/Tooltip";
@@ -186,6 +187,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   const [mobileDrawer, setMobileDrawer] = useState<"modules" | null>(null);
 
   const [draft, setDraft] = useState<string | null>(null);
+  // The blank project's first message, sent through the chat panel.
+  const [centreSend, setCentreSend] = useState<{ text: string; id: number } | null>(null);
   // The blank "New project" draft's title, held here until Core actually has a project to save
   // it to (createProject only runs once the person answers the opening question).
   const [draftProjectTitle, setDraftProjectTitle] = useState("Untitled project");
@@ -364,10 +367,10 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   // Opens the blank draft: no project exists in Core yet (createProject waits for the person's
   // first answer, in the Chief of Staff panel's send() below), so there's nothing here yet to
   // undo if they change their mind and go elsewhere.
-  const startNewProjectDraft = useCallback((title?: string) => {
+  const startNewProjectDraft = useCallback(() => {
     selectConversation(null);
     rememberSession("draft-project", null);
-    setDraftProjectTitle(title ?? "Untitled project");
+    setDraftProjectTitle("Untitled project");
     setAssistantOpen(true);
     assistantPanel.setCollapsed(false);
     setSurface({ kind: "newProject" });
@@ -494,9 +497,23 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
         <NewProjectPage
           title={draftProjectTitle}
           onTitleChange={setDraftProjectTitle}
-          modules={modules}
-          client={isProfileClient(runtime.client) ? runtime.client : undefined}
-          onFill={(text) => openAssistant(text)}
+          onStart={(text) => {
+            setAssistantOpen(true);
+            assistantPanel.setCollapsed(false);
+            setCentreSend({ text, id: Date.now() });
+          }}
+          onImport={
+            isWorkflowsClient(runtime.client)
+              ? (file) => {
+                  const client = runtime.client;
+                  if (!isWorkflowsClient(client)) return;
+                  client
+                    .importModuleFile(file)
+                    .then((result) => handleModuleImported(result.app_id))
+                    .catch((e) => toast.show(e instanceof Error ? e.message : "Couldn't add that project."));
+                }
+              : undefined
+          }
         />
       ) : surface.kind === "project" ? (
         isSessionsClient(runtime.client) ? (
@@ -517,6 +534,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
               setModulesTick((n) => n + 1);
               setSurface({ kind: "home" });
             }}
+            creation={<CreationOnPage client={runtime.client} sessionId={sessionByScope[`project:${surface.projectId}`]} onOpenApp={(appId) => setSurface({ kind: "module", appId })} />}
             facts={isProfileClient(runtime.client) ? { accept: runtime.client.acceptFact.bind(runtime.client), reject: runtime.client.rejectFact.bind(runtime.client), forget: runtime.client.forgetFact.bind(runtime.client) } : undefined}
           />
         ) : null
@@ -561,6 +579,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
             ...(surface.kind === "newProject" ? { newProject: true, draftTitle: draftProjectTitle, onProjectCreated: handleProjectCreated } : {}),
           }}
           sessionId={sessionId}
+          sendNow={centreSend}
+          cardsOnPage={surface.kind === "project"}
           onSelectSession={selectSession}
           conversationId={conversationId}
           onSelectConversation={selectConversation}

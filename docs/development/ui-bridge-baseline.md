@@ -189,8 +189,10 @@ Nothing spills out of its box at any window size from the 768x560 minimum up.
 - A module is a **project** in everything a person reads; one filed inside a project folder is
   a **sub project**. Code identifiers, routes, the `.alphamodule` format and SDK names keep
   "module".
-- New project opens one picker: search, Import a project… first, Blank project, then Commons
-  (from `GET /api/commons`; the section shows nothing at all while it's empty).
+- New project makes a blank project at once. Its page has one "Describe your project" box and
+  Import a project…; what is typed there becomes the first message in the chat, and the
+  project's page then shows Alpha's questions, options, brief and build (the chat only points
+  to them). A search over shared projects comes with the marketplace, not before.
 
 ## UI copy and density (strong rule)
 

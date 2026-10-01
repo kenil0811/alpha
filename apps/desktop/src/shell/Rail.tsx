@@ -9,7 +9,6 @@ import { Dialog, DialogContent } from "../ui/Dialog";
 import { useToast } from "../ui/toast";
 import { moduleFilename, saveExportedModule } from "../modules/exportModule";
 import { isAlphaModuleFile } from "../modules/alphaModuleAttachment";
-import { NewProjectPicker } from "./NewProjectPicker";
 
 /** Route paths the rail links to. Kept as a small helper rather than a routing dependency here,
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
@@ -147,7 +146,7 @@ export function Rail({
   onGo: (surface: Surface) => void;
   /** Opens the blank "New project" draft (its centre stays blank until the person tells the
    *  Chief of Staff what it's for). Only a module-capable, session-capable runtime offers it. */
-  onNewProject?: (title?: string) => void;
+  onNewProject?: () => void;
   panel: PanelControl;
   /** Export and Delete on the module's context menu, and "Add a module from a file" need Core. */
   client?: CoreClient | null;
@@ -163,7 +162,6 @@ export function Rail({
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
   // Controlled so a right-click can open the same menu the ⋯ button does.
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
 
@@ -426,45 +424,26 @@ export function Rail({
           </div>
         ))}
         {unfiled.map(moduleRow)}
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".alphamodule"
-          className="sr-only"
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void importFile(file);
-          }}
-        />
         {onNewProject ? (
-          <NewProjectPicker
-            client={client}
-            onImport={client && isWorkflowsClient(client) ? () => importInputRef.current?.click() : undefined}
-            onBlank={() => onNewProject()}
-            onCommons={(c) => onNewProject(c.name)}
+          <button
+            type="button"
+            className="navbtn navbtn--new"
+            aria-label="New project"
+            title={collapsed ? "New project" : undefined}
+            onClick={onNewProject}
+            // A .alphamodule file dropped here imports it straight away.
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = Array.from(e.dataTransfer.files).find(isAlphaModuleFile);
+              if (file) void importFile(file);
+            }}
           >
-            <button
-              type="button"
-              className="navbtn navbtn--new"
-              aria-label="New project"
-              title={collapsed ? "New project" : undefined}
-              // A .alphamodule file dropped here imports it straight away.
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const file = Array.from(e.dataTransfer.files).find(isAlphaModuleFile);
-                if (file) void importFile(file);
-              }}
-            >
-              <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
-                <FolderPlus size={16} strokeWidth={1.75} />
-              </span>
-              <span className="navbtn__text">{collapsed ? "New" : "New project"}</span>
-            </button>
-          </NewProjectPicker>
+            <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
+              <FolderPlus size={16} strokeWidth={1.75} />
+            </span>
+            <span className="navbtn__text">{collapsed ? "New" : "New project"}</span>
+          </button>
         ) : null}
         {!collapsed && hiddenCount > 0 ? (
           <button type="button" className="navbtn navbtn--hidden" onClick={showAll}>

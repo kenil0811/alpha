@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { App } from "../App";
-import { NewProjectPage } from "./NewProjectPage";
 import { FakeWorkflowsClient, sampleDetail, sampleSummary } from "../test/fakeWorkflows";
 
 beforeEach(() => {
@@ -86,7 +85,7 @@ describe("adding a module from a file", () => {
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
     await user.click(await screen.findByRole("button", { name: "New project" }));
-    await user.click(await screen.findByRole("option", { name: "Import a project…" }));
+    await user.click(await screen.findByRole("button", { name: /Import a project/ }));
     const input = document.querySelector('input[type="file"][accept=".alphamodule"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     const file = new File(["zip-bytes"], "notes.alphamodule", { type: "application/zip" });
@@ -112,7 +111,6 @@ describe("New project", () => {
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
     await user.click(screen.getByRole("button", { name: "New project" }));
-    await user.click(await screen.findByRole("option", { name: "Blank project" }));
     expect(await screen.findByText("What do you want to accomplish with this new project?")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Untitled project" })).toBeInTheDocument();
     // Nothing else on the page yet (no Alpha's notes / Modules / Sessions sections).
@@ -126,7 +124,6 @@ describe("New project", () => {
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
     await user.click(screen.getByRole("button", { name: "New project" }));
-    await user.click(await screen.findByRole("option", { name: "Blank project" }));
     await screen.findByText("What do you want to accomplish with this new project?");
     expect(client.projects.size).toBe(0);
     const composer = screen.getByRole("textbox", { name: "Message" });
@@ -142,30 +139,19 @@ describe("New project", () => {
   });
 });
 
-describe("the New project picker", () => {
-  it("searches, puts Import first, and shows no Commons section while Commons is empty", async () => {
+describe("the blank project page", () => {
+  it("has Import and a Describe your project box whose text goes to the chat as the first message", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
     await user.click(screen.getByRole("button", { name: "New project" }));
-    const options = await screen.findAllByRole("option");
-    expect(options.map((o) => o.textContent)).toEqual(["Import a project…", "Blank project"]);
-    expect(screen.queryByText("Commons")).not.toBeInTheDocument();
-    await user.type(screen.getByRole("textbox", { name: "Search projects" }), "import");
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Import a project…"]);
-  });
-
-  it("lists Commons projects from Core and starts a draft named after the one picked", async () => {
-    const client = new FakeWorkflowsClient();
-    client.commons = [{ id: "c1", name: "Launch plan" }];
-    const user = userEvent.setup();
-    render(<App client={client} />);
-    await screen.findByText("Runtime connected");
-    await user.click(screen.getByRole("button", { name: "New project" }));
-    expect(await screen.findByText("Commons")).toBeInTheDocument();
-    await user.click(screen.getByRole("option", { name: "Launch plan" }));
-    expect(await screen.findByRole("heading", { name: "Launch plan" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Import a project/ })).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Describe your project" }), "Plan the product launch");
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByText("Alpha's notes"); // the project page, once Core made the project
+    expect(client.projects.size).toBe(1);
+    within(screen.getByRole("complementary", { name: "Chief of Staff" })).getByText("Plan the product launch");
   });
 });
 
@@ -181,22 +167,6 @@ describe("deleting a project", () => {
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Untitled project" })).not.toBeInTheDocument());
     expect(await client.listProjects()).toEqual([]);
-  });
-});
-
-describe("the New project centre's starter suggestions", () => {
-  it("shows nothing when the flag is off, even with modules and insights on hand", () => {
-    render(
-      <NewProjectPage
-        title="Untitled project"
-        onTitleChange={() => {}}
-        modules={[sampleSummary()]}
-        onFill={() => {}}
-        showSuggestions={false}
-      />,
-    );
-    expect(screen.queryByLabelText("Starter options")).not.toBeInTheDocument();
-    expect(screen.queryByText("Research insights")).not.toBeInTheDocument();
   });
 });
 
