@@ -131,7 +131,7 @@ export function usePanelControl(opts: UsePanelControlOptions): PanelControl {
           if (finalWidth < snapMidpoint) setCollapsed(true);
           else {
             setCollapsed(false);
-            setWidth(Math.max(defaultWidth, finalWidth));
+            setWidth(Math.max(snapMidpoint, finalWidth));
           }
         } else {
           setWidth(finalWidth);

@@ -37,6 +37,8 @@ export function useAttachments() {
   return { items, add, remove, clear };
 }
 
+const SESSION_ACCOUNTS = new Set(["claude", "chatgpt", "chatgpt_api", "openrouter", "grok"]);
+
 /** A Settings -> Models account, offered as the Advanced submenu's model choice. Only the
  *  account-level methods are used, and only when the runtime actually offers them. */
 interface ModelAccountsLike {
@@ -117,7 +119,9 @@ function AdvancedMenu({ accessMode, onAccessModeChange, model, onModelChange, cl
     let cancelled = false;
     accountsClient
       .listModelAccounts()
-      .then((list) => !cancelled && setAccounts(list))
+      // Only accounts Core can route a single session to (gateway ACCOUNT_TO_ROUTE_ID); Claude
+      // API and Groq are reachable only as the default provider.
+      .then((list) => !cancelled && setAccounts(list.filter((a) => SESSION_ACCOUNTS.has(a.id))))
       .catch(() => undefined);
     return () => {
       cancelled = true;

@@ -1,12 +1,12 @@
 /**
  * The assistant panel: a session with Alpha. Every message goes through the one loop in Core
  * (run, read, open, use a skill, change or make a module, or answer); a build or change comes
- * back as a card in the thread. Sessions belong to the project on screen or are global, and
- * the panel opens on the scope's latest one. Core owns every session, so leaving and coming
- * back finds the same thread.
+ * back as a card in the thread. Sessions belong to the project on screen or are global; the
+ * panel reopens the one last used in this scope, and its empty state lists earlier ones. Core
+ * owns every session, so leaving and coming back finds the same thread.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowUp, ChevronLeft, History, Plus, RotateCw } from "lucide-react";
+import { ArrowUp, ChevronLeft, Plus, RotateCw } from "lucide-react";
 import { isSessionsClient, type AdvancedOptions, type AttachmentWire, type Conversation, type CoreClient, type Project, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
@@ -134,13 +134,15 @@ export function AssistantPanel({
             <div className="assist__ctx">{label}</div>
           </div>
         </div>
-        {headerEnd ? <div className="assist__headend">{headerEnd}</div> : null}
-      </div>
-      {sessions ? (
-        <div className="assist__toolbar">
-          <SessionSwitcher client={sessions} scope={scope} selected={selected} onSelect={(id) => { onSelectConversation?.(null); select(id); }} />
+        <div className="assist__headend">
+          {sessions && (selected || conversationId) ? (
+            <IconButton aria-label="New chat" title="New chat" size="sm" onClick={() => { onSelectConversation?.(null); select(null); }}>
+              <Plus size={16} />
+            </IconButton>
+          ) : null}
+          {headerEnd}
         </div>
-      ) : null}
+      </div>
       <div className="assist__body" ref={bodyRef}>
         {conversationId ? (
           <>
@@ -221,6 +223,7 @@ export function AssistantPanel({
                   info={modelErrorOf(turn.detail)!}
                   client={client}
                   onResend={() => void send(precedingUserText(session.turns, index))}
+                  auto={index === session.turns.length - 1}
                 />
               ) : (
                 <div key={turn.turn_id} className="msg msg--ai">
@@ -427,50 +430,6 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
   );
 
   return { session, loading, error, busy, reconnecting, send, refresh };
-}
-
-/** The sessions of this scope, to switch between, and a new one. */
-function SessionSwitcher({ client, scope, selected, onSelect }: { client: SessionsClient; scope: AssistantScope; selected: string | null; onSelect: (id: string | null) => void }) {
-  const [items, setItems] = useState<SessionSummary[]>([]);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    client
-      .listSessions(scopeName(scope), scope.projectId, scope.appId)
-      .then((all) => {
-        if (!cancelled) setItems(all.filter((s) => s.origin === "shell"));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client, open, scope.projectId, scope.appId, scope]);
-  return (
-    <div className="switcher">
-      <Button size="sm" variant="outline" className="switcher__history" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
-        <History size={14} aria-hidden="true" /> Chat history
-      </Button>
-      <IconButton aria-label="New session" onClick={() => onSelect(null)}>
-        <Plus size={16} />
-      </IconButton>
-      {open ? (
-        <nav className="switcher__menu card" aria-label="Sessions">
-          {items.length === 0 ? <p className="panel__hint" style={{ padding: 10 }}>No sessions here yet.</p> : null}
-          <ul>
-            {items.map((s) => (
-              <li key={s.session_id}>
-                <button type="button" className={`recent__item${s.session_id === selected ? " recent__item--current" : ""}`} onClick={() => { setOpen(false); onSelect(s.session_id); }}>
-                  <span className="recent__text">{s.title ?? "Untitled session"}</span>
-                  <span className="recent__state">{when(s.updated_at)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      ) : null}
-    </div>
-  );
 }
 
 /** Earlier sessions in this scope, newest first, for the empty state. */

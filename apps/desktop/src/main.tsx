@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AvatarBoot, isAvatarWindow } from "./avatar/boot";
 import "./styles/app.css";
+import { applyAppearance, readAppearance } from "./shell/appearance";
+
+applyAppearance(readAppearance());
 
 /** A window that went blank tells nobody anything. Any error that escapes rendering is shown
  *  in the window with a way back, and the same for errors thrown outside React. */

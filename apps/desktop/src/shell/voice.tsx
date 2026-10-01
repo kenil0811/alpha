@@ -35,10 +35,10 @@ export function writeTranscriptionMode(mode: TranscriptionMode): void {
   }
 }
 
-// The setting's "openai" reads better than Core's Keychain provider id, which is "chatgpt"
+// The setting's "openai" reads better than Core's Keychain provider id, which is "chatgpt_api"
 // (the same key ChatGPT sign-in uses) — see alpha/models/accounts.py PROVIDERS.
-function keychainProviderId(mode: "groq" | "openai"): "groq" | "chatgpt" {
-  return mode === "openai" ? "chatgpt" : "groq";
+function keychainProviderId(mode: "groq" | "openai"): "groq" | "chatgpt_api" {
+  return mode === "openai" ? "chatgpt_api" : "groq";
 }
 
 /** Whether a Groq or OpenAI key is saved, for "Automatic" to decide cloud vs. on-this-Mac. */
@@ -51,7 +51,7 @@ async function cloudProviderAvailable(): Promise<boolean> {
     });
     if (!res.ok) return false;
     const body = (await res.json()) as { providers?: { id: string; state: string }[] };
-    return (body.providers ?? []).some((p) => (p.id === "groq" || p.id === "chatgpt") && p.state === "key_saved");
+    return (body.providers ?? []).some((p) => (p.id === "groq" || p.id === "chatgpt_api") && p.state === "key_saved");
   } catch {
     return false;
   }
@@ -205,7 +205,7 @@ function useBrowserSpeech(onText: (final: string, interim: string) => void) {
 /** Records with `MediaRecorder` and, on stop, posts the clip to Core's `/api/transcribe`
  *  (whichever of Groq/OpenAI has a saved key — see Settings -> Models). One clip per
  *  start/stop; `onText` is called once, with the whole transcript as `final`. */
-function useCloudSpeech(onText: (final: string, interim: string) => void, preferred?: "groq" | "chatgpt") {
+function useCloudSpeech(onText: (final: string, interim: string) => void, preferred?: "groq" | "chatgpt_api") {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -261,7 +261,7 @@ function useCloudSpeech(onText: (final: string, interim: string) => void, prefer
   return { supported, listening, error, start, stop, toggle };
 }
 
-async function transcribeClip(blob: Blob, mime: string, preferred?: "groq" | "chatgpt"): Promise<string> {
+async function transcribeClip(blob: Blob, mime: string, preferred?: "groq" | "chatgpt_api"): Promise<string> {
   const resolution = await resolveSession();
   if (resolution.kind !== "ready") throw new Error("Alpha's runtime isn't available.");
   const audio_b64 = await blobToBase64(blob);

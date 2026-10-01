@@ -180,7 +180,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
           </header>
           <div className="avatar__turns" ref={listRef}>
             {turns.length === 0 ? <p className="panel__hint">{greeting}</p> : null}
-            {turns.map((turn) => (
+            {turns.map((turn, index) => (
               <div key={turn.turn_id} className="avatar__turn">
                 <div className="avatar__said">
                   {turn.text}
@@ -189,7 +189,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
                   ) : null}
                 </div>
                 {turn.model_error ? (
-                  <NotConnectedCard info={turn.model_error} client={client} onResend={() => void send(turn.text)} />
+                  <NotConnectedCard info={turn.model_error} client={client} onResend={() => void send(turn.text)} auto={index === turns.length - 1} />
                 ) : (
                   <div className={`avatar__reply avatar__reply--${turn.kind}`}>
                     {turn.reply}

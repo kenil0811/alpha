@@ -6,9 +6,6 @@
 .assist__titletext { min-width: 0; display: flex; flex-direction: column; }
 .assist__ctx { font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.assist__toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex: none; }
-.assist__toolbar .ui-select-trigger { flex: 1; min-width: 0; }
-
 .assist__body { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 
 .msg { max-width: 85%; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
@@ -59,15 +56,12 @@
 .failure { display: flex; flex-direction: column; gap: 8px; }
 .after-made { font-size: 13px; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1023px) {
   .assist { position: fixed; right: 0; top: 0; width: min(380px, 100%); z-index: 10; box-shadow: var(--shadow); }
 }
-.assist__headend { margin-left: auto; display: flex; align-items: center; }
+.assist__headend { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
 .bell { position: relative; }
 .bell__count { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 600; line-height: 16px; text-align: center; }
-/* Session switcher (Chat history) */
-.assist__toolbar .switcher { flex: 1; display: flex; gap: 6px; }
-.switcher__history { flex: 1; justify-content: flex-start; }
 .recent__item { width: 100%; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; text-align: left; font-size: 13px; }
 .recent__item:hover { background: var(--hover); }
 .recent__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

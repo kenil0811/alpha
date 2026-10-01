@@ -88,7 +88,7 @@ describe("a request and its creation stay reachable", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await askAndCreate(user);
-    await user.click(screen.getByRole("button", { name: "New session" }));
+    await user.click(screen.getByRole("button", { name: "New chat" }));
 
     const recent = await screen.findByRole("navigation", { name: "Earlier sessions" });
     const item = within(recent).getByRole("button", { name: /Keep a notes list for me/ });

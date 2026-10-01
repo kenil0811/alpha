@@ -64,10 +64,10 @@ a { color: var(--primary); }
 }
 .rail__body { flex: 1; overflow: auto; padding: 8px 10px 14px; display: flex; flex-direction: column; gap: 4px; }
 .brand { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-bottom: 1px solid var(--border); }
-.brand__mark { position: relative; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
-.brand__mark::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); border: 2px solid var(--surface); }
-.brand__mark--connected::after { background: var(--good); }
-.brand__mark--unavailable::after { background: var(--bad); }
+/* Just the runtime status: a dot beside the workspace name. */
+.brand__mark { position: relative; flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 50%; background: var(--text-3); }
+.brand__mark--connected { background: var(--good); }
+.brand__mark--unavailable { background: var(--bad); }
 .brand b { font-weight: 600; }
 .brand__name { flex: 1; min-width: 0; border: 0; background: none; padding: 4px 6px; margin-left: -6px; border-radius: 6px; font: inherit; font-weight: 600; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
 .brand__name:hover { background: var(--hover); }
@@ -84,6 +84,9 @@ a { color: var(--primary); }
 .theme { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; }
 .theme button { padding: 4px 9px; border-radius: 6px; font-size: 12px; color: var(--text-2); background: none; border: 0; }
 .theme button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(26, 43, 60, 0.12); font-weight: 500; }
+.swatches { display: flex; gap: 8px; flex-wrap: nowrap; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border); padding: 0; flex: none; }
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
 
 .main { flex: 1; min-width: 0; height: 100%; overflow: auto; display: flex; flex-direction: column; }
 /* No top padding: pages that open with a .modhead/PageHeader bar need it flush with the top of
@@ -151,7 +154,7 @@ a { color: var(--primary); }
 .toggle button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(26, 43, 60, 0.12); font-weight: 500; }
 .blocks { display: flex; flex-direction: column; gap: 14px; }
 /* The module's own tabs sit under the fixed App / Activity / Settings sections. */
-.subtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.subtabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
 .subtabs button { padding: 8px 14px; font-size: 13px; color: var(--text-2); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .subtabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--primary); font-weight: 500; }
 .toggle--sections { margin-left: auto; }
@@ -213,7 +216,14 @@ a { color: var(--primary); }
 .item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .item:last-child { border-bottom: 0; }
 .item__ico { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); flex: none; }
-.item__body { flex: 1; min-width: 0; }
+/* Bridge's rule for a row that runs out of room: controls shrink to their minimum first, then
+   the label truncates with "…" (full text in title=). Nothing wraps or spills. */
+.truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item__body { flex: 1 1 0; min-width: 48px; }
+.item__body > b { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.item__body > b > label, .item__body > b > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item > :not(.item__body):not(.item__ico) { min-width: 0; flex: 0 1 auto; }
+.item .btn, .item .iconbtn { flex-shrink: 0; }
 .item__body b { font-weight: 500; }
 .item__sub { font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }
 .switch { width: 34px; height: 20px; border-radius: 999px; background: var(--good); position: relative; flex: none; border: 0; padding: 0; }
@@ -390,7 +400,7 @@ a { color: var(--primary); }
 .rail--collapsed .brand b, .rail--collapsed .brand__name, .rail--collapsed .brand__input { display: none; }
 .rail--collapsed .navbtn, .rail--collapsed .navrow__main { flex-direction: column; justify-content: center; padding: 8px 2px; gap: 2px; text-align: center; }
 .rail--collapsed .navbtn__ico { width: auto; }
-.rail--collapsed .navbtn__text { display: block; font-size: 12px; white-space: normal; text-align: center; overflow: visible; }
+.rail--collapsed .navbtn__text { display: block; width: 100%; font-size: 11px; white-space: nowrap; text-align: center; overflow: hidden; text-overflow: ellipsis; }
 .rail--collapsed .navrow { flex-direction: column; }
 .rail--collapsed .navrow__menu { display: none; }
 .rail--collapsed .faint { display: none; }
@@ -527,9 +537,6 @@ body.avatar-window #root { height: 100vh; }
 .rail__project { display: flex; flex-direction: column; }
 .rail__nested { padding-left: 16px; }
 .rail--collapsed .rail__nested { padding-left: 0; }
-.switcher { position: relative; display: flex; gap: 4px; }
-.switcher__menu { position: absolute; right: 0; top: 36px; z-index: 6; min-width: 260px; max-height: 320px; overflow: auto; box-shadow: var(--shadow); padding: 6px; }
-.switcher__menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .recent__item--current { border-color: var(--primary); }
 .convo { display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--primary-soft); padding-left: 10px; }
 .convo__label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }

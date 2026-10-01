@@ -1,11 +1,12 @@
 /** Activity, Connections and Settings: trusted shell surfaces over what Core reports. */
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CircleCheck, Circle, Cpu, HardDrive, Hammer, MoreVertical, Monitor, Palette, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
+import { CircleCheck, Circle, Cpu, HardDrive, Hammer, MoreVertical, Monitor, Palette, Settings as SettingsIcon, Shapes, Star, type LucideIcon } from "lucide-react";
 import { isModelAccountsClient, isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type ModelProviderAccount, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
+import { ACCENTS, FONTS, SIZES, useAppearance } from "./appearance";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { setSpeakEnabled, speakEnabled } from "./tts";
 import { readTranscriptionMode, writeTranscriptionMode, type TranscriptionMode } from "./voice";
@@ -205,9 +206,15 @@ const PROVIDER_STATE_LABEL: Record<ModelProviderAccount["state"], string> = {
   not_configured: "Not connected",
 };
 
+/** The `models.provider` value a row's star sets; a row without one (Groq) can't be the default. */
+function providerChoice(p: ModelProviderAccount): string | null {
+  if (p.id === "chatgpt") return "chatgpt_codex";
+  return p.id === "groq" ? null : p.id;
+}
+
 const PROVIDER_SIGN_IN_HINT: Record<string, string> = {
-  claude: "Run `claude` in a terminal, then choose /login and sign in with your Anthropic Console account.",
-  chatgpt: "Run `codex` in a terminal, then `codex login`, and sign in with ChatGPT — or add an API key instead.",
+  claude: "Sign in opens your browser to sign in to Claude. Needs Claude Code installed on this Mac.",
+  chatgpt: "Sign in opens your browser to sign in with ChatGPT. Needs Codex installed on this Mac.",
 };
 
 /** Claude (Console account by default), ChatGPT, OpenRouter and Grok: sign-in state and keys,
@@ -219,6 +226,11 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [signingIn, setSigningIn] = useState<string | null>(null);
+  // The row whose browser sign-in page shows a code to paste back (Claude, as in Bridge).
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [defaultProvider, setDefaultProvider] = useState<string | null>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
@@ -226,8 +238,78 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
     client.listModelAccounts().then(setProviders).catch(() => setProviders([]));
   }, [client]);
   useEffect(load, [load]);
+  useEffect(() => {
+    client
+      .getSettings()
+      .then((all) => setDefaultProvider(String(all.find((f) => f.id === "models.provider")?.value ?? "claude")))
+      .catch(() => undefined);
+  }, [client]);
+  // While a browser sign-in is open, refresh the rows until it lands (or five minutes pass).
+  useEffect(() => {
+    if (!signingIn) return;
+    const timer = window.setInterval(load, 3000);
+    const stop = window.setTimeout(() => setSigningIn(null), 5 * 60 * 1000);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(stop);
+    };
+  }, [signingIn, load]);
+  useEffect(() => {
+    if (signingIn && providers?.find((p) => p.id === signingIn)?.state === "connected") {
+      setNotes((n) => ({ ...n, [signingIn]: "" }));
+      setSigningIn(null);
+    }
+  }, [signingIn, providers]);
 
   if (!isModelAccountsClient(client) || !providers) return null;
+
+  async function connectCode(id: string, label: string) {
+    if (!isModelAccountsClient(client) || !code.trim()) return;
+    setBusy(id);
+    try {
+      const updated = await client.finishModelSignIn(id, code.trim());
+      setProviders((all) => (all ?? []).map((p) => (p.id === id ? updated : p)));
+      setCode("");
+      setCodeFor(null);
+      setNotes((n) => ({ ...n, [id]: "" }));
+      toast.show(`${label}: signed in.`);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function makeDefault(choice: string, label: string) {
+    const before = defaultProvider;
+    setDefaultProvider(choice);
+    try {
+      await client.updateSettings({ "models.provider": choice });
+      toast.show(`${label} is now the default.`);
+    } catch (e) {
+      setDefaultProvider(before);
+      toast.show(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function signIn(id: string) {
+    if (!isModelAccountsClient(client)) return;
+    setBusy(id);
+    try {
+      const started = await client.signInModelAccount(id);
+      if (started.needs_code) {
+        setCodeFor(id);
+        setNotes((n) => ({ ...n, [id]: "Approve in your browser, then paste the code it shows." }));
+      } else {
+        setNotes((n) => ({ ...n, [id]: "Finish signing in in your browser." }));
+        setSigningIn(id);
+      }
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function save(id: string, label: string) {
     const key = (drafts[id] ?? "").trim();
@@ -277,11 +359,27 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
   return (
     <div className="card list" aria-label="Model providers">
       {providers.map((p) => {
-        const showKeyField = p.id !== "claude" || p.state === "needs_key" || p.state === "key_saved";
+        // A sign-in row (Claude, ChatGPT) signs in through its CLI; every other row takes a key.
+        const signInRow = p.id in PROVIDER_SIGN_IN_HINT;
+        const choice = providerChoice(p);
+        const isDefault = choice !== null && choice === defaultProvider;
         return (
           <div className="item" key={p.id}>
             <div className="item__body">
-              <span className="row" style={{ gap: 8, alignItems: "center" }}>
+              <span className="row" style={{ gap: 8, alignItems: "center", flexWrap: "nowrap", minWidth: 0 }}>
+                {choice ? (
+                  <IconButton
+                    size="sm"
+                    aria-label={isDefault ? `${p.label} is the default` : `Make ${p.label} the default`}
+                    aria-pressed={isDefault}
+                    title={isDefault ? "Default" : "Make default"}
+                    onClick={() => !isDefault && void makeDefault(choice, p.label)}
+                  >
+                    <Star size={14} aria-hidden="true" fill={isDefault ? "currentColor" : "none"} style={{ color: isDefault ? "var(--warn, #f59e0b)" : "var(--text-3)" }} />
+                  </IconButton>
+                ) : (
+                  <span style={{ width: 28, flex: "none" }} aria-hidden="true" />
+                )}
                 <span
                   role="img"
                   aria-label={`${PROVIDER_STATE_LABEL[p.state]}${p.key_last4 ? ` · key •••• ${p.key_last4}` : ""}`}
@@ -295,21 +393,42 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     flexShrink: 0,
                   }}
                 />
-                <b>{p.label}</b>
-                {p.id === "claude" ? <Badge variant="neutral">Default</Badge> : null}
-                {(p.state === "needs_sign_in" || p.state === "cli_missing") && PROVIDER_SIGN_IN_HINT[p.id] ? (
+                <b className="truncate" title={p.label}>
+                  {p.label}
+                </b>
+                {(p.state === "needs_sign_in" || p.state === "cli_missing") && signInRow ? (
                   <InfoTip content={PROVIDER_SIGN_IN_HINT[p.id]} label={`How to sign in to ${p.label}`} />
                 ) : null}
               </span>
               {notes[p.id] ? (
-                <div className="item__sub" role="status">
+                <div className="item__sub truncate" role="status" title={notes[p.id]}>
                   {notes[p.id]}
                 </div>
               ) : null}
             </div>
-            <div className="row" style={{ gap: 6, alignItems: "center" }}>
-              {showKeyField ? (
-                <span className="row" style={{ gap: 6 }}>
+            <div className="row item__controls" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+              {codeFor === p.id ? (
+                <span className="row" style={{ gap: 6, flexWrap: "nowrap", minWidth: 0 }}>
+                  <input
+                    placeholder="Paste the code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void connectCode(p.id, p.label)}
+                    aria-label={`${p.label} sign-in code`}
+                    style={{ flex: "0 1 150px", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
+                  />
+                  <button type="button" className="btn btn--sm btn--primary" disabled={busy === p.id || !code.trim()} onClick={() => void connectCode(p.id, p.label)}>
+                    Connect
+                  </button>
+                </span>
+              ) : null}
+              {signInRow && codeFor !== p.id && (p.state === "needs_sign_in" || p.state === "cli_missing") ? (
+                <button type="button" className="btn btn--sm btn--primary truncate" disabled={busy === p.id} onClick={() => void signIn(p.id)}>
+                  Sign in
+                </button>
+              ) : null}
+              {!signInRow ? (
+                <span className="row" style={{ gap: 6, flexWrap: "nowrap", minWidth: 0 }}>
                   <input
                     type="password"
                     placeholder={p.key_last4 ? `•••• ${p.key_last4}` : "Paste a key"}
@@ -317,7 +436,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
                     aria-label={`${p.label} key`}
                     className="input--compact"
-                    style={{ width: 200, height: 28, fontSize: 13, padding: "0 8px" }}
+                    style={{ flex: "0 1 150px", width: 150, minWidth: 64, height: 28, fontSize: 13, padding: "0 8px" }}
                   />
                   <button type="button" className="btn btn--sm" disabled={busy === p.id || !(drafts[p.id] ?? "").trim()} onClick={() => void save(p.id, p.label)}>
                     Save
@@ -380,7 +499,9 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
     }
   }
   if (!fields?.length) return null;
-  const groups = [...new Set(fields.map((f) => f.group))].filter((g) => (!only || only.includes(g)) && !exclude?.includes(g));
+  // The default provider is the star on each Settings -> Models row, not a dropdown here.
+  const shown = fields.filter((f) => f.id !== "models.provider");
+  const groups = [...new Set(shown.map((f) => f.group))].filter((g) => (!only || only.includes(g)) && !exclude?.includes(g));
   if (!groups.length) return null;
   return (
     <>
@@ -403,7 +524,7 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
               </b>
             </div>
           </div>
-          {fields
+          {shown
             .filter((f) => f.group === group)
             .map((f) => (
               <div key={f.id} className={f.kind === "text" ? "item item--stack" : "item"}>
@@ -423,11 +544,11 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
                         </button>
                       </div>
                     ) : (
-                      <span className="faint">These are Alpha's defaults. Edit them freely; you can always reset.</span>
+                      <span className="faint">Alpha's defaults. Edit freely; reset any time.</span>
                     )}
                   </div>
                 ) : f.kind === "choice" ? (
-                  <select id={`setting-${f.id}`} className="btn btn--sm" value={String(f.value)} onChange={(e) => void change(f, e.target.value)}>
+                  <select id={`setting-${f.id}`} className="btn btn--sm" style={{ width: "min(256px, 45%)", flex: "none" }} value={String(f.value)} onChange={(e) => void change(f, e.target.value)}>
                     {f.options.map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
@@ -719,9 +840,78 @@ function TranscriptionSetting() {
   );
 }
 
+/** Settings -> Appearance: theme, accent colour, interface font and text size, applied at once. */
+function AppearanceSettings({ theme, onTheme }: { theme: Theme; onTheme: (next: Theme) => void }) {
+  const [appearance, update] = useAppearance();
+  return (
+    <div className="card list" aria-label="Appearance">
+      <div className="item">
+        <div className="item__body">
+          <b>
+            <span>Theme</span>
+            <InfoTip content="Match Mac follows the Mac's setting. Ambient is light from 7:00 to 19:00 and dark otherwise." label="About theme" />
+          </b>
+        </div>
+        <ThemeControl theme={theme} onChange={onTheme} />
+      </div>
+      <div className="item">
+        <div className="item__body">
+          <b>
+            <span>Accent colour</span>
+          </b>
+        </div>
+        <div className="swatches" role="radiogroup" aria-label="Accent colour">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.value}
+              type="button"
+              role="radio"
+              aria-checked={appearance.accent === a.value}
+              aria-label={a.label}
+              title={a.label}
+              className="swatch"
+              style={{ background: a.color ?? "var(--bridge-steel)" }}
+              onClick={() => update({ accent: a.value })}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="item">
+        <div className="item__body">
+          <b>
+            <label htmlFor="appearance-font">Font</label>
+          </b>
+        </div>
+        <select id="appearance-font" className="btn btn--sm" style={{ width: "min(256px, 45%)", flex: "none" }} value={appearance.font} onChange={(e) => update({ font: e.target.value })}>
+          {FONTS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="item">
+        <div className="item__body">
+          <b>
+            <span>Text size</span>
+          </b>
+        </div>
+        <div className="theme" role="group" aria-label="Text size">
+          {SIZES.map((s) => (
+            <button key={s.value} type="button" aria-pressed={appearance.size === s.value} onClick={() => update({ size: s.value })}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SETTINGS_SECTIONS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "models", label: "Models", icon: Cpu },
-  { value: "look", label: "Look & Appearance", icon: Palette },
+  { value: "appearance", label: "Appearance", icon: Palette },
+  { value: "look", label: "Module look", icon: Shapes },
   { value: "builds", label: "Builds", icon: Hammer },
   { value: "desktop", label: "Desktop", icon: Monitor },
   { value: "data", label: "Data & runtime", icon: HardDrive },
@@ -781,22 +971,8 @@ export function Settings({
               <ConfigurableSettings client={client} only={["Models"]} />
             </>
           ) : null}
-          {section === "look" ? (
-            <>
-              <ConfigurableSettings client={client} only={["Look"]} />
-              <div className="card list">
-                <div className="item">
-                  <div className="item__body">
-                    <b>
-                      Appearance
-                      <InfoTip content="Light or dark, or follow the Mac's setting." label="About appearance" />
-                    </b>
-                  </div>
-                  <ThemeControl theme={theme} onChange={onTheme} />
-                </div>
-              </div>
-            </>
-          ) : null}
+          {section === "appearance" ? <AppearanceSettings theme={theme} onTheme={onTheme} /> : null}
+          {section === "look" ? <ConfigurableSettings client={client} only={["Look"]} /> : null}
           {section === "builds" ? <ConfigurableSettings client={client} exclude={["Models", "Look"]} /> : null}
           {section === "desktop" ? (
             <>

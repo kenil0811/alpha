@@ -17,15 +17,25 @@ async function openModels() {
 }
 
 describe("Settings -> Models provider accounts", () => {
-  it("shows every provider's state, with Claude marked as the default", async () => {
+  it("shows every provider's state, with Claude starred as the default", async () => {
     await openModels();
     const providers = await screen.findByLabelText("Model providers");
     expect(within(providers).getByText("Claude")).toBeInTheDocument();
-    expect(within(providers).getByText("Default")).toBeInTheDocument();
+    expect(within(providers).getByText("Claude API")).toBeInTheDocument();
+    expect(await within(providers).findByRole("button", { name: "Claude is the default" })).toHaveAttribute("aria-pressed", "true");
     expect(within(providers).getByLabelText("Connected")).toBeInTheDocument();
     expect(within(providers).getByText("ChatGPT")).toBeInTheDocument();
     expect(within(providers).getByLabelText("Not signed in")).toBeInTheDocument();
     expect(within(providers).getAllByLabelText("Not connected").length).toBeGreaterThanOrEqual(2); // OpenRouter, Grok
+  });
+
+  it("the star makes another provider the default", async () => {
+    const { client, user } = await openModels();
+    const providers = await screen.findByLabelText("Model providers");
+    await user.click(within(providers).getByRole("button", { name: "Make ChatGPT the default" }));
+    await waitFor(() => expect(client.settingsUpdates).toContainEqual({ "models.provider": "chatgpt_codex" }));
+    expect(within(providers).getByRole("button", { name: "ChatGPT is the default" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(providers).getByRole("button", { name: "Make Claude the default" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("saves an OpenRouter key and shows only its last 4 characters afterwards", async () => {

@@ -23,7 +23,7 @@ import { TooltipProvider } from "./ui/Tooltip";
 import { ToastProvider, useToast } from "./ui/toast";
 import { registerAttachmentHandler } from "./assistant/attachments";
 import { ALPHAMODULE_EXTENSION } from "./modules/alphaModuleAttachment";
-import { CollapseToggleButton, usePanelControl } from "./ui/panel";
+import { CollapseToggleButton, ResizeHandle, usePanelControl } from "./ui/panel";
 import { ZazooIcon } from "./ui/ZazooIcon";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
@@ -169,12 +169,20 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
     storageKeyWidth: "alpha.assistant.width",
     storageKeyCollapsed: "alpha.assistant.collapsed",
   });
-  const [isNarrow, setIsNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 640 : false));
+  const [viewport, setViewport] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
   useEffect(() => {
-    const onResize = () => setIsNarrow(window.innerWidth < 640);
+    const onResize = () => setViewport(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+  const isNarrow = viewport < 640;
+  // Between phone and full width the rail shows icons and Chief of Staff opens over the page
+  // (assistant.css), so the page keeps its room. Nothing saved changes: the remembered panel
+  // widths and collapse choices apply again once the window is wide.
+  const compact = !isNarrow && viewport < 1024;
+  const [railPeek, setRailPeek] = useState(false);
+  const [assistPeek, setAssistPeek] = useState(false);
+  const assistCollapsed = compact ? !assistPeek : assistantPanel.collapsed;
   const [mobileDrawer, setMobileDrawer] = useState<"modules" | null>(null);
 
   const [draft, setDraft] = useState<string | null>(null);
@@ -531,8 +539,11 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
   );
 
   const assistantContent =
-    runtime.kind === "connected" && (assistantOpen || isNarrow) && !assistantPanel.collapsed ? (
-      <div ref={assistRef} id="panel-right" className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow ? undefined : { width: assistantWidth }}>
+    runtime.kind === "connected" && (assistantOpen || isNarrow) && !assistCollapsed ? (
+      <div ref={assistRef} id="panel-right" className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow || compact ? undefined : { width: assistantWidth }}>
+        {!isNarrow && !compact ? (
+          <ResizeHandle side="right" onMouseDown={assistantPanel.startDrag} onStep={assistantPanel.resizeBy} label="Resize Chief of Staff" value={assistantPanel.displayWidth} min={260} max={520} isDragging={assistantPanel.isDragging} />
+        ) : null}
         <AssistantPanel
           client={runtime.client}
           scope={{
@@ -556,7 +567,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
               side="right"
               collapsed={false}
               controls="panel-right"
-              onClick={() => (isNarrow ? setAssistantOpen(false) : assistantPanel.setCollapsed(true))}
+              onClick={() => (isNarrow ? setAssistantOpen(false) : compact ? setAssistPeek(false) : assistantPanel.setCollapsed(true))}
             />
           }
           headerEnd={bell}
@@ -569,7 +580,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           type="button"
           className="assist__open"
           onClick={() => {
-            assistantPanel.setCollapsed(false);
+            if (compact) setAssistPeek(true);
+            else assistantPanel.setCollapsed(false);
             setAssistantOpen(true);
           }}
           aria-label="Open Chief of Staff"
@@ -640,7 +652,11 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           runtime={runtime.kind}
           onGo={setSurface}
           onNewProject={client && isSessionsClient(client) ? startNewProjectDraft : undefined}
-          panel={{ ...railPanel, displayWidth: railWidth }}
+          panel={
+            compact
+              ? { ...railPanel, collapsed: !railPeek, displayWidth: railPeek ? railPanel.width : 76, toggleCollapsed: () => setRailPeek((v) => !v) }
+              : { ...railPanel, displayWidth: railWidth }
+          }
           client={client}
           onModuleRemoved={handleModuleRemoved}
           onModuleImported={handleModuleImported}

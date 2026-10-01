@@ -9,7 +9,7 @@ import { ZazooDirector } from "../avatar/zazoo/director";
 export function ZazooIcon({ size = 32, className, label = "Chief of Staff" }: { size?: number; className?: string; label?: string }) {
   const director = useMemo(() => new ZazooDirector(), []);
   return (
-    <span className={className} style={{ display: "block", width: size, height: size }}>
+    <span className={className} data-overflow-ok="" style={{ display: "block", width: size, height: size }}>
       <CompanionZazooFace director={director} size={size} label={label} crop animate={false} />
     </span>
   );

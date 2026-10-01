@@ -3,7 +3,6 @@ import { Home as HomeIcon, Settings as SettingsIcon, Boxes, MoreVertical, Sparkl
 import type { AppSummary, CoreClient, Project } from "../core/client";
 import { isWorkflowsClient } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
-import { ZazooIcon } from "../ui/ZazooIcon";
 import { CollapseToggleButton, ResizeHandle, type PanelControl } from "../ui/panel";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "../ui/DropdownMenu";
 import { Dialog, DialogContent } from "../ui/Dialog";
@@ -317,9 +316,6 @@ export function Rail({
       <div className="brand" data-tauri-drag-region>
         <Tooltip content={runtimeLabel}>
           <div className={`brand__mark brand__mark--${runtime}`} role="status">
-            <span aria-hidden="true">
-              <ZazooIcon size={22} />
-            </span>
             <span className="sr-only">{runtimeLabel}</span>
           </div>
         </Tooltip>
@@ -390,7 +386,7 @@ export function Rail({
             <span className="navbtn__ico" aria-hidden="true" style={{ color: "var(--primary)" }}>
               <FolderPlus size={16} strokeWidth={1.75} />
             </span>
-            <span className="navbtn__text">New project</span>
+            <span className="navbtn__text">{collapsed ? "New" : "New project"}</span>
           </button>
         ) : null}
         {client && isWorkflowsClient(client) ? (
@@ -400,8 +396,8 @@ export function Rail({
           <button
             type="button"
             className="navbtn navbtn--quiet"
-            aria-label="Add a module from a file…"
-            title={collapsed ? "Add a module from a file…" : undefined}
+            aria-label="Import a module…"
+            title={collapsed ? "Import a module…" : undefined}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -413,7 +409,7 @@ export function Rail({
             <span className="navbtn__ico" aria-hidden="true">
               <FileUp size={16} strokeWidth={1.75} />
             </span>
-            <span className="navbtn__text">Add a module from a file…</span>
+            <span className="navbtn__text">{collapsed ? "Import" : "Import a module…"}</span>
           </button>
         ) : null}
         {!collapsed && hiddenCount > 0 ? (

@@ -85,7 +85,7 @@ describe("adding a module from a file", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
-    await user.click(await screen.findByRole("button", { name: "Add a module from a file…" }));
+    await user.click(await screen.findByRole("button", { name: "Import a module…" }));
     const input = document.querySelector('input[type="file"][accept=".alphamodule"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     const file = new File(["zip-bytes"], "notes.alphamodule", { type: "application/zip" });

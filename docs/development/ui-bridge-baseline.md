@@ -139,7 +139,7 @@ matters before ship.
 ## Layout — flex shell, panels, mobile
 `.app` is a flex row, `100dvh`: `.rail` (flex: none, width driven by `panel.displayWidth` inline
 style) | `.main` (flex: 1, min-width: 0, overflow: auto) | `.assist` (flex: none, same pattern).
-Nothing overlays `.main` at ≥640px. `--shadow-shell-right`/`--shadow-shell-left` give each panel a
+Nothing overlays `.main` at ≥1024px. `--shadow-shell-right`/`--shadow-shell-left` give each panel a
 seam shadow. Rail collapsed = 76px icon+12px-label-stacked rows (not icon-only); assistant
 collapsed = 48px strip (`.assist--collapsed`) showing a `MessageCircle` icon button that expands it
 — the floating bottom-right "Assistant" FAB is gone.
@@ -151,6 +151,31 @@ assistant becomes a `.assist--overlay` covering the full viewport. This mobile p
 lighter than desktop — no drag-resize, no reorder/hide menu inside the drawer's rail instance (it's
 the same `Rail` component, so those still technically work, just untested at this width) — flag for
 a dedicated mobile-pass task if that matters before ship.
+
+From 640px to 1023px (`compact` in `App.tsx`) the rail is drawn collapsed and Chief of Staff
+opens over the page (the `@media (max-width: 1023px)` rule in `assistant.css`), so the page keeps
+its room down to the window's 768px minimum. Both are view-only overrides: the saved widths and
+collapse choices come back once the window is wide again.
+
+## Fit and overflow (strong rule)
+
+Nothing spills out of its box at any window size from the 768x560 minimum up.
+
+- Text fits its place: shorten the copy first; a one-line ellipsis (with the full text in
+  `title=`) only where the text is the person's own (a module name, a session title).
+- Placeholders fit their field. Write them short enough not to clip at the narrowest width.
+- Rows wrap rather than squeeze: `.item__body` keeps 180px before its controls wrap below it.
+- Check before shipping a layout change: run `apps/desktop/tools/layout-check.js` in the dev
+  tools console at 768x560, 1100x760 and 1440x900 on every page; it must return `[]`.
+
+## Model providers
+
+- Each way of reaching a model is its own row in Settings -> Models: Claude (browser sign-in
+  through the `claude` CLI) and Claude API (an Anthropic key) are separate rows, never one row
+  with a mode switch.
+- The star on a row is the only place the default provider is chosen; one row is always starred.
+- Not connected means the next step happens by itself: the "not connected" card on the newest
+  turn opens the provider's browser sign-in straight away and resends the message once it lands.
 
 ## UI copy and density (strong rule)
 

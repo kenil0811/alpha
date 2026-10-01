@@ -172,7 +172,9 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
 
   providers: ModelProviderAccount[] = [
     { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null, dot: { color: "green", tooltip: "Connected · Claude Console" } },
+    { id: "claude_api", label: "Claude API", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
     { id: "chatgpt", label: "ChatGPT", state: "needs_sign_in", cli_present: false, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not signed in" } },
+    { id: "chatgpt_api", label: "ChatGPT API", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
     { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
     { id: "grok", label: "Grok", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
   ];
@@ -212,6 +214,24 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
     this.providers = this.providers.map((p) => (p.id === provider && keyBased ? { ...p, state: "not_configured", key_last4: null } : p));
     const updated = this.providers.find((p) => p.id === provider);
     if (!updated) throw new Error("unknown provider");
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  signInCalls: string[] = [];
+
+  async signInModelAccount(provider: string): Promise<ModelProviderAccount> {
+    this.signInCalls.push(provider);
+    const found = this.providers.find((p) => p.id === provider);
+    if (!found) throw new Error("unknown provider");
+    return { ...found, dot: this.describeDot(found), ...(provider === "claude" ? { needs_code: true } : {}) };
+  }
+
+  finishCodes: string[] = [];
+
+  async finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount> {
+    this.finishCodes.push(code);
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "connected", signed_in: true } : p));
+    const updated = this.providers.find((p) => p.id === provider)!;
     return { ...updated, dot: this.describeDot(updated) };
   }
 

@@ -316,7 +316,7 @@ export interface StreamItem {
 
 /** Settings -> Models: one provider's sign-in / key state, as Core reports it. */
 export interface ModelProviderAccount {
-  id: "claude" | "chatgpt" | "openrouter" | "grok" | "groq";
+  id: "claude" | "claude_api" | "chatgpt" | "chatgpt_api" | "openrouter" | "grok" | "groq";
   label: string;
   state: "connected" | "needs_sign_in" | "needs_key" | "cli_missing" | "key_saved" | "not_configured";
   cli_present: boolean | null;
@@ -325,6 +325,8 @@ export interface ModelProviderAccount {
   /** The Settings -> Models status dot: grey (not connected), green (connected), red (error) -
    *  tooltip is the exact state to show on hover. Cached in Core for about a minute. */
   dot: { color: "green" | "grey" | "red"; tooltip: string };
+  /** Set on a sign-in answer when the browser page shows a code to paste back (Claude). */
+  needs_code?: boolean;
 }
 
 /** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
@@ -336,6 +338,16 @@ export interface ModelAccountsClient {
   /** Clear Alpha's own cached connection state and re-probe; for a key-based provider this also
    *  clears the saved key so the person is prompted again. Never touches a CLI sign-in itself. */
   reconnectModelAccount(provider: string): Promise<ModelProviderAccount>;
+  /** Open the provider CLI's own browser sign-in (`claude auth login`, `codex login`); poll
+   *  listModelAccounts to see it land. */
+  signInModelAccount(provider: string): Promise<ModelProviderAccount>;
+  /** Claude: the code its sign-in page showed, exchanged by Core for tokens (Keychain). */
+  finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount>;
+}
+
+/** A Core older than the status dot sends rows without one; draw those grey rather than crash. */
+function withDot(p: ModelProviderAccount): ModelProviderAccount {
+  return p.dot ? p : { ...p, dot: { color: "grey", tooltip: p.state === "connected" || p.state === "key_saved" ? "Connected." : "Not connected" } };
 }
 
 export function isModelAccountsClient(client: unknown): client is ModelAccountsClient {
@@ -1232,7 +1244,7 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   async listModelAccounts(): Promise<ModelProviderAccount[]> {
     const page = await this.request<{ providers: ModelProviderAccount[] }>("/api/model-accounts");
-    return page.providers;
+    return page.providers.map(withDot);
   }
 
   async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
@@ -1240,12 +1252,12 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
       method: "PUT",
       body: JSON.stringify({ key }),
     });
-    return page.provider;
+    return withDot(page.provider);
   }
 
   async removeModelKey(provider: string): Promise<ModelProviderAccount> {
     const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/key`, { method: "DELETE" });
-    return page.provider;
+    return withDot(page.provider);
   }
 
   testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
@@ -1254,7 +1266,20 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
     const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/reconnect`, { method: "POST" });
-    return page.provider;
+    return withDot(page.provider);
+  }
+
+  async signInModelAccount(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/sign-in`, { method: "POST" });
+    return withDot(page.provider);
+  }
+
+  async finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/sign-in/finish`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    return withDot(page.provider);
   }
 
   async listConversations(): Promise<Conversation[]> {
