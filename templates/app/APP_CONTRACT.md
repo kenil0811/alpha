@@ -276,7 +276,7 @@ Alpha runs the action on time while it is open, shows the last and next run on t
 with an on/off switch and a "Run now" button, and never catches up missed runs after it was
 closed. A scheduled action gets no person to ask: make it self-contained and return a `message`.
 
-### ui (a custom screen, only when no block fits)
+### ui (a custom screen, only when the person explicitly asks for one)
 
 ```yaml
 ui:
@@ -328,3 +328,17 @@ person runs to get the result, and shows what it returns. So:
 - return results as plain data a person can read: a list of entries becomes a table, a list of
   words becomes a list. Name keys in the person's words (`wont_fit`, `total_minutes`); ids are
   not shown.
+
+## UI copy and density (strong rule)
+
+The person using this is an executive: to the point, no filler.
+
+- Titles and labels are short and specific. Never put a descriptive sentence under a title or
+  inside a card — that explanation belongs in a field's `description` (shown as a hover/focus
+  (i) tip on the generated page) or a native `title` attribute, not as visible body text.
+- Empty states are one short line ("No meals yet" not a paragraph explaining what meals are).
+- Size inputs to their content. A key, id, or model name is a compact single-line field — do not
+  stretch it full width. Only a genuinely long value (notes, a prompt, a body of text) gets a
+  wide or multi-line field (`multiline: true`).
+- Minimal, elegant, professional is the default. Depart from it only when the person explicitly
+  asks for something richer.

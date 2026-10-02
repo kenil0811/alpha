@@ -1,5 +1,5 @@
-/** The signed-in browser in the shell: connecting a site on Connections, and switching it on
- *  for one module in that module's Settings. */
+/** The signed-in browser in the shell: connecting a site on Intelligence's Connections tab, and
+ *  switching it on for one module in that module's Settings. */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -13,7 +13,8 @@ describe("the signed-in browser", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Connections" }));
+    await user.click(screen.getByRole("button", { name: "Intelligence" }));
+    await user.click(screen.getByRole("tab", { name: "Connections" }));
     const form = await screen.findByRole("form", { name: "Sign in to a site" });
     await user.type(within(form).getByLabelText("Sign in to a site"), "https://www.LinkedIn.com/login");
     await user.click(within(form).getByRole("button", { name: "Sign in…" }));
@@ -32,9 +33,8 @@ describe("the signed-in browser", () => {
     const user = userEvent.setup();
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
     const access = await screen.findByLabelText("Signed-in browser access");
-    expect(within(access).getByText(/Off: this module reads it as a visitor/)).toBeInTheDocument();
+    expect(within(access).getByText(/Off: this project reads it as a visitor/)).toBeInTheDocument();
     await user.click(within(access).getByLabelText("Allow linkedin.com"));
     await waitFor(() => expect(client.access.get("notes-list-1a2b3c")).toEqual(["linkedin.com"]));
     expect(await within(access).findByText(/may read through your session/)).toBeInTheDocument();

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HashRouter, useLocation, useNavigate } from "react-router";
+import { Utensils, Dumbbell, Briefcase, BookOpen, CreditCard, ListChecks, Boxes, Home as HomeIcon, Bell, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, HealthInfo, Project } from "./core/client";
 import { HttpCoreClient, isAppsClient, isSessionsClient, isWorkflowsClient } from "./core/client";
 import { resolveSession } from "./core/session";
@@ -7,14 +9,23 @@ import { AboutYou } from "./shell/AboutYou";
 import { isProfileClient } from "./core/client";
 import { useRuns } from "./components/useRuns";
 import { AssistantPanel } from "./assistant/AssistantPanel";
-import { Rail, type Surface } from "./shell/Rail";
-import { Home } from "./shell/Home";
-import { Activity, Connections, Settings, applyDensity } from "./shell/Info";
+import { Rail, surfacePath, type Surface } from "./shell/Rail";
+import { ATTENTION, Home } from "./shell/Home";
+import { CommandMenu } from "./shell/CommandMenu";
+import { Activity, Settings, applyDensity } from "./shell/Info";
 import { Intelligence } from "./shell/Intelligence";
-import { ModulePage } from "./modules/ModulePage";
+import { ModulePage, type Section } from "./modules/ModulePage";
 import { ProjectPage } from "./shell/ProjectPage";
+import { NewProjectPage } from "./shell/NewProjectPage";
+import { CreationOnPage } from "./assistant/CreationOnPage";
 import { GeneratedUiFixture } from "./qualification/GeneratedUiFixture";
 import { useTheme } from "./shell/theme";
+import { TooltipProvider } from "./ui/Tooltip";
+import { ToastProvider, useToast } from "./ui/toast";
+import { registerAttachmentHandler } from "./assistant/attachments";
+import { ALPHAMODULE_EXTENSION } from "./modules/alphaModuleAttachment";
+import { CollapseToggleButton, ResizeHandle, usePanelControl } from "./ui/panel";
+import { ZazooIcon } from "./ui/ZazooIcon";
 
 /** Development-only qualification fixtures: shown only in a development build opened with ?dev. */
 function devTools(): boolean {
@@ -43,23 +54,88 @@ function remember(key: string, value: unknown): void {
   }
 }
 
+/** Parses the URL (HashRouter's `pathname`, e.g. "/m/notes-1/data") into a Surface + module
+ *  section. Kept as plain parsing rather than a <Routes> tree: every destination already
+ *  renders through one big switch below, so a routes tree would just duplicate that switch. */
+function surfaceFromPath(pathname: string): Surface {
+  const path = decodeURIComponent(pathname);
+  if (path === "/activity") return { kind: "activity" };
+  if (path === "/about") return { kind: "about" };
+  // Connections live on Intelligence; old links to the standalone page or Settings' former
+  // section still land there.
+  if (path === "/connections" || path === "/settings/connections") return { kind: "intelligence", tab: "connections" };
+  const it = path.match(/^\/intelligence(?:\/([^/]+))?$/);
+  if (it) return { kind: "intelligence", tab: it[1] };
+  const pr = path.match(/^\/p\/([^/]+)/);
+  if (pr) return { kind: "project", projectId: pr[1] };
+  if (path === "/new-project") return { kind: "newProject" };
+  const st = path.match(/^\/settings(?:\/([^/]+))?$/);
+  if (st) return { kind: "settings", section: st[1] };
+  const m = path.match(/^\/m\/([^/]+)/);
+  if (m) return { kind: "module", appId: m[1] };
+  return { kind: "home" };
+}
+function sectionFromPath(pathname: string): Section | undefined {
+  const m = decodeURIComponent(pathname).match(/^\/m\/[^/]+\/([^/]+)/);
+  const s = m?.[1];
+  return s === "app" || s === "activity" || s === "settings" ? s : undefined;
+}
+function moduleSectionPath(appId: string, section: Section): string {
+  return `/m/${encodeURIComponent(appId)}/${section}`;
+}
+
 type Runtime =
   | { kind: "connecting" }
   | { kind: "connected"; client: CoreClient; health: HealthInfo }
   | { kind: "unavailable"; reason: string };
 
-export function App({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean } = {}) {
+export function App(props: { client?: CoreClient; devTools?: boolean } = {}) {
+  return (
+    <TooltipProvider delayDuration={300}>
+      <ToastProvider>
+        <HashRouter>
+          <AppShell {...props} />
+        </HashRouter>
+      </ToastProvider>
+    </TooltipProvider>
+  );
+}
+
+function AppShell({ client: injected, devTools: devOverride }: { client?: CoreClient; devTools?: boolean }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const surface = surfaceFromPath(location.pathname);
+  const moduleSection = sectionFromPath(location.pathname);
+  const setSurface = useCallback(
+    (next: Surface) => {
+      remember(SURFACE_KEY, next);
+      navigate(surfacePath(next));
+    },
+    [navigate],
+  );
+  // On a fresh load (no path yet) pick up wherever the person left off; a normal navigation
+  // should never fight the router, so this runs at most once.
+  const restoredOnce = useRef(false);
+  useEffect(() => {
+    if (restoredOnce.current) return;
+    restoredOnce.current = true;
+    if (location.pathname === "/" || location.pathname === "") {
+      const last = remembered<Surface | null>(SURFACE_KEY, null);
+      if (last && last.kind !== "home") navigate(surfacePath(last), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [runtime, setRuntime] = useState<Runtime>({ kind: "connecting" });
   // Bumped to ask the host for the runtime again: on its own every few seconds while the
   // runtime is unavailable (a first launch can wait on a macOS permission dialog), or by hand.
   const [runtimeAttempt, setRuntimeAttempt] = useState(0);
-  const [surface, setSurfaceState] = useState<Surface>(() => remembered<Surface>(SURFACE_KEY, { kind: "home" }));
   const [conversationId, setConversationId] = useState<string | null>(() => remembered<string | null>(SELECTED_KEY, null));
   // The session open in each place (global, or a project), remembered on this Mac.
   const [sessionByScope, setSessionByScope] = useState<Record<string, string | null>>(() => remembered<Record<string, string | null>>(SESSIONS_KEY, {}));
   const [projects, setProjects] = useState<Project[]>([]);
   // The assistant panel is open on Home and closed on a module page unless the person opened
-  // it there; both choices are remembered on this Mac. The rail can fold to icons.
+  // it there; both choices are remembered on this Mac.
   const [openByKind, setOpenByKind] = useState<{ home: boolean; module: boolean }>(() => readPanelState());
   const panelKind = surface.kind === "module" ? "module" : "home";
   const assistantOpen = openByKind[panelKind];
@@ -77,24 +153,45 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     },
     [panelKind],
   );
-  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem("alpha.rail.collapsed") === "1";
-    } catch {
-      return false;
-    }
+
+  const railPanel = usePanelControl({
+    defaultWidth: 220,
+    minWidth: 76,
+    maxWidth: 360,
+    storageKeyWidth: "alpha.rail.width",
+    storageKeyCollapsed: "alpha.rail.collapsed",
+    snap: true,
+    snapMidpoint: 148,
   });
-  const toggleRail = useCallback(() => {
-    setRailCollapsed((c) => {
-      try {
-        window.localStorage.setItem("alpha.rail.collapsed", c ? "0" : "1");
-      } catch {
-        // see above
-      }
-      return !c;
-    });
+  const assistantPanel = usePanelControl({
+    defaultWidth: 286,
+    minWidth: 260,
+    maxWidth: 520,
+    storageKeyWidth: "alpha.assistant.width",
+    storageKeyCollapsed: "alpha.assistant.collapsed",
+  });
+  const [viewport, setViewport] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  useEffect(() => {
+    const onResize = () => setViewport(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
+  const isNarrow = viewport < 640;
+  // Between phone and full width the rail shows icons and Chief of Staff opens over the page
+  // (assistant.css), so the page keeps its room. Nothing saved changes: the remembered panel
+  // widths and collapse choices apply again once the window is wide.
+  const compact = !isNarrow && viewport < 1024;
+  const [railPeek, setRailPeek] = useState(false);
+  const [assistPeek, setAssistPeek] = useState(false);
+  const assistCollapsed = compact ? !assistPeek : assistantPanel.collapsed;
+  const [mobileDrawer, setMobileDrawer] = useState<"modules" | null>(null);
+
   const [draft, setDraft] = useState<string | null>(null);
+  // The blank project's first message, sent through the chat panel.
+  const [centreSend, setCentreSend] = useState<{ text: string; id: number } | null>(null);
+  // The blank "New project" draft's title, held here until Core actually has a project to save
+  // it to (createProject only runs once the person answers the opening question).
+  const [draftProjectTitle, setDraftProjectTitle] = useState("Untitled project");
   const [modules, setModules] = useState<AppSummary[]>([]);
   const [modulesTick, setModulesTick] = useState(0);
   const dev = devOverride ?? devTools();
@@ -111,10 +208,6 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
       .catch(() => undefined);
   }, [runtime]);
 
-  const setSurface = useCallback((next: Surface) => {
-    setSurfaceState(next);
-    remember(SURFACE_KEY, next);
-  }, []);
   const selectConversation = useCallback((id: string | null) => {
     setConversationId(id);
     remember(SELECTED_KEY, id);
@@ -155,7 +248,7 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [rememberSession, selectConversation, setSurface]);
+  }, [rememberSession, selectConversation, setSurface, setAssistantOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +282,20 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const client = runtime.kind === "connected" ? runtime.client : null;
   const nullClient = useMemo(() => new NullClient(), []);
   const { runs, error: runsError, cancel } = useRuns(client ?? nullClient);
+  const needsYou = runs.filter((r) => ATTENTION.has(r.run.state)).length;
+  const bell = (
+    <button
+      type="button"
+      className={surface.kind === "activity" ? "iconbtn bell iconbtn--on" : "iconbtn bell"}
+      aria-label={needsYou ? `Activity, ${needsYou} need you` : "Activity"}
+      title="Activity"
+      aria-current={surface.kind === "activity" ? "page" : undefined}
+      onClick={() => setSurface({ kind: "activity" })}
+    >
+      <Bell size={16} />
+      {needsYou ? <span className="bell__count">{needsYou > 9 ? "9+" : needsYou}</span> : null}
+    </button>
+  );
 
   // The module list: reloaded when a creation finishes or a run completes (a new module shows up
   // in the rail without a restart).
@@ -232,8 +339,10 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
   const currentModule = surface.kind === "module" ? modules.find((m) => m.app_id === surface.appId) ?? null : null;
   // Where the assistant is: the project of the page (or of the module on it), else global.
   const currentProject = surface.kind === "project" ? projects.find((p) => p.project_id === surface.projectId) ?? null : surface.kind === "module" ? projects.find((p) => p.modules.includes(surface.appId)) ?? null : null;
-  // A module outside any project keeps sessions of its own; Home is the global scope.
-  const scopeKey = currentProject ? `project:${currentProject.project_id}` : currentModule ? `module:${currentModule.app_id}` : "global";
+  // A module outside any project keeps sessions of its own; Home is the global scope. The
+  // blank "New project" draft gets its own scope key so it never picks up (or pollutes) the
+  // global session, and starts fresh every time it's opened.
+  const scopeKey = surface.kind === "newProject" ? "draft-project" : currentProject ? `project:${currentProject.project_id}` : currentModule ? `module:${currentModule.app_id}` : "global";
   const sessionId = sessionByScope[scopeKey] ?? null;
   const selectSession = useCallback((id: string | null) => rememberSession(scopeKey, id), [rememberSession, scopeKey]);
   // A remembered project that no longer exists (archived, another data directory) goes Home.
@@ -241,10 +350,13 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     if (surface.kind === "project" && projects.length && !projects.some((p) => p.project_id === surface.projectId)) setSurface({ kind: "home" });
   }, [projects, surface, setSurface]);
 
-  const openAssistant = useCallback((text?: string) => {
-    setAssistantOpen(true);
-    setDraft(text ?? null);
-  }, [setAssistantOpen]);
+  const openAssistant = useCallback(
+    (text?: string) => {
+      setAssistantOpen(true);
+      setDraft(text ?? null);
+    },
+    [setAssistantOpen],
+  );
   // "New" always means a new module: leave the module page, or the request would change it.
   const startNew = useCallback(() => {
     selectConversation(null);
@@ -252,98 +364,229 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
     setSurface({ kind: "home" });
     openAssistant("");
   }, [openAssistant, rememberSession, selectConversation, setSurface]);
-  const newProject = useCallback(async () => {
-    if (!client || !isSessionsClient(client)) return;
-    try {
-      const made = await client.createProject("New project");
+  // Opens the blank draft: no project exists in Core yet (createProject waits for the person's
+  // first answer, in the Chief of Staff panel's send() below), so there's nothing here yet to
+  // undo if they change their mind and go elsewhere.
+  const startNewProjectDraft = useCallback(() => {
+    selectConversation(null);
+    rememberSession("draft-project", null);
+    setDraftProjectTitle("Untitled project");
+    setAssistantOpen(true);
+    assistantPanel.setCollapsed(false);
+    setSurface({ kind: "newProject" });
+  }, [assistantPanel, rememberSession, selectConversation, setAssistantOpen, setSurface]);
+  // The project is made (with whatever title the person left in the draft header) the moment
+  // they answer; the session that carried the answer moves with it so nothing appears lost.
+  const handleProjectCreated = useCallback(
+    (project: Project, sessionId: string) => {
+      rememberSession(`project:${project.project_id}`, sessionId);
+      rememberSession("draft-project", null);
       setModulesTick((n) => n + 1);
-      setSurface({ kind: "project", projectId: made.project_id });
-    } catch {
-      /* the page will say */
-    }
-  }, [client, setSurface]);
+      setSurface({ kind: "project", projectId: project.project_id });
+    },
+    [rememberSession, setSurface],
+  );
+  const handleModuleRemoved = useCallback(
+    (appId: string) => {
+      setModulesTick((n) => n + 1);
+      if (surface.kind === "module" && surface.appId === appId) setSurface({ kind: "home" });
+    },
+    [surface, setSurface],
+  );
+  const handleProjectRemoved = useCallback(
+    (projectId: string) => {
+      setModulesTick((n) => n + 1);
+      if (surface.kind === "project" && surface.projectId === projectId) setSurface({ kind: "home" });
+    },
+    [surface, setSurface],
+  );
+  // Core renamed a project (or gave it an icon) on its own: update the rail in place, without
+  // remounting the open project page.
+  const handleProjectChanged = useCallback((project: Project) => {
+    setProjects((all) => all.map((p) => (p.project_id === project.project_id ? project : p)));
+  }, []);
+  const handleModuleImported = useCallback(
+    (appId: string) => {
+      setModulesTick((n) => n + 1);
+      setSurface({ kind: "module", appId });
+    },
+    [setSurface],
+  );
 
-  return (
-    <div className={`app${assistantOpen ? "" : " app--assistant-hidden"}${railCollapsed ? " app--rail-collapsed" : ""}`}>
-      <Rail surface={surface} modules={modules} projects={projects} icons={icons} runtime={runtime.kind} onGo={setSurface} onNew={startNew} onNewProject={client && isSessionsClient(client) ? () => void newProject() : undefined} theme={theme} onTheme={setTheme} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
-      <main className="main">
-        {runtime.kind !== "connected" ? (
-          <section className="page">
-            <h2>Runtime</h2>
-            {runtime.kind === "connecting" ? (
-              <p className="panel__hint">Connecting to the local runtime…</p>
-            ) : (
-              <>
-                <p className="notice" role="alert">
-                  {runtime.reason}
-                </p>
-                <p className="panel__hint">Alpha keeps trying on its own every few seconds.</p>
-                <div className="row">
-                  <button type="button" className="btn btn--sm" onClick={() => setRuntimeAttempt((n) => n + 1)}>
-                    Try again now
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
-        ) : surface.kind === "home" ? (
-          <Home
+  // An exported module attached in any composer installs as a module instead of riding along
+  // as message context.
+  const toast = useToast();
+  useEffect(() => {
+    if (!client || !isWorkflowsClient(client)) return;
+    return registerAttachmentHandler(
+      (a) => a.name.toLowerCase().endsWith(ALPHAMODULE_EXTENSION),
+      (a) => {
+        const source = a.path ? { path: a.path } : a.contentB64 ? new Blob([Uint8Array.from(atob(a.contentB64), (c) => c.charCodeAt(0))]) : null;
+        if (!source) return toast.show("Couldn't read that project file.");
+        client
+          .importModuleFile(source)
+          .then((r) => {
+            handleModuleImported(r.app_id);
+            toast.show(`Added ${r.name}`);
+          })
+          .catch((e: unknown) => toast.show(e instanceof Error ? e.message : "Couldn't add that project."));
+      },
+    );
+  }, [client, handleModuleImported, toast]);
+
+  // Escape steps whichever panel has focus (extended -> expanded -> collapsed); it never
+  // steals Escape from an open dialog/menu, and does nothing when focus is in neither panel.
+  const railRef = useRef<HTMLDivElement>(null);
+  const assistRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const overlayOpen = document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]') !== null;
+      if (overlayOpen) return;
+      const active = document.activeElement;
+      if (railRef.current?.contains(active)) railPanel.handleEscape();
+      else if (assistRef.current?.contains(active)) assistantPanel.handleEscape();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [railPanel, assistantPanel]);
+
+  const assistantWidth = assistantPanel.collapsed ? 48 : assistantPanel.displayWidth;
+  const railWidth = railPanel.collapsed ? 76 : railPanel.displayWidth;
+
+  const mainContent = (
+    <main className="main">
+      {runtime.kind !== "connected" ? (
+        <section className="page" style={{ paddingTop: 22 }}>
+          <h2>Runtime</h2>
+          {runtime.kind === "connecting" ? (
+            <p className="panel__hint">Connecting to the local runtime…</p>
+          ) : (
+            <>
+              <p className="notice" role="alert">
+                {runtime.reason}
+              </p>
+              <p className="panel__hint">Alpha keeps trying on its own every few seconds.</p>
+              <div className="row">
+                <button type="button" className="btn btn--sm" onClick={() => setRuntimeAttempt((n) => n + 1)}>
+                  Try again now
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : surface.kind === "home" ? (
+        <Home
+          modules={modules}
+          icons={icons}
+          runs={runs.map((r) => r.run)}
+          onOpen={(appId) => setSurface({ kind: "module", appId })}
+          onNew={startNew}
+          onActivity={() => setSurface({ kind: "activity" })}
+          client={isProfileClient(runtime.client) ? runtime.client : undefined}
+          onStart={(request) => {
+            selectConversation(null);
+            rememberSession("global", null);
+            openAssistant(request);
+          }}
+        />
+      ) : surface.kind === "activity" ? (
+        <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
+      ) : surface.kind === "about" ? (
+        isProfileClient(runtime.client) ? <AboutYou client={runtime.client} /> : null
+      ) : surface.kind === "intelligence" ? (
+        <Intelligence client={runtime.client} modules={modules} icons={icons} initialTab={surface.tab} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} />
+      ) : surface.kind === "settings" ? (
+        <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} section={surface.section} onSection={(section) => setSurface({ kind: "settings", section })} />
+      ) : surface.kind === "newProject" ? (
+        <NewProjectPage
+          title={draftProjectTitle}
+          onTitleChange={setDraftProjectTitle}
+          onStart={(text) => {
+            setAssistantOpen(true);
+            assistantPanel.setCollapsed(false);
+            setCentreSend({ text, id: Date.now() });
+          }}
+          onImport={
+            isWorkflowsClient(runtime.client)
+              ? (file) => {
+                  const client = runtime.client;
+                  if (!isWorkflowsClient(client)) return;
+                  client
+                    .importModuleFile(file)
+                    .then((result) => handleModuleImported(result.app_id))
+                    .catch((e) => toast.show(e instanceof Error ? e.message : "Couldn't add that project."));
+                }
+              : undefined
+          }
+        />
+      ) : surface.kind === "project" ? (
+        isSessionsClient(runtime.client) ? (
+          <ProjectPage
+            key={`${surface.projectId}:${modulesTick}`}
+            client={runtime.client}
+            projectId={surface.projectId}
             modules={modules}
             icons={icons}
-            runs={runs.map((r) => r.run)}
-            onOpen={(appId) => setSurface({ kind: "module", appId })}
-            onNew={startNew}
-            onActivity={() => setSurface({ kind: "activity" })}
-            client={isProfileClient(runtime.client) ? runtime.client : undefined}
-            onStart={(request) => {
+            onOpenModule={(appId) => setSurface({ kind: "module", appId })}
+            onOpenSession={(id) => {
               selectConversation(null);
-              rememberSession("global", null);
-              openAssistant(request);
+              rememberSession(`project:${surface.projectId}`, id);
+              setAssistantOpen(true);
             }}
+            onChanged={() => setModulesTick((n) => n + 1)}
+            onProject={handleProjectChanged}
+            onRemoved={() => {
+              setModulesTick((n) => n + 1);
+              setSurface({ kind: "home" });
+            }}
+            creation={<CreationOnPage client={runtime.client} sessionId={sessionByScope[`project:${surface.projectId}`]} onOpenApp={(appId) => setSurface({ kind: "module", appId })} />}
+            facts={isProfileClient(runtime.client) ? { accept: runtime.client.acceptFact.bind(runtime.client), reject: runtime.client.rejectFact.bind(runtime.client), forget: runtime.client.forgetFact.bind(runtime.client) } : undefined}
           />
-        ) : surface.kind === "activity" ? (
-          <Activity runs={runs} error={runsError} onCancel={cancel} appNames={appNames} />
-        ) : surface.kind === "about" ? (
-          isProfileClient(runtime.client) ? <AboutYou client={runtime.client} /> : null
-        ) : surface.kind === "intelligence" ? (
-          <Intelligence client={runtime.client} modules={modules} icons={icons} onOpenModule={(appId) => setSurface({ kind: "module", appId })} onOpenAbout={() => setSurface({ kind: "about" })} onOpenAccounts={() => setSurface({ kind: "connections" })} />
-        ) : surface.kind === "connections" ? (
-          <Connections client={runtime.client} />
-        ) : surface.kind === "settings" ? (
-          <Settings client={runtime.client} health={runtime.health} theme={theme} onTheme={setTheme} />
-        ) : surface.kind === "project" ? (
-          isSessionsClient(runtime.client) ? (
-            <ProjectPage
-              key={`${surface.projectId}:${modulesTick}`}
-              client={runtime.client}
-              projectId={surface.projectId}
-              modules={modules}
-              icons={icons}
-              onOpenModule={(appId) => setSurface({ kind: "module", appId })}
-              onOpenSession={(id) => {
-                selectConversation(null);
-                rememberSession(`project:${surface.projectId}`, id);
-                setAssistantOpen(true);
-              }}
-              onChanged={() => setModulesTick((n) => n + 1)}
-              onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }}
-              facts={isProfileClient(runtime.client) ? { accept: runtime.client.acceptFact.bind(runtime.client), reject: runtime.client.rejectFact.bind(runtime.client), forget: runtime.client.forgetFact.bind(runtime.client) } : undefined}
-            />
-          ) : null
-        ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
-          <ModulePage key={`${surface.appId}:${modulesTick}`} client={runtime.client} appId={surface.appId} icon={icons[surface.appId]} onAsk={() => openAssistant()} runs={runs} onCancelRun={cancel} onRemoved={() => { setModulesTick((n) => n + 1); setSurface({ kind: "home" }); }} />
+        ) : null
+      ) : isWorkflowsClient(runtime.client) && isAppsClient(runtime.client) ? (
+        <ModulePage
+          key={`${surface.appId}:${modulesTick}`}
+          client={runtime.client}
+          appId={surface.appId}
+          icon={icons[surface.appId]}
+          onAsk={() => openAssistant()}
+          runs={runs}
+          onCancelRun={cancel}
+          onRemoved={() => {
+            setModulesTick((n) => n + 1);
+            setSurface({ kind: "home" });
+          }}
+          section={moduleSection}
+          onSectionChange={(next) => navigate(moduleSectionPath(surface.appId, next))}
+        />
+      ) : null}
+      {dev && runtime.kind === "connected" ? (
+        <section className="page" style={{ paddingTop: 22 }}>
+          <GeneratedUiFixture client={runtime.client} />
+        </section>
+      ) : null}
+    </main>
+  );
+
+  const assistantContent =
+    runtime.kind === "connected" && (assistantOpen || isNarrow) && !assistCollapsed ? (
+      <div ref={assistRef} id="panel-right" className={isNarrow ? "assist assist--overlay" : "assist"} style={isNarrow || compact ? undefined : { width: assistantWidth }}>
+        {!isNarrow && !compact ? (
+          <ResizeHandle side="right" onMouseDown={assistantPanel.startDrag} onStep={assistantPanel.resizeBy} label="Resize Chief of Staff" value={assistantPanel.displayWidth} min={260} max={520} isDragging={assistantPanel.isDragging} />
         ) : null}
-        {dev && runtime.kind === "connected" ? (
-          <section className="page">
-            <GeneratedUiFixture client={runtime.client} />
-          </section>
-        ) : null}
-      </main>
-      {runtime.kind === "connected" && assistantOpen ? (
         <AssistantPanel
           client={runtime.client}
-          scope={{ projectId: currentProject?.project_id ?? null, projectName: currentProject?.name ?? null, moduleName: currentModule?.name ?? null, appId: currentModule?.app_id ?? null }}
+          scope={{
+            projectId: currentProject?.project_id ?? null,
+            projectName: currentProject?.name ?? null,
+            moduleName: currentModule?.name ?? null,
+            appId: currentModule?.app_id ?? null,
+            ...(surface.kind === "newProject" ? { newProject: true, draftTitle: draftProjectTitle, onProjectCreated: handleProjectCreated } : {}),
+          }}
           sessionId={sessionId}
+          sendNow={centreSend}
+          cardsOnPage={surface.kind === "project"}
           onSelectSession={selectSession}
           conversationId={conversationId}
           onSelectConversation={selectConversation}
@@ -352,15 +595,113 @@ export function App({ client: injected, devTools: devOverride }: { client?: Core
             setModulesTick((n) => n + 1);
             setSurface({ kind: "module", appId });
           }}
-          onHide={() => setAssistantOpen(false)}
+          headerStart={
+            <CollapseToggleButton
+              side="right"
+              collapsed={false}
+              controls="panel-right"
+              onClick={() => (isNarrow ? setAssistantOpen(false) : compact ? setAssistPeek(false) : assistantPanel.setCollapsed(true))}
+            />
+          }
+          headerEnd={bell}
           draft={draft}
         />
-      ) : null}
-      {!assistantOpen ? (
-        <button type="button" className="btn btn--primary assist__fab" onClick={() => setAssistantOpen(true)}>
-          Assistant
+      </div>
+    ) : runtime.kind === "connected" && !isNarrow ? (
+      <div className="assist assist--collapsed" style={{ width: 48 }}>
+        <button
+          type="button"
+          className="assist__open"
+          onClick={() => {
+            if (compact) setAssistPeek(true);
+            else assistantPanel.setCollapsed(false);
+            setAssistantOpen(true);
+          }}
+          aria-label="Open Chief of Staff"
+          title="Chief of Staff"
+        >
+          <ZazooIcon size={30} label="" />
         </button>
-      ) : null}
+        {bell}
+      </div>
+    ) : null;
+
+  if (isNarrow) {
+    return (
+      <div className="app">
+        {mainContent}
+        {mobileDrawer === "modules" ? (
+          <div className="drawer-sheet" onClick={() => setMobileDrawer(null)}>
+            <div className="drawer-sheet__panel" onClick={(e) => e.stopPropagation()}>
+              <Rail
+                surface={surface}
+                modules={modules}
+                projects={projects}
+                icons={icons}
+                runtime={runtime.kind}
+                onGo={(s) => {
+                  setSurface(s);
+                  setMobileDrawer(null);
+                }}
+                panel={{ ...railPanel, collapsed: false, displayWidth: 280 }}
+                client={client}
+                onModuleRemoved={handleModuleRemoved}
+                onProjectRemoved={handleProjectRemoved}
+                onProjectChanged={() => setModulesTick((n) => n + 1)}
+                onModuleImported={handleModuleImported}
+              />
+            </div>
+          </div>
+        ) : null}
+        {assistantOpen ? assistantContent : null}
+        <nav className="tabbar" aria-label="Alpha">
+          <button type="button" className="tabbar__btn" aria-current={surface.kind === "home" ? "page" : undefined} onClick={() => setSurface({ kind: "home" })}>
+            <HomeIcon size={18} />
+            Home
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={mobileDrawer === "modules" ? "page" : undefined} onClick={() => setMobileDrawer("modules")}>
+            <Boxes size={18} />
+            Projects
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={assistantOpen ? "page" : undefined} onClick={() => setAssistantOpen(!assistantOpen)}>
+            <ZazooIcon size={20} label="" />
+            Chief of Staff
+          </button>
+          <button type="button" className="tabbar__btn" aria-current={surface.kind === "settings" ? "page" : undefined} onClick={() => setSurface({ kind: "settings" })}>
+            <SettingsIcon size={18} />
+            Settings
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <div ref={railRef}>
+        <Rail
+          surface={surface}
+          modules={modules}
+          projects={projects}
+          icons={icons}
+          runtime={runtime.kind}
+          onGo={setSurface}
+          onNewProject={client && isSessionsClient(client) ? startNewProjectDraft : undefined}
+          panel={
+            compact
+              ? { ...railPanel, collapsed: !railPeek, displayWidth: railPeek ? railPanel.width : 76, toggleCollapsed: () => setRailPeek((v) => !v) }
+              : { ...railPanel, displayWidth: railWidth }
+          }
+          client={client}
+          onModuleRemoved={handleModuleRemoved}
+          onProjectRemoved={handleProjectRemoved}
+          onProjectChanged={() => setModulesTick((n) => n + 1)}
+          onModuleImported={handleModuleImported}
+        />
+      </div>
+      {mainContent}
+      {assistantContent}
+      {runtime.kind === "connected" ? <CommandMenu modules={modules} icons={icons} onNew={startNew} /> : null}
     </div>
   );
 }
@@ -378,15 +719,15 @@ function readPanelState(): { home: boolean; module: boolean } {
   return { home: true, module: false };
 }
 
-function moduleIcon(m: AppSummary): string {
+function moduleIcon(m: AppSummary): LucideIcon {
   const text = `${m.name} ${m.description}`.toLowerCase();
-  if (/food|meal|calorie|diet|eat/.test(text)) return "🍽";
-  if (/workout|gym|fitness|exercise/.test(text)) return "🏋️";
-  if (/job|opening|career|applic/.test(text)) return "💼";
-  if (/book|read/.test(text)) return "📚";
-  if (/money|spend|expense|budget|receipt/.test(text)) return "💳";
-  if (/task|todo|plan/.test(text)) return "☑";
-  return "▦";
+  if (/food|meal|calorie|diet|eat/.test(text)) return Utensils;
+  if (/workout|gym|fitness|exercise/.test(text)) return Dumbbell;
+  if (/job|opening|career|applic/.test(text)) return Briefcase;
+  if (/book|read/.test(text)) return BookOpen;
+  if (/money|spend|expense|budget|receipt/.test(text)) return CreditCard;
+  if (/task|todo|plan/.test(text)) return ListChecks;
+  return Boxes;
 }
 
 /** Stands in until the runtime connects, so hooks keep a stable client reference. */

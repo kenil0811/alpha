@@ -157,7 +157,7 @@ class SkillService:
         if draft.kind == "procedure" and not draft.instructions.strip():
             raise invalid("a procedure skill needs instructions: how Alpha does it, step by step")
         if draft.kind == "code" and not (draft.module and draft.action):
-            raise invalid("a code skill names the module and the action that do the job")
+            raise invalid("a code skill names the project and the action that do the job")
         base = _slug(draft.title)
         skill_id = base
         n = 2
@@ -262,7 +262,7 @@ class SkillService:
 
     def _run_code(self, skill: SkillSpec, run: SkillRun) -> SkillRun:
         if self._runs is None or not skill.module or not skill.action:
-            raise conflict("this skill's module action is not available")
+            raise conflict("this skill's project action is not available")
         from alpha_contracts.runs import TERMINAL_RUN_STATES, RunOrigin, RunState
 
         started = self._runs.invoke(

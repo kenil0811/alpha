@@ -44,7 +44,7 @@ export function makeModuleContext(client: ModuleClient, detail: AppDetail, versi
     action: (id) => actions.get(id),
     run: async (actionId, input) => {
       const action = actions.get(actionId);
-      if (!action) throw new Error(`This module has no action ${actionId}`);
+      if (!action) throw new Error(`This project has no action ${actionId}`);
       const outcome = await runAndWait(client, detail.app_id, action, input);
       if (outcome.state === "succeeded") changed();
       return outcome;

@@ -9,7 +9,9 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.assistant.acting import ActService
+from alpha.assistant.attachments import MAX_ATTACHMENTS, AttachmentIn
 from alpha.assistant.sessions import Session, SessionService, SessionSummary
+from alpha.bugs import BugLog
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.context.profile import ProfileService, project_scope
 from alpha.context.projects import Project, ProjectService
@@ -29,6 +31,8 @@ class ProjectPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     goal: str | None = Field(default=None, max_length=600)
     summary: str | None = Field(default=None, max_length=4000)
+    # One of PROJECT_ICONS (alpha.context.projects).
+    icon: str | None = Field(default=None, max_length=40)
     archived: bool | None = None
 
 
@@ -56,6 +60,14 @@ class SessionPatch(BaseModel):
     archived: bool | None = None
 
 
+class ModelChoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # A Settings -> Models account id (claude/chatgpt/openrouter/grok); the + menu's model picker.
+    provider: str = Field(min_length=1, max_length=40)
+    model: str | None = Field(default=None, max_length=100)
+
+
 class SessionMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -64,6 +76,10 @@ class SessionMessage(BaseModel):
     wait: bool = False
     # The module on screen when the message was typed, a hint for the loop.
     app_id: str | None = Field(default=None, max_length=120)
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+    # The + menu's Advanced choices for this one message; unset falls back to Settings -> Access.
+    access_mode: str | None = Field(default=None, pattern="^(ask|approve_for_me|full)$")
+    model: ModelChoice | None = None
 
 
 def _fail(exc: OperationFailed) -> HTTPException:
@@ -76,6 +92,7 @@ def register(
     sessions: SessionService,
     acting: ActService,
     profile: ProfileService | None = None,
+    bugs: BugLog | None = None,
 ) -> None:
     # ----- projects ------------------------------------------------------------------------
 
@@ -113,10 +130,25 @@ def register(
                 name=body.name,
                 goal=body.goal,
                 summary=body.summary,
+                icon=body.icon,
                 archived=body.archived,
             )
         except OperationFailed as exc:
             raise _fail(exc) from exc
+
+    @app.get("/api/projects/{project_id}/files/{name}")
+    def read_project_file(project_id: str, name: str) -> dict[str, Any]:
+        """One of the project's files (plan.md, bugs.md); text is null until Alpha writes it."""
+        try:
+            found = projects.read_file(project_id, name)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return found or {"name": name, "text": None, "updated_at": None}
+
+    @app.get("/api/bugs")
+    def read_bugs() -> dict[str, Any]:
+        """Alpha's own bug log (markdown), or null before it has noted anything."""
+        return {"text": bugs.read() if bugs is not None else None}
 
     @app.post("/api/apps/{app_id}/project")
     def file_module(app_id: str, body: FileModule) -> dict[str, Any]:
@@ -190,7 +222,15 @@ def register(
         """Say something in the session. Alpha works it through in the background (poll the
         session; its state is `thinking`), or, with `wait`, before this returns."""
         try:
-            acting.send(session_id, body.text, wait=body.wait, context_app_id=body.app_id)
+            acting.send(
+                session_id,
+                body.text,
+                wait=body.wait,
+                context_app_id=body.app_id,
+                attachments=body.attachments,
+                access_mode=body.access_mode,
+                model=body.model.model_dump() if body.model else None,
+            )
         except OperationFailed as exc:
             raise _fail(exc) from exc
         except RouteUnavailable as exc:

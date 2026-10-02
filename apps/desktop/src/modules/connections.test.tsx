@@ -12,7 +12,6 @@ describe("connections between modules", () => {
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
     const list = await screen.findByLabelText("Connections");
     expect(within(list).getByText("Academics")).toBeInTheDocument();
     expect(within(list).getByText(/The notes cite courses\. · courses/)).toBeInTheDocument();

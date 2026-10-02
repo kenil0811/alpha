@@ -18,6 +18,30 @@ MODEL_OPTIONS: tuple[tuple[str, str], ...] = (
     ("haiku", "Claude Haiku (fastest)"),
 )
 
+# The provider every stage uses. "claude" (Console-account sign-in) is the default: it needs no
+# key and keeps working even where a Claude subscription sign-in is turned off (founder decision
+# 2026-09-25). The others are the person's explicit choice, made in Settings -> Models.
+PROVIDER_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("claude", "Claude (signed in)"),
+    ("claude_api", "Claude (API key)"),
+    ("chatgpt_codex", "ChatGPT (signed in with Codex)"),
+    ("chatgpt_api", "ChatGPT (API key)"),
+    ("openrouter", "OpenRouter"),
+    ("grok", "Grok"),
+)
+
+# The person's default governance stance, shown in Settings and offered as the + menu's starting
+# point for every new session (a session that has chosen its own stays on it). "ask" is the
+# default: it is the strictest of the three, kept as the safe out-of-box behaviour rather than
+# defaulting to "approve_for_me" (AP-182 still requires universal user approval for anything
+# unaudited; nothing in Core's execution path asked for approval before this setting existed, so
+# "ask" is a new, stricter floor, not a preservation of the old unrestricted behaviour).
+ACCESS_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("ask", "Ask for approval"),
+    ("approve_for_me", "Approve for me"),
+    ("full", "Full access"),
+)
+
 
 @dataclass(frozen=True)
 class SettingField:
@@ -34,6 +58,28 @@ class SettingField:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+EFFORT_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("low", "Low (fastest)"),
+    ("medium", "Medium"),
+    ("high", "High (slowest)"),
+    ("default", "Claude Code's default"),
+)
+
+
+def _effort(stage: str, title: str, description: str) -> SettingField:
+    return SettingField(
+        f"effort.{stage}", "Models", title, description, "choice", "low", EFFORT_OPTIONS
+    )
+
+
+def stage_effort(prefs: Any, stage: str) -> str:
+    """How hard the model thinks for `stage` ("default" leaves it to the CLI). Measured on
+    28 September: the planner on Sonnet spent 20k of 24k output tokens thinking and took 240 s;
+    at low effort 69 s."""
+    key = f"effort.{stage}"
+    return str(prefs.get(key) if prefs is not None else BY_ID[key].default)
+
+
 def _model(id: str, title: str, description: str, default: str = "default") -> SettingField:
     return SettingField(id, "Models", title, description, "choice", default, MODEL_OPTIONS)
 
@@ -46,34 +92,103 @@ FIELDS: tuple[SettingField, ...] = (
         "half the time of Opus and is enough for this.",
         "sonnet",
     ),
+    _effort(
+        "triage",
+        "Thinking for sorting a change",
+        "How long the assistant thinks before deciding whether a change is a quick edit. Low "
+        "answers in seconds.",
+    ),
     _model(
         "models.planner",
         "Model for the checks",
-        "Writes the checks a module must pass before it is switched on.",
+        "Writes the checks a project must pass before it is switched on.",
         "sonnet",
+    ),
+    _effort(
+        "planner",
+        "Thinking for the checks",
+        "How long the model thinks while writing the checks. Low takes about a minute; high "
+        "can take four and run out of time.",
     ),
     _model(
         "models.builder_new",
-        "Model for building a new module",
-        "Writes the module's code and screen. The most capable model gives the best modules.",
+        "Model for building a new project",
+        "Writes the project's code and screen. The most capable model gives the best projects.",
     ),
     _model(
         "models.builder_change",
-        "Model for changing a module",
-        "Edits an existing module when you ask for a change.",
+        "Model for changing a project",
+        "Edits an existing project when you ask for a change.",
     ),
     _model(
         "models.app",
-        "Model modules use while running",
-        "Estimates, scoring and summaries a module asks for while you use it. Faster models "
+        "Model projects use while running",
+        "Estimates, scoring and summaries a project asks for while you use it. Faster models "
         "make checks and scoring feel quick.",
         "sonnet",
     ),
     SettingField(
+        "models.provider",
+        "Models",
+        "Provider",
+        "Which account or key every stage uses. Claude needs no key and is the default; the "
+        "others use the account or key you connect below.",
+        "choice",
+        "claude",
+        PROVIDER_OPTIONS,
+    ),
+    SettingField(
+        "models.chatgpt_model",
+        "Models",
+        "ChatGPT model (API key)",
+        "The OpenAI model id to use when ChatGPT is connected with an API key.",
+        "text",
+        "gpt-4o-mini",
+        maximum=100,
+    ),
+    SettingField(
+        "models.claude_model",
+        "Models",
+        "Claude model",
+        "The Claude model every stage uses, chosen on the Claude row in Settings -> Models; "
+        "default keeps each stage's own model (Sonnet for quick steps, the best for building).",
+        "choice",
+        "default",
+        MODEL_OPTIONS,
+    ),
+    SettingField(
+        "models.codex_model",
+        "Models",
+        "ChatGPT model (signed in with Codex)",
+        "The Codex model id to use when ChatGPT is signed in with Codex; empty uses Codex's own "
+        "default.",
+        "text",
+        "",
+        maximum=100,
+    ),
+    SettingField(
+        "models.openrouter_model",
+        "Models",
+        "OpenRouter model",
+        "The OpenRouter model id to use, for example openai/gpt-4o-mini.",
+        "text",
+        "openai/gpt-4o-mini",
+        maximum=100,
+    ),
+    SettingField(
+        "models.grok_model",
+        "Models",
+        "Grok model",
+        "The xAI model id to use, for example grok-4.",
+        "text",
+        "grok-4",
+        maximum=100,
+    ),
+    SettingField(
         "build.fast_lane",
         "Building limits",
-        "Modules go live early",
-        "A module is switched on as soon as its structure checks out (its package, code and "
+        "Projects go live early",
+        "A project is switched on as soon as its structure checks out (its package, code and "
         "actions are sound); the deeper behaviour checks run while you already use it, and you "
         "can go back with one click if they find a problem. Off waits for every check first.",
         "choice",
@@ -116,7 +231,7 @@ FIELDS: tuple[SettingField, ...] = (
         "build.max_repair_attempts",
         "Building limits",
         "Repair attempts",
-        "How many times a module that failed its checks is repaired before giving up.",
+        "How many times a project that failed its checks is repaired before giving up.",
         "integer",
         2,
         minimum=0,
@@ -129,7 +244,7 @@ FIELDS = (
         "browser.pages_per_hour",
         "Signed-in browser",
         "Pages per hour, per site",
-        "How many pages a module may open through your signed-in browser in an hour. Low "
+        "How many pages a project may open through your signed-in browser in an hour. Low "
         "numbers look like a person and keep accounts safe.",
         "integer",
         30,
@@ -148,6 +263,18 @@ FIELDS = (
         unit="s",
     ),
     SettingField(
+        "access.mode",
+        "Access",
+        "When Alpha needs your OK",
+        "Ask for approval: always ask before editing files outside a project or using the "
+        "internet. Approve for me: only ask for actions detected as unsafe (deletes, sends, "
+        "payments). Full access: no approval prompts (a secret leak or a permanent delete of "
+        "your data still confirms).",
+        "choice",
+        "ask",
+        ACCESS_MODE_OPTIONS,
+    ),
+    SettingField(
         "look.density",
         "Look",
         "Density",
@@ -159,8 +286,8 @@ FIELDS = (
     SettingField(
         "look.rules",
         "Look",
-        "Rules for how modules should look and behave",
-        "Alpha's defaults, in plain sentences, followed when it builds or changes any module. "
+        "Rules for how projects should look and behave",
+        "Alpha's defaults, in plain sentences, followed when it builds or changes any project. "
         "Edit them to your taste or reset to Alpha's.",
         "text",
         DEFAULT_CONVENTIONS,

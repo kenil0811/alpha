@@ -111,7 +111,7 @@ CATALOG: tuple[CapabilityFamily, ...] = (
     CapabilityFamily(
         family="browser",
         description="Reading websites through a browser Alpha keeps: pages drawn by scripts, "
-        "and sites the person has signed into (LinkedIn, Indeed) when they allow a module "
+        "and sites the person has signed into (LinkedIn, Indeed) when they allow a project "
         "to use that session. Read-only: it never clicks, types or submits.",
         available=True,
         operations=(
@@ -124,16 +124,16 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         ),
         notes=(
             "The person signs in themselves in a window Alpha opens; Alpha never sees or "
-            "stores the password. Access is per module and per site, switched on by the person.",
+            "stores the password. Access is per project and per site, switched on by the person.",
             "Paced: a limited number of pages per hour per site, with a gap between pages, so "
-            "it reads like a person. Every page opened is listed in the module's Activity.",
+            "it reads like a person. Every page opened is listed in the project's Activity.",
             "No filling forms or applying yet: that arrives with per-action approval.",
         ),
     ),
     CapabilityFamily(
         family="profile",
-        description="What Alpha knows about the person, shared by every module: their degree, "
-        "skills, target roles, goals, location. A module reads it instead of asking again, "
+        description="What Alpha knows about the person, shared by every project: their degree, "
+        "skills, target roles, goals, location. A project reads it instead of asking again, "
         "and passes on what the person tells it.",
         available=True,
         operations=(
@@ -144,24 +144,24 @@ CATALOG: tuple[CapabilityFamily, ...] = (
         ),
         notes=(
             "Every fact carries where it came from; the person can correct or forget any of it.",
-            "Plain snake_case field names shared across modules: degree, skills, target_roles.",
+            "Plain snake_case field names shared across projects: degree, skills, target_roles.",
         ),
     ),
     CapabilityFamily(
         family="connections",
-        description="Reading what the person's other modules keep, through the views those "
-        "modules declare: a resume module reads the coursework in Academics, a budget module "
+        description="Reading what the person's other projects keep, through the views those "
+        "projects declare: a resume project reads the coursework in Academics, a budget project "
         "reads the meals in a diet tracker. Read-only, declared, and switchable by the person.",
         available=True,
         operations=(
-            "modules.available() -> the modules this App may read and their views",
+            "modules.available() -> the projects this App may read and their views",
             "modules.query(module, view, where, limit) -> that module's records through its view",
             "modules.get(module, collection, id) -> one related record",
-            "a field of kind relation (module + collection) links a record to another module's",
+            "a field of kind relation (module + collection) links a record to another project's",
         ),
         notes=(
             "Each use is declared in app.yaml (module, views, purpose) and shown with a switch.",
-            "Nothing is copied: the reader sees the current rows of the source module.",
+            "Nothing is copied: the reader sees the current rows of the source project.",
         ),
     ),
     CapabilityFamily(

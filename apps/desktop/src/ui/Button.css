@@ -1,0 +1,26 @@
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: var(--radius-button); border: 1px solid transparent; font-weight: 500;
+  font-size: var(--text-md); white-space: nowrap; cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.ui-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* sizes */
+.ui-btn--sm { height: 32px; padding: 0 10px; font-size: var(--text-sm); }
+.ui-btn--default { height: 36px; padding: 0 14px; }
+.ui-btn--lg { height: 40px; padding: 0 18px; }
+.ui-btn--icon { height: 36px; width: 36px; padding: 0; }
+
+/* variants */
+.ui-btn--default { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.ui-btn--default:hover:not(:disabled) { filter: brightness(1.06); }
+.ui-btn--destructive { background: var(--bad); border-color: var(--bad); color: #fff; }
+.ui-btn--destructive:hover:not(:disabled) { filter: brightness(1.06); }
+.ui-btn--outline { background: var(--surface); border-color: var(--border); color: var(--text); }
+.ui-btn--outline:hover:not(:disabled) { background: var(--hover); }
+.ui-btn--secondary { background: var(--surface-2); border-color: var(--surface-2); color: var(--text); }
+.ui-btn--secondary:hover:not(:disabled) { background: var(--hover); }
+.ui-btn--ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.ui-btn--ghost:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.ui-btn--link { background: transparent; border-color: transparent; color: var(--primary); padding: 0; height: auto; text-decoration: underline; text-underline-offset: 2px; }

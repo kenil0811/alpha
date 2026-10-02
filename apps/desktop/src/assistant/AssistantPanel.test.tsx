@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../App";
@@ -53,23 +53,27 @@ function scriptedTracker(): FakeCoreClient {
 }
 
 describe("assistant surface", () => {
-  it("shows the interpretation, asks a question with options and records the answer as the user's", async () => {
+  it("shows only the questions, records the answer as the user's, and keeps the plan behind See plan", async () => {
     const client = scriptedTracker();
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    const understood = await screen.findByLabelText("How Alpha understood it");
-    expect(understood).toHaveTextContent("A personal food diary");
-    expect(screen.getByText(/Two quick questions first/)).toBeInTheDocument();
-    const form = screen.getByRole("form", { name: "A few questions" });
+    const form = await screen.findByRole("form", { name: "A few questions" });
+    // Only the Q&A: no interpretation, no reply paragraph, no plan yet.
+    expect(screen.queryByLabelText("How Alpha understood it")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Two quick questions first/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("What Alpha understood")).not.toBeInTheDocument();
+    expect(screen.getByText(/Waiting for your answers/)).toBeInTheDocument();
+    expect(within(form).getByRole("button", { name: "Why this matters" })).toBeInTheDocument();
     expect(within(form).getByText("How do you want to enter how much you ate?")).toBeInTheDocument();
     await user.click(within(form).getByLabelText("Grams or millilitres"));
     await user.click(within(form).getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(screen.getByText(/Got it: Grams or millilitres/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("See plan")).toBeInTheDocument());
+    expect(screen.queryByText(/Got it: Grams or millilitres/)).not.toBeInTheDocument();
     const brief = screen.getByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent("a reusable tool you can keep using");
     expect(brief).toHaveTextContent("Portions: Grams or millilitres");
@@ -85,13 +89,13 @@ describe("assistant surface", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("form", { name: "A few questions" });
     await user.click(screen.getByRole("button", { name: "Use these defaults for now" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 2"));
     // The brief is shown and nothing is made yet: what the person types next refines it.
-    await user.type(screen.getByLabelText("What do you want done?"), "also track protein");
+    await user.type(screen.getByLabelText("Message"), "also track protein");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("Understanding 3"));
     expect(screen.getByLabelText("What Alpha understood")).toHaveTextContent("you corrected");
@@ -103,7 +107,7 @@ describe("assistant surface", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "anything");
+    await user.type(screen.getByLabelText("Message"), "anything");
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("could not work this out");
   });
@@ -118,8 +122,9 @@ describe("the brief says where data goes", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Track what I eat");
+    await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Use these defaults for now" }));
     const brief = await screen.findByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
   });
@@ -132,9 +137,9 @@ describe("a turn that takes long", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Plan my week");
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    const waiting = await screen.findByText(/Thinking about your request/);
+    const waiting = await screen.findByText(/Understanding your request/);
     expect(waiting).toHaveTextContent(/0:0\d/);
     await user.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(client.cancelled).toEqual(["conv_1"]));
@@ -151,21 +156,64 @@ describe("a turn that takes long", () => {
       ],
       default: "full",
       evidence: [{ kind: "search", title: "How people keep notes", url: "https://example.com/notes", note: "Title, date, tags." }],
+      findings: ["People on Reddit lose notes they never tag."],
+      questions: [{ id: "share", question: "Who else reads these?", options: ["Only me", "My team"], why_it_matters: "Decides sharing." }],
     };
     client.assistantScript = (c: Conversation, reply: ConversationReply | null): Conversation =>
       reply === null ? { ...c, state: "proposed", delivery: "app", current_brief: sampleBrief(), proposal } : { ...c, state: "briefed", delivery: "app", current_brief: sampleBrief() };
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole("status");
-    await user.type(screen.getByLabelText("What do you want done?"), "Keep a notes list");
+    await user.type(screen.getByLabelText("Message"), "Keep a notes list");
     await user.click(screen.getByRole("button", { name: "Send" }));
     const card = await screen.findByLabelText("Options");
     expect(within(card).getByText("List with tags")).toBeInTheDocument();
     expect(within(card).getByText("Alpha's pick")).toBeInTheDocument();
     await user.click(within(card).getByRole("button", { name: "What Alpha looked at (1)" }));
     expect(within(card).getByRole("link", { name: "How people keep notes" })).toBeInTheDocument();
+    expect(within(card).getByText("People on Reddit lose notes they never tag.")).toBeInTheDocument();
+    await user.click(within(card).getByRole("checkbox", { name: "My team" }));
     await user.click(within(card).getByRole("button", { name: "Go with this" }));
     await waitFor(() => expect(String(client.conversations.get("conv_1")?.turns.at(-1)?.content.text)).toMatch(/^Go with "List with tags"/));
+    expect(client.conversations.get("conv_1")?.turns.at(-1)?.content.answers).toEqual({ share: "My team" });
     await waitFor(() => expect(screen.queryByLabelText("Options")).not.toBeInTheDocument());
+  });
+});
+
+describe("attaching context to a message", () => {
+  it("a pasted image becomes a removable chip, is sent with the message, and shows in history", async () => {
+    const client = scriptedTracker();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    const box = screen.getByLabelText("Message");
+    const file = new File(["fake-bytes"], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(box, { clipboardData: { items: [{ getAsFile: () => file }] } });
+    expect(await screen.findByText("screenshot.png")).toBeInTheDocument();
+
+    await user.type(box, "what does this show?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    // The attachment travelled with the message and is not left queued in the composer.
+    await waitFor(() => expect(screen.getAllByText("screenshot.png")).toHaveLength(1));
+    expect(within(screen.getByText("screenshot.png").closest(".msg--user")!).getByText("screenshot.png")).toBeInTheDocument();
+  });
+
+  it("removing a queued attachment before sending leaves it out of the message", async () => {
+    const client = scriptedTracker();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole("status");
+    const box = screen.getByLabelText("Message");
+    const file = new File(["x"], "notes.txt", { type: "text/plain" });
+    fireEvent.paste(box, { clipboardData: { items: [{ getAsFile: () => file }] } });
+    await screen.findByText("notes.txt");
+    await user.click(screen.getByRole("button", { name: "Remove notes.txt" }));
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+
+    await user.type(box, "just text, no attachment");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText("just text, no attachment");
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
   });
 });

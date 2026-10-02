@@ -3,13 +3,19 @@
  * say over every one of them. A suggestion from a module or the assistant waits here for a
  * yes; anything can be corrected (a new fact supersedes) or forgotten.
  */
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { X } from "lucide-react";
 import type { ProfileClient, ProfileFact } from "../core/client";
 import { humanize } from "../modules/useModule";
+import { IconButton } from "../ui/IconButton";
+import { Button } from "../ui/Button";
+import { InfoTip } from "../ui/InfoTip";
+import "../modules/module.css";
+import "../modules/views/views.css";
 
 const SOURCE: Record<ProfileFact["provenance"], string> = {
   person: "You said so",
-  module: "From a module",
+  module: "From a project",
   assistant: "From a conversation",
   inferred: "Alpha worked it out",
 };
@@ -61,8 +67,7 @@ export function AboutYou({ client }: { client: ProfileClient }) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
-  async function add(e: FormEvent) {
-    e.preventDefault();
+  async function add() {
     const name = field.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     if (!name || !value.trim()) return;
     await act(() => client.addFact(name, parse(value)));
@@ -74,10 +79,10 @@ export function AboutYou({ client }: { client: ProfileClient }) {
     <section className="page" aria-labelledby="about-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <div>
-            <h2 id="about-heading">About you</h2>
-            <div className="faint">What Alpha knows and uses across your modules. Every line says where it came from; correct or forget any of it.</div>
-          </div>
+          <h2 id="about-heading">
+            About you
+            <InfoTip content="What Alpha knows and uses across your projects. Every line says where it came from; correct or forget any of it." label="About this page" />
+          </h2>
         </div>
       </div>
       {error ? (
@@ -88,8 +93,10 @@ export function AboutYou({ client }: { client: ProfileClient }) {
       {suggestions.length ? (
         <div className="section" style={{ marginTop: 0 }}>
           <div className="section__head">
-            <h2>Waiting for your yes</h2>
-            <span className="faint">Modules and the assistant proposed these; nothing uses them until you accept.</span>
+            <h2>
+              Waiting for your yes
+              <InfoTip content="Projects and the assistant proposed these; nothing uses them until you accept." label="About suggested facts" />
+            </h2>
           </div>
           <div className="card list" aria-label="Suggested facts">
             {suggestions.map((s) => (
@@ -120,23 +127,28 @@ export function AboutYou({ client }: { client: ProfileClient }) {
       <div className="section" style={{ marginTop: suggestions.length ? undefined : 0 }}>
         <div className="section__head">
           <h2>Facts</h2>
-          <span className="faint">{facts.length ? `${facts.length} known` : loaded ? "Nothing yet. Add what you'd like every module to know." : "Loading…"}</span>
+          <span className="faint">{facts.length ? `${facts.length} known` : loaded ? "Nothing yet. Add what you'd like every project to know." : "Loading…"}</span>
         </div>
         <div className="card">
           <div className="tablewrap">
-            <table className="table" aria-label="Facts about you">
+            <table className="table dv-table" aria-label="Facts about you">
               <thead>
                 <tr>
+                  <th className="dv-gutter" />
                   <th>What</th>
                   <th>Value</th>
                   <th>Where from</th>
                   <th>Since</th>
-                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
                 {facts.map((f) => (
-                  <tr key={f.fact_id}>
+                  <tr key={f.fact_id} className="dv-row">
+                    <td className="dv-gutter">
+                      <IconButton aria-label={`Forget ${humanize(f.field)}`} title="Forget this" size="sm" onClick={() => void act(() => client.forgetFact(f.fact_id))}>
+                        <X size={13} strokeWidth={1.75} />
+                      </IconButton>
+                    </td>
                     <td>{humanize(f.field)}</td>
                     <td className="editable" onClick={() => { setEditing(f.fact_id); setDraft(shown(f.value)); }} title="Click to correct">
                       {editing === f.fact_id ? (
@@ -157,13 +169,23 @@ export function AboutYou({ client }: { client: ProfileClient }) {
                       {f.source && f.source !== "person" ? ` (${f.source})` : ""}
                     </td>
                     <td className="faint">{f.recorded_at ? new Date(f.recorded_at).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : ""}</td>
-                    <td className="r">
-                      <button type="button" className="btn btn--sm btn--ghost rowbtn" aria-label={`Forget ${humanize(f.field)}`} title="Forget this" onClick={() => void act(() => client.forgetFact(f.fact_id))}>
-                        ✕
-                      </button>
-                    </td>
                   </tr>
                 ))}
+                {/* A new fact, right where the rest live — no separate form card. */}
+                <tr className="dv-row">
+                  <td className="dv-gutter" />
+                  <td>
+                    <input className="dv-input" aria-label="What" value={field} onChange={(e) => setField(e.target.value)} placeholder="degree, target roles…" onKeyDown={(e) => e.key === "Enter" && void add()} />
+                  </td>
+                  <td>
+                    <input className="dv-input" aria-label="Value" value={value} onChange={(e) => setValue(e.target.value)} placeholder="MSc Computer Science (commas make a list)" onKeyDown={(e) => e.key === "Enter" && void add()} />
+                  </td>
+                  <td colSpan={2}>
+                    <Button size="sm" onClick={() => void add()} disabled={!field.trim() || !value.trim()}>
+                      Add
+                    </Button>
+                  </td>
+                </tr>
                 {loaded && !facts.length ? (
                   <tr>
                     <td colSpan={5} className="empty" style={{ whiteSpace: "normal" }}>
@@ -174,21 +196,6 @@ export function AboutYou({ client }: { client: ProfileClient }) {
               </tbody>
             </table>
           </div>
-          <form className="addrow" onSubmit={add} aria-label="Add a fact">
-            <div className="field field--compact">
-              <label htmlFor="fact-field">What</label>
-              <input id="fact-field" value={field} onChange={(e) => setField(e.target.value)} placeholder="e.g. degree, target roles, location" />
-            </div>
-            <div className="field field--compact">
-              <label htmlFor="fact-value">Value</label>
-              <input id="fact-value" value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. MSc Computer Science (commas make a list)" />
-            </div>
-            <div className="row">
-              <button type="submit" className="btn btn--primary btn--sm" disabled={!field.trim() || !value.trim()}>
-                Add
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </section>

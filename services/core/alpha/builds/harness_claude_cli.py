@@ -43,6 +43,19 @@ from alpha.builds.harness import (
 )
 from alpha.builds.validate import write_validate_script
 
+# What the CLI says when it will not run on this sign-in: not signed in, or the organization
+# turned subscription access off (it then reports is_error with subtype "success").
+AUTH_MARKERS = (
+    "Not logged in",
+    "disabled Claude subscription access",
+    "Use an Anthropic API key",
+)
+
+
+def is_auth_failure(text: str) -> bool:
+    return any(marker in text for marker in AUTH_MARKERS)
+
+
 PACKAGE_CONTRACT = """You are building an Alpha App: a small tool a nontechnical person will use
 to get real work done. Work ONLY inside the current directory.
 
@@ -72,6 +85,15 @@ Rules:
   you may use WebFetch and WebSearch to look at the real sites the goal names and write the
   reader for their actual structure (which links are items, where the details live); note what
   you learned in a comment so a later change can follow it.
+- What the person told Alpha (their role, outcomes and tools) is the requirement: build for
+  exactly that person, never a generic version. When the instructions name an open-source
+  project to follow or an API or source to use, read it first with WebFetch and follow its
+  approach (what it tracks, how it names statuses, how it reads that source). Clean room: never
+  copy, paraphrase or translate its code; write your own. Record what you followed (name,
+  address, license) in a comment at the top of the handler that uses it.
+- Everything the person reads in the App (labels, messages, empty states) is plain,
+  professional language with no technical words. Real data or an honest empty state: never
+  seed example or placeholder rows.
 - Model calls are slow (seconds each): never call ctx.models once per item in a loop. Send one
   structured call for a batch of items (up to ~20, input under 60 KB) asking for a `json` field
   that holds a list with one entry per item (name the keys in the instruction; see SDK.md), and
@@ -106,6 +128,16 @@ Rules:
   parses and matches the contract, files follow the layout, the Python compiles, every handler
   resolves) and lists what is wrong. Run it after writing app.yaml and the handlers, and again
   before you finish; only hand over a package it reports OK.
+- Don't reinvent the wheel: when the person has not explicitly asked for something specific,
+  use what already exists: Alpha's standard UI components and views first (the pages Alpha
+  draws for each table: table, board, list, gallery and calendar views, the record page, saved
+  lists, quick_entry, the Actions tab, and summary metrics, progress and trend cards; screen
+  blocks form and text), then a close existing equivalent, then a proven open-source library
+  or API. Build new only when nothing existing serves the purpose. When the person explicitly
+  asked for something, their requirement wins.
+- Keep package/BUGS.md: every bug you find while building or verifying, one line each with its
+  status, as "- [open] what is wrong" or "- [fixed] what was wrong and how". Update a line's
+  status when you fix it; never delete a line.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
@@ -191,6 +223,9 @@ class ClaudeCliHarness:
                 env[key] = os.environ[key]
         if self._strategy == "private_config_home":
             env["CLAUDE_CONFIG_DIR"] = str(config_home)
+        from alpha.models.claude_oauth import cli_auth_env
+
+        env.update(cli_auth_env(inputs.claude_auth))
         prompt = self._prompt(inputs)
         budget = inputs.request.budget
         argv = [
@@ -316,10 +351,9 @@ class ClaudeCliHarness:
         diagnostics: list[BuildDiagnostic] = []
         final = session.result_message or {}
         text = str(final.get("result", ""))
-        if session.saw_auth_error or "Not logged in" in text:
-            diagnostics.append(
-                BuildDiagnostic(level="error", code="cli_not_logged_in", message=text[:300])
-            )
+        if session.saw_auth_error or is_auth_failure(text):
+            code = "cli_not_logged_in" if "Not logged in" in text else "cli_auth_refused"
+            diagnostics.append(BuildDiagnostic(level="error", code=code, message=text[:300]))
             return HarnessOutcome(
                 BuildResultStatus.FAILED,
                 usage,
@@ -372,14 +406,24 @@ class ClaudeCliHarness:
     def _prompt(self, inputs: HarnessInputs) -> str:
         exact = "\n".join(f"- {key}: {value}" for key, value in sorted(inputs.targets.items()))
         ui_note = (
-            "Custom compiled screens are allowed on this build: if, and only if, neither the "
-            "pages Alpha draws nor a declared block can express the main interaction, you may "
-            "write ui/src/main.tsx (see reference/UI_KIT.md) and declare ui.entry with "
-            "ui.build_profile, ui.kit_version and ui.bridge_version as above. The pages Alpha "
-            "draws are preferred."
+            "Custom compiled screens are allowed on this build, but the default is always the "
+            "pages Alpha draws (and any declared screen blocks); leave ui out of app.yaml. Write "
+            "ui/src/main.tsx instead only if the person's request explicitly asks for a custom "
+            "or specially designed screen (their own layout, look or interaction); a page or "
+            "block that fits less well is not a reason. Then see reference/UI_KIT.md and declare "
+            "ui.entry with ui.build_profile, ui.kit_version and ui.bridge_version as above."
             if "ui_build_profile" in inputs.targets
             else "Custom compiled screens are not available on this build: rely on the pages "
             "Alpha draws and leave ui out of app.yaml."
+        )
+        ui_note += (
+            " UI copy and density: the person using this is an executive — titles and labels are "
+            "short and specific, never a descriptive sentence under a title or inside a card; put "
+            "any explanation in a field's `description` (shown as a hover/focus (i) tip) or a "
+            "native title, not as visible body text. Empty states are one short line. Size inputs "
+            "to their content: a key, id or model name is a compact single-line field, not a wide "
+            "one. Minimal, elegant, professional by default unless the person explicitly asks for "
+            "more."
         )
         repair = (inputs.workspace / "REPAIR.md").is_file()
         minutes = max(1, inputs.request.budget.max_attempt_seconds // 60)
@@ -419,7 +463,7 @@ class ClaudeCliHarness:
                     continue
                 if block.get("type") == "text":
                     text = str(block.get("text", ""))
-                    if "Not logged in" in text:
+                    if is_auth_failure(text):
                         session.saw_auth_error = True
                     yield HarnessEvent("harness.assistant_text", {"text": text[:2000]})
                 elif block.get("type") == "tool_use":
@@ -444,7 +488,7 @@ class ClaudeCliHarness:
                     )
         elif kind == "result":
             session.result_message = message
-            if "Not logged in" in str(message.get("result", "")):
+            if is_auth_failure(str(message.get("result", ""))):
                 session.saw_auth_error = True
             yield HarnessEvent(
                 "harness.result",

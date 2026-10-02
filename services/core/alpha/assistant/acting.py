@@ -29,9 +29,12 @@ from alpha_contracts.apps import AppSource, Invocable
 from alpha_contracts.runs import TERMINAL_RUN_STATES, Run, RunOrigin, RunState
 from pydantic import BaseModel
 
+from alpha.assistant.attachments import AttachmentIn, attachment_summaries, build_context
 from alpha.assistant.sessions import SessionService, SessionTurn
 from alpha.capabilities.errors import OperationFailed
+from alpha.context.projects import PROJECT_ICONS, UNTITLED
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
+from alpha.models.gateway import RouteUnavailable
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, new_id, utc_now
 
@@ -40,6 +43,54 @@ log = logging.getLogger("alpha.acting")
 # Conversation states in which typed text belongs to that conversation, not to a new step.
 CONVERSATION_WAITING = {"waiting_for_user", "proposed"}
 WAIT_GRACE_SECONDS = 30.0
+
+# The three governance stances the + menu's Access group offers (AP-182 governed-work rule:
+# nothing here weakens critical blocks - secret leakage, a residency violation, or an irreversible
+# delete of the person's own data still confirms under every mode, enforced where those checks
+# already live, not here). Server enforces; the UI only requests (never trust a client-sent mode
+# beyond picking which of these three server-side behaviours applies).
+ACCESS_MODES = ("ask", "approve_for_me", "full")
+DEFAULT_ACCESS_MODE = "ask"
+
+# No risk/unsafe classification exists anywhere in Core today (grep turns up nothing: no
+# "is_unsafe", no action-risk registry). This is the explicit fallback the task calls for:
+# delete/send/payment-shaped action ids are treated as unsafe/destructive. ponytail: a name
+# pattern, not a declared per-action risk field; "writes outside the module's own data" doesn't
+# apply yet (every App's records.* calls are already confined to its own collections - see
+# AppSource/records isolation) and "new egress host" can't be told apart from a known one at this
+# layer (ActService only ever sees {action_id, input}; the actual http.get/browser calls happen
+# inside the sandboxed worker, invisible here). Both are flagged as gaps in the commit message,
+# not silently assumed done.
+_UNSAFE_ACTION_RE = re.compile(
+    r"delete|remove|destroy|purge|cancel|send|email|message|post|publish|pay|charge|purchase|"
+    r"refund|transfer|withdraw",
+    re.I,
+)
+
+
+def _is_unsafe_action(action_id: str) -> bool:
+    return bool(_UNSAFE_ACTION_RE.search(action_id or ""))
+
+
+def needs_approval(access_mode: str, egress: bool, runs: list[dict[str, Any]]) -> bool:
+    """Whether a "run" step must wait for the person's yes before Core dispatches it.
+
+    ask: every internet/egress action (the app declares the http or browser capability) or
+      anything the unsafe pattern names, needs approval every time - the strict, always-ask stance
+      ("Ask for approval - always ask to edit external files and use the internet").
+    approve_for_me: only the unsafe/destructive ones; a plain read is never gated.
+    full: never gates here (critical blocks are a separate, pre-existing concern - see above)."""
+    if access_mode not in ("ask", "approve_for_me"):
+        return False
+    unsafe = any(_is_unsafe_action(r.get("action_id", "")) for r in runs)
+    if access_mode == "ask":
+        return egress or unsafe
+    return unsafe
+
+
+# The resume phrase for a pending run's one-click "Approve and run" (see `_offer`): the person's
+# own plain yes, typed or clicked, never a hidden sentinel round-tripped through the chat.
+_AFFIRM_RE = re.compile(r"^(yes|yeah|yep|sure|ok|okay|go ahead|do it|approve|confirm)\b", re.I)
 
 KINDS = ("run", "query", "skill", "open", "fix", "allow", "build", "change", "answer", "done")
 MAX_STEPS = 8
@@ -55,21 +106,21 @@ ACTIVE_RUN_STATES = {
     RunState.WAITING_CONNECTION,
 }
 
-STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one thing in an ongoing session. You work in short steps; each answer is one step, using only the modules listed. THIS SESSION SO FAR and the notes are your memory of this session: build on them, never ask again for what is there, and treat "it", "that one", "the same" as referring to what was just discussed.
+STEP_SYSTEM = """You are Alpha's assistant on the person's desktop. They said one thing in an ongoing session. You work in short steps; each answer is one step, using only the projects listed. THIS SESSION SO FAR and the notes are your memory of this session: build on them, never ask again for what is there, and treat "it", "that one", "the same" as referring to what was just discussed.
 
 Step kinds:
-- "run": do something with a module through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
-- "query": read a module's view to answer a question. Give app_id and view_id.
-- "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a module's actions if the person asked for that, or report.
-- "open": the person wants to look at a module or a tab. Give app_id and, when clear, tab_id.
-- "fix": FACTS list a FAILED run of a module that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the module's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
-- "allow": FACTS say a module got a site's sign-in page because it has not been allowed to read through the person's sign-in, AND the person's message agrees to allow it or asks for it. Give app_id and site. Then, in the next step, run the action that needed it. Without their yes, do not allow: explain in one or two sentences what FACTS say (they are signed in; this module just has not been allowed to use that sign-in) and ask whether to allow it. Never tell them to sign in again when FACTS say they are signed in.
-- "change": the person wants a listed module to work or look differently (not a failure: those are "fix"). Give app_id.
-- "build": the person wants something no listed module can do. Alpha starts making it.
+- "run": do something with a project through its actions. Give app_id and runs: a list of {action_id, input}. When the sentence covers several entries (days, items, people), plan the whole set first and put ALL of them in this one step, up to 40, spread evenly (for "ten days of meals": every day gets its breakfast, lunch and dinner), with realistic and varied values. Dates are YYYY-MM-DD, counted from TODAY. Prefer the action that takes the fields directly (calories, amounts) over one that estimates, unless the person asked for estimates. Never invent required inputs you were not given and cannot reasonably make up; ask instead.
+- "query": read a project's view to answer a question. Give app_id and view_id.
+- "skill": use one of the SKILLS (a way Alpha knows to do a job, often by reading the web). Give skill_id and inputs (an object with the skill's input names). Its result arrives as an observation with items you can then save through a project's actions if the person asked for that, or report.
+- "open": the person wants to look at a project or a tab. Give app_id and, when clear, tab_id.
+- "fix": FACTS list a FAILED run of a project that stopped in its own code and Alpha can fix it, and the person says it is not working, asks why it failed and wants it sorted, asks to fix it, or asks to run that same action again. Give app_id and run_id (from the FACTS line). Alpha then repairs the project's code, switches the fix on with the data kept and runs the action again; the observation says what happened. Never use "change" for something that FACTS show as broken; never claim something is fixed without a fix observation.
+- "allow": FACTS say a project got a site's sign-in page because it has not been allowed to read through the person's sign-in, AND the person's message agrees to allow it or asks for it. Give app_id and site. Then, in the next step, run the action that needed it. Without their yes, do not allow: explain in one or two sentences what FACTS say (they are signed in; this project just has not been allowed to use that sign-in) and ask whether to allow it. Never tell them to sign in again when FACTS say they are signed in.
+- "change": the person wants a listed project to work or look differently (not a failure: those are "fix"). Give app_id.
+- "build": the person wants something no listed project can do. Alpha starts making it.
 - "done": the work for this sentence is finished (there are OBSERVATIONS). Finish as soon as the observations cover what was asked; do not keep adding. reply says exactly what happened: counts, numbers and dates from the observations, any failure named plainly. Never more than what the observations show.
-- "answer": nothing needs doing (a question you can answer, a greeting, a request outside the modules), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
+- "answer": nothing needs doing (a question you can answer, a greeting, a request outside the projects), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
 
-reply is what the person hears: at most 40 words, warm, specific, no technical words, no field names. For "run" and "query" steps the reply is provisional; the "done" step replaces it. Output only the structured object."""
+reply is what the person hears: at most 2 short sentences, warm, specific, no technical words, no field names. A question is asked with no preamble. For "run" and "query" steps the reply is provisional; the "done" step replaces it. Output only the structured object."""
 
 
 class ActTurn(BaseModel):
@@ -88,6 +139,11 @@ class ActTurn(BaseModel):
     created_at: str
     # What the steps did: for the person's record and for grounding later sentences.
     outcome: str | None = None
+    # What was attached to the person's message (name, kind, size only).
+    attachments: list[dict[str, Any]] | None = None
+    # Set when the reply is a model-call failure: drives a "not connected" card with a guided
+    # fix instead of plain text. {"kind": "sign_in"|"key"|"generic", "provider": route.provider}.
+    model_error: dict[str, Any] | None = None
 
 
 def step_schema() -> dict[str, Any]:
@@ -117,15 +173,39 @@ def step_schema() -> dict[str, Any]:
             "skill_id": {"type": ["string", "null"]},
             "inputs": {"type": ["object", "null"]},
             "reply": {"type": "string", "maxLength": 400},
+            # Only when the prompt says the project is untitled: what to call it.
+            "project_name": {"type": ["string", "null"], "maxLength": 40},
+            "project_icon": {"type": ["string", "null"], "enum": [*PROJECT_ICONS, None]},
         },
     }
+
+
+_NAME_STOPWORDS = set(
+    "a an the and or but to of for in on at by with from about into my our your their me us "
+    "i we you it this that these those is are be can could would should will please help "
+    "make build create want need like get keep track set up new some all any just let lets "
+    "hi hello hey thanks thank ok okay yes no".split()
+)
+
+
+def fallback_project_name(text: str) -> str | None:
+    """A short name from the person's words (the first few meaningful ones, Title Case), when
+    the model gave none. None when the message says too little to name anything."""
+    words = [
+        w
+        for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'&-]*", text)
+        if w.lower() not in _NAME_STOPWORDS
+    ]
+    if len(words) < 2:
+        return None
+    return " ".join(w if w.isupper() else w.capitalize() for w in words[:3])[:40]
 
 
 def catalogue_text(sources: list[tuple[str, AppSource]]) -> str:
     """The modules, in the words the model needs: actions it may run, views it may read."""
     lines: list[str] = []
     for app_id, source in sources[:20]:
-        lines.append(f"MODULE {app_id}: {source.name}. {source.description}")
+        lines.append(f"PROJECT {app_id}: {source.name}. {source.description}")
         actions = [a for a in source.actions if Invocable.ASSISTANT in a.invocable_from][:12]
         for action in actions:
             schema = action.input_schema or {}
@@ -150,7 +230,7 @@ def catalogue_text(sources: list[tuple[str, AppSource]]) -> str:
             lines.append(f"  tabs: {tabs}")
         if source.screen is not None and source.screen.assistant_hint:
             lines.append(f"  note: {source.screen.assistant_hint}")
-    return "\n".join(lines) if lines else "No modules yet."
+    return "\n".join(lines) if lines else "No projects yet."
 
 
 def step_prompt(
@@ -164,8 +244,10 @@ def step_prompt(
     known: str = "",
     skills: str = "",
     project: str = "",
+    attachments: str = "",
+    untitled: bool = False,
 ) -> str:
-    parts = [f"TODAY: {today}", "", "MODULES:", catalogue, ""]
+    parts = [f"TODAY: {today}", "", "PROJECTS:", catalogue, ""]
     if skills:
         parts += ["SKILLS (usable with a skill step):", skills, ""]
     if project:
@@ -183,8 +265,17 @@ def step_prompt(
         parts += [memory, ""]
     if context_app:
         parts += [f"THE PERSON IS LOOKING AT: {context_app}", ""]
+    if attachments:
+        parts += [attachments, ""]
     parts.append(f"THE PERSON SAID: {text}")
     parts.append("")
+    if untitled:
+        parts += [
+            "THIS SESSION'S PROJECT IS UNTITLED: when the message says what the work is about, "
+            "also give project_name (2-4 words, Title Case, what it is about, no quotes) and "
+            f"project_icon (one of: {', '.join(PROJECT_ICONS)}). Otherwise leave both null.",
+            "",
+        ]
     parts.append("OBSERVATIONS (what this sentence's steps have done so far):")
     if observations:
         body = json.dumps(observations, default=str)
@@ -270,6 +361,62 @@ def summary_reply(observations: list[dict[str, Any]]) -> str:
     return ("Finished: " + ", ".join(parts) + ".") if parts else "Nothing was done."
 
 
+def model_error_reply(exc: InferenceError) -> str:
+    """A plain-language reason the model call failed, for known failure shapes; a generic honest
+    fallback otherwise. Never hides that something failed."""
+    text = str(exc).lower()
+    if "subscription" in text and "disabled" in text:
+        return (
+            "I can't reach the model: your organization turned off Claude sign-in for Claude "
+            "Code. Add an Anthropic API key in Settings → Models."
+        )
+    if exc.code == "cli_not_logged_in" or "not logged in" in text:
+        return (
+            "I can't reach the model: Claude Code isn't signed in. Run `claude` and sign in, "
+            "or add an Anthropic API key in Settings → Models."
+        )
+    if exc.code == "cli_missing":
+        return "I can't reach the model: the `claude` command isn't installed on this machine."
+    if exc.code == "no_key":
+        return "I can't reach the model: no key is saved for it yet. Add one in Settings → Models."
+    if exc.code == "provider_error":
+        return f"I can't reach the model: {exc}."
+    if exc.code == "timeout":
+        return "I can't reach the model: it took too long to respond. Try again."
+    if exc.code == "cancelled":
+        return "That was stopped."
+    return "I can't reach the model right now. Try again in a moment."
+
+
+# The three shapes the Chief of Staff's "not connected" card knows how to guide someone through:
+# a CLI sign-in (claude/codex), a missing/rejected key, or nothing actionable but "try again".
+MODEL_ERROR_SIGN_IN_CODES = {"cli_not_logged_in", "cli_missing"}
+MODEL_ERROR_KEY_CODES = {"no_key", "provider_error"}
+
+
+# The gateway's route.provider ids (alpha.models.gateway.ModelGateway) aren't the Settings ->
+# Models account ids (alpha.models.accounts.PROVIDERS) - map so the "not connected" card can
+# point at the right row (and, for a key, call saveModelKey with an id Core recognizes).
+ROUTE_PROVIDER_TO_ACCOUNT = {
+    "anthropic-claude-code-cli": "claude",
+    "openai-codex-cli": "chatgpt",
+    "openai-api": "chatgpt_api",
+    "openrouter": "openrouter",
+    "xai-grok": "grok",
+}
+
+
+def model_error_kind(exc: InferenceError) -> str:
+    text = str(exc).lower()
+    if "subscription" in text and "disabled" in text:
+        return "key"
+    if exc.code in MODEL_ERROR_SIGN_IN_CODES or "not logged in" in text:
+        return "sign_in"
+    if exc.code in MODEL_ERROR_KEY_CODES:
+        return "key"
+    return "generic"
+
+
 def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str:
     """One line of truth about a past sentence, for the person's record and for grounding."""
     observations = detail.get("observations") or []
@@ -280,25 +427,25 @@ def outcome_line(kind: str, detail: dict[str, Any], app_name: str | None) -> str
         where = f" in {app_name}" if app_name else ""
         return f"ran {', '.join(names)} {len(runs)} time(s){where}: {ok} succeeded, {len(runs) - ok} failed"
     if any("rows" in o for o in observations):
-        return f"read {app_name or 'a module'}; nothing was changed"
+        return f"read {app_name or 'a project'}; nothing was changed"
     used = [str(o.get("skill")) for o in observations if o.get("step") == "skill"]
     if used:
         return f"used the skill {', '.join(used)}; nothing was changed"
     allowed = [o for o in observations if o.get("step") == "allow" and o.get("state") == "allowed"]
     if allowed and not runs:
         site = allowed[-1].get("site")
-        return f"allowed {app_name or 'the module'} to read {site} through the sign-in"
+        return f"allowed {app_name or 'the project'} to read {site} through the sign-in"
     fixes = [o for o in observations if o.get("step") == "fix"]
     if fixes:
         state = str(fixes[-1].get("state") or "")
         where = f" in {app_name}" if app_name else ""
         return (
-            f"fixed the module's code{where} and ran the action again"
+            f"fixed the project's code{where} and ran the action again"
             if state == "fixed"
             else f"looked into a failure{where}: {state.replace('_', ' ') or 'no fix'}"
         )
     if kind == "open":
-        return f"opened {app_name or 'a module'} in Alpha's window"
+        return f"opened {app_name or 'a project'} in Alpha's window"
     if kind in ("build", "change"):
         return f"started a request to {'change ' + app_name if kind == 'change' and app_name else 'make something new'}"
     if kind == "continue":
@@ -317,7 +464,7 @@ def access_facts(access: list[dict[str, Any]]) -> list[str]:
         if entry["connected"] and not entry["allowed"]:
             lines.append(
                 f"{head} The person IS signed in to {entry['site']} in Alpha's browser; this "
-                "module has simply not been allowed to read through that sign-in yet. Say so "
+                "project has simply not been allowed to read through that sign-in yet. Say so "
                 "and ask whether to allow it (an allow step once they say yes), then run the "
                 "action again. Do not tell them to sign in again."
             )
@@ -329,7 +476,7 @@ def access_facts(access: list[dict[str, Any]]) -> list[str]:
             )
         elif entry["last_walled"]:
             lines.append(
-                f"{head} The module is allowed and the person signed in earlier, so the "
+                f"{head} The project is allowed and the person signed in earlier, so the "
                 f"sign-in to {entry['site']} has probably lapsed; they can sign in again from "
                 "Connections."
             )
@@ -352,9 +499,26 @@ class _Work:
     conversation_id: str | None = None
     opened: dict[str, Any] | None = None
     reply: str = ""
+    # Set when a model call itself failed (see model_error_kind): drives the Chief of Staff's
+    # "not connected" card instead of a plain text reply. None on every ordinary turn.
+    model_error: dict[str, Any] | None = None
     observations: list[dict[str, Any]] = field(default_factory=list)
     # Sites a module could not read for want of the person's yes (see BrowserService.access).
     access: list[dict[str, Any]] = field(default_factory=list)
+    # What was attached to this message: prompt text, and the summary recorded on the turn.
+    attachments_context: str = ""
+    attachments: list[dict[str, Any]] = field(default_factory=list)
+    # This turn's governance stance (see ACCESS_MODES) and, when the + menu overrode the model,
+    # the Settings -> Models account id to route this call through instead of the stage default.
+    access_mode: str = DEFAULT_ACCESS_MODE
+    model_override: str | None = None
+    model_name_override: str | None = None
+    # Sources for this turn's project, keyed by app_id, so a "run" step's gate can see whether the
+    # target module declares the http or browser (egress) capability.
+    sources: dict[str, AppSource] = field(default_factory=dict)
+    # Set instead of running when a step needed the person's yes first; carried onto the turn's
+    # detail so the next message (an affirmative) can run exactly this, unchanged.
+    pending_run: dict[str, Any] | None = None
 
     def observe(self, observation: dict[str, Any]) -> None:
         self.observations.append(observation)
@@ -390,6 +554,7 @@ class ActService:
         browser: Any | None = None,
         run_lookup: Callable[[str], Run] | None = None,
         today: Callable[[], str] | None = None,
+        preferences: Any | None = None,
     ) -> None:
         self._store = store
         self._gateway = gateway
@@ -403,8 +568,13 @@ class ActService:
         self._context = context
         self._skills = skills
         self._projects = projects
+        # Set by main: Alpha's own bug log, told when a model call fails.
+        self.bugs: Any | None = None
         self._repair = repair
         self._browser = browser
+        # Settings -> Access's default stance for a session that hasn't picked its own (see
+        # `access.mode` in alpha.models.preferences); None in tests keeps today's DEFAULT_ACCESS_MODE.
+        self._preferences = preferences
         self._default_route = default_route
         self._timezone = timezone
         self._run_lookup = run_lookup or store.get_run
@@ -431,10 +601,26 @@ class ActService:
             pending = None
         return found[-limit:]
 
-    def act(self, text: str, *, context_app_id: str | None = None) -> ActTurn:
+    def act(
+        self,
+        text: str,
+        *,
+        context_app_id: str | None = None,
+        attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
+    ) -> ActTurn:
         """The avatar's way in: one message to the Quick asks session, answered when done."""
         session = self._sessions.quick_asks()
-        turn = self.send(session.session_id, text, wait=True, context_app_id=context_app_id)
+        turn = self.send(
+            session.session_id,
+            text,
+            wait=True,
+            context_app_id=context_app_id,
+            attachments=attachments,
+            access_mode=access_mode,
+            model=model,
+        )
         if turn is None:  # the budget ran out before the loop finished; the session has the rest
             raise OperationFailed(
                 "timed_out", "Alpha is still working on that; see the session", {}
@@ -448,22 +634,37 @@ class ActService:
         *,
         wait: bool = False,
         context_app_id: str | None = None,
+        attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> ActTurn | None:
         """Record the person's message and work it through in a thread. With `wait`, block
         (bounded) and return the outcome; otherwise return None at once and let the session
-        be polled (its state is `thinking` meanwhile)."""
+        be polled (its state is `thinking` meanwhile).
+
+        `access_mode` (see ACCESS_MODES) and `model` ({"provider": ..., "model": ...}, provider an
+        account id from Settings -> Models) are this one message's + menu choices; unset falls
+        back to the person's Settings -> Access default, then DEFAULT_ACCESS_MODE."""
         clean = text.strip()
+        attachments = attachments or []
         if not clean:
             raise OperationFailed("invalid_input", "say something first", {})
+        if access_mode is not None and access_mode not in ACCESS_MODES:
+            raise OperationFailed("invalid_input", f"unknown access mode {access_mode!r}", {})
         self._sessions.begin_turn(session_id)
         try:
-            user_turn = self._sessions.append(session_id, "user", clean)
+            user_turn = self._sessions.append(
+                session_id,
+                "user",
+                clean,
+                detail={"attachments": attachment_summaries(attachments)} if attachments else None,
+            )
         except Exception:
             self._sessions.set_state(session_id, "idle")
             raise
         thread = threading.Thread(
             target=self._work_quietly,
-            args=(session_id, user_turn, context_app_id),
+            args=(session_id, user_turn, context_app_id, attachments, access_mode, model),
             name=f"session-turn-{session_id[-6:]}",
             daemon=True,
         )
@@ -492,10 +693,18 @@ class ActService:
     # ----- one message ---------------------------------------------------------------------
 
     def _work_quietly(
-        self, session_id: str, user_turn: SessionTurn, context_app_id: str | None
+        self,
+        session_id: str,
+        user_turn: SessionTurn,
+        context_app_id: str | None,
+        attachments: list[AttachmentIn] | None = None,
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
     ) -> None:
         try:
-            result = self._work(session_id, user_turn, context_app_id)
+            result = self._work(
+                session_id, user_turn, context_app_id, attachments or [], access_mode, model
+            )
         except Exception:  # never leave a session stuck in thinking
             log.exception("session turn crashed for %s", session_id)
             result = self._finish(
@@ -518,8 +727,40 @@ class ActService:
         except Exception:
             log.exception("could not start compaction for %s", session_id)
 
-    def _work(self, session_id: str, user_turn: SessionTurn, context_app_id: str | None) -> ActTurn:
+    def _default_access_mode(self) -> str:
+        if self._preferences is None:
+            return DEFAULT_ACCESS_MODE
+        try:
+            chosen = str(self._preferences.get("access.mode"))
+        except Exception:
+            return DEFAULT_ACCESS_MODE
+        return chosen if chosen in ACCESS_MODES else DEFAULT_ACCESS_MODE
+
+    def _pending_run(self, session_id: str) -> dict[str, Any] | None:
+        """A run this session is waiting on the person's yes for (see `needs_approval`), if any."""
+        latest = self._sessions.latest_work(session_id)
+        if latest is None or not latest.detail:
+            return None
+        pending = latest.detail.get("pending_run")
+        return pending if isinstance(pending, dict) else None
+
+    def _work(
+        self,
+        session_id: str,
+        user_turn: SessionTurn,
+        context_app_id: str | None,
+        attachments: list[AttachmentIn],
+        access_mode: str | None = None,
+        model: dict[str, str] | None = None,
+    ) -> ActTurn:
         session = self._sessions.get(session_id, window=1)
+        # The + menu's model choice carries through: kept on the session for its later messages
+        # and on every conversation this message opens (see AssistantService.start).
+        model = {k: v for k, v in (model or {}).items() if v} or None
+        if model:
+            self._sessions.set_model(session_id, model)
+        else:
+            model = getattr(session, "model", None)
         sources = self._sources(session.project_id)
         names = {app_id: source.name for app_id, source in sources}
         work = _Work(
@@ -528,7 +769,21 @@ class ActService:
             text=user_turn.text,
             names=names,
             deadline=time.monotonic() + TIME_BUDGET_SECONDS,
+            attachments=attachment_summaries(attachments),
+            access_mode=access_mode if access_mode in ACCESS_MODES else self._default_access_mode(),
+            model_override=(model or {}).get("provider") or None,
+            model_name_override=(model or {}).get("model") or None,
+            sources={app_id: source for app_id, source in sources},
         )
+        log.info("act turn %s access_mode=%s", work.turn_id, work.access_mode)
+        # An approved pending run (the offer's "Approve and run" sends the person's plain yes)
+        # runs at once, exactly as stored, with no new model call and no re-gating.
+        pending = self._pending_run(session_id)
+        if pending is not None and _AFFIRM_RE.match(work.text.strip()):
+            work.access_mode = "full"  # this one instance only; already approved by the person
+            if self._step_run(work, str(pending["app_id"]), list(pending["runs"])):
+                pass  # a single stored run never re-enters the step loop
+            return self._finish(work)
         waiting = self._waiting_conversation(session_id)
         if waiting is not None:
             return self._continue_conversation(work, waiting)
@@ -542,12 +797,32 @@ class ActService:
             known=self._known(work.text, focus, session.project_id),
             skills=self._skills.catalogue_text() if self._skills is not None else "",
             project=self._project_text(session.project_id),
+            attachments=self._attachments_context(attachments),
+            untitled=self._untitled(session.project_id),
         )
-        route = self._gateway.route(self._default_route, stage="assistant")
+        try:
+            route = self._gateway.route(
+                self._default_route,
+                stage="assistant",
+                account_override=work.model_override,
+                model_override=work.model_name_override,
+            )
+        except RouteUnavailable as exc:
+            work.model_error = {"kind": "generic", "provider": work.model_override or "unknown"}
+            work.reply = (
+                f"I can't reach that model right now ({exc}). Pick a connected one from the + "
+                "menu or Settings → Models."
+            )
+            return self._finish(work)
+        named: dict[str, Any] = {}
         for _step in range(MAX_STEPS):
             output = self._decide(route, work, prompt_parts)
+            if prompt_parts["untitled"] and not named and output.get("project_name"):
+                named = output
             if not self._apply(work, output):
                 break
+        if prompt_parts["untitled"] and not work.model_error:
+            self._name_project(session.project_id, work.text, named)
         if not work.reply:
             work.reply = (
                 summary_reply(work.observations)
@@ -572,7 +847,7 @@ class ActService:
     def _continue_conversation(self, work: _Work, conversation_id: str) -> ActTurn:
         work.kind, work.conversation_id = "continue", conversation_id
         try:
-            self._assistant.reply(conversation_id, text=work.text)
+            self._assistant.reply(conversation_id, text=work.text, **self._model_kwargs(work))
             work.reply = "Passed on to the request above."
         except Exception as exc:
             log.warning("could not continue %s: %s", conversation_id, exc)
@@ -580,6 +855,13 @@ class ActService:
             work.kind = "answer"
         work.opened = {"conversation_id": conversation_id, "session_id": work.session_id}
         return self._finish(work)
+
+    def _attachments_context(self, attachments: list[AttachmentIn]) -> str:
+        try:
+            return build_context(attachments)
+        except Exception:
+            log.exception("attachment context failed; the turn goes on without it")
+            return ""
 
     def _memory(self, session_id: str, text: str) -> str:
         try:
@@ -599,6 +881,32 @@ class ActService:
         if project.summary:
             lines.append(f"Alpha's notes on it: {project.summary}")
         return "\n".join(lines)
+
+    def _untitled(self, project_id: str | None) -> bool:
+        if not project_id or self._projects is None:
+            return False
+        try:
+            return bool(self._projects.get(project_id).name == UNTITLED)
+        except Exception:
+            return False
+
+    def _name_project(self, project_id: str | None, text: str, output: dict[str, Any]) -> None:
+        """Name a project still called "Untitled project" from the person's first message: the
+        model's name and icon when it gave them, else a few of their own words."""
+        if not project_id or self._projects is None or not self._untitled(project_id):
+            return  # the person (or an earlier message) already named it
+        name = " ".join(str(output.get("project_name") or "").split())[:40] or (
+            fallback_project_name(text)
+        )
+        if not name:
+            return
+        icon = output.get("project_icon")
+        try:
+            self._projects.update(
+                project_id, name=name, icon=icon if icon in PROJECT_ICONS else "folder"
+            )
+        except Exception:
+            log.exception("could not name project %s", project_id)
 
     def _known(self, text: str, app_id: str | None, project_id: str | None) -> str:
         if self._context is None:
@@ -631,6 +939,8 @@ class ActService:
                     known=parts["known"],
                     skills=parts["skills"],
                     project=parts["project"],
+                    attachments=parts["attachments"],
+                    untitled=bool(parts.get("untitled")),
                 ),
                 schema=step_schema(),
                 scope_kind="act",
@@ -640,7 +950,16 @@ class ActService:
             return decided.output if isinstance(decided.output, dict) else {}
         except InferenceError as exc:
             log.warning("act step failed: %s", exc)
-            return {"kind": "done" if work.observations else "answer", "reply": ""}
+            if self.bugs is not None and exc.code != "cancelled":
+                self.bugs.record("model", f"{model_error_kind(exc)} ({exc.code})", str(exc))
+            return {
+                "kind": "done" if work.observations else "answer",
+                "reply": model_error_reply(exc),
+                "model_error": {
+                    "kind": model_error_kind(exc),
+                    "provider": ROUTE_PROVIDER_TO_ACCOUNT.get(route.provider, route.provider),
+                },
+            }
 
     def _apply(self, work: _Work, output: dict[str, Any]) -> bool:
         """Carry out the decided step. True to decide again; False when the message is done."""
@@ -682,6 +1001,8 @@ class ActService:
         if not work.observations:
             work.kind = "answer"
         work.reply = step_reply
+        if isinstance(output.get("model_error"), dict):
+            work.model_error = output["model_error"]
         return False
 
     def _access(self, sources: list[tuple[str, AppSource]]) -> list[dict[str, Any]]:
@@ -774,12 +1095,37 @@ class ActService:
 
     def _step_run(self, work: _Work, app_id: str, runs: list[Any]) -> bool:
         work.app_id, work.kind = app_id, "run"
+        source = work.sources.get(app_id)
+        egress = bool(source and ("http" in source.capabilities or "browser" in source.capabilities))
+        gated = needs_approval(work.access_mode, egress, runs)
+        log.info(
+            "act run app=%s access_mode=%s egress=%s gated=%s", app_id, work.access_mode, egress, gated
+        )
+        if gated:
+            name = work.names[app_id]
+            work.pending_run = {"app_id": app_id, "runs": runs}
+            work.reply = (
+                f"{name} wants to use the internet to do that — I need your OK first."
+                if egress
+                else f"{name} wants to do something that looks hard to undo — I need your OK first."
+            )
+            work.observe(
+                {"step": "run", "module": name, "state": "needs_approval", "message": work.reply}
+            )
+            return False
         results = self._run_batch(app_id, runs, work.deadline)
         if results and work.action_id is None:
             work.action_id = str(results[0].get("action"))
             work.run_id = next((r.get("run_id") for r in results if r.get("run_id")), None)
         work.observe({"step": "run", "module": work.names[app_id], "results": results})
         return work.within_time()
+
+    @staticmethod
+    def _model_kwargs(work: _Work) -> dict[str, Any]:
+        """`model=` for the conversation a message opens or continues, only when one was chosen."""
+        if not work.model_override:
+            return {}
+        return {"model": {"provider": work.model_override, "model": work.model_name_override}}
 
     def _step_start(self, work: _Work, step_kind: str, app_id: str | None) -> None:
         """Hand the message to the assistant as something new to make, or a change; the
@@ -788,7 +1134,10 @@ class ActService:
         work.app_id = app_id if step_kind == "change" else None
         try:
             record = self._assistant.start(
-                work.text, change_of=work.app_id, session_id=work.session_id
+                work.text,
+                change_of=work.app_id,
+                session_id=work.session_id,
+                **self._model_kwargs(work),
             )
             work.conversation_id = record.conversation_id
             work.opened = {"conversation_id": work.conversation_id, "session_id": work.session_id}
@@ -811,7 +1160,12 @@ class ActService:
             "conversation_id": work.conversation_id,
             "open": work.opened,
             "observations": work.observations,
+            "attachments": work.attachments,
         }
+        if work.model_error is not None:
+            detail["model_error"] = work.model_error
+        if work.pending_run is not None:
+            detail["pending_run"] = work.pending_run
         offer = self._offer(work)
         if offer is not None:
             detail["offer"] = offer
@@ -838,11 +1192,22 @@ class ActService:
             reply=work.reply,
             created_at=turn.created_at,
             outcome=outcome_line(work.kind, detail, app_name),
+            attachments=work.attachments or None,
+            model_error=work.model_error,
         )
 
     def _offer(self, work: _Work) -> dict[str, Any] | None:
         """A one-click yes for the thing that stands in the way: a module the person is
-        signed in for but has not yet allowed. The click sends their yes as a message."""
+        signed in for but has not yet allowed, or a run gated on their approval (see
+        `needs_approval`). The click sends their yes as a plain message."""
+        if work.pending_run is not None:
+            name = work.names.get(str(work.pending_run["app_id"]), "It")
+            return {
+                "kind": "run_confirm",
+                "app_id": work.pending_run["app_id"],
+                "label": "Approve and run",
+                "say": f"Yes, go ahead and let {name} do that.",
+            }
         waiting = [e for e in work.access if e["connected"] and not e["allowed"]]
         if work.app_id:
             waiting = [e for e in waiting if e["app_id"] == work.app_id] or waiting
@@ -874,6 +1239,8 @@ class ActService:
             reply=turn.text,
             created_at=turn.created_at,
             outcome=turn.outcome,
+            attachments=said.attachments if said else None,
+            model_error=detail.get("model_error"),
         )
 
     # ----- steps --------------------------------------------------------------------------
@@ -910,7 +1277,7 @@ class ActService:
         try:
             for run in self._store.list_runs_in_states(ACTIVE_RUN_STATES):
                 owner = run.owner.model_dump() if hasattr(run.owner, "model_dump") else {}
-                app = names.get(str(owner.get("app_id")), str(owner.get("app_id") or "a module"))
+                app = names.get(str(owner.get("app_id")), str(owner.get("app_id") or "a project"))
                 facts.append(f"running now: {owner.get('action_id')} in {app} ({run.state.value})")
         except Exception:
             log.debug("could not list running runs", exc_info=True)
@@ -919,7 +1286,7 @@ class ActService:
                 for creation in self._creations.list_recent(10):
                     if creation.state in ("active", "failed", "cancelled"):
                         continue
-                    what = names.get(creation.change_of or "", creation.app_name or "a module")
+                    what = names.get(creation.change_of or "", creation.app_name or "a project")
                     facts.append(f"being made right now: {what} ({creation.label.lower()})")
             except Exception:
                 log.debug("could not list creations", exc_info=True)

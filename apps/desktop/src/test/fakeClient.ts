@@ -1,11 +1,16 @@
 import type { Run, RunEvent, SolutionBrief } from "@alpha/contracts";
 import type {
+  AdvancedOptions,
+  AttachmentWire,
   CapabilityEntry,
   Conversation,
   ConversationReply,
   CoreClient,
   HealthInfo,
+  ModelAccountsClient,
+  ModelProviderAccount,
   Project,
+  ProjectFile,
   Session,
   SessionsClient,
   SessionSummary,
@@ -19,7 +24,7 @@ import type {
 } from "../core/client";
 
 /** In-memory CoreClient that reproduces Core's observable state machine for shell tests. */
-export class FakeCoreClient implements CoreClient, SessionsClient {
+export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccountsClient {
   runs = new Map<string, Run>();
   items: StreamItem[] = [];
   listeners: ((item: StreamItem) => void)[] = [];
@@ -130,7 +135,9 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
 
   settingsFields: SettingField[] = [
     { id: "models.assistant", group: "Models", title: "Model for the assistant", description: "Understands your request.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
-    { id: "models.builder_new", group: "Models", title: "Model for building a new module", description: "Writes the module.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "models.builder_new", group: "Models", title: "Model for building a new project", description: "Writes the project.", kind: "choice", options: [{ value: "default", label: "Claude Code's default" }, { value: "sonnet", label: "Claude Sonnet (faster)" }], minimum: null, maximum: null, unit: null, default: "default", value: "default" },
+    { id: "models.grok_model", group: "Models", title: "Grok model", description: "The xAI model id.", kind: "text", options: [], minimum: null, maximum: null, unit: null, default: "grok-4", value: "grok-4" },
+    { id: "effort.planner", group: "Models", title: "Thinking for the checks", description: "How long the model thinks.", kind: "choice", options: [{ value: "low", label: "Low (fastest)" }, { value: "medium", label: "Medium" }, { value: "high", label: "High (slowest)" }, { value: "default", label: "Claude Code's default" }], minimum: null, maximum: null, unit: null, default: "low", value: "low" },
     { id: "build.max_attempt_minutes", group: "Building limits", title: "Minutes per attempt", description: "An attempt that runs longer is stopped.", kind: "integer", options: [], minimum: 3, maximum: 40, unit: "min", default: 15, value: 15 },
   ];
   settingsUpdates: Record<string, unknown>[] = [];
@@ -164,6 +171,103 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
 
   async getSettings(): Promise<SettingField[]> {
     return this.settingsFields;
+  }
+
+  providers: ModelProviderAccount[] = [
+    { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null, dot: { color: "green", tooltip: "Connected · Claude Console" } },
+    { id: "claude_api", label: "Claude API", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
+    { id: "chatgpt", label: "ChatGPT", state: "needs_sign_in", cli_present: false, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not signed in" } },
+    { id: "chatgpt_api", label: "ChatGPT API", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
+    { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
+    { id: "grok", label: "Grok", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
+  ];
+  testResults = new Map<string, { ok: boolean; message: string }>();
+
+  private describeDot(provider: ModelProviderAccount): ModelProviderAccount["dot"] {
+    if (provider.state === "connected" || provider.state === "key_saved") {
+      const result = this.testResults.get(provider.id);
+      return result && !result.ok ? { color: "red", tooltip: result.message } : { color: "green", tooltip: result?.message ?? "Connected." };
+    }
+    const grey: Record<string, string> = { needs_sign_in: "Not signed in", needs_key: "No key saved", cli_missing: "The command-line tool isn't installed", not_configured: "Not connected" };
+    return { color: "grey", tooltip: grey[provider.state] ?? "Not connected" };
+  }
+
+  async listModelAccounts(): Promise<ModelProviderAccount[]> {
+    const chosen = this.settingsFields.find((f) => f.id === "models.provider")?.value;
+    const inEffect = chosen === "chatgpt_codex" ? "chatgpt" : typeof chosen === "string" && chosen ? chosen : "claude";
+    return this.providers.map((p) => ({ ...p, dot: this.describeDot(p), default: p.id === inEffect }));
+  }
+
+  providerModels: Record<string, { models: { id: string; label: string }[]; selected: string | null }> = {
+    claude: { models: [{ id: "claude-opus", label: "Opus" }, { id: "claude-sonnet", label: "Sonnet" }], selected: "claude-sonnet" },
+  };
+  modelChoices: { provider: string; model: string }[] = [];
+
+  async listProviderModels(provider: string): Promise<{ models: { id: string; label: string }[]; selected: string | null }> {
+    return this.providerModels[provider] ?? { models: [], selected: null };
+  }
+
+  async setProviderModel(provider: string, model: string): Promise<void> {
+    this.modelChoices.push({ provider, model });
+    const entry = this.providerModels[provider];
+    if (entry) this.providerModels[provider] = { ...entry, selected: model };
+  }
+
+  async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "key_saved", key_last4: key.slice(-4) } : p));
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  async removeModelKey(provider: string): Promise<ModelProviderAccount> {
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "not_configured", key_last4: null } : p));
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
+    this.testResults.delete(provider);
+    const spec = this.providers.find((p) => p.id === provider);
+    const signInRow = spec?.id === "claude" || spec?.id === "chatgpt";
+    this.providers = this.providers.map((p) =>
+      p.id !== provider ? p : signInRow ? { ...p, state: "needs_sign_in", signed_in: false } : { ...p, state: "not_configured", key_last4: null },
+    );
+    const updated = this.providers.find((p) => p.id === provider);
+    if (!updated) throw new Error("unknown provider");
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  signInCalls: string[] = [];
+
+  async signInModelAccount(provider: string): Promise<ModelProviderAccount> {
+    this.signInCalls.push(provider);
+    const found = this.providers.find((p) => p.id === provider);
+    if (!found) throw new Error("unknown provider");
+    return { ...found, dot: this.describeDot(found), ...(provider === "claude" ? { needs_code: true } : {}) };
+  }
+
+  installCalls: string[] = [];
+
+  async installModelCli(provider: string): Promise<ModelProviderAccount> {
+    this.installCalls.push(provider);
+    this.providers = this.providers.map((p) => (p.id === provider && p.state === "cli_missing" ? { ...p, state: "needs_sign_in", cli_present: true } : p));
+    const updated = this.providers.find((p) => p.id === provider)!;
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  finishCodes: string[] = [];
+
+  async finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount> {
+    this.finishCodes.push(code);
+    this.providers = this.providers.map((p) => (p.id === provider ? { ...p, state: "connected", signed_in: true } : p));
+    const updated = this.providers.find((p) => p.id === provider)!;
+    return { ...updated, dot: this.describeDot(updated) };
+  }
+
+  async testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
+    return this.testResults.get(provider) ?? { ok: true, message: "Connected." };
   }
 
   async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {
@@ -235,10 +339,10 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
     return project;
   }
 
-  async updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+  async updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project> {
     const project = this.projects.get(projectId);
     if (!project) throw new Error("project_not_found");
-    const next: Project = { ...project, ...("name" in patch ? { name: patch.name! } : {}), ...("goal" in patch ? { goal: patch.goal ?? null } : {}), ...("summary" in patch ? { summary: patch.summary ?? null } : {}), archived_at: patch.archived === undefined ? project.archived_at : patch.archived ? new Date().toISOString() : null };
+    const next: Project = { ...project, ...("icon" in patch ? { icon: patch.icon ?? null } : {}), ...("name" in patch ? { name: patch.name! } : {}), ...("goal" in patch ? { goal: patch.goal ?? null } : {}), ...("summary" in patch ? { summary: patch.summary ?? null } : {}), archived_at: patch.archived === undefined ? project.archived_at : patch.archived ? new Date().toISOString() : null };
     this.projects.set(projectId, next);
     return next;
   }
@@ -256,6 +360,14 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
     const project = this.projects.get(projectId);
     if (!project) throw new Error("project_not_found");
     return { project, sessions: await this.listSessions("project", projectId) };
+  }
+
+  /** Test control: a project's stored files, by `${projectId}/${name}`. */
+  projectFiles = new Map<string, string>();
+
+  async projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile> {
+    const text = this.projectFiles.get(`${projectId}/${name}`) ?? null;
+    return { name, text, updated_at: text === null ? null : new Date().toISOString() };
   }
 
   async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {
@@ -287,15 +399,23 @@ export class FakeCoreClient implements CoreClient, SessionsClient {
     return next;
   }
 
+  /** Test control: every sendSession call's Advanced options, in order (see AttachMenu's + menu). */
+  sendOptions: AdvancedOptions[] = [];
+
   /** Mirrors Core's loop: text answers a waiting conversation, else Alpha starts one. */
-  async sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
+  async sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session> {
+    this.sendOptions.push(options ?? {});
     let session = await this.getSession(sessionId);
     const now = new Date().toISOString();
     const turn = (role: "user" | "alpha", body: string, extra: Partial<SessionTurn> = {}): SessionTurn => ({ turn_id: `st_${session.turn_count + 1}`, sequence: session.turn_count + 1, role, kind: "text", text: body, created_at: now, ...extra });
     const add = (t: SessionTurn) => {
       session = { ...session, turns: [...session.turns, t], turn_count: session.turn_count + 1, updated_at: now, title: session.title ?? (t.role === "user" ? t.text : null) };
     };
-    add(turn("user", text));
+    add(
+      turn("user", text, {
+        attachments: attachments?.length ? attachments.map((a) => ({ kind: a.kind, name: a.name, size: a.size, mime: a.mime })) : undefined,
+      }),
+    );
     const latest = [...session.turns].reverse().find((t) => t.kind === "work" && t.conversation_id);
     const waiting = latest?.conversation_id ? this.conversations.get(latest.conversation_id) : null;
     if (waiting && (waiting.state === "waiting_for_user" || waiting.state === "proposed" || waiting.state === "briefed")) {

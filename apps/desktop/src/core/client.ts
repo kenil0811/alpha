@@ -156,6 +156,27 @@ export interface CoreSession {
   token: string;
 }
 
+/** One thing attached to a message, as Core reads it (see AttachmentIn, services/core). `path`
+ *  is a local file or folder Core reads directly (desktop); `content_b64` is its bytes when the
+ *  browser sent them instead (web) — only ever set for a single file, never a folder. */
+export interface AttachmentWire {
+  kind: "file" | "image" | "folder" | "audio";
+  name: string;
+  size?: number | null;
+  mime?: string | null;
+  path?: string | null;
+  content_b64?: string | null;
+}
+
+/** What was attached to a turn, as kept on its own record (name, kind, size — never bytes or
+ *  the raw path). */
+export interface AttachmentSummary {
+  kind: "file" | "image" | "folder" | "audio";
+  name: string;
+  size?: number | null;
+  mime?: string | null;
+}
+
 export interface SyntheticRunRequest {
   text: string;
   mode?: "succeed" | "fail" | "hang" | "crash" | "exit_without_result";
@@ -249,6 +270,10 @@ export interface Proposal {
   options: { id: string; title: string; summary: string; why: string }[];
   default: string;
   evidence: { kind: string; title: string; url: string; note: string }[];
+  /** What the research found that the person would care about, a line each. */
+  findings?: string[];
+  /** Only the decisions that change what gets built, answered along with the pick. */
+  questions?: OpenQuestion[];
 }
 
 export interface Conversation {
@@ -291,6 +316,63 @@ export interface StreamItem {
   cursor: number;
   event: RunEvent;
   run: Run;
+}
+
+/** Settings -> Models: one provider's sign-in / key state, as Core reports it. */
+export interface ModelProviderAccount {
+  id: "claude" | "claude_api" | "chatgpt" | "chatgpt_api" | "openrouter" | "grok" | "groq";
+  label: string;
+  state: "connected" | "needs_sign_in" | "needs_key" | "cli_missing" | "key_saved" | "not_configured";
+  cli_present: boolean | null;
+  signed_in: boolean | null;
+  key_last4: string | null;
+  /** The Settings -> Models status dot: grey (not connected), green (connected), red (error) -
+   *  tooltip is the exact state to show on hover. Cached in Core for about a minute. */
+  dot: { color: "green" | "grey" | "red"; tooltip: string };
+  /** Set on a sign-in answer when the browser page shows a code to paste back (Claude). */
+  needs_code?: boolean;
+  /** Codex is being installed in the background (npm); poll until it clears. */
+  installing?: boolean;
+  /** The last background install failed. */
+  install_failed?: boolean;
+  /** The provider in effect: the `models.provider` setting, or claude when it is unset. */
+  default?: boolean;
+}
+
+/** One model a provider offers, for the model picker next to it. */
+export interface ProviderModel {
+  id: string;
+  label: string;
+}
+
+/** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
+export interface ModelAccountsClient {
+  listModelAccounts(): Promise<ModelProviderAccount[]>;
+  saveModelKey(provider: string, key: string): Promise<ModelProviderAccount>;
+  removeModelKey(provider: string): Promise<ModelProviderAccount>;
+  testModelAccount(provider: string): Promise<{ ok: boolean; message: string }>;
+  /** Clear Alpha's own cached connection state and re-probe; for a key-based provider this also
+   *  clears the saved key so the person is prompted again. Never touches a CLI sign-in itself. */
+  reconnectModelAccount(provider: string): Promise<ModelProviderAccount>;
+  /** Open the provider CLI's own browser sign-in (`claude auth login`, `codex login`); poll
+   *  listModelAccounts to see it land. */
+  signInModelAccount(provider: string): Promise<ModelProviderAccount>;
+  /** Claude: the code its sign-in page showed, exchanged by Core for tokens (Keychain). */
+  finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount>;
+  /** Make the provider's CLI available without a terminal (ChatGPT: link or install Codex). */
+  installModelCli(provider: string): Promise<ModelProviderAccount>;
+  /** The models this provider offers, and the one chosen for it (null = provider's own default). */
+  listProviderModels(provider: string): Promise<{ models: ProviderModel[]; selected: string | null }>;
+  setProviderModel(provider: string, model: string): Promise<void>;
+}
+
+/** A Core older than the status dot sends rows without one; draw those grey rather than crash. */
+function withDot(p: ModelProviderAccount): ModelProviderAccount {
+  return p.dot ? p : { ...p, dot: { color: "grey", tooltip: p.state === "connected" || p.state === "key_saved" ? "Connected." : "Not connected" } };
+}
+
+export function isModelAccountsClient(client: unknown): client is ModelAccountsClient {
+  return typeof (client as Partial<ModelAccountsClient>)?.listModelAccounts === "function";
 }
 
 export interface CoreClient {
@@ -472,7 +554,7 @@ export interface RecordRow {
 export interface CreationFailure {
   reason: string;
   message: string;
-  next_step: "retry" | "revise";
+  next_step: "retry" | "revise" | "connect";
   failed_checks?: string[];
   attempts?: number;
 }
@@ -494,10 +576,18 @@ export interface CreationResult {
 }
 
 export interface CreationChecks {
-  status: "pending" | "passed" | "failed" | "not_run";
+  /** "preliminary": checked only on the request's own examples, because Alpha's full checks
+   *  were not ready in time; `full` says whether they are still coming. */
+  status: "pending" | "passed" | "failed" | "not_run" | "preliminary";
+  full?: "pending" | "unavailable";
   checks_passed?: number;
   failed_checks?: string[];
   reason?: string;
+}
+
+/** Checks that are still running after the module was switched on. */
+export function checksOwed(checks: CreationChecks | null | undefined): boolean {
+  return checks?.status === "pending" || (checks?.status === "preliminary" && checks.full === "pending");
 }
 
 /** Where a module's latest fast-lane checks stand, from its own page. */
@@ -572,6 +662,15 @@ export interface ActTurn {
   reply: string;
   created_at: string;
   outcome?: string | null;
+  attachments?: AttachmentSummary[] | null;
+  model_error?: ModelErrorInfo | null;
+}
+
+/** A model call itself failed: which guided fix applies (a CLI sign-in, a key, or nothing
+ *  actionable beyond trying again) and which Settings -> Models provider it was about. */
+export interface ModelErrorInfo {
+  kind: "sign_in" | "key" | "generic";
+  provider: string;
 }
 
 /** A goal in the person's life that groups modules and the sessions about them. Optional. */
@@ -582,9 +681,18 @@ export interface Project {
   /** Alpha's own notes on the project, kept from its sessions; the person may edit or clear them. */
   summary: string | null;
   modules: string[];
+  /** A kebab-case lucide name Core picks (or the person does); null shows the folder. */
+  icon?: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+}
+
+/** A project's stored markdown artifact (its plan, its bug list); text is null until written. */
+export interface ProjectFile {
+  name: string;
+  text: string | null;
+  updated_at: string | null;
 }
 
 /** One turn of a session: what the person said, or what Alpha said and did. */
@@ -600,6 +708,7 @@ export interface SessionTurn {
   /** One line of truth about what the turn led to, current when read. */
   outcome?: string | null;
   detail?: Record<string, unknown> | null;
+  attachments?: AttachmentSummary[] | null;
   created_at: string;
 }
 
@@ -633,18 +742,28 @@ export interface SessionSummary {
   updated_at: string;
 }
 
+/** The + menu's Advanced choices for one message (see assistant/advanced.ts): unset falls back
+ *  to the session's own remembered choice, then Settings -> Access. */
+export interface AdvancedOptions {
+  accessMode?: "ask" | "approve_for_me" | "full";
+  model?: { provider: string; model?: string };
+}
+
 export interface SessionsClient {
   listProjects(): Promise<Project[]>;
   createProject(name: string, goal?: string | null): Promise<Project>;
-  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project>;
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project>;
   /** Put a module in a project, or (null) take it out of every project. */
   fileModule(appId: string, projectId: string | null): Promise<void>;
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }>;
+  projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile>;
   listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]>;
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
-  /** Say something; Alpha works it through in the background (poll the session while `thinking`). */
-  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session>;
+  /** Say something; Alpha works it through in the background (poll the session while `thinking`).
+   *  `options` are the + menu's Advanced choices for this one message; omitted falls back to
+   *  Settings -> Access. */
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session>;
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session>;
 }
 
@@ -781,7 +900,7 @@ export function isProfileClient(client: unknown): client is ProfileClient {
 
 export interface ActClient {
   /** Do what the sentence asks, at once; resolves when Alpha can say what happened. */
-  act(text: string, appId?: string | null): Promise<ActTurn>;
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<ActTurn>;
   recentActs(): Promise<ActTurn[]>;
 }
 
@@ -818,6 +937,11 @@ export interface WorkflowsClient {
   listRuns(): Promise<Run[]>;
   /** An authenticated image from Core (check screenshots), as an object URL. */
   imageUrl(path: string): Promise<string>;
+  /** The module's current source, packaged as a portable `.alphamodule` file (a zip): later,
+   *  an attachment anyone else building on Alpha can add as a new module. */
+  exportModule(appId: string): Promise<Blob>;
+  /** Install a `.alphamodule` file (from disk, or dropped/attached) as a new module. */
+  importModuleFile(file: File | Blob | { path: string }): Promise<{ app_id: string; name: string }>;
 }
 
 export function isWorkflowsClient(client: unknown): client is WorkflowsClient {
@@ -903,7 +1027,7 @@ export function parseSseChunk(
  *  froze a progress card indefinitely. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient {
+export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, ActClient, ProfileClient, ConnectionsClient, SessionsClient, ModelAccountsClient {
   constructor(
     private readonly session: CoreSession,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -1023,6 +1147,28 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return URL.createObjectURL(await response.blob());
   }
 
+  async exportModule(appId: string): Promise<Blob> {
+    const response = await this.fetchImpl(`${this.session.baseUrl}/api/apps/${encodeURIComponent(appId)}/export`, {
+      headers: { Authorization: `Bearer ${this.session.token}` },
+    });
+    if (!response.ok) throw new CoreError("couldn't export this project", response.status);
+    return response.blob();
+  }
+
+  async importModuleFile(file: File | Blob | { path: string }): Promise<{ app_id: string; name: string }> {
+    if ("path" in file) {
+      return this.request<{ app_id: string; name: string }>("/api/modules/import", { method: "POST", body: JSON.stringify({ path: file.path }) });
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    const data_base64 = btoa(binary);
+    return this.request<{ app_id: string; name: string }>("/api/modules/import", {
+      method: "POST",
+      body: JSON.stringify({ data_base64 }),
+    });
+  }
+
   queryView(appId: string, viewId: string, body: Record<string, unknown>): Promise<unknown> {
     return this.request(`/api/apps/${encodeURIComponent(appId)}/views/${encodeURIComponent(viewId)}/query`, {
       method: "POST",
@@ -1133,6 +1279,59 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
   async updateSettings(values: Record<string, unknown>): Promise<SettingField[]> {
     const page = await this.request<{ settings: SettingField[] }>("/api/settings", { method: "PUT", body: JSON.stringify({ values }) });
     return page.settings;
+  }
+
+  async listModelAccounts(): Promise<ModelProviderAccount[]> {
+    const page = await this.request<{ providers: ModelProviderAccount[] }>("/api/model-accounts");
+    return page.providers.map(withDot);
+  }
+
+  async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/key`, {
+      method: "PUT",
+      body: JSON.stringify({ key }),
+    });
+    return withDot(page.provider);
+  }
+
+  async removeModelKey(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/key`, { method: "DELETE" });
+    return withDot(page.provider);
+  }
+
+  testModelAccount(provider: string): Promise<{ ok: boolean; message: string }> {
+    return this.request(`/api/model-accounts/${encodeURIComponent(provider)}/test`, { method: "POST" });
+  }
+
+  async reconnectModelAccount(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/reconnect`, { method: "POST" });
+    return withDot(page.provider);
+  }
+
+  async signInModelAccount(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/sign-in`, { method: "POST" });
+    return withDot(page.provider);
+  }
+
+  async installModelCli(provider: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/install`, { method: "POST" });
+    return withDot(page.provider);
+  }
+
+  async finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount> {
+    const page = await this.request<{ provider: ModelProviderAccount }>(`/api/model-accounts/${encodeURIComponent(provider)}/sign-in/finish`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    return withDot(page.provider);
+  }
+
+  listProviderModels(provider: string): Promise<{ models: ProviderModel[]; selected: string | null }> {
+    return this.request(`/api/model-accounts/${encodeURIComponent(provider)}/models`);
+  }
+
+  async setProviderModel(provider: string, model: string): Promise<void> {
+    await this.request(`/api/model-accounts/${encodeURIComponent(provider)}/model`, { method: "PUT", body: JSON.stringify({ model }) });
   }
 
   async listConversations(): Promise<Conversation[]> {
@@ -1246,9 +1445,19 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     await this.request(`/api/profile/facts/${encodeURIComponent(factId)}/forget`, { method: "POST" });
   }
 
-  act(text: string, appId?: string | null): Promise<ActTurn> {
+  act(text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<ActTurn> {
     // A run may take a while; the avatar waits for the outcome rather than a promise.
-    return this.request<ActTurn>("/api/act", { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }), signal: AbortSignal.timeout(300_000) });
+    return this.request<ActTurn>("/api/act", {
+      method: "POST",
+      body: JSON.stringify({
+        text,
+        app_id: appId ?? null,
+        attachments: attachments ?? [],
+        access_mode: options?.accessMode ?? null,
+        model: options?.model ?? null,
+      }),
+      signal: AbortSignal.timeout(300_000),
+    });
   }
 
   async recentActs(): Promise<ActTurn[]> {
@@ -1310,7 +1519,7 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name, goal: goal ?? null }) });
   }
 
-  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project> {
     return this.request<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { method: "POST", body: JSON.stringify(patch) });
   }
 
@@ -1320,6 +1529,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile> {
+    return this.request<ProjectFile>(`/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(name)}`);
   }
 
   async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {
@@ -1338,8 +1551,17 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}`);
   }
 
-  sendSession(sessionId: string, text: string, appId?: string | null): Promise<Session> {
-    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ text, app_id: appId ?? null }) });
+  sendSession(sessionId: string, text: string, appId?: string | null, attachments?: AttachmentWire[], options?: AdvancedOptions): Promise<Session> {
+    return this.request<Session>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        text,
+        app_id: appId ?? null,
+        attachments: attachments ?? [],
+        access_mode: options?.accessMode ?? null,
+        model: options?.model ?? null,
+      }),
+    });
   }
 
   updateSession(sessionId: string, patch: { title?: string; archived?: boolean }): Promise<Session> {

@@ -26,7 +26,7 @@ describe("a one-click yes", () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByText("Runtime connected");
-    await user.type(screen.getByLabelText("What do you want done?"), "why is the sync not working");
+    await user.type(screen.getByLabelText("Message"), "why is the sync not working");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Allow linkedin.com and try again" }));
     await waitFor(() => expect(said).toEqual(["why is the sync not working", "Yes, allow Connections list to read linkedin.com through my sign-in, then try again."]));

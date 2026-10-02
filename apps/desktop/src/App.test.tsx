@@ -1,11 +1,26 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import { FakeCoreClient } from "./test/fakeClient";
 
 beforeEach(() => {
   window.localStorage.clear();
+});
+afterEach(() => {
+  window.location.hash = "";
+});
+
+describe("connections moved to Intelligence", () => {
+  it.each(["#/connections", "#/settings/connections"])("redirects %s to Intelligence's Connections tab", async (hash) => {
+    window.location.hash = hash;
+    render(<App client={new FakeCoreClient()} />);
+    expect(await screen.findByRole("tab", { name: "Connections", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Connections/ })).toBeInTheDocument();
+    // The old Settings section is gone; Connections lives only on Intelligence now.
+    await userEvent.setup().click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.queryByRole("button", { name: "Connections" })).not.toBeInTheDocument();
+  });
 });
 
 describe("the shell frame", () => {
@@ -14,11 +29,11 @@ describe("the shell frame", () => {
     render(<App client={new FakeCoreClient()} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Good (morning|afternoon|evening)/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Activity" }));
     expect(screen.getByText(/Nothing has run yet/)).toBeInTheDocument();
     // The assistant stays beside every surface.
-    expect(screen.getByLabelText("What do you want done?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
   });
 
   it("shows a failed run in Activity with a plain-language reason", async () => {

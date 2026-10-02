@@ -1,8 +1,10 @@
 """Structured inference through the model gateway's routes.
 
-`fake` answers deterministically from request text (control fixture). `claude-code-cli` runs
-the CLI non-agentically (no tools, one turn, settings ignored) with a JSON schema; the result's
-`structured_output` is validated by the caller's Pydantic model and usage is recorded.
+`fake` answers deterministically from request text (control fixture). `claude-code-cli` and
+`chatgpt-codex-cli` run their CLI non-agentically (no tools, one turn, settings ignored) with a
+JSON schema; `chatgpt-api`, `openrouter` and `grok` call an OpenAI-compatible HTTPS endpoint
+directly with the key saved in the Keychain. Every route's result is validated by the caller's
+Pydantic model against the full schema, and usage is recorded either way.
 """
 
 from __future__ import annotations
@@ -10,15 +12,27 @@ from __future__ import annotations
 import json
 import os
 import pwd
+import re
 import subprocess
 import threading
 import time
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from alpha_contracts.builds import BuildUsage, CostBasis
 
+from alpha.models import claude_oauth, keychain
 from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models.providers import ProviderHTTPError, chat_structured
+
+# route_id -> (provider id the key/CLI is saved under in the Keychain, base URL for HTTP routes)
+_HTTP_PROVIDER: dict[str, tuple[str, str]] = {
+    "chatgpt-api": ("chatgpt_api", "https://api.openai.com/v1"),
+    "openrouter": ("openrouter", "https://openrouter.ai/api/v1"),
+    "grok": ("grok", "https://api.x.ai/v1"),
+}
 
 # The JSON Schema keywords the CLI's strict validator knows. Anything else (Pydantic's
 # `discriminator`, a vendor extension) makes the CLI refuse the whole call before the model runs,
@@ -124,7 +138,11 @@ class StructuredInference:
         scope_kind: str,
         scope_ref: str,
         fake: Any | None = None,
+        timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
+        """`effort` is the CLI's reasoning effort (low, medium, high); None or "default" leaves
+        it to the CLI."""
         if route.route_id == "fake":
             if fake is None:
                 raise InferenceError("route_unavailable", "fake route needs a fake responder")
@@ -135,11 +153,15 @@ class StructuredInference:
             return StructuredResult(
                 output, usage, "fake", int((time.monotonic() - started) * 1000), ""
             )
-        if route.route_id != "claude-code-cli":
-            raise InferenceError(
-                "route_unavailable", f"no structured inference for {route.route_id}"
+        if route.route_id == "claude-code-cli":
+            return self._claude_cli(
+                route, system, prompt, schema, scope_kind, scope_ref, timeout_seconds, effort
             )
-        return self._claude_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        if route.route_id == "chatgpt-codex-cli":
+            return self._codex_cli(route, system, prompt, schema, scope_kind, scope_ref)
+        if route.route_id in _HTTP_PROVIDER:
+            return self._http_provider(route, system, prompt, schema, scope_kind, scope_ref)
+        raise InferenceError("route_unavailable", f"no structured inference for {route.route_id}")
 
     def _claude_cli(
         self,
@@ -149,7 +171,10 @@ class StructuredInference:
         schema: dict[str, Any],
         scope_kind: str,
         scope_ref: str,
+        timeout_seconds: int | None = None,
+        effort: str | None = None,
     ) -> StructuredResult:
+        timeout = timeout_seconds or self._timeout
         owner = pwd.getpwuid(os.getuid()).pw_name
         env = {
             "PATH": self._path,
@@ -161,6 +186,21 @@ class StructuredInference:
             "DISABLE_AUTOUPDATER": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
+        # Default is the CLI's own sign-in (`claude auth login`): no key is passed, so the
+        # person's logged-in session is used. Only when "Claude API" is the default provider in
+        # Settings -> Models is its key read from the Keychain (falling back to Core's own
+        # environment, e.g. a host that sets ANTHROPIC_API_KEY directly) and passed through.
+        # Never logged. Without a Preferences store at all (some tests), the legacy
+        # env-passthrough behaviour is kept.
+        # ponytail: follows the default provider, not a per-session + Advanced choice of Claude
+        # API; carry the account on ModelRoute if sessions need to pick it on their own.
+        prefs = self._gateway.preferences
+        if prefs is None:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if api_key:
+                env["ANTHROPIC_API_KEY"] = api_key
+        else:
+            env.update(claude_oauth.cli_auth_env(claude_oauth.auth_mode(prefs.get("models.provider"))))
         argv = [
             self._binary,
             "-p",
@@ -184,6 +224,8 @@ class StructuredInference:
         ]
         if route.model != "default":
             argv += ["--model", route.model]
+        if effort and effort != "default":
+            argv += ["--effort", effort]
         started = time.monotonic()
         try:
             proc = subprocess.Popen(
@@ -200,11 +242,11 @@ class StructuredInference:
             self._cancelled.discard(scope_ref)
             self._running[scope_ref] = proc
         try:
-            stdout, stderr = proc.communicate(timeout=self._timeout)
+            stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             proc.kill()
             proc.communicate()
-            raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+            raise InferenceError("timeout", f"model call exceeded {timeout}s") from exc
         finally:
             with self._lock:
                 self._running.pop(scope_ref, None)
@@ -223,10 +265,16 @@ class StructuredInference:
         usage = self._usage(result)
         self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
         text = str(result.get("result", ""))
-        if "Not logged in" in text:
+        from alpha.builds.harness_claude_cli import is_auth_failure
+        from alpha.models.accounts import note_refused, note_working
+
+        if is_auth_failure(text):
+            # Not signed in, or the organization refuses Claude Code: Settings shows it red.
+            note_refused("claude", text)
             raise InferenceError("cli_not_logged_in", text[:200])
         if result.get("is_error"):
             raise InferenceError("cli_error", text[:300])
+        note_working("claude")
         output = result.get("structured_output")
         if not isinstance(output, dict):
             raise InferenceError(
@@ -236,6 +284,106 @@ class StructuredInference:
         return StructuredResult(
             output, usage, models[0] if models else "unknown", elapsed, text[:300]
         )
+
+    def _codex_cli(
+        self,
+        route: ModelRoute,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any],
+        scope_kind: str,
+        scope_ref: str,
+    ) -> StructuredResult:
+        """ChatGPT via the Codex CLI (`codex login`), the person's sign-in choice. Codex's `exec`
+        subcommand has no schema flag of its own, so the schema is folded into the prompt and the
+        JSON object is picked out of the CLI's last answer; best-effort, unverified against a real
+        `codex` binary in this environment."""
+        owner = pwd.getpwuid(os.getuid()).pw_name
+        env = {
+            "PATH": self._path,
+            "HOME": self._home or pwd.getpwuid(os.getuid()).pw_dir,
+            "USER": owner,
+            "LOGNAME": owner,
+            "LANG": "C.UTF-8",
+            "TERM": "dumb",
+        }
+        full_prompt = (
+            f"{system}\n\nReply with exactly one JSON object matching this JSON Schema, and "
+            f"nothing else, no prose, no code fence:\n{json.dumps(cli_schema(schema))}\n\n{prompt}"
+        )
+        argv = ["codex", "exec", "--json", "--skip-git-repo-check"]
+        model = route.model if route.model != "default" else codex_model(env["HOME"])
+        if model:
+            argv += ["--model", model]
+        argv.append(full_prompt)
+        started = time.monotonic()
+        try:
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=self._timeout,
+                stdin=subprocess.DEVNULL,
+            )
+        except FileNotFoundError as exc:
+            raise InferenceError("cli_missing", f"codex CLI not found: {exc}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise InferenceError("timeout", f"model call exceeded {self._timeout}s") from exc
+        elapsed = int((time.monotonic() - started) * 1000)
+        combined = f"{proc.stdout}\n{proc.stderr}"
+        if "not logged in" in combined.lower() or "codex login" in proc.stderr.lower():
+            raise InferenceError("cli_not_logged_in", (proc.stderr or proc.stdout)[:200])
+        text, failure = codex_answer(proc.stdout)
+        if text is None and failure:
+            raise InferenceError("cli_error", failure[:300])
+        if text is None:
+            tail = (proc.stderr or proc.stdout)[-300:] or "no output"
+            raise InferenceError("cli_no_output", tail)
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise InferenceError("no_structured_output", text[:300])
+        try:
+            output = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise InferenceError("cli_bad_json", str(exc)) from exc
+        if not isinstance(output, dict):
+            raise InferenceError("no_structured_output", text[:300])
+        usage = BuildUsage(
+            turns=1, duration_ms=elapsed, cost_basis=CostBasis.SUBSCRIPTION_UNMETERED
+        )
+        self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
+        return StructuredResult(output, usage, route.model, elapsed, text[:300])
+
+    def _http_provider(
+        self,
+        route: ModelRoute,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any],
+        scope_kind: str,
+        scope_ref: str,
+    ) -> StructuredResult:
+        keychain_provider, base_url = _HTTP_PROVIDER[route.route_id]
+        api_key = keychain.get_key(keychain_provider)
+        if not api_key:
+            raise InferenceError(
+                "no_key", f"no key saved for {route.provider} (Settings -> Models)"
+            )
+        try:
+            output, usage, elapsed = chat_structured(
+                base_url,
+                api_key,
+                route.model,
+                system,
+                prompt,
+                cli_schema(schema),
+                timeout=self._timeout,
+            )
+        except ProviderHTTPError as exc:
+            raise InferenceError("provider_error", str(exc)) from exc
+        self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
+        return StructuredResult(output, usage, route.model, elapsed, json.dumps(output)[:300])
 
     @staticmethod
     def _usage(result: dict[str, Any]) -> BuildUsage:
@@ -257,3 +405,59 @@ class StructuredInference:
             cost_basis=CostBasis.SUBSCRIPTION_UNMETERED,
             models=models,
         )
+
+
+def codex_model(home: str) -> str | None:
+    """The model to pass to `codex exec`, or None for Codex's own default. The ChatGPT app can
+    leave a model in ~/.codex/config.toml that this CLI and account can't use (seen: a 400
+    "not supported when using Codex with a ChatGPT account"); then the account's first listed
+    model from Codex's own cache is used instead."""
+    base = Path(home) / ".codex"
+    try:
+        cache = json.loads((base / "models_cache.json").read_text())
+        listed = sorted(
+            (m for m in cache.get("models", []) if m.get("visibility") == "list"),
+            key=lambda m: m.get("priority", 0),
+        )
+    except (OSError, ValueError, AttributeError):
+        return None
+    slugs = [str(m["slug"]) for m in listed if m.get("slug")]
+    if not slugs:
+        return None
+    try:
+        configured = tomllib.loads((base / "config.toml").read_text()).get("model")
+    except (OSError, tomllib.TOMLDecodeError):
+        configured = None
+    return None if configured in slugs else slugs[0]
+
+
+def codex_answer(stdout: str) -> tuple[str | None, str | None]:
+    """(last answer text, failure message) from `codex exec --json` events. Current Codex sends
+    `item.completed` with an `agent_message` item; older ones sent `msg.message` / `text`."""
+    text: str | None = None
+    failure: str | None = None
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item")
+        msg = event.get("msg")
+        if isinstance(item, dict) and item.get("type") == "agent_message" and item.get("text"):
+            text = str(item["text"])
+        elif isinstance(msg, dict) and msg.get("message"):
+            text = str(msg["message"])
+        elif event.get("type") in ("turn.failed", "error"):
+            raw = (event.get("error") or {}).get("message") if event.get("error") else None
+            raw = raw or event.get("message") or ""
+            try:  # the message is often itself an API error body
+                raw = json.loads(raw)["error"]["message"]
+            except (ValueError, TypeError, KeyError):
+                pass
+            failure = str(raw) or "Codex stopped with an error"
+        elif event.get("text"):
+            text = str(event["text"])
+    return text, failure

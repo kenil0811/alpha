@@ -12,8 +12,7 @@ describe("removing a module", () => {
     const user = userEvent.setup();
     render(<ModulePage client={fake} appId="notes-list-1a2b3c" onAsk={() => undefined} onRemoved={() => void (left += 1)} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await user.click(screen.getByRole("tab", { name: "Settings" }));
-    await user.click(await screen.findByRole("button", { name: "Remove this module" }));
+    await user.click(await screen.findByRole("button", { name: "Remove this project" }));
     expect(screen.getByText("Remove Notes list and all its data?")).toBeInTheDocument();
     expect(screen.getByText(/everything that exists because of it/)).toBeInTheDocument();
     expect(fake.removed).toEqual([]);

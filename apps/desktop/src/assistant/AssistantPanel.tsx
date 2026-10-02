@@ -1,15 +1,24 @@
 /**
  * The assistant panel: a session with Alpha. Every message goes through the one loop in Core
  * (run, read, open, use a skill, change or make a module, or answer); a build or change comes
- * back as a card in the thread. Sessions belong to the project on screen or are global, and
- * the panel opens on the scope's latest one. Core owns every session, so leaving and coming
- * back finds the same thread.
+ * back as a card in the thread. Sessions belong to the project on screen or are global; the
+ * panel reopens the one last used in this scope, and its empty state lists earlier ones. Core
+ * owns every session, so leaving and coming back finds the same thread.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { isSessionsClient, type Conversation, type CoreClient, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowUp, ChevronLeft, Plus } from "lucide-react";
+import { isSessionsClient, type AdvancedOptions, type AttachmentWire, type Conversation, type CoreClient, type Project, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
-import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
+import { usePushToTalk } from "../shell/ptt";
+import { ConversationCard, PagePointer, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
+import { ZazooIcon } from "../ui/ZazooIcon";
+import { Button, IconButton } from "../ui";
+import { Markdown } from "./markdown";
+import { AttachMenu, AttachmentChips, useAdvanced, useAttachments } from "./AttachMenu";
+import { autoGrow, toWire, useComposerDrop, usePasteAttachments } from "./attachments";
+import { modelErrorOf, NotConnectedCard } from "./NotConnectedCard";
+import "./assistant.css";
 
 const EXAMPLES = [
   "Track what I eat and how much, with calories, history and trends",
@@ -25,6 +34,15 @@ export interface AssistantScope {
   appId?: string | null;
   moduleName?: string | null;
   moduleHint?: string | null;
+  /** The blank "New project" draft: projectId is null because Core has no project yet — the
+   *  panel opens with a fixed question instead of the usual scope message, and the first
+   *  answer is what actually makes the project. */
+  newProject?: boolean;
+  /** The draft's current title (editable in the centre), used as the project's name once made. */
+  draftTitle?: string;
+  /** Fired right after the project (and the session carrying the answer) are made, so the
+   *  caller can move the remembered session onto the real project and swap the centre over. */
+  onProjectCreated?: (project: Project, sessionId: string) => void;
 }
 
 export function AssistantPanel({
@@ -35,8 +53,11 @@ export function AssistantPanel({
   conversationId = null,
   onSelectConversation,
   onOpenApp,
-  onHide,
+  headerStart,
+  headerEnd,
   draft,
+  sendNow,
+  cardsOnPage = false,
 }: {
   client: CoreClient;
   scope?: AssistantScope;
@@ -47,25 +68,52 @@ export function AssistantPanel({
   conversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
   onOpenApp?: (appId: string) => void;
-  onHide?: () => void;
+  /** Left slot of the header (the shell's collapse toggle). */
+  headerStart?: ReactNode;
+  /** Right slot of the header (the shell's Activity bell). */
+  headerEnd?: ReactNode;
   /** Text to start the composer with (for example from "Ask or change"). */
   draft?: string | null;
+  /** A message typed somewhere else (the blank project's "Describe your project"), sent here
+   *  as if typed in the composer; `id` changes once per message. */
+  sendNow?: { text: string; id: number } | null;
+  /** The page beside the chat shows the creation card (a project page): the chat only points
+   *  to it, so the questions and options live in one place. */
+  cardsOnPage?: boolean;
 }) {
   const sessions = isSessionsClient(client) ? client : null;
   const [ownSession, setOwnSession] = useState<string | null>(null);
   const selected = onSelectSession ? sessionId : ownSession;
   const select = onSelectSession ?? setOwnSession;
-  const { session, loading, error, busy, reconnecting, send, refresh } = useSession(sessions, selected, select, scope);
+  const { session, loading, error, busy, reconnecting, send } = useSession(sessions, selected, select, scope);
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const advanced = useAdvanced(selected ?? "draft", client);
+  const attach = useAttachments();
+  const onPaste = usePasteAttachments(attach.add);
+  const { onDrop, onDragOver } = useComposerDrop(attach.add);
   const typedBefore = useRef("");
   const speech = useSpeech((final, interim) => setText(`${typedBefore.current} ${final} ${interim}`.replace(/\s+/g, " ").trim()));
   function toggleMic() {
     if (!speech.listening) typedBefore.current = text;
     speech.toggle();
   }
+  usePushToTalk(
+    useCallback(() => {
+      if (!speech.listening) typedBefore.current = text;
+      speech.start();
+    }, [speech, text]),
+    useCallback(() => speech.stop(), [speech]),
+  );
   useEffect(() => {
     if (draft) setText(draft);
   }, [draft]);
+  const sentNow = useRef<number | null>(null);
+  useEffect(() => {
+    if (!sendNow || sentNow.current === sendNow.id || busy) return;
+    sentNow.current = sendNow.id;
+    void send(sendNow.text, [], { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
+  }, [sendNow, busy, send, advanced.accessMode, advanced.model]);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bodyRef.current?.scrollTo?.({ top: bodyRef.current.scrollHeight });
@@ -77,40 +125,44 @@ export function AssistantPanel({
     if (!clean || busy) return;
     onSelectConversation?.(null);
     setText("");
-    await send(clean);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    const wire = attach.items.map(toWire);
+    attach.clear();
+    await send(clean, wire, { accessMode: advanced.accessMode, model: advanced.model ?? undefined });
   }
 
-  const label = scope.moduleName ?? scope.projectName ?? "Home";
+  const label = scope.moduleName ?? scope.projectName ?? (scope.newProject ? scope.draftTitle || "New project" : "Home");
   const thinking = session?.state === "thinking";
   const cards = latestCardPerConversation(session?.turns ?? []);
   // An offer (a one-click yes) stands only on Alpha's newest turn; older ones are history.
   const lastAlpha = [...(session?.turns ?? [])].reverse().find((t) => t.role === "alpha")?.turn_id ?? null;
 
   return (
-    <aside className="assist" aria-label="Assistant">
+    <aside className="assist" aria-label="Chief of Staff">
       <div className="assist__head">
-        <div className="assist__mark" aria-hidden="true">
-          A
+        {headerStart}
+        <div className="assist__title">
+          <ZazooIcon size={32} />
+          <div className="assist__titletext">
+            <b className="assist__name">Chief of Staff</b>
+            <div className="assist__ctx" title={label}>{label}</div>
+          </div>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <b>Assistant</b>
-          <div className="assist__ctx">{label}</div>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          {sessions ? <SessionSwitcher client={sessions} scope={scope} selected={selected} onSelect={(id) => { onSelectConversation?.(null); select(id); }} /> : null}
-          {onHide ? (
-            <button type="button" className="iconbtn" onClick={onHide} aria-label="Hide assistant">
-              ›
-            </button>
+        <div className="assist__headend">
+          {sessions && (selected || conversationId) ? (
+            <IconButton aria-label="New chat" title="New chat" size="sm" onClick={() => { onSelectConversation?.(null); select(null); }}>
+              <Plus size={16} />
+            </IconButton>
           ) : null}
+          {headerEnd}
         </div>
       </div>
       <div className="assist__body" ref={bodyRef}>
         {conversationId ? (
           <>
-            <button type="button" className="btn btn--sm btn--ghost" style={{ alignSelf: "flex-start" }} onClick={() => onSelectConversation?.(null)}>
-              ‹ Back to the session
-            </button>
+            <Button size="sm" variant="ghost" style={{ alignSelf: "flex-start" }} onClick={() => onSelectConversation?.(null)}>
+              <ChevronLeft size={14} aria-hidden="true" /> Back to the session
+            </Button>
             <ConversationCard client={client} conversationId={conversationId} onOpenApp={onOpenApp} showRequest onStartOver={(t) => { setText(t); onSelectConversation?.(null); }} />
           </>
         ) : !session ? (
@@ -121,30 +173,32 @@ export function AssistantPanel({
           ) : (
             <>
               <div className="msg msg--ai">
-                {scope.moduleName ? (
+                {scope.newProject ? (
+                  <>What do you want to accomplish with this new project?</>
+                ) : scope.moduleName ? (
                   <>
                     I'm looking at <b>{scope.moduleName}</b>. Ask about it, tell me to run something, or describe what to change or add and Alpha rebuilds it in place. Everything already saved in it is kept.
                     {scope.moduleHint ? <div className="faint" style={{ marginTop: 6 }}>{scope.moduleHint}</div> : null}
                   </>
                 ) : scope.projectName ? (
                   <>
-                    This session is about <b>{scope.projectName}</b>. Ask anything about it, tell me to do something with its modules, or describe something new to make for it.
+                    This session is about <b>{scope.projectName}</b>. Ask anything about it, tell me to do something with its sub projects, or describe something new to make for it.
                   </>
                 ) : (
                   <>Tell me what you want to keep track of, automate or get done. I'll ask at most a couple of questions, then build it.</>
                 )}
               </div>
-              {!scope.moduleName && !scope.projectName ? (
-                <div className="examples" aria-label="Examples">
+              {!scope.moduleName && !scope.projectName && !scope.newProject ? (
+                <div className="assist-empty__chips" aria-label="Examples">
                   {EXAMPLES.map((example) => (
-                    <button key={example} type="button" className="example" onClick={() => setText(example)}>
+                    <Button key={example} variant="outline" className="assist-empty__chip" onClick={() => setText(example)}>
                       {example}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : null}
               {scope.appId ? <ModuleThread client={client} appId={scope.appId} onOpen={(id) => onSelectConversation?.(id)} /> : null}
-              {sessions ? <EarlierSessions client={sessions} scope={scope} onOpen={select} /> : null}
+              {sessions && !scope.newProject ? <EarlierSessions client={sessions} scope={scope} onOpen={select} /> : null}
             </>
           )
         ) : (
@@ -155,22 +209,42 @@ export function AssistantPanel({
                 <p>{session.summary}</p>
               </details>
             ) : null}
-            {session.turns.map((turn) =>
+            {session.turns.map((turn, index) =>
               turn.role === "user" ? (
                 <div key={turn.turn_id} className="msg msg--user">
                   {turn.text}
+                  {turn.attachments?.length ? (
+                    <div className="attach-chips" style={{ marginTop: 6 }}>
+                      {turn.attachments.map((a, i) => (
+                        <span key={i} className="attach-chip">
+                          <span className="attach-chip__name">{a.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : turn.kind === "work" && turn.conversation_id ? (
-                cards.get(turn.conversation_id) === turn.turn_id ? (
+                cards.get(turn.conversation_id) === turn.turn_id && cardsOnPage ? (
+                  <PagePointer key={turn.turn_id} client={client} conversationId={turn.conversation_id} />
+                ) : cards.get(turn.conversation_id) === turn.turn_id ? (
                   <ConversationCard key={turn.turn_id} client={client} conversationId={turn.conversation_id} onOpenApp={onOpenApp} onStartOver={setText} />
                 ) : (
                   <div key={turn.turn_id} className="msg msg--ai faint">
                     {turn.text}
                   </div>
                 )
+              ) : modelErrorOf(turn.detail) ? (
+                <NotConnectedCard
+                  key={turn.turn_id}
+                  info={modelErrorOf(turn.detail)!}
+                  reason={turn.text}
+                  client={client}
+                  onResend={() => void send(precedingUserText(session.turns, index))}
+                  auto={index === session.turns.length - 1}
+                />
               ) : (
                 <div key={turn.turn_id} className="msg msg--ai">
-                  {turn.text}
+                  <Markdown text={turn.text} />
                   {turn.open?.app_id && onOpenApp ? (
                     <div className="row" style={{ marginTop: 6 }}>
                       <button type="button" className="btn btn--sm" onClick={() => onOpenApp(turn.open!.app_id!)}>
@@ -203,33 +277,57 @@ export function AssistantPanel({
           </p>
         ) : null}
       </div>
-      <form className="composer" onSubmit={submit}>
+      <form className="composer" onSubmit={submit} onDrop={onDrop} onDragOver={onDragOver}>
+        <AttachmentChips items={attach.items} onRemove={attach.remove} />
         <div className="composer__box">
+          <AttachMenu
+            onAdd={attach.add}
+            small
+            advanced={{
+              accessMode: advanced.accessMode,
+              onAccessModeChange: advanced.setAccessMode,
+              model: advanced.model,
+              onModelChange: advanced.setModel,
+              client,
+            }}
+          />
           <textarea
             id="goal"
+            ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={session ? "Say what to do, ask, or describe a change…" : "Describe what you want done…"}
-            aria-label="What do you want done?"
-            rows={2}
+            onChange={(e) => {
+              setText(e.target.value);
+              autoGrow(e.currentTarget);
+            }}
+            onPaste={onPaste}
+            placeholder="Ask…"
+            aria-label="Message"
+            rows={1}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void submit();
+              }
             }}
           />
           <MicButton listening={speech.listening} supported={speech.supported} onToggle={toggleMic} small />
-          <button type="submit" className="btn btn--primary btn--sm" disabled={busy || thinking || !text.trim()}>
-            Send
-          </button>
+          <IconButton
+            aria-label="Send"
+            title="Replies use the model chosen in Settings → Models · Enter to send, Shift+Enter for a new line"
+            type="submit"
+            className="composer__send"
+            disabled={busy || thinking || !text.trim()}
+          >
+            <ArrowUp size={16} />
+          </IconButton>
         </div>
-        <div className="composer__row">
-          <span>{speech.error ?? "Uses your Claude subscription"}</span>
-          {session ? (
-            <button type="button" className="btn btn--sm btn--ghost" style={{ marginLeft: "auto" }} onClick={() => refresh()} aria-label="Refresh the session" title="Refresh">
-              ↻
-            </button>
-          ) : null}
-          <span style={{ marginLeft: session ? 0 : "auto" }}>⌘↩ to send</span>
-        </div>
+        {speech.error ? (
+          <div className="composer__row">
+            <span className="notice" role="alert">
+              {speech.error}
+            </span>
+          </div>
+        ) : null}
       </form>
     </aside>
   );
@@ -245,6 +343,13 @@ function offerOf(turn: SessionTurn): { label: string; say: string } | null {
 function scopeName(scope: AssistantScope): "project" | "module" | "global" {
   if (scope.projectId) return "project";
   return scope.appId ? "module" : "global";
+}
+
+/** The message a "not connected" card's Try again / I've signed in resends: the person's own
+ *  turn right before it. */
+function precedingUserText(turns: SessionTurn[], index: number): string {
+  for (let i = index - 1; i >= 0; i--) if (turns[i].role === "user") return turns[i].text;
+  return "";
 }
 
 /** Only the newest turn about a conversation draws its full card; earlier ones are one line. */
@@ -291,17 +396,8 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
   const thinking = client && session?.state === "thinking" ? session.session_id : null;
   const { reconnecting } = usePoll(thinking, () => client!.getSession(thinking!), setSession);
 
-  const refresh = useCallback(async () => {
-    if (!client || !session) return;
-    try {
-      setSession(await client.getSession(session.session_id));
-    } catch {
-      /* the next poll or send will say */
-    }
-  }, [client, session]);
-
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: AttachmentWire[], options?: AdvancedOptions) => {
       if (!client) {
         setError("This runtime cannot hold sessions yet.");
         return;
@@ -310,66 +406,31 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
       setBusy(true);
       try {
         let id = session?.session_id ?? selectedId;
+        let projectId = scope.projectId;
+        // The blank "New project" draft holds no project in Core until this first answer —
+        // make it now, named after whatever the person left in the draft header.
+        let madeProject: Project | null = null;
+        if (!id && !projectId && scope.newProject) {
+          madeProject = await client.createProject(scope.draftTitle?.trim() || "Untitled project");
+          projectId = madeProject.project_id;
+        }
         if (!id) {
-          const made = await client.createSession({ project_id: scope.projectId, focus_app_id: scope.appId ?? null });
+          const made = await client.createSession({ project_id: projectId, focus_app_id: scope.appId ?? null });
           id = made.session_id;
           onSelect(id);
         }
-        setSession(await client.sendSession(id, text, scope.appId ?? null));
+        if (madeProject) scope.onProjectCreated?.(madeProject, id);
+        setSession(await client.sendSession(id, text, scope.appId ?? null, attachments, options));
       } catch (e) {
         setError(`Could not send: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         setBusy(false);
       }
     },
-    [client, onSelect, scope.appId, scope.projectId, selectedId, session],
+    [client, onSelect, scope, selectedId, session],
   );
 
-  return { session, loading, error, busy, reconnecting, send, refresh };
-}
-
-/** The sessions of this scope, to switch between, and a new one. */
-function SessionSwitcher({ client, scope, selected, onSelect }: { client: SessionsClient; scope: AssistantScope; selected: string | null; onSelect: (id: string | null) => void }) {
-  const [items, setItems] = useState<SessionSummary[]>([]);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    client
-      .listSessions(scopeName(scope), scope.projectId, scope.appId)
-      .then((all) => {
-        if (!cancelled) setItems(all.filter((s) => s.origin === "shell"));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client, open, scope.projectId, scope.appId, scope]);
-  return (
-    <div className="switcher">
-      <button type="button" className="btn btn--sm" onClick={() => onSelect(null)} title="Start a new session in this place">
-        New session
-      </button>
-      <button type="button" className="btn btn--sm" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Sessions">
-        ☰
-      </button>
-      {open ? (
-        <nav className="switcher__menu card" aria-label="Sessions">
-          {items.length === 0 ? <p className="panel__hint" style={{ padding: 10 }}>No sessions here yet.</p> : null}
-          <ul>
-            {items.map((s) => (
-              <li key={s.session_id}>
-                <button type="button" className={`recent__item${s.session_id === selected ? " recent__item--current" : ""}`} onClick={() => { setOpen(false); onSelect(s.session_id); }}>
-                  <span className="recent__text">{s.title ?? "Untitled session"}</span>
-                  <span className="recent__state">{when(s.updated_at)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      ) : null}
-    </div>
-  );
+  return { session, loading, error, busy, reconnecting, send };
 }
 
 /** Earlier sessions in this scope, newest first, for the empty state. */
@@ -426,8 +487,8 @@ function ModuleThread({ client, appId, onOpen }: { client: CoreClient; appId: st
   }, [client, appId]);
   if (!items?.length) return null;
   return (
-    <nav aria-label="This module's requests" className="recent">
-      <h3 className="recent__title">This module's requests</h3>
+    <nav aria-label="This project's requests" className="recent">
+      <h3 className="recent__title">This project's requests</h3>
       <ul>
         {items.map((c) => (
           <li key={c.conversation_id}>

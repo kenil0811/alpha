@@ -47,6 +47,8 @@ class HarnessInputs:
     # UI profile is installed, ui_build_profile, kit_version, bridge_version.
     targets: dict[str, str] = field(default_factory=dict)
     fake_packages_dir: str | None = None
+    # Which Claude sign-in the CLI uses: "oauth" (Alpha's), "api_key" or "cli" (its own login).
+    claude_auth: str = "cli"
 
 
 @dataclass

@@ -20,6 +20,11 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
+#[cfg(target_os = "macos")]
+mod ptt;
+#[cfg(target_os = "macos")]
+mod speech;
+
 const READY_PREFIX: &str = "ALPHA_CORE_READY ";
 /// Generated-UI qualification fixture, served from its own origin (`alpha-ui://<app-id>/`) so
 /// the shell's CSP is not inherited (srcdoc/blob documents inherit it) and the document gets
@@ -121,7 +126,10 @@ const SESSION_WAIT: Duration = Duration::from_secs(600);
 const AVATAR_LABEL: &str = "avatar";
 const AVATAR_IDLE: (f64, f64) = (132.0, 148.0);
 const AVATAR_OPEN: (f64, f64) = (380.0, 560.0);
-const AVATAR_MARGIN: f64 = 20.0;
+/// Default spot, measured from the screen's bottom-right corner (not the work area), so the
+/// avatar rests beside the Dock rather than above it (chosen by the person 2026-09-30).
+const AVATAR_MARGIN_RIGHT: f64 = 17.0;
+const AVATAR_MARGIN_BOTTOM: f64 = 8.0;
 /// Present in the data directory when the person hid the avatar; it stays hidden until shown.
 const AVATAR_HIDDEN_MARKER: &str = "avatar-hidden";
 
@@ -136,9 +144,9 @@ fn place_bottom_right(window: &WebviewWindow, size: (f64, f64)) -> tauri::Result
     };
     if let Some(monitor) = monitor {
         let scale = monitor.scale_factor();
-        let area = monitor.work_area();
-        let x = area.position.x as f64 + area.size.width as f64 - (size.0 + AVATAR_MARGIN) * scale;
-        let y = area.position.y as f64 + area.size.height as f64 - (size.1 + AVATAR_MARGIN) * scale;
+        let (origin, frame) = (monitor.position(), monitor.size());
+        let x = origin.x as f64 + frame.width as f64 - (size.0 + AVATAR_MARGIN_RIGHT) * scale;
+        let y = origin.y as f64 + frame.height as f64 - (size.1 + AVATAR_MARGIN_BOTTOM) * scale;
         window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32))?;
     }
     Ok(())
@@ -225,6 +233,32 @@ fn avatar_is_visible(app: AppHandle) -> Result<bool, String> {
 fn show_main(app: AppHandle) -> Result<(), String> {
     show_main_window(&app);
     Ok(())
+}
+
+/// Save an exported module (or any small file) to this Mac's Downloads folder and reveal it in
+/// Finder, so a person can hand the file to someone else. `filename` is used as-is if free, else
+/// suffixed `(2)`, `(3)`, ... to avoid overwriting an earlier export.
+/// ponytail: macOS-only (`open -R`, `$HOME/Downloads`); add a Windows/Linux path if the desktop
+/// app ever targets them.
+#[tauri::command]
+fn save_to_downloads(filename: String, data: Vec<u8>) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|_| "no home directory".to_string())?;
+    let downloads = PathBuf::from(home).join("Downloads");
+    std::fs::create_dir_all(&downloads).map_err(|e| e.to_string())?;
+    let stem_ext = filename.rsplit_once('.');
+    let mut path = downloads.join(&filename);
+    let mut n = 2;
+    while path.exists() {
+        let candidate = match stem_ext {
+            Some((stem, ext)) => format!("{stem} ({n}).{ext}"),
+            None => format!("{filename} ({n})"),
+        };
+        path = downloads.join(candidate);
+        n += 1;
+    }
+    std::fs::write(&path, data).map_err(|e| e.to_string())?;
+    let _ = std::process::Command::new("open").arg("-R").arg(&path).status();
+    Ok(path.to_string_lossy().into_owned())
 }
 
 fn random_token() -> Result<String, String> {
@@ -320,13 +354,19 @@ fn launch_core(app: &AppHandle) -> Result<CoreProcess, String> {
     // Builder toolchain (founder decision 2026-09-25): the Claude Code CLI route runs from the
     // user's own login, so the builder profile gets the user's HOME and a fixed toolchain PATH.
     let user_home = std::env::var("HOME").unwrap_or_default();
-    let builder_path = "/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin";
+    // `~/.local/bin` is where Claude Code's own installer puts `claude`.
+    let builder_path = format!("{user_home}/.local/bin:/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin");
     let mut command = Command::new(&python);
     command
         .args(["-I", "-m", "alpha.main"])
         .env_clear()
-        .env("ALPHA_ENABLED_MODEL_ROUTES", "fake,claude-code-cli")
-        .env("ALPHA_BUILDER_PATH", builder_path)
+        // Enabling a route only allows it to be chosen in Settings -> Models; it costs nothing
+        // until the person actually connects an account/key and picks it as the provider.
+        .env(
+            "ALPHA_ENABLED_MODEL_ROUTES",
+            "fake,claude-code-cli,chatgpt-codex-cli,chatgpt-api,openrouter,grok",
+        )
+        .env("ALPHA_BUILDER_PATH", &builder_path)
         .env("ALPHA_BUILDER_HOME", &user_home)
         .env("ALPHA_DATA_DIR", &data_dir)
         // Published App runtime profiles (`just bundle-core`); Core verifies, never installs.
@@ -546,7 +586,10 @@ fn app_screen(app_id: &str, path: &str) -> Option<(Vec<u8>, String)> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(HostState::default())
+        .manage(ptt::PttState::default())
+        .manage(speech::SpeechState::default())
         .register_uri_scheme_protocol("alpha-ui", |_ctx, request| generated_ui_response(&request))
         .invoke_handler(tauri::generate_handler![
             core_session,
@@ -554,9 +597,18 @@ pub fn run() {
             avatar_layout,
             avatar_visible,
             avatar_is_visible,
-            show_main
+            show_main,
+            save_to_downloads,
+            ptt::ptt_permission,
+            ptt::ptt_request_permission,
+            ptt::ptt_set_shortcut,
+            speech::stt_start,
+            speech::stt_stop,
+            speech::tts_speak,
+            speech::tts_stop
         ])
         .setup(|app| {
+            ptt::start(app.handle().clone(), app.state::<ptt::PttState>().inner());
             let handle = app.handle().clone();
             let launch = app.state::<HostState>().launch.clone();
             std::thread::Builder::new()
@@ -590,8 +642,12 @@ pub fn run() {
                 MenuItem::with_id(app, "avatar", "Show or hide the assistant", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Alpha", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &avatar_item, &quit_item])?;
+            // A dedicated monochrome silhouette, not the app icon: macOS templates recolor a
+            // flat black-on-transparent shape to match the menu bar's light/dark state, and
+            // the full-color panda (rendered fully opaque) reads as a solid dark blob there.
+            let tray_icon = tauri::include_image!("icons/tray@2x.png");
             TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().cloned().expect("window icon"))
+                .icon(tray_icon)
                 .icon_as_template(true)
                 .tooltip("Alpha runtime is running")
                 .menu(&menu)

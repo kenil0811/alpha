@@ -417,6 +417,25 @@ hand-built:
   person's own message. Consent stays explicit, in the place where the person is. Tests:
   `test_access.py` (3), shell `offer.test.tsx`.
 
+- Planner timeout (28 September, twice, a job-search request): the planner's structured call ran
+  past 300 s (Sonnet, 23.8k output tokens of which 20.7k thinking; the same call at
+  `--effort low` took 69 s and 7.5k tokens), the creation failed as `plan_unavailable` and the
+  finished, structurally verified candidate was cancelled as `cancelled_by_user` although nobody
+  pressed Stop. Now: structured calls take a reasoning effort (`--effort`, also in the
+  connection monitor's required flags); the planner and change triage default to low, Settings
+  -> Models has "Thinking for the checks" / "Thinking for sorting a change" (`effort.planner`,
+  `effort.triage`: low, medium, high, Claude Code's default) beside their model pickers. When
+  the planner fails in the parallel path and the brief's examples give at least one runnable
+  scenario, the candidate is verified on those, switched on with its checks marked
+  `preliminary` (the creation card and module page say so in one sentence), and the planner is
+  retried once in the background (600 s); its full checks run after activation through
+  `check_deferred(plan=...)` with the fast lane's one-click way back, or the checks stay
+  preliminary with "Alpha couldn't write its full checks". With nothing runnable the creation
+  fails with an honest sentence and the build is cancelled as `stopped_by_platform` (cause in
+  the event). Tests: `services/core/tests/test_planner_timeout.py`, `workflows.test.tsx`,
+  `settings.test.tsx`. Not covered end to end: the parallel path only runs on a live planner
+  route, so no integration test drives it.
+
 ## Still to do
 
 - Assistant: the person's own words for "your call" and "ask me fewer questions"; research

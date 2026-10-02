@@ -75,7 +75,7 @@ class ModulePurge:
         with self._lock:
             rows = self._store.query("SELECT * FROM apps WHERE app_id = ?", (app_id,))
             if not rows:
-                raise not_found("no such module", app_id=app_id)
+                raise not_found("no such project", app_id=app_id)
             name = str(rows[0]["name"])
             if rows[0]["state"] == "active":
                 # The release guard decides first; from here the runtime stops offering it.

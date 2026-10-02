@@ -1,0 +1,14 @@
+/* Attachment chips + the "+" menu (assistant/AttachMenu.tsx), used by both the assistant panel's
+   composer and the avatar's — imported here so either window's bundle gets it regardless of
+   which one loads assistant.css. */
+.attach-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.attach-chip { display: flex; align-items: center; gap: 5px; max-width: 220px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 6px 3px 4px; font-size: var(--text-xs); }
+.attach-chip__thumb { width: 18px; height: 18px; border-radius: 4px; object-fit: cover; flex: none; }
+.attach-chip__icon { flex: none; color: var(--text-3); display: inline-flex; }
+.attach-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.attach-chip__size { flex: none; color: var(--text-3); }
+.attach-chip__remove { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 0; background: none; border-radius: 50%; color: var(--text-3); cursor: pointer; }
+.attach-chip__remove:hover { background: var(--hover); color: var(--text-1); }
+
+.attach-trigger { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.attach-trigger__chip { font-size: var(--text-xs); line-height: 1; color: var(--warning, #b35c00); background: var(--warning-bg, rgba(179, 92, 0, 0.12)); border-radius: 999px; padding: 3px 6px; white-space: nowrap; pointer-events: none; }

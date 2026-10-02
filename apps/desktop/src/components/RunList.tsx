@@ -1,6 +1,24 @@
+import { CircleCheck, Circle, CircleX, CircleDashed } from "lucide-react";
 import type { RunView } from "./useRuns";
+import { Badge, Button, type BadgeVariant } from "../ui";
 
 const ACTIVE = new Set(["queued", "running"]);
+
+const STATE_VARIANT: Record<string, BadgeVariant> = {
+  succeeded: "success",
+  failed: "danger",
+  interrupted: "danger",
+  running: "info",
+  queued: "info",
+  cancelled: "warning",
+};
+
+function StateIcon({ state }: { state: string }) {
+  if (state === "succeeded") return <CircleCheck size={14} aria-hidden="true" />;
+  if (state === "failed" || state === "interrupted") return <CircleX size={14} aria-hidden="true" />;
+  if (state === "running" || state === "queued") return <CircleDashed size={14} aria-hidden="true" />;
+  return <Circle size={14} aria-hidden="true" />;
+}
 
 const STATE_LABEL: Record<string, string> = {
   queued: "Queued",
@@ -40,7 +58,7 @@ export function RunList({
   appNames?: Record<string, string>;
 }) {
   if (runs.length === 0) {
-    return <p className="empty">Nothing has run yet. Each time one of your workflows runs, it appears here.</p>;
+    return <p className="empty">Nothing has run yet.</p>;
   }
   return (
     <ul className="runs" aria-label="Runs">
@@ -51,13 +69,16 @@ export function RunList({
         return (
           <li className="run" key={run.run_id} data-state={run.state}>
             <div className="run__head">
-              <span className={`badge badge--${run.state}`}>{STATE_LABEL[run.state] ?? run.state}</span>
+              <Badge variant={STATE_VARIANT[run.state] ?? "neutral"}>
+                <StateIcon state={run.state} />
+                {STATE_LABEL[run.state] ?? run.state}
+              </Badge>
               <span className="run__title">{title}</span>
               <span className="run__time">{new Date(run.created_at).toLocaleString()}</span>
               {ACTIVE.has(run.state) ? (
-                <button type="button" className="button" onClick={() => onCancel(run.run_id)}>
+                <Button size="sm" variant="outline" onClick={() => onCancel(run.run_id)}>
                   Cancel
-                </button>
+                </Button>
               ) : null}
             </div>
             {output && synthetic ? (

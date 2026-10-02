@@ -4,6 +4,7 @@
  * distinct from what the module wrote), never through the module's code.
  */
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { X } from "lucide-react";
 import type { AppDetail, CollectionSummary, RecordRow } from "../core/client";
 import { formatDay, formatNumber, humanize, type ModuleClient } from "./useModule";
 
@@ -43,7 +44,7 @@ function inputType(kind: string): string {
 }
 
 export function DataSection({ client, detail, version, onChanged }: { client: ModuleClient; detail: AppDetail; version: number; onChanged: () => void }) {
-  if (!detail.collections.length) return <p className="empty">This module keeps no tables.</p>;
+  if (!detail.collections.length) return <p className="empty">This project keeps no tables.</p>;
   return (
     <div className="stack">
       {detail.collections.map((collection) => (
@@ -189,7 +190,7 @@ function CollectionEditor({ client, appId, collection, count, version, onChanged
                 ))}
                 <td className="r">
                   <button type="button" className="btn btn--sm btn--ghost rowbtn" aria-label={`Remove ${row.id}`} title="Remove" onClick={() => remove(row)}>
-                    ✕
+                    <X size={13} />
                   </button>
                 </td>
               </tr>

@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 /**
  * Intelligence: what Alpha knows and can do across every module, in one place.
  *  - Second brain: the facts it holds about the person and what each module keeps.
@@ -8,48 +9,52 @@
  */
 import { useState } from "react";
 import { type AppSummary, type CoreClient, isSkillsClient } from "../core/client";
+import { Connections } from "./Info";
 import { Automations } from "./intelligence/Automations";
 import { ModuleLinks } from "./intelligence/ModuleLinks";
 import { SecondBrain } from "./intelligence/SecondBrain";
 import { Skills } from "./intelligence/Skills";
+import { InfoTip } from "../ui/InfoTip";
+import "../modules/module.css";
 
 type Tab = "brain" | "skills" | "automations" | "connections";
-const TABS: [Tab, string][] = [
-  ["brain", "Second brain"],
-  ["skills", "Skills"],
-  ["automations", "Automations"],
-  ["connections", "Connections"],
+const TABS: [Tab, string, string][] = [
+  ["brain", "Second brain", "Every project and every fact Alpha holds, and how they connect."],
+  ["skills", "Skills", "A reusable ability outside any project: on its own, or when a sentence calls for it."],
+  ["automations", "Automations", "Every schedule across your projects, switchable in place."],
+  ["connections", "Connections", "A project reads another only when it asked to and you left it on."],
 ];
+const isTab = (t?: string): t is Tab => t === "brain" || t === "skills" || t === "automations" || t === "connections";
 
 export function Intelligence({
   client,
   modules,
   icons,
+  initialTab,
   onOpenModule,
   onOpenAbout,
-  onOpenAccounts,
 }: {
   client: CoreClient;
   modules: AppSummary[];
-  icons: Record<string, string>;
+  icons: Record<string, LucideIcon>;
+  initialTab?: string;
   onOpenModule: (appId: string) => void;
   onOpenAbout: () => void;
-  onOpenAccounts: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("brain");
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "brain");
   return (
     <section className="page" aria-labelledby="intel-heading">
       <div className="modhead">
         <div className="modhead__title">
-          <div>
-            <h2 id="intel-heading">Intelligence</h2>
-            <div className="faint">What Alpha knows and can do across your modules.</div>
-          </div>
+          <h2 id="intel-heading">
+            Intelligence
+            <InfoTip content="What Alpha knows and can do across your projects." label="About Intelligence" />
+          </h2>
         </div>
       </div>
       <div className="subtabs" role="tablist" aria-label="Intelligence sections">
-        {TABS.map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+        {TABS.map(([id, label, hint]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} title={hint} onClick={() => setTab(id)}>
             {label}
           </button>
         ))}
@@ -57,7 +62,12 @@ export function Intelligence({
       {tab === "brain" ? <SecondBrain client={client} modules={modules} icons={icons} onOpenModule={onOpenModule} onOpenAbout={onOpenAbout} /> : null}
       {tab === "skills" ? isSkillsClient(client) ? <Skills client={client} /> : <p className="empty">Skills arrive with a newer runtime.</p> : null}
       {tab === "automations" ? <Automations client={client} modules={modules} icons={icons} onOpenModule={onOpenModule} /> : null}
-      {tab === "connections" ? <ModuleLinks client={client} modules={modules} icons={icons} onOpenModule={onOpenModule} onOpenAccounts={onOpenAccounts} /> : null}
+      {tab === "connections" ? (
+        <div className="stack">
+          <Connections client={client} embedded />
+          <ModuleLinks client={client} modules={modules} icons={icons} onOpenModule={onOpenModule} />
+        </div>
+      ) : null}
     </section>
   );
 }

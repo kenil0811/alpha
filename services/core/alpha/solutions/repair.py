@@ -290,7 +290,7 @@ class RepairService:
         if final.state != "active":
             why = str((final.failure or {}).get("message") or "the edit did not hold together")
             return self._settle(repair_id, "not_fixed", f"Alpha could not fix this: {why}")
-        summary = str((final.result or {}).get("summary") or "the module's code was corrected")
+        summary = str((final.result or {}).get("summary") or "the project's code was corrected")
         rerun = self._rerun(diagnosis)
         with self._store.transaction() as conn:
             conn.execute(
@@ -438,7 +438,7 @@ class RepairService:
             pass
         detail = technical.split("\n")[0][:220]
         if kind == MODULE_CODE:
-            return f"{title} stopped in the module's own code ({where}): {detail}."
+            return f"{title} stopped in the project's own code ({where}): {detail}."
         if kind == REFUSAL:
             return f"{title} refused the input: {detail}."
         if kind == OUTSIDE:
@@ -449,7 +449,7 @@ class RepairService:
         if kind == PLATFORM:
             return (
                 f"{title} hit a problem inside Alpha itself ({exception or code}): {detail}. "
-                "This is not the module's fault."
+                "This is not the project's fault."
             )
         return f"{title} failed ({code or 'unknown reason'}): {detail or 'no detail'}."
 

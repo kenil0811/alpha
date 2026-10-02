@@ -74,6 +74,24 @@ describe("creating a result", () => {
     expect(screen.queryByRole("button", { name: "Open Notes list" })).not.toBeInTheDocument();
   });
 
+  it("says plainly when a module was checked only on the request's examples", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    client.nextCreationState = (c) => ready(c, { checks: { status: "preliminary", full: "pending", checks_passed: 2 } });
+    const card = await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
+    expect(card).toHaveTextContent("It was checked only against the examples in your request (2 checks)");
+    expect(card).toHaveTextContent("full checks are being written again");
+    expect(card).not.toHaveTextContent("passed all");
+
+    // The retry could not write them either: said once, and it stays on.
+    const current = client.creations.get([...client.creations.keys()][0])!;
+    client.creations.set(current.creation_id, { ...current, result: { ...current.result!, checks: { status: "preliminary", full: "unavailable", checks_passed: 2 } } });
+    await screen.findByText(/Alpha couldn't write its full checks/, {}, { timeout: 5000 });
+    expect(screen.getByRole("button", { name: "Open Notes list" })).toBeInTheDocument();
+  });
+
   it("says what went wrong and what to do next when it could not be made", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();
@@ -94,6 +112,22 @@ describe("creating a result", () => {
     // The checks' own vocabulary stays in the record, never on the card a person reads.
     expect(screen.queryByText(/the total did not include the second entry/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Open/ })).not.toBeInTheDocument();
+  });
+
+  it("a connect failure offers Settings → Models, not Try again", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    client.nextCreationState = (c) => ({
+      ...c,
+      state: "failed",
+      failure: { reason: "model_unavailable", message: "Claude sign-in isn't available for this account. Connect another model in Settings → Models.", next_step: "connect" },
+    });
+    expect(await screen.findByRole("alert", {}, { timeout: 3000 })).toHaveTextContent("Claude sign-in isn't available");
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Settings → Models" }));
+    expect(window.location.hash).toBe("#/settings/models");
   });
 
   it("stops a creation and offers to start again without switching anything on", async () => {
@@ -132,7 +166,7 @@ describe("home and the rail", () => {
     expect(await screen.findByRole("heading", { name: "Tracker" })).toBeInTheDocument();
     expect(within(rail).getByRole("button", { name: "Tracker" })).toHaveAttribute("aria-current", "page");
     await user.click(within(rail).getByRole("button", { name: "Home" }));
-    expect(await screen.findByRole("heading", { name: "Your modules" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your projects" })).toBeInTheDocument();
     await act(async () => undefined);
   });
 });
@@ -219,7 +253,6 @@ describe("an App with its own compiled screen", () => {
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     expect(await screen.findByText(/This App's screen opens in the Alpha window on your Mac/)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Actions" })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(screen.getByText(/Its records stay on this Mac\./)).toBeInTheDocument();
     expect(screen.queryByText(/pyprof/)).not.toBeInTheDocument();
   });
@@ -285,7 +318,6 @@ describe("where the data goes", () => {
     client.details.set("notes-list-1a2b3c", sampleDetail({ data_notice: notice }));
     render(<ModulePage client={client} appId="notes-list-1a2b3c" onAsk={() => undefined} />);
     await screen.findByRole("heading", { name: "Notes list" });
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Activity" }));
     expect(await screen.findByText(new RegExp(notice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
   });
 });

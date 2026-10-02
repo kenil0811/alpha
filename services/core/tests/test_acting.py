@@ -4,19 +4,86 @@ or change when no module covers it, and the person hears what happened in plain 
 from __future__ import annotations
 
 import re
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import yaml
-from alpha.assistant.acting import ActService, catalogue_text, outcome_line, summary_reply
+from alpha.assistant.acting import (
+    ActService,
+    catalogue_text,
+    model_error_kind,
+    model_error_reply,
+    outcome_line,
+    summary_reply,
+)
 from alpha.assistant.sessions import SessionService
 from alpha.capabilities.errors import OperationFailed
 from alpha.models.gateway import ModelGateway
-from alpha.models.structured import StructuredInference
+from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore
 from alpha_contracts.apps import AppSource
 from alpha_contracts.runs import RunOrigin, RunState
+
+
+def test_model_error_reply_names_disabled_subscription() -> None:
+    exc = InferenceError(
+        "cli_error",
+        "Your organization has disabled Claude subscription access for Claude Code",
+    )
+    reply = model_error_reply(exc)
+    assert "Anthropic API key" in reply
+    assert "Settings" in reply
+
+
+def test_model_error_reply_names_missing_binary() -> None:
+    reply = model_error_reply(InferenceError("cli_missing", "no such file"))
+    assert "claude` command" in reply
+
+
+def test_model_error_reply_generic_fallback() -> None:
+    reply = model_error_reply(InferenceError("cli_no_output", "garbage"))
+    assert reply == "I can't reach the model right now. Try again in a moment."
+
+
+def test_model_error_kind_classifies_sign_in_key_and_generic() -> None:
+    assert model_error_kind(InferenceError("cli_not_logged_in", "Not logged in")) == "sign_in"
+    assert model_error_kind(InferenceError("cli_missing", "no such file")) == "sign_in"
+    assert model_error_kind(InferenceError("no_key", "no key saved for openrouter")) == "key"
+    assert model_error_kind(InferenceError("provider_error", "The key was rejected.")) == "key"
+    assert model_error_kind(InferenceError("timeout", "too slow")) == "generic"
+
+
+def test_a_model_call_failure_carries_the_not_connected_card_detail(tmp_path: Path) -> None:
+    """A `claude` CLI that isn't signed in surfaces as a not-connected card, not plain text: the
+    session turn's detail names the guided fix (sign_in) and the provider (claude)."""
+    script = tmp_path / "claude"
+    script.write_text(
+        "#!/bin/sh\necho '{\"result\": \"Not logged in\", \"is_error\": false}'\n",
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    store = ControlStore(tmp_path / "control.sqlite")
+    gateway = ModelGateway(store, frozenset({"claude-code-cli"}))
+    inference = StructuredInference(gateway, claude_binary=str(script))
+    runs, assistant = Runs(), Assistant()
+    svc = ActService(
+        store,
+        gateway,
+        inference,
+        registry=Registry(),
+        runs=runs,
+        records=Records(),
+        assistant=assistant,
+        sessions=SessionService(store),
+        default_route="claude-code-cli",
+        run_lookup=runs.lookup,
+        today=lambda: "2026-09-28",
+    )
+    turn = svc.act("do something with notes")
+    assert turn.model_error == {"kind": "sign_in", "provider": "claude"}
+    assert "Settings" in turn.reply
 
 FIXTURE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "builds" / "notes_ok"
 
@@ -97,7 +164,7 @@ def service(tmp_path: Path, runs: Runs, assistant: Assistant) -> ActService:
 
 def test_the_catalogue_names_only_what_the_assistant_may_run() -> None:
     text = catalogue_text([("notes", notes_source())])
-    assert "MODULE notes: Notes (fixture)" in text
+    assert "PROJECT notes: Notes (fixture)" in text
     assert "action add_note" in text and "title (string, required)" in text
     assert "action count_notes" in text, "count_notes is invocable from the assistant"
     assert "view notes.recent: Latest notes" in text

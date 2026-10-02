@@ -24,7 +24,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -268,7 +268,18 @@ class CandidateVerifier:
             for stage in (self._package, self._deps, self._seal, self._handlers):
                 if not stage(run):
                     return run.finish()
-            return self._finish_behaviour(run)
+            # The structural run, kept so the behaviour checks can run again on another plan
+            # (a candidate verified on a preliminary plan gets its full checks later).
+            structural = replace(
+                run,
+                checks=list(run.checks),
+                requests=list(run.requests),
+                environment=dict(run.environment),
+            )
+            structural.reached = "handlers"
+            outcome = self._finish_behaviour(run)
+            outcome.pending = structural
+            return outcome
         except Stopped:
             return None
 
@@ -320,7 +331,7 @@ class CandidateVerifier:
                 stage="behavior",
                 required=False,
                 status=CheckStatus.SKIPPED,
-                summary="runs once the module is switched on",
+                summary="runs once the project is switched on",
             )
         )
         run.reached = "ui"  # nothing after the handlers is marked as not run
@@ -331,9 +342,17 @@ class CandidateVerifier:
         return outcome
 
     def verify_behaviour(self, run: _Run, plan: ValidationPlan) -> VerificationOutcome | None:
-        """The rest of a run `verify_structure` left pending, on the full plan."""
-        run.plan = plan
-        run.stop = None  # the build is settled; these checks run to the end
+        """The rest of a run `verify_structure` left pending, on the full plan. Runs on a copy,
+        so the pending run can be checked again on another plan."""
+        # stop=None: the build is settled; these checks run to the end.
+        run = replace(
+            run,
+            plan=plan,
+            stop=None,
+            checks=list(run.checks),
+            requests=list(run.requests),
+            environment=dict(run.environment),
+        )
         try:
             return self._finish_behaviour(run)
         except Stopped:

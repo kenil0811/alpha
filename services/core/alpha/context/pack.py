@@ -91,11 +91,11 @@ class ContextPacker:
                     f"- {source.name} [{app}]{' (in this project)' if app in mine else ''}: "
                     f"{source.description}" + (f" Keeps: {kept}." if kept else "")
                 )
-            sections.append("THEIR MODULES:\n" + "\n".join(lines))
+            sections.append("THEIR PROJECTS:\n" + "\n".join(lines))
         relevant = self._relevant(text, sources, app_id)
         if relevant:
             sections.append(
-                "RECORDS THAT LOOK RELEVANT (from their modules; say which module):\n" + relevant
+                "RECORDS THAT LOOK RELEVANT (from their projects; say which project):\n" + relevant
             )
         recent = self._recent({app: source.name for app, source in sources})
         if recent:

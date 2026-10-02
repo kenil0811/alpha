@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import os
@@ -28,10 +30,13 @@ from alpha.api.auth import make_auth_middleware
 from alpha.api.browser_routes import register as register_browser_routes
 from alpha.api.connection_routes import register as register_connection_routes
 from alpha.api.creation_routes import register as register_creation_routes
+from alpha.api.models_routes import register as register_models_routes
 from alpha.api.profile_routes import register as register_profile_routes
+from alpha.api.session_routes import ModelChoice
 from alpha.api.session_routes import register as register_session_routes
 from alpha.api.skill_routes import register as register_skill_routes
 from alpha.assistant.acting import ActService, ActTurn
+from alpha.assistant.attachments import MAX_ATTACHMENTS, AttachmentIn
 from alpha.assistant.service import AssistantService, ConversationRecord, UnknownApp
 from alpha.assistant.service import ConflictError as AssistantBusy
 from alpha.builds.service import BuildNotReady, BuildService, SeedUnavailable
@@ -45,8 +50,10 @@ from alpha.context.profile import ProfileService
 from alpha.context.review import ReviewService
 from alpha.context.skills import SkillService
 from alpha.execution.coordinator import RunCoordinator
+from alpha.models.accounts import ModelAccounts
 from alpha.models.gateway import ModelGateway, RouteUnavailable
 from alpha.models.preferences import InvalidSetting
+from alpha.models.transcription import NoProviderAvailable, TranscriptionError, transcribe
 from alpha.solutions.creation import CreationService
 from alpha.storage.control_store import ConflictError, ControlStore, NotFoundError
 
@@ -160,6 +167,10 @@ class ActRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     # The module the person is looking at, when any; helps resolve "add one" or "check it".
     app_id: str | None = Field(default=None, max_length=80)
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+    # The + menu's Advanced choices for this one message; unset falls back to Settings -> Access.
+    access_mode: str | None = Field(default=None, pattern="^(ask|approve_for_me|full)$")
+    model: ModelChoice | None = None
 
 
 class ConversationMessage(BaseModel):
@@ -172,6 +183,18 @@ class ConversationMessage(BaseModel):
 
 class ConversationList(BaseModel):
     conversations: list[ConversationRecord]
+
+
+class TranscribeRequest(BaseModel):
+    """A recorded clip from the shell's mic (base64), sent to be turned into text. Capped well
+    above a comfortable few minutes of speech; never written to disk, never logged."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    audio_b64: str = Field(min_length=1, max_length=34_000_000)
+    mime: str = Field(default="audio/webm", max_length=60)
+    # A Keychain provider id ("groq" or "chatgpt_api") to try first; omitted tries Groq then OpenAI.
+    provider: str | None = Field(default=None, max_length=20)
 
 
 # WebKit (the Tauri WebView on macOS) does not hand small streamed-fetch chunks to JavaScript
@@ -203,6 +226,8 @@ def create_app(
     skills: SkillService | None = None,
     projects: Any | None = None,
     sessions: Any | None = None,
+    model_accounts: ModelAccounts | None = None,
+    bugs: Any | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -230,7 +255,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(settings.allowed_origins),
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["authorization", "content-type"],
         allow_credentials=False,
         max_age=600,
@@ -284,6 +309,22 @@ def create_app(
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.post("/api/transcribe")
+    def transcribe_audio(body: TranscribeRequest) -> dict[str, str]:
+        """Turns a recorded clip into text through whichever transcription key is saved
+        (Settings -> Models: Groq or OpenAI). The bytes never touch disk here."""
+        try:
+            audio = base64.b64decode(body.audio_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="The recording could not be read.") from exc
+        try:
+            text = transcribe(audio, body.mime, preferred=body.provider)
+        except NoProviderAvailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except TranscriptionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"text": text}
+
     if builds is not None and gateway is not None:
         register_build_routes(app, builds, gateway)
     if assistant is not None:
@@ -295,11 +336,13 @@ def create_app(
     if acting is not None:
         register_act_routes(app, acting)
     if acting is not None and projects is not None and sessions is not None:
-        register_session_routes(app, projects, sessions, acting, profile)
+        register_session_routes(app, projects, sessions, acting, profile, bugs)
     if profile is not None:
         register_profile_routes(app, profile, onboarding, review)
     if connections is not None:
         register_connection_routes(app, connections)
+    if model_accounts is not None:
+        register_models_routes(app, model_accounts)
     if skills is not None:
         register_skill_routes(app, skills)
     if platform is not None and platform.browser is not None:
@@ -471,7 +514,13 @@ def register_act_routes(app: FastAPI, acting: ActService) -> None:
         """Do what the sentence asks, at once, and say what happened. Blocks while the run
         finishes (bounded), so the avatar can speak the outcome."""
         try:
-            return acting.act(body.text, context_app_id=body.app_id)
+            return acting.act(
+                body.text,
+                context_app_id=body.app_id,
+                attachments=body.attachments,
+                access_mode=body.access_mode,
+                model=body.model.model_dump() if body.model else None,
+            )
         except RouteUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 

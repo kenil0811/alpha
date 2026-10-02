@@ -1,0 +1,6 @@
+.ui-input {
+  border: 1px solid var(--border); border-radius: var(--radius-button); padding: 7px 10px;
+  background: var(--surface); color: var(--text); font-size: var(--text-md); width: 100%;
+}
+.ui-input::placeholder { color: var(--text-3); }
+.ui-textarea { min-height: 72px; resize: vertical; }

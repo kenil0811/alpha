@@ -3,6 +3,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import type { CoreClient, SkillDraft, SkillRun, SkillSpec } from "../../core/client";
 import { humanize } from "../../modules/useModule";
 import { asLink, shown } from "./shared";
+import "../../modules/views/views.css";
 
 const EMPTY: SkillDraft = { title: "", description: "", kind: "procedure", instructions: "", module: null, action: null, inputs: [], produces: "", sources: [] };
 
@@ -38,10 +39,7 @@ export function Skills({ client }: { client: CoreClient & { listSkills: () => Pr
   useEffect(load, [load]);
   return (
     <div className="stack">
-      <div className="row">
-        <p className="faint" style={{ flex: 1, margin: 0 }}>
-          A skill is a way Alpha knows to do one kind of job, on its own or when a sentence calls for it: find people to cold call, check a supplier, summarise a week.
-        </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
         <button type="button" className="btn btn--primary btn--sm" onClick={() => setMaking((v) => !v)} aria-expanded={making}>
           New skill
         </button>
@@ -62,7 +60,7 @@ export function Skills({ client }: { client: CoreClient & { listSkills: () => Pr
         />
       ) : null}
       {skills === null ? <p className="faint">Loading…</p> : null}
-      {skills && !skills.length && !making ? <p className="empty">No skills yet. Make one, or ask the assistant to teach Alpha how you do something.</p> : null}
+      {skills && !skills.length && !making ? <p className="empty">No skills yet.</p> : null}
       {(skills ?? []).map((s) => (
         <SkillCard
           key={s.id}
@@ -251,7 +249,7 @@ function RunResult({ run }: { run: SkillRun }) {
       <p className={run.state === "failed" ? "notice" : "notice notice--quiet"}>{run.summary}</p>
       {run.items.length ? (
         <div className="card" style={{ overflow: "auto" }}>
-          <table className="table" aria-label="What it found">
+          <table className="table dv-table" aria-label="What it found">
             <thead>
               <tr>
                 {columns.map((c) => (
@@ -261,7 +259,7 @@ function RunResult({ run }: { run: SkillRun }) {
             </thead>
             <tbody>
               {run.items.map((item, i) => (
-                <tr key={i}>
+                <tr key={i} className="dv-row">
                   {columns.map((c) => (
                     <td key={c} title={shown(item[c])}>
                       {(() => {

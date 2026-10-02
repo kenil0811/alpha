@@ -1,0 +1,11 @@
+.panel__toggle { flex: none; }
+.panel__handle { position: absolute; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 20; display: flex; align-items: center; justify-content: center; outline: none; }
+.panel__handle--left { right: -5px; }
+.panel__handle--right { left: -5px; }
+.panel__handle-line { position: absolute; inset: 0 auto 0 50%; width: 1px; background: var(--bridge-steel-light, var(--border)); opacity: 0; transition: opacity 120ms ease; }
+.panel__handle-grip { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 16px; height: 28px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-3); box-shadow: var(--shadow); opacity: 0; transition: opacity 120ms ease; }
+.panel__handle:hover .panel__handle-line, .panel__handle:focus-visible .panel__handle-line,
+.panel__handle:hover .panel__handle-grip, .panel__handle:focus-visible .panel__handle-grip,
+.panel__handle--dragging .panel__handle-line, .panel__handle--dragging .panel__handle-grip { opacity: 1; }
+.panel__strip { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border: 0; background: transparent; color: var(--text-2); }
+.panel__strip:hover { background: var(--hover); }

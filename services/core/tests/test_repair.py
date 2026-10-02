@@ -203,7 +203,7 @@ def test_a_crash_in_the_modules_code_is_diagnosed_in_plain_words(tmp_path: Path)
     assert diagnosis.where == "handlers.py line 551"
     assert diagnosis.cause == "search_new_listings:TypeError:handlers.py line 551"
     assert diagnosis.said == (
-        "Search new listings stopped in the module's own code (handlers.py line 551): "
+        "Search new listings stopped in the project's own code (handlers.py line 551): "
         "TypeError: estimated values must map a field to the ModelResult it came from."
     )
     text = evidence(diagnosis, "Search new listings")
@@ -229,7 +229,7 @@ def test_faults_outside_the_module_are_named_never_fixed(tmp_path: Path) -> None
         result = svc.repair(run_id)
         assert result["state"] == "skipped" and result["message"]
     assert creations.started == []
-    assert "not the module's fault" in svc.diagnose(platform).said
+    assert "not the project's fault" in svc.diagnose(platform).said
 
 
 def test_a_fix_goes_live_and_the_action_runs_again(tmp_path: Path) -> None:
@@ -346,5 +346,5 @@ def test_the_loop_takes_a_fix_step_from_the_facts(tmp_path: Path) -> None:
     assert turn.kind == "fix"
     assert turn.reply.startswith("Alpha fixed it (")
     assert "ran Search new listings again" in turn.reply
-    assert turn.outcome == "fixed the module's code in Notes (fixture) and ran the action again"
+    assert turn.outcome == "fixed the project's code in Notes (fixture) and ran the action again"
     assert len(creations.started) == 1 and len(rerun.invoked) == 1

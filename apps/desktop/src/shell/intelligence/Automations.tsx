@@ -1,8 +1,11 @@
+import type { LucideIcon } from "lucide-react";
+import { ModuleIcon } from "../../ui/ModuleIcon";
 /** Automations: every schedule across the modules, switchable in place. */
 import { useEffect, useState } from "react";
 import type { AppSummary, CoreClient, SchedulesClient, ScheduleStatus } from "../../core/client";
+import "../../modules/views/views.css";
 
-export function Automations({ client: core, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, string>; onOpenModule: (appId: string) => void }) {
+export function Automations({ client: core, modules, icons, onOpenModule }: { client: CoreClient; modules: AppSummary[]; icons: Record<string, LucideIcon>; onOpenModule: (appId: string) => void }) {
   const client = core as CoreClient & SchedulesClient;
   const [rows, setRows] = useState<{ module: AppSummary; schedule: ScheduleStatus }[] | null>(null);
   const [version, setVersion] = useState(0);
@@ -24,13 +27,14 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
     };
   }, [client, modules, version]);
   if (rows === null) return <p className="faint">Loading…</p>;
-  if (!rows.length) return <p className="empty">Nothing runs on its own yet. A module that checks or reminds on a schedule appears here.</p>;
+  if (!rows.length) return <p className="empty">Nothing runs on its own yet.</p>;
   return (
     <div className="card">
-      <table className="table" aria-label="Automations">
+      <div className="tablewrap">
+      <table className="table dv-table" aria-label="Automations">
         <thead>
           <tr>
-            <th>Module</th>
+            <th>Project</th>
             <th>What</th>
             <th>When</th>
             <th>Last ran</th>
@@ -39,10 +43,10 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
         </thead>
         <tbody>
           {rows.map(({ module, schedule }) => (
-            <tr key={`${module.app_id}:${schedule.id}`}>
+            <tr key={`${module.app_id}:${schedule.id}`} className="dv-row">
               <td>
                 <button type="button" className="linklike" onClick={() => onOpenModule(module.app_id)}>
-                  <span aria-hidden="true">{icons[module.app_id] ?? "▦"}</span> {module.name}
+                  <ModuleIcon icon={icons[module.app_id]} /> {module.name}
                 </button>
               </td>
               <td title={schedule.title}>{schedule.title}</td>
@@ -71,6 +75,7 @@ export function Automations({ client: core, modules, icons, onOpenModule }: { cl
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
