@@ -6,7 +6,8 @@ carrying the harness outcome. Core owns the authoritative build state; this proc
 touches the control store, live data or any release.
 
 Job shape (JSON):
-  {"request": <BuildRequest>, "harness": "fake" | "claude-code-cli", "workspace": "<dir>",
+  {"request": <BuildRequest>, "harness": "fake" | "claude-code-cli" | "codex-cli",
+   "workspace": "<dir>",
    "goal": str, "instructions": str, "model": str, "candidate_python": "<path>",
    "targets": {...}, "fake_packages_dir": "<dir>" | null}
 
@@ -26,6 +27,7 @@ from alpha_contracts.builds import BuildRequest
 
 from alpha.builds.harness import BuilderHarness, HarnessInputs
 from alpha.builds.harness_claude_cli import ClaudeCliHarness
+from alpha.builds.harness_codex_cli import CodexCliHarness
 from alpha.builds.harness_fake import FakeHarness
 
 
@@ -39,6 +41,8 @@ def select_harness(name: str, candidate_python: Path) -> BuilderHarness:
         return FakeHarness()
     if name == "claude-code-cli":
         return ClaudeCliHarness(candidate_python=candidate_python)
+    if name == "codex-cli":
+        return CodexCliHarness(candidate_python=candidate_python)
     raise ValueError(f"unknown harness: {name}")
 
 
@@ -62,6 +66,7 @@ def main() -> int:
         candidate_python=candidate_python,
         targets={str(k): str(v) for k, v in (job.get("targets") or {}).items()},
         fake_packages_dir=job.get("fake_packages_dir"),
+        claude_auth=str(job.get("claude_auth", "cli")),
     )
     capabilities = harness.capabilities()
     emit({"kind": "progress", "stage": "capabilities", "capabilities": capabilities.__dict__})

@@ -9,9 +9,12 @@ import type { AccessMode, ModelChoice } from "./advanced";
 function fakeClient() {
   return {
     listModelAccounts: vi.fn().mockResolvedValue([
-      { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null, dot: { color: "green", tooltip: "Connected" } },
+      { id: "claude", label: "Claude", state: "connected", cli_present: true, signed_in: true, key_last4: null, dot: { color: "green", tooltip: "Connected" }, default: true },
       { id: "openrouter", label: "OpenRouter", state: "not_configured", cli_present: null, signed_in: null, key_last4: null, dot: { color: "grey", tooltip: "Not connected" } },
     ]),
+    listProviderModels: vi.fn().mockImplementation(async (provider: string) =>
+      provider === "claude" ? { models: [{ id: "claude-opus", label: "Opus" }, { id: "claude-sonnet", label: "Sonnet" }], selected: "claude-sonnet" } : { models: [], selected: null },
+    ),
     getSettings: vi.fn().mockResolvedValue([{ id: "access.mode", group: "Access", title: "", description: "", kind: "choice", options: [], minimum: null, maximum: null, unit: null, default: "ask", value: "ask" }]),
   };
 }
@@ -89,5 +92,39 @@ describe("the + menu's Advanced submenu", () => {
     expect(screen.queryByText(/Approve for me|Full access/)).not.toBeInTheDocument();
     rerender(<Harness onAccessModeChange={vi.fn()} onModelChange={vi.fn()} accessMode="approve_for_me" />);
     expect(screen.getByText("Approve for me")).toBeInTheDocument();
+  });
+
+  it("with no per-request choice, ticks the default provider and labels it", async () => {
+    const user = userEvent.setup();
+    render(<Harness onAccessModeChange={vi.fn()} onModelChange={vi.fn()} />);
+    await openAdvanced(user);
+    const claude = await screen.findByRole("menuitem", { name: /Claude \(default\)/ });
+    expect(claude.querySelector("svg.ui-menu__check")).not.toBeNull();
+    const openrouter = screen.getByRole("menuitem", { name: /OpenRouter/ });
+    expect(openrouter.querySelector("svg.ui-menu__check")).toBeNull();
+  });
+
+  it("an override moves the tick off the default", async () => {
+    const user = userEvent.setup();
+    render(<Harness onAccessModeChange={vi.fn()} onModelChange={vi.fn()} model={{ provider: "openrouter" }} />);
+    await openAdvanced(user);
+    const openrouter = await screen.findByRole("menuitem", { name: /OpenRouter/ });
+    expect(openrouter.querySelector("svg.ui-menu__check")).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Claude \(default\)/ }).querySelector("svg.ui-menu__check")).toBeNull();
+  });
+
+  it("lists the active provider's models, ticks the current one, and picks one for the message", async () => {
+    const onModelChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onAccessModeChange={vi.fn()} onModelChange={onModelChange} />);
+    await openAdvanced(user);
+    const sub = await screen.findByRole("menuitem", { name: /Claude model · Sonnet/ });
+    sub.focus();
+    await user.keyboard("{ArrowRight}");
+    const sonnet = await screen.findByRole("menuitem", { name: "Sonnet" });
+    expect(sonnet.querySelector("svg.ui-menu__check")).not.toBeNull();
+    (await screen.findByRole("menuitem", { name: "Opus" })).focus();
+    await user.keyboard("{Enter}");
+    expect(onModelChange).toHaveBeenCalledWith({ provider: "claude", model: "claude-opus" });
   });
 });

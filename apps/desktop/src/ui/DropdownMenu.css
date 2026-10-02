@@ -8,12 +8,12 @@
 }
 .ui-menu__item[data-highlighted] { background: var(--hover); }
 .ui-menu__item[data-disabled] { opacity: 0.5; cursor: not-allowed; }
-.ui-menu__label { padding: 6px 10px 2px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+.ui-menu__label { padding: 6px 10px 2px; font-size: var(--text-xs); text-transform: none; color: var(--text-3); }
 .ui-menu__sep { height: 1px; background: var(--border); margin: 4px 0; }
 .ui-menu__item--danger { color: var(--danger, #c0392b); }
 .ui-menu__item--sub { justify-content: space-between; }
 .ui-menu__item--sub::after { content: "\203a"; opacity: 0.6; margin-left: 8px; }
-.ui-menu--sub { min-width: 220px; }
+.ui-menu--sub { min-width: 220px; max-width: min(320px, 90vw); max-height: var(--radix-dropdown-menu-content-available-height, 60vh); overflow-y: auto; }
 .ui-menu__item--warning { color: var(--warning, #b35c00); }
 .ui-menu__item--warning[data-highlighted] { background: var(--warning-bg, rgba(179, 92, 0, 0.1)); }
 .ui-menu__check { width: 14px; display: inline-flex; justify-content: center; flex: none; }

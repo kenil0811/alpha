@@ -2,7 +2,7 @@
 import { hasTauri } from "../core/session";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CircleCheck, Circle, Cpu, HardDrive, Hammer, MoreVertical, Monitor, Palette, Settings as SettingsIcon, Shapes, Star, type LucideIcon } from "lucide-react";
-import { isModelAccountsClient, isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type ModelProviderAccount, type SettingField, type WorkflowsClient } from "../core/client";
+import { isModelAccountsClient, isWorkflowsClient, type BrowserSite, type CapabilityEntry, type CoreClient, type HealthInfo, type ModelProviderAccount, type ProviderModel, type SettingField, type WorkflowsClient } from "../core/client";
 import { RunList } from "../components/RunList";
 import type { RunView } from "../components/useRuns";
 import { ThemeControl, type Theme } from "./theme";
@@ -10,7 +10,7 @@ import { ACCENTS, FONTS, SIZES, useAppearance } from "./appearance";
 import { keycodeFor, labelFor, readShortcut, shortcutLabel, writeShortcut, type PttShortcut } from "./ptt";
 import { setSpeakEnabled, speakEnabled } from "./tts";
 import { readTranscriptionMode, writeTranscriptionMode, type TranscriptionMode } from "./voice";
-import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, IconButton, InfoTip, PageHeader, useToast } from "../ui";
+import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, IconButton, InfoTip, PageHeader, StandardDropdown, useToast } from "../ui";
 import "./pages.css";
 
 export function Activity({ runs, error, onCancel, appNames }: { runs: RunView[]; error: string | null; onCancel: (id: string) => Promise<void>; appNames: Record<string, string> }) {
@@ -219,6 +219,47 @@ const PROVIDER_SIGN_IN_HINT: Record<string, string> = {
 
 const DOT_ORDER = { red: 0, green: 1, grey: 2 } as const;
 
+/** A connected provider's model choice: the models it offers, saved per provider. Hidden when
+ *  the provider lists none. */
+function ProviderModelPicker({ client, provider, label }: { client: CoreClient; provider: string; label: string }) {
+  const [page, setPage] = useState<{ models: ProviderModel[]; selected: string | null } | null>(null);
+  const toast = useToast();
+  useEffect(() => {
+    if (!isModelAccountsClient(client)) return;
+    let cancelled = false;
+    client
+      .listProviderModels(provider)
+      .then((p) => !cancelled && setPage(p))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, provider]);
+  if (!page?.models.length || !isModelAccountsClient(client)) return null;
+  async function choose(model: string) {
+    if (!isModelAccountsClient(client) || !page) return;
+    const before = page.selected;
+    setPage({ ...page, selected: model });
+    try {
+      await client.setProviderModel(provider, model);
+    } catch (e) {
+      setPage((p) => (p ? { ...p, selected: before } : p));
+      toast.show(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return (
+    <span className="provider-model">
+      <StandardDropdown
+        options={page.models.map((m) => ({ value: m.id, label: m.label }))}
+        value={page.selected}
+        onChange={(v) => void choose(v)}
+        placeholder="Default model"
+        ariaLabel={`${label} model`}
+      />
+    </span>
+  );
+}
+
 /** Claude (Console account by default), ChatGPT, OpenRouter and Grok: sign-in state and keys,
  *  which live only in the macOS Keychain — never shown here once saved, only their last 4
  *  characters. The model id each key-based provider uses, and Claude's console/API-key choice,
@@ -291,12 +332,16 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
 
   async function makeDefault(choice: string, label: string) {
     const before = defaultProvider;
+    const rowsBefore = providers;
     setDefaultProvider(choice);
+    // Core's per-row `default` wins over the setting; move it with the star at once.
+    setProviders((all) => all && all.map((p) => (p.default === undefined ? p : { ...p, default: providerChoice(p) === choice })));
     try {
       await client.updateSettings({ "models.provider": choice });
       toast.show(`${label} is now the default.`);
     } catch (e) {
       setDefaultProvider(before);
+      setProviders(rowsBefore);
       toast.show(e instanceof Error ? e.message : String(e));
     }
   }
@@ -392,9 +437,10 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
         // A sign-in row (Claude, ChatGPT) signs in through its CLI; every other row takes a key.
         const signInRow = p.id in PROVIDER_SIGN_IN_HINT;
         const choice = providerChoice(p);
-        const isDefault = choice !== null && choice === defaultProvider;
+        const isDefault = p.default ?? (choice !== null && choice === defaultProvider);
+        const connected = p.state === "connected" || p.state === "key_saved";
         return (
-          <div className="item" key={p.id}>
+          <div className={`item${isDefault ? " item--default" : ""}`} key={p.id}>
             <div className="item__body">
               <span className="row" style={{ gap: 8, alignItems: "center", flexWrap: "nowrap", minWidth: 0 }}>
                 {choice ? (
@@ -405,7 +451,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                     title={isDefault ? "Default" : "Make default"}
                     onClick={() => !isDefault && void makeDefault(choice, p.label)}
                   >
-                    <Star size={14} aria-hidden="true" fill={isDefault ? "currentColor" : "none"} style={{ color: isDefault ? "var(--warn, #f59e0b)" : "var(--text-3)" }} />
+                    <Star size={14} aria-hidden="true" fill={isDefault ? "currentColor" : "none"} style={{ color: isDefault ? "var(--color-warning)" : "var(--color-text-muted)" }} />
                   </IconButton>
                 ) : (
                   <span style={{ width: 28, flex: "none" }} aria-hidden="true" />
@@ -426,6 +472,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
                 <b className="truncate" title={p.label}>
                   {p.label}
                 </b>
+                {isDefault ? <Badge variant="warning">Default</Badge> : null}
                 {(p.state === "needs_sign_in" || p.state === "cli_missing") && signInRow ? (
                   <InfoTip content={PROVIDER_SIGN_IN_HINT[p.id]} label={`How to sign in to ${p.label}`} />
                 ) : null}
@@ -440,6 +487,7 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
               })()}
             </div>
             <div className="row item__controls" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+              {connected ? <ProviderModelPicker client={client} provider={p.id} label={p.label} /> : null}
               {codeFor === p.id ? (
                 <span className="row" style={{ gap: 6, flexWrap: "nowrap", minWidth: 0 }}>
                   <input
@@ -506,7 +554,20 @@ function ProviderAccounts({ client }: { client: CoreClient }) {
   );
 }
 
-const HIDDEN_SETTINGS = new Set(["models.provider", "models.chatgpt_model", "models.openrouter_model", "models.grok_model"]);
+// Chosen on the provider rows above (star, model list), so not repeated here: one place each.
+const HIDDEN_SETTINGS = new Set([
+  "models.provider",
+  "models.claude_model",
+  "models.codex_model",
+  "models.chatgpt_model",
+  "models.openrouter_model",
+  "models.grok_model",
+  "models.assistant",
+  "models.planner",
+  "models.builder_new",
+  "models.builder_change",
+  "models.app",
+]);
 
 /** Every setting Core exposes, grouped, editable in place; a change is saved as it is made.
  *  `only`, when given, renders just those groups (the section a Settings tab owns); omitted
@@ -553,11 +614,11 @@ function ConfigurableSettings({ client, only, exclude }: { client: CoreClient; o
           <div className="item">
             <div className="item__body">
               <b>
-                {group}
+                {group === "Models" ? "Thinking" : group}
                 <InfoTip
                   content={
                     group === "Models"
-                      ? "Which provider Alpha uses, and which Claude model each stage uses. Changes apply to the next request or build."
+                      ? "How long the model thinks at each step. The provider and its model are chosen on the rows above. Changes apply to the next request or build."
                       : group === "Look"
                         ? "How every project is drawn, and rules Alpha follows when it builds or changes one."
                         : "How a build runs, and how much it may spend before it is stopped."

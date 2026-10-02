@@ -32,6 +32,7 @@ from alpha.assistant.acting import ActService
 from alpha.assistant.research import Researcher
 from alpha.assistant.service import AssistantService
 from alpha.assistant.sessions import SessionService
+from alpha.bugs import BugLog
 from alpha.builds.preview import PreviewDeps
 from alpha.builds.service import BuildPipeline, BuildService
 from alpha.builds.toolchain import PlatformResources, UiToolchain
@@ -45,7 +46,7 @@ from alpha.context.connections import ConnectionService
 from alpha.context.onboarding import OnboardingService
 from alpha.context.pack import ContextPacker
 from alpha.context.profile import ProfileService
-from alpha.context.projects import ProjectService
+from alpha.context.projects import ProjectService, brief_markdown
 from alpha.context.review import ReviewService
 from alpha.context.skills import SkillService
 from alpha.data.store import RecordService
@@ -137,7 +138,8 @@ def build(
     assert connections is not None
     platform.registry.on_current_changed = connections.sync
     connections.sync_all()
-    projects = ProjectService(store)
+    projects = ProjectService(store, settings.data_dir / "projects")
+    bugs = BugLog(settings.data_dir / "bugs.md")
     packer = ContextPacker(profile, platform.registry, platform.records, store, projects=projects)
     review = ReviewService(
         store, gateway, inference, default_route=settings.assistant_route, context=packer.build
@@ -166,6 +168,8 @@ def build(
         sdk_reference=resources.sdk_reference if resources else None,
     )
     assistant.on_quick_change = creations.start
+    assistant.bugs = bugs
+    creations.bugs = bugs
     stalled = assistant.reconcile_on_startup()
     if stalled:
         log.warning(
@@ -221,6 +225,20 @@ def build(
             log.info("filed %s under project %s", app_id, project_id)
 
     creations.on_made = file_made_module
+
+    def keep_plan(conversation_id: str) -> None:
+        """A brief made in a project's session is that project's plan.md."""
+        record = assistant.get(conversation_id)
+        session_id = sessions.session_of_conversation(conversation_id) or record.session_id
+        if not session_id:
+            return
+        project_id = sessions.get(session_id, window=0).project_id
+        if project_id and record.current_brief is not None:
+            projects.write_file(
+                project_id, "plan.md", brief_markdown(record.current_brief, record.data_notice)
+            )
+
+    assistant.on_brief = keep_plan
     platform.purge = ModulePurge(
         store,
         registry=platform.registry,
@@ -264,6 +282,7 @@ def build(
         browser=platform.browser,
         preferences=preferences,
     )
+    acting.bugs = bugs
     app = create_app(
         settings,
         store,
@@ -289,6 +308,7 @@ def build(
         projects=projects,
         sessions=sessions,
         model_accounts=model_accounts,
+        bugs=bugs,
     )
     app.state.repair = repair
     review.start_if_due()

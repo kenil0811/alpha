@@ -195,19 +195,12 @@ class StructuredInference:
         # ponytail: follows the default provider, not a per-session + Advanced choice of Claude
         # API; carry the account on ModelRoute if sessions need to pick it on their own.
         prefs = self._gateway.preferences
-        api_key = None
-        if prefs is not None and prefs.get("models.provider") == "claude_api":
-            api_key = keychain.get_key("claude_api") or os.environ.get("ANTHROPIC_API_KEY")
-        elif prefs is None:
+        if prefs is None:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if api_key:
-            env["ANTHROPIC_API_KEY"] = api_key
-        elif prefs is not None:
-            # Signed in through Alpha (Settings -> Models -> Sign in): hand the CLI that token,
-            # which wins over whatever the CLI's own login holds.
-            oauth_token = claude_oauth.access_token()
-            if oauth_token:
-                env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
+            if api_key:
+                env["ANTHROPIC_API_KEY"] = api_key
+        else:
+            env.update(claude_oauth.cli_auth_env(claude_oauth.auth_mode(prefs.get("models.provider"))))
         argv = [
             self._binary,
             "-p",
@@ -272,10 +265,16 @@ class StructuredInference:
         usage = self._usage(result)
         self._gateway.record_usage(route.route_id, scope_kind, scope_ref, usage)
         text = str(result.get("result", ""))
-        if "Not logged in" in text:
+        from alpha.builds.harness_claude_cli import is_auth_failure
+        from alpha.models.accounts import note_refused, note_working
+
+        if is_auth_failure(text):
+            # Not signed in, or the organization refuses Claude Code: Settings shows it red.
+            note_refused("claude", text)
             raise InferenceError("cli_not_logged_in", text[:200])
         if result.get("is_error"):
             raise InferenceError("cli_error", text[:300])
+        note_working("claude")
         output = result.get("structured_output")
         if not isinstance(output, dict):
             raise InferenceError(

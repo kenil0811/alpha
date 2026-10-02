@@ -227,6 +227,7 @@ def create_app(
     projects: Any | None = None,
     sessions: Any | None = None,
     model_accounts: ModelAccounts | None = None,
+    bugs: Any | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Alpha Core", version=__version__, docs_url=None, redoc_url=None)
     app.state.platform = platform
@@ -254,7 +255,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(settings.allowed_origins),
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["authorization", "content-type"],
         allow_credentials=False,
         max_age=600,
@@ -335,7 +336,7 @@ def create_app(
     if acting is not None:
         register_act_routes(app, acting)
     if acting is not None and projects is not None and sessions is not None:
-        register_session_routes(app, projects, sessions, acting, profile)
+        register_session_routes(app, projects, sessions, acting, profile, bugs)
     if profile is not None:
         register_profile_routes(app, profile, onboarding, review)
     if connections is not None:

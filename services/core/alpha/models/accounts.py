@@ -4,6 +4,7 @@ a tiny live test per provider. Never returns a saved key to the caller, only its
 
 from __future__ import annotations
 
+import json
 import os
 import pwd
 import shutil
@@ -15,12 +16,38 @@ from typing import Any
 
 from alpha.models import claude_oauth, keychain
 from alpha.models.preferences import Preferences
-from alpha.models.providers import ProviderHTTPError, probe
+from alpha.models.providers import ProviderHTTPError, list_models, probe
 
 # A cached live-test result is reused for this long before Core probes the provider again.
 STATUS_CACHE_SECONDS = 60.0
 
 # States that mean "nothing to probe" - the dot is grey without spending a network/CLI call.
+# provider -> what it said when a real call was refused (e.g. Claude's organization turned off
+# subscription access for Claude Code). `auth status` still says "logged in" then, so without
+# this the row stayed green while every call failed. Cleared by a call that works, a new
+# sign-in or a reconnect.
+_REFUSED: dict[str, str] = {}
+_REFUSED_LOCK = threading.Lock()
+
+# The model route each sign-in row drives, to name the row a refused route belongs to.
+ROUTE_ACCOUNT = {"claude-code-cli": "claude", "chatgpt-codex-cli": "chatgpt"}
+
+
+def note_refused(provider: str, said: str) -> None:
+    with _REFUSED_LOCK:
+        _REFUSED[provider] = " ".join(said.split())[:200]
+
+
+def note_working(provider: str) -> None:
+    with _REFUSED_LOCK:
+        _REFUSED.pop(provider, None)
+
+
+def refused(provider: str) -> str | None:
+    with _REFUSED_LOCK:
+        return _REFUSED.get(provider)
+
+
 _NOT_CONNECTED_STATES = {"needs_sign_in", "needs_key", "cli_missing", "not_configured"}
 
 PROVIDER_STATE_LABEL: dict[str, str] = {
@@ -61,6 +88,39 @@ INSTALL_SECONDS = 300.0
 SIGN_IN_SECONDS = 300.0
 
 
+# Settings -> Models `models.provider` value -> the account row it means (the "default" star).
+PROVIDER_PREF_TO_ACCOUNT: dict[str, str] = {
+    "claude": "claude",
+    "claude_api": "claude_api",
+    "chatgpt_codex": "chatgpt",
+    "chatgpt_api": "chatgpt_api",
+    "openrouter": "openrouter",
+    "grok": "grok",
+}
+# account -> the preference holding its selected model. Claude's is the new-build stage's (the
+# per-stage choices stay in Settings; this is the one the model picker shows and sets).
+MODEL_PREFERENCE: dict[str, str] = {
+    "claude": "models.claude_model",
+    "claude_api": "models.claude_model",
+    "chatgpt": "models.codex_model",
+    "chatgpt_api": "models.chatgpt_model",
+    "openrouter": "models.openrouter_model",
+    "grok": "models.grok_model",
+}
+CLAUDE_MODELS = [
+    {"id": "opus", "label": "Claude Opus"},
+    {"id": "sonnet", "label": "Claude Sonnet"},
+    {"id": "haiku", "label": "Claude Haiku"},
+]
+# ponytail: static, used only when Codex's own models cache (~/.codex/models_cache.json, what
+# `codex` lists in its /model picker) can't be read; update when Codex's line-up changes.
+CODEX_MODELS = [{"id": "gpt-5.5", "label": "GPT-5.5"}]
+MODELS_CACHE_SECONDS = 600.0
+# OpenAI's /models lists every model (embeddings, speech, images); keep the chat ones.
+_OPENAI_CHAT_PREFIXES = ("gpt-", "o1", "o3", "o4", "chatgpt-")
+_OPENAI_NOT_CHAT = ("audio", "realtime", "tts", "transcribe", "image", "embedding", "search")
+
+
 class UnknownProvider(Exception):
     pass
 
@@ -89,6 +149,8 @@ class ModelAccounts:
         # A background `npm install` of a CLI, and whether the last one failed.
         self._installs: dict[str, subprocess.Popen[bytes]] = {}
         self._install_failed: set[str] = set()
+        # provider -> (monotonic time fetched, its /models list); successes only.
+        self._models_cache: dict[str, tuple[float, list[dict[str, str]]]] = {}
         self._lock = threading.Lock()
 
     def _spec(self, provider: str) -> dict[str, Any]:
@@ -98,7 +160,78 @@ class ModelAccounts:
         return spec
 
     def list_providers(self) -> list[dict[str, Any]]:
-        return [self._describe(pid) for pid in PROVIDERS]
+        """Every row; `default` marks the one `models.provider` resolves to (Claude when unset)."""
+        chosen = self._prefs.get("models.provider") if self._prefs is not None else "claude"
+        default = PROVIDER_PREF_TO_ACCOUNT.get(str(chosen), "claude")
+        return [{**self._describe(pid), "default": pid == default} for pid in PROVIDERS]
+
+    # ----- models per provider -----------------------------------------------------------
+
+    def models(self, provider: str) -> dict[str, Any]:
+        """The models the provider offers and the one selected for it. Never raises for a
+        provider that can't be reached: its list is just empty."""
+        spec = self._spec(provider)
+        if provider in ("claude", "claude_api"):
+            listed = CLAUDE_MODELS
+        elif provider == "chatgpt":
+            listed = self._codex_models() or CODEX_MODELS
+        else:
+            listed = self._fetched_models(provider, spec["base_url"])
+        pref = MODEL_PREFERENCE.get(provider)
+        selected = self._prefs.get(pref) if pref and self._prefs is not None else None
+        return {"models": listed, "selected": selected if selected not in ("", "default") else None}
+
+    def select_model(self, provider: str, model: str) -> dict[str, Any]:
+        """Save the provider's selected model (its MODEL_PREFERENCE)."""
+        self._spec(provider)
+        pref = MODEL_PREFERENCE.get(provider)
+        if pref is None or self._prefs is None:
+            raise SignInUnavailable(f"{PROVIDERS[provider]['label']} has no model to choose yet")
+        self._prefs.update({pref: model})  # InvalidSetting for a value the setting refuses
+        return self.models(provider)
+
+    def _codex_models(self) -> list[dict[str, str]]:
+        """The models the Codex CLI itself lists (its cache of what this account may use)."""
+        try:
+            cache = json.loads(
+                (Path(self._env["HOME"]) / ".codex" / "models_cache.json").read_text()
+            )
+            listed = sorted(
+                (m for m in cache.get("models", []) if m.get("visibility") == "list"),
+                key=lambda m: m.get("priority", 0),
+            )
+        except (OSError, ValueError, AttributeError):
+            return []
+        return [
+            {"id": str(m["slug"]), "label": str(m.get("display_name") or m["slug"])}
+            for m in listed
+            if m.get("slug")
+        ]
+
+    def _fetched_models(self, provider: str, base_url: str | None) -> list[dict[str, str]]:
+        cached = self._models_cache.get(provider)
+        if cached is not None and time.monotonic() - cached[0] < MODELS_CACHE_SECONDS:
+            return cached[1]
+        key = keychain.get_key(provider)
+        if not base_url or (not key and provider != "openrouter"):
+            return []
+        try:
+            raw = list_models(base_url, key, timeout=5)
+        except (ProviderHTTPError, OSError, ValueError):
+            return []
+        if provider == "chatgpt_api":
+            raw = [
+                m
+                for m in raw
+                if str(m["id"]).startswith(_OPENAI_CHAT_PREFIXES)
+                and not any(word in str(m["id"]) for word in _OPENAI_NOT_CHAT)
+            ]
+        listed = sorted(
+            ({"id": str(m["id"]), "label": str(m.get("name") or m["id"])} for m in raw),
+            key=lambda m: m["label"].lower(),
+        )
+        self._models_cache[provider] = (time.monotonic(), listed)
+        return listed
 
     def _cli_signed_in(self, provider: str, binary: str) -> bool | None:
         """True/False when the CLI can say so, None when the CLI isn't installed or the check
@@ -148,6 +281,13 @@ class ModelAccounts:
     def _cached_test(self, provider: str) -> dict[str, Any]:
         """test_connection(), reused for STATUS_CACHE_SECONDS so opening Settings repeatedly
         (or every provider row redrawing) doesn't re-probe a CLI or hit a provider's API."""
+        said = refused(provider)
+        if said:
+            return {
+                "ok": False,
+                "message": f"Refused: {said} Reconnect to sign in with another account or "
+                "organization, or choose another model.",
+            }
         now = time.monotonic()
         cached = self._status_cache.get(provider)
         if cached is not None and now - cached[0] < STATUS_CACHE_SECONDS:
@@ -183,6 +323,7 @@ class ModelAccounts:
         sign-in (or asks for a key) straight away."""
         spec = self._spec(provider)
         self._status_cache.pop(provider, None)
+        note_working(provider)
         if spec["base_url"] is not None and keychain.last4(provider):
             keychain.delete_key(provider)
         if provider == "claude":
@@ -203,6 +344,7 @@ class ModelAccounts:
         SIGN_IN_SECONDS. The caller polls list_providers() to see it land."""
         spec = self._spec(provider)
         self._status_cache.pop(provider, None)
+        note_working(provider)
         if provider == "claude":
             claude_oauth.open_in_browser(claude_oauth.authorize_url())
             return {**self._describe(provider), "needs_code": True}

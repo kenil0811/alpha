@@ -147,6 +147,26 @@ FIELDS: tuple[SettingField, ...] = (
         maximum=100,
     ),
     SettingField(
+        "models.claude_model",
+        "Models",
+        "Claude model",
+        "The Claude model every stage uses, chosen on the Claude row in Settings -> Models; "
+        "default keeps each stage's own model (Sonnet for quick steps, the best for building).",
+        "choice",
+        "default",
+        MODEL_OPTIONS,
+    ),
+    SettingField(
+        "models.codex_model",
+        "Models",
+        "ChatGPT model (signed in with Codex)",
+        "The Codex model id to use when ChatGPT is signed in with Codex; empty uses Codex's own "
+        "default.",
+        "text",
+        "",
+        maximum=100,
+    ),
+    SettingField(
         "models.openrouter_model",
         "Models",
         "OpenRouter model",

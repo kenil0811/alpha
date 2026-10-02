@@ -169,6 +169,9 @@ class Session(BaseModel):
     created_at: str
     updated_at: str
     archived_at: str | None = None
+    # The + menu's model choice ({provider, model}) last made in this session; every later
+    # message, and everything those start, runs on it until the person picks another.
+    model: dict[str, Any] | None = None
 
 
 class SessionSummary(BaseModel):
@@ -207,6 +210,7 @@ class SessionService:
         self._lock = threading.Lock()
         self._compacting: set[str] = set()
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("sessions", {"model_json": "TEXT"})
         self._import_act_turns()
 
     def bind_outcome(self, outcome: Callable[[SessionTurn], str | None]) -> None:
@@ -255,7 +259,16 @@ class SessionService:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             archived_at=row["archived_at"],
+            model=json.loads(row["model_json"]) if row["model_json"] else None,
         )
+
+    def set_model(self, session_id: str, model: dict[str, Any]) -> None:
+        """Keep the + menu's model choice on the session (see Session.model)."""
+        with self._store.transaction() as conn:
+            conn.execute(
+                "UPDATE sessions SET model_json = ? WHERE session_id = ?",
+                (json.dumps(model, sort_keys=True), session_id),
+            )
 
     def list_sessions(
         self,

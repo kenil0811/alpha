@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Home as HomeIcon, Settings as SettingsIcon, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, Folder, FileUp, Trash2, type LucideIcon } from "lucide-react";
+import { Home as HomeIcon, Settings as SettingsIcon, Boxes, MoreVertical, Sparkles, UserRound, FolderPlus, FileUp, Trash2, type LucideIcon } from "lucide-react";
 import type { AppSummary, CoreClient, Project } from "../core/client";
 import { isSessionsClient, isWorkflowsClient } from "../core/client";
 import { Tooltip } from "../ui/Tooltip";
@@ -9,6 +9,8 @@ import { Dialog, DialogContent } from "../ui/Dialog";
 import { useToast } from "../ui/toast";
 import { moduleFilename, saveExportedModule } from "../modules/exportModule";
 import { isAlphaModuleFile } from "../modules/alphaModuleAttachment";
+import { ProjectEditDialog, ProjectMenuItems, type ProjectEdit } from "./ProjectMenu";
+import { projectIcon } from "./projectIcons";
 
 /** Route paths the rail links to. Kept as a small helper rather than a routing dependency here,
  *  so Rail stays a plain component the App wires to react-router (it calls `navigate`/reads
@@ -136,6 +138,7 @@ export function Rail({
   onModuleRemoved,
   onModuleImported,
   onProjectRemoved,
+  onProjectChanged,
 }: {
   surface: Surface;
   modules: AppSummary[];
@@ -153,13 +156,15 @@ export function Rail({
   onModuleRemoved?: (appId: string) => void;
   onModuleImported?: (appId: string) => void;
   onProjectRemoved?: (projectId: string) => void;
+  /** A project was renamed or given a new icon from its menu. */
+  onProjectChanged?: (project: Project) => void;
 }) {
   const collapsed = panel.collapsed;
   const { visible, hiddenCount, reorder, hide, showAll } = useModuleOrdering(modules);
   const dragId = useRef<string | null>(null);
   const toast = useToast();
   const [deleting, setDeleting] = useState<AppSummary | null>(null);
-  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [editing, setEditing] = useState<{ project: Project; edit: ProjectEdit } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   // Controlled so a right-click can open the same menu the ⋯ button does.
@@ -194,23 +199,6 @@ export function Rail({
     }
   }, [client, deleting, onModuleRemoved]);
 
-  // Core keeps no hard delete for a project: archiving takes it out of every list, and its sub
-  // projects go back to the top level with nothing of theirs lost.
-  const confirmDeleteProject = useCallback(async () => {
-    if (!deletingProject || !client || !isSessionsClient(client)) return;
-    setDeleteBusy(true);
-    setDeleteError(null);
-    try {
-      await client.updateProject(deletingProject.project_id, { archived: true });
-      onProjectRemoved?.(deletingProject.project_id);
-      setDeletingProject(null);
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "Couldn't delete this project.");
-    } finally {
-      setDeleteBusy(false);
-    }
-  }, [client, deletingProject, onProjectRemoved]);
-
   const projectRow = (p: Project) => {
     const target: Surface = { kind: "project", projectId: p.project_id };
     const menuId = `project:${p.project_id}`;
@@ -222,7 +210,7 @@ export function Rail({
           setOpenMenuFor(menuId);
         }}
       >
-        {item(target, Folder, p.name, "navrow__main")}
+        {item(target, projectIcon(p.icon), p.name, "navrow__main")}
         {!collapsed && client && isSessionsClient(client) ? (
           <DropdownMenu open={openMenuFor === menuId} onOpenChange={(open) => setOpenMenuFor(open ? menuId : null)}>
             <DropdownMenuTrigger asChild>
@@ -232,15 +220,7 @@ export function Rail({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={() => onGo(target)}>Open</DropdownMenuItem>
-              <DropdownMenuItem
-                className="ui-menu__item--danger"
-                onSelect={() => {
-                  setDeleteError(null);
-                  setDeletingProject(p);
-                }}
-              >
-                <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Delete
-              </DropdownMenuItem>
+              <ProjectMenuItems onPick={(edit) => setEditing({ project: p, edit })} />
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -477,26 +457,16 @@ export function Rail({
           </DialogContent>
         ) : null}
       </Dialog>
-      <Dialog open={deletingProject !== null} onOpenChange={(open) => !open && setDeletingProject(null)}>
-        {deletingProject ? (
-          <DialogContent title={`Delete ${deletingProject.name}?`}>
-            <p className="panel__hint">Removes the project from Alpha. Its sub projects move back to the top level.</p>
-            {deleteError ? (
-              <p className="notice" role="alert">
-                {deleteError}
-              </p>
-            ) : null}
-            <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" className="btn btn--sm" disabled={deleteBusy} onClick={() => setDeletingProject(null)}>
-                Cancel
-              </button>
-              <button type="button" className="btn btn--sm btn--danger" disabled={deleteBusy} onClick={() => void confirmDeleteProject()}>
-                Delete
-              </button>
-            </div>
-          </DialogContent>
-        ) : null}
-      </Dialog>
+      {client && isSessionsClient(client) ? (
+        <ProjectEditDialog
+          client={client}
+          project={editing?.project ?? null}
+          edit={editing?.edit ?? null}
+          onClose={() => setEditing(null)}
+          onChanged={onProjectChanged}
+          onDeleted={onProjectRemoved}
+        />
+      ) : null}
     </nav>
   );
 }

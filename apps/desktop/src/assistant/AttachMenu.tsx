@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
   IconButton,
 } from "../ui";
-import { isModelAccountsClient, type ModelProviderAccount } from "../core/client";
+import { isModelAccountsClient, type ModelProviderAccount, type ProviderModel } from "../core/client";
 import { ACCESS_MODE_COPY, ACCESS_MODES, useAdvanced, type AccessMode, type ModelChoice } from "./advanced";
 import { type PendingAttachment, pickAudioFile, pickFilesOrImages, pickFolder, sizeLabel, unclaimed } from "./attachments";
 import "./attach.css";
@@ -43,6 +43,7 @@ const SESSION_ACCOUNTS = new Set(["claude", "chatgpt", "chatgpt_api", "openroute
  *  account-level methods are used, and only when the runtime actually offers them. */
 interface ModelAccountsLike {
   listModelAccounts(): Promise<ModelProviderAccount[]>;
+  listProviderModels?(provider: string): Promise<{ models: ProviderModel[]; selected: string | null }>;
 }
 
 
@@ -108,20 +109,46 @@ export function AttachMenu({
 
 function AdvancedMenu({ accessMode, onAccessModeChange, model, onModelChange, client }: AdvancedControls) {
   const [accounts, setAccounts] = useState<ModelProviderAccount[] | null>(null);
+  const [defaultId, setDefaultId] = useState<string | null>(null);
+  const [models, setModels] = useState<{ models: ProviderModel[]; selected: string | null } | null>(null);
+  const accountsClient = isModelAccountsClient(client) ? (client as ModelAccountsLike) : null;
   useEffect(() => {
-    const accountsClient = isModelAccountsClient(client) ? (client as ModelAccountsLike) : null;
     if (!accountsClient) return;
     let cancelled = false;
     accountsClient
       .listModelAccounts()
-      // Only accounts Core can route a single session to (gateway ACCOUNT_TO_ROUTE_ID); Claude
-      // API and Groq are reachable only as the default provider.
-      .then((list) => !cancelled && setAccounts(list.filter((a) => SESSION_ACCOUNTS.has(a.id))))
+      .then((list) => {
+        if (cancelled) return;
+        setDefaultId(list.find((a) => a.default)?.id ?? null);
+        // Only accounts Core can route a single session to (gateway ACCOUNT_TO_ROUTE_ID); Claude
+        // API and Groq are reachable only as the default provider.
+        setAccounts(list.filter((a) => SESSION_ACCOUNTS.has(a.id)));
+      })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
+
+  // The provider this message goes to: the per-request choice, else the default.
+  const activeProvider = model?.provider ?? defaultId;
+  const activeAccount = accounts?.find((a) => a.id === activeProvider) ?? null;
+  useEffect(() => {
+    setModels(null);
+    if (!activeProvider || !accountsClient?.listProviderModels) return;
+    let cancelled = false;
+    accountsClient
+      .listProviderModels(activeProvider)
+      .then((page) => !cancelled && setModels(page))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, activeProvider]);
+  const currentModel = (model?.provider === activeProvider ? model?.model : undefined) ?? models?.selected ?? null;
+  const currentModelLabel = models?.models.find((m) => m.id === currentModel)?.label;
 
   function chooseFull() {
     if (window.confirm("Full access lets Alpha use the internet and edit any file on this computer without asking first. Continue?")) {
@@ -134,13 +161,37 @@ function AdvancedMenu({ accessMode, onAccessModeChange, model, onModelChange, cl
       {accounts?.length ? (
         <>
           <DropdownMenuLabel>Model</DropdownMenuLabel>
-          {accounts.map((account) => (
-            <DropdownMenuItem key={account.id} onSelect={() => onModelChange(model?.provider === account.id ? null : { provider: account.id })}>
-              <span className={`ui-menu__dot ui-menu__dot--${account.dot.color}`} title={account.dot.tooltip} aria-hidden="true" />
-              <span className="ui-menu__body">{account.label}</span>
-              {model?.provider === account.id ? <Check size={14} aria-hidden="true" className="ui-menu__check" /> : <span className="ui-menu__check" />}
-            </DropdownMenuItem>
-          ))}
+          {accounts.map((account) => {
+            const ticked = account.id === activeProvider;
+            return (
+              <DropdownMenuItem key={account.id} onSelect={() => onModelChange(ticked || account.id === defaultId ? null : { provider: account.id })}>
+                <span className={`ui-menu__dot ui-menu__dot--${account.dot.color}`} title={account.dot.tooltip} aria-hidden="true" />
+                <span className="ui-menu__body truncate">
+                  {account.label}
+                  {account.id === defaultId ? " (default)" : ""}
+                </span>
+                {ticked ? <Check size={14} aria-hidden="true" className="ui-menu__check" /> : <span className="ui-menu__check" />}
+              </DropdownMenuItem>
+            );
+          })}
+          {activeAccount && models?.models.length ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <span className="ui-menu__check" />
+                <span className="ui-menu__body truncate">
+                  {activeAccount.label} model{currentModelLabel ? ` · ${currentModelLabel}` : ""}
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {models.models.map((m) => (
+                  <DropdownMenuItem key={m.id} onSelect={() => onModelChange({ provider: activeAccount.id, model: m.id })}>
+                    {m.id === currentModel ? <Check size={14} aria-hidden="true" className="ui-menu__check" /> : <span className="ui-menu__check" />}
+                    <span className="ui-menu__body truncate">{m.label}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ) : null}
           <DropdownMenuSeparator />
         </>
       ) : null}

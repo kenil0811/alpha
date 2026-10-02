@@ -10,8 +10,11 @@ clear; the goal is in the person's words.
 from __future__ import annotations
 
 import threading
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from alpha_contracts.briefs import SolutionBrief
 from pydantic import BaseModel
 
 from alpha.capabilities.errors import invalid, not_found
@@ -38,6 +41,33 @@ CREATE INDEX IF NOT EXISTS project_modules_project ON project_modules(project_id
 MAX_NAME = 80
 MAX_GOAL = 600
 MAX_SUMMARY = 4000
+UNTITLED = "Untitled project"
+
+# The icons a project may show (lucide names the shell draws).
+PROJECT_ICONS = (
+    "folder",
+    "briefcase",
+    "notebook-pen",
+    "calendar",
+    "users",
+    "chart-line",
+    "mail",
+    "list-checks",
+    "graduation-cap",
+    "heart-pulse",
+    "wallet",
+    "shopping-cart",
+    "plane",
+    "house",
+    "code",
+    "megaphone",
+    "book-open",
+    "sparkles",
+    "sticky-note",
+    "target",
+)
+# The files Alpha keeps for a project: its plan and the bugs found while making it.
+PROJECT_FILES = ("plan.md", "bugs.md")
 
 
 def _now() -> str:
@@ -50,6 +80,7 @@ class Project(BaseModel):
     goal: str | None = None
     # Alpha's notes on the project, kept up to date from its sessions; editable by the person.
     summary: str | None = None
+    icon: str | None = None
     modules: list[str]
     created_at: str
     updated_at: str
@@ -57,10 +88,13 @@ class Project(BaseModel):
 
 
 class ProjectService:
-    def __init__(self, store: ControlStore) -> None:
+    def __init__(self, store: ControlStore, files_root: Path | None = None) -> None:
         self._store = store
+        # Where each project's files live (one folder per project); None keeps no files.
+        self._files_root = files_root
         self._lock = threading.Lock()
         store.execute_script(_SCHEMA)
+        store.add_missing_columns("projects", {"icon": "TEXT"})
 
     # ----- reading -----------------------------------------------------------------------
 
@@ -118,6 +152,7 @@ class ProjectService:
         name: str | None = None,
         goal: str | None = None,
         summary: str | None = None,
+        icon: str | None = None,
         archived: bool | None = None,
     ) -> Project:
         self.get(project_id)
@@ -135,6 +170,11 @@ class ProjectService:
         if summary is not None:
             sets.append("summary = ?")
             values.append(_clip(summary, MAX_SUMMARY))
+        if icon is not None:
+            if icon not in PROJECT_ICONS:
+                raise invalid("unknown project icon", icon=icon)
+            sets.append("icon = ?")
+            values.append(icon)
         if archived is not None:
             sets.append("archived_at = ?")
             values.append(_now() if archived else None)
@@ -159,6 +199,35 @@ class ProjectService:
                     (app_id, project_id, _now()),
                 )
 
+    # ----- files -------------------------------------------------------------------------
+
+    def read_file(self, project_id: str, name: str) -> dict[str, Any] | None:
+        """One of the project's files ({name, text, updated_at}), or None when it is absent."""
+        path = self._file_path(project_id, name)
+        if path is None or not path.is_file():
+            return None
+        updated = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+        return {
+            "name": name,
+            "text": path.read_text(encoding="utf-8"),
+            "updated_at": updated.isoformat().replace("+00:00", "Z"),
+        }
+
+    def write_file(self, project_id: str, name: str, text: str) -> None:
+        path = self._file_path(project_id, name)
+        if path is None:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+
+    def _file_path(self, project_id: str, name: str) -> Path | None:
+        if name not in PROJECT_FILES:
+            raise invalid("unknown project file", name=name)
+        self.get(project_id)  # an unknown project is not_found; its id is then a safe folder name
+        return self._files_root / project_id / name if self._files_root else None
+
     # ----- pieces ------------------------------------------------------------------------
 
     def _modules_by_project(self) -> dict[str, list[str]]:
@@ -175,6 +244,7 @@ class ProjectService:
             name=row["name"],
             goal=row["goal"],
             summary=row["summary"],
+            icon=row["icon"] if "icon" in row.keys() else None,
             modules=modules,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -187,3 +257,68 @@ def _clip(text: str | None, limit: int) -> str | None:
         return None
     clean = text.strip()
     return clean[:limit] if clean else None
+
+
+# The shell's words for a capability family (apps/desktop/src/assistant/plain.ts).
+_CAPABILITY_LABELS = {
+    "compute": "calculations on what you type",
+    "records": "keeping your entries and history",
+    "artifacts": "producing files",
+    "models": "estimates and classification",
+    "custom_ui": "its own screen",
+    "files": "reading your files",
+    "http": "reading websites and services",
+    "browser": "working inside websites",
+    "profile": "what Alpha knows about you",
+    "messaging": "sending messages",
+    "schedules": "running on a schedule",
+    "audio": "audio",
+}
+_FIELD_KINDS = {
+    "number": "a number",
+    "boolean": "yes/no",
+    "date": "a date",
+    "datetime": "a date and time",
+    "choice": "one of a few choices",
+    "reference": "a link to another entry",
+    "json": "structured details",
+}
+_SOURCES = {
+    "model_default": "default",
+    "user_answer": "you chose",
+    "user_correction": "you corrected",
+}
+
+
+def brief_markdown(brief: SolutionBrief, data_notice: str | None = None) -> str:
+    """The project's plan.md: the brief, as the person reads it on the brief card."""
+    out = [f"# {brief.goal}", "", brief.success_summary, ""]
+    if brief.primary_journey:
+        out.append("## How you'll use it")
+        out += [
+            f"{i}. {s.action}: {s.expected_result}" for i, s in enumerate(brief.primary_journey, 1)
+        ]
+        out.append("")
+    if brief.data_needs:
+        out.append("## What it keeps")
+        for need in brief.data_needs:
+            fields = ", ".join(
+                f"{f.name.replace('_', ' ')} ({_FIELD_KINDS.get(f.kind, f.kind)})"
+                for f in need.fields
+            )
+            out.append(f"- {need.collection.replace('_', ' ')}: {fields}")
+        out.append("")
+    if brief.assumptions:
+        out.append("## Assumptions you can change")
+        out += [f"- {a.text} ({_SOURCES.get(a.source, a.source)})" for a in brief.assumptions]
+        out.append("")
+    if brief.unavailable_capabilities:
+        out.append("## Not possible yet")
+        out += [
+            f"- {_CAPABILITY_LABELS.get(c, c.replace('_', ' '))}"
+            for c in brief.unavailable_capabilities
+        ]
+        out.append("")
+    if data_notice:
+        out += ["## Where your data goes", data_notice, ""]
+    return "\n".join(out)

@@ -49,7 +49,7 @@ from alpha.builds.quick_edit import (
 from alpha.builds.service import BuildNotReady, BuildService
 from alpha.builds.store import BuildRecord
 from alpha.capabilities.errors import OperationFailed
-from alpha.models.gateway import ModelGateway
+from alpha.models.gateway import ModelGateway, RouteUnavailable, route_with_choice
 from alpha.solutions.conventions import DEFAULT_CONVENTIONS
 from alpha.solutions.planner import (
     AcceptancePlanner,
@@ -283,6 +283,9 @@ def build_instructions(
     return "\n".join(lines)
 
 
+_NOT_BUGS = {"core_restarted", "handed_over", "needs_full_build", "nothing_to_change"}
+
+
 class CreationService:
     def __init__(
         self,
@@ -316,6 +319,8 @@ class CreationService:
         # Called when a module is made (app_id, conversation_id): main files it under the
         # project of the session it was asked for in.
         self.on_made: Callable[[str, str], None] | None = None
+        # Set by main: Alpha's own bug log, told about each creation that ends failed.
+        self.bugs: Any | None = None
         store.execute_script(_SCHEMA)
         store.add_missing_columns("creations", {"change_of": "TEXT", "result_json": "TEXT"})
 
@@ -372,6 +377,19 @@ class CreationService:
             daemon=True,
         ).start()
         return self.get(creation_id)
+
+    def _choice(self, creation_id: str) -> dict[str, Any] | None:
+        """The model choice of the conversation this creation came from (ConversationRecord.
+        model), so its planner and builder run where the request said; None: Settings."""
+        rows = self._store.query(
+            "SELECT conversation_id FROM creations WHERE creation_id = ?", (creation_id,)
+        )
+        if not rows:
+            return None
+        try:
+            return getattr(self._assistant.get(rows[0]["conversation_id"]), "model", None)
+        except Exception:  # a repair has no conversation
+            return None
 
     def _fast_lane(self) -> bool:
         prefs = getattr(self._gateway, "preferences", None)
@@ -543,6 +561,13 @@ class CreationService:
     def _run_quick(self, creation_id: str, app_id: str, request: str, mode: str = "change") -> None:
         try:
             self._quick_change(creation_id, app_id, request, mode=mode)
+        except RouteUnavailable as exc:  # the chosen model isn't usable here: say so plainly
+            self._finish(
+                creation_id,
+                "failed",
+                None,
+                {"reason": "model_unavailable", "message": str(exc), "next_step": "revise"},
+            )
         except Exception as exc:
             log.exception("quick change %s failed inside Core", creation_id)
             self._finish(
@@ -587,7 +612,9 @@ class CreationService:
         ):
             if path is not None and path.is_file():
                 references += f"\n\n===== {label} =====\n{path.read_text(encoding='utf-8')}"
-        route = self._gateway.route(self._routes.builder, stage="builder_change")
+        route = route_with_choice(
+            self._gateway, self._routes.builder, "builder_change", self._choice(creation_id)
+        )
         feedback = ""
         for attempt in (1, 2):
             if self._stopped(creation_id):
@@ -835,6 +862,18 @@ class CreationService:
     ) -> None:
         try:
             self._create(creation_id, brief, builder_hint, change_of)
+        except RouteUnavailable as exc:  # the chosen model can't plan or build: say so plainly
+            log.warning("creation %s has no usable model route: %s", creation_id, exc)
+            self._finish(
+                creation_id,
+                "failed",
+                None,
+                {
+                    "reason": "model_unavailable",
+                    "message": str(exc),
+                    "next_step": "revise",
+                },
+            )
         except Exception as exc:  # never leave a creation stuck
             log.exception("creation %s failed inside Core", creation_id)
             self._finish(
@@ -867,7 +906,11 @@ class CreationService:
             return
         try:
             planned = self._planner.plan(
-                brief, self._gateway.route(self._routes.planner, stage="planner"), creation_id
+                brief,
+                route_with_choice(
+                    self._gateway, self._routes.planner, "planner", self._choice(creation_id)
+                ),
+                creation_id,
             )
         except PlanningFailed as exc:
             self._finish(
@@ -918,6 +961,7 @@ class CreationService:
             )
             + self._look_rules(),
             route_id=self._routes.builder,
+            model=self._choice(creation_id),
             app_id=app_id,
             base_package=current.location if current is not None else None,
             fast_lane=self._fast_lane(),
@@ -1009,6 +1053,7 @@ class CreationService:
             )
             + self._look_rules(),
             route_id=self._routes.builder,
+            model=self._choice(creation_id),
             app_id=app_id,
             base_package=current.location if current is not None else None,
             plan_later=plan_later,
@@ -1037,8 +1082,10 @@ class CreationService:
                 )
 
         def run_planner() -> None:
-            route = self._gateway.route(self._routes.planner, stage="planner")
             try:
+                route = route_with_choice(
+                    self._gateway, self._routes.planner, "planner", self._choice(creation_id)
+                )
                 planned = self._planner.plan(brief, route, creation_id)
                 box["plan"] = planned.plan
                 save_plan(planned.plan, planned.source)
@@ -1153,7 +1200,22 @@ class CreationService:
             for c in (build.validation or {}).get("checks", [])
             if c.get("required", True) and c.get("status") != "passed"
         ][:3]
-        if build.failure_category == "dependency_unsupported":
+        if build.failure_category in ("harness_auth", "harness_unavailable"):
+            # The builder never ran, so the checks only looked at the untouched template.
+            failed_checks = []
+        if build.failure_category == "harness_auth":
+            # The builder's model refused this sign-in: trying again changes nothing.
+            from alpha.models.accounts import ROUTE_ACCOUNT, note_refused
+
+            account = ROUTE_ACCOUNT.get(build.route_id, "claude")
+            note_refused(account, "the builder's sign-in was refused.")
+            name = "ChatGPT" if account == "chatgpt" else "Claude"
+            message = (
+                f"{name} sign-in isn't available for this account. Reconnect it, or choose "
+                "another model, in Settings → Models."
+            )
+            next_step = "connect"
+        elif build.failure_category == "dependency_unsupported":
             message = (
                 "It needs a software package Alpha does not have yet, so it was not made. "
                 "Try describing it without that part."
@@ -1241,6 +1303,8 @@ class CreationService:
         failure: dict[str, Any] | None,
         result: dict[str, Any] | None = None,
     ) -> None:
+        if state == "failed" and failure:
+            self._record_bug(creation_id, failure)
         with self._store.transaction() as conn:
             self._finish_locked(conn, creation_id, state, activated, failure)
             if result is not None:
@@ -1258,6 +1322,29 @@ class CreationService:
                     self.on_made(str(rows[0]["app_id"]), str(rows[0]["conversation_id"]))
                 except Exception:
                     log.exception("on_made failed for %s", creation_id)
+
+    def _record_bug(self, creation_id: str, failure: dict[str, Any]) -> None:
+        """The stage it failed at and the short reason. A restart, a hand-over to the full path
+        or a request too big for a quick edit is not a bug."""
+        reason = str(failure.get("reason") or "failed")
+        if self.bugs is None or reason in _NOT_BUGS:
+            return
+        rows = self._store.query(
+            "SELECT state FROM creations WHERE creation_id = ?", (creation_id,)
+        )
+        stage = rows[0]["state"] if rows else "unknown"
+        if stage in TERMINAL:
+            return  # already finished; this call changes nothing
+        checks = "; ".join(str(c) for c in failure.get("failed_checks") or [])
+        summary = (
+            "model route refused sign-in"
+            if failure.get("category") == "harness_auth"
+            else f"{stage}: {reason}"
+        )
+        try:
+            self.bugs.record("build", summary, checks or str(failure.get("message") or ""))
+        except Exception:
+            log.exception("could not note the failure of %s", creation_id)
 
     def _finish_locked(
         self,

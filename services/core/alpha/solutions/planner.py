@@ -347,7 +347,8 @@ class AcceptancePlanner:
                 )
             except InferenceError as exc:
                 raise PlanningFailed(
-                    f"the checks could not be written: {str(exc)[:300]}", code=exc.code
+                    f"the checks could not be written: {(str(exc) or repr(exc))[:300]}",
+                    code=exc.code,
                 ) from None
             try:
                 draft = PlanDraft.model_validate(result.output)

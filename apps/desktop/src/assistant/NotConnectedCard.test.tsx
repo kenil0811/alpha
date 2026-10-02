@@ -5,7 +5,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FakeWorkflowsClient } from "../test/fakeWorkflows";
-import { NotConnectedCard } from "./NotConnectedCard";
+import { NotConnectedCard, shortReason } from "./NotConnectedCard";
 
 function signedOutClient() {
   const client = new FakeWorkflowsClient();
@@ -54,5 +54,19 @@ describe("NotConnectedCard", () => {
     expect(screen.getByRole("button", { name: "Sign in to Claude" })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 50));
     expect(client.signInCalls).toEqual([]);
+  });
+});
+
+describe("a failed reply says why", () => {
+  it("shows Core's short reason on one line, with Try again", () => {
+    render(<NotConnectedCard info={{ kind: "generic", provider: "chatgpt" }} client={{}} onResend={() => undefined} reason="I can't reach the model: it took too long to respond. Try again." />);
+    expect(screen.getByText("ChatGPT couldn't answer.")).toBeInTheDocument();
+    expect(screen.getByText("It took too long to respond. Try again.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("drops a reason that only says to try again", () => {
+    expect(shortReason("I can't reach the model right now. Try again in a moment.")).toBeNull();
+    expect(shortReason("I can't reach that model right now (no route). Pick one.")).toBe("No route. Pick one.");
   });
 });

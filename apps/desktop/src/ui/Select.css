@@ -1,7 +1,7 @@
 .ui-select-trigger {
   display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
   border: 1px solid var(--border); border-radius: var(--radius-button); padding: 7px 10px;
-  background: var(--surface); color: var(--text); font-size: var(--text-input); min-width: 120px;
+  background: var(--surface); color: var(--text); font-size: var(--text-md); min-width: 120px;
 }
 .ui-select-content {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);

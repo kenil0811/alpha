@@ -30,7 +30,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   background: var(--surface);
   color: var(--text);
 }
@@ -57,7 +57,7 @@
   color: var(--text-2);
   border-radius: 999px;
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .dv-chip button {
   border: none;
@@ -78,7 +78,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .dv-selectionbar {
@@ -89,14 +89,13 @@
   background: var(--surface-2);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .dv-table thead th {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
   color: var(--text-3);
   position: sticky;
   top: 0;
@@ -198,7 +197,7 @@
 .dv-gcard__row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--text-xs);
   margin-top: 4px;
 }
 
@@ -213,7 +212,7 @@
   min-height: 72px;
   background: var(--surface);
   padding: 4px;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .dv-calendar__event {
   background: var(--primary-soft);
@@ -222,7 +221,7 @@
   padding: 1px 4px;
   margin-top: 2px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .dv-peek__scrim {
@@ -246,5 +245,5 @@
   padding: 16px;
 }
 .dv-table td { position: relative; }
-.dv-open { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 500; opacity: 0; cursor: pointer; box-shadow: 0 1px 2px rgba(26, 43, 60, 0.08); }
+.dv-open { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-2); font-size: var(--text-xs); font-weight: 500; opacity: 0; cursor: pointer; box-shadow: 0 1px 2px rgba(26, 43, 60, 0.08); }
 .dv-row:hover .dv-open, .dv-open:focus-visible { opacity: 1; }

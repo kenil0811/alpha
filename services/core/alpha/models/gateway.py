@@ -118,6 +118,7 @@ PROVIDER_ROUTE_ID: dict[str, str] = {
 # For every non-Claude live route, the one preference holding the model id to use — there is no
 # per-stage choice for these the way Claude has opus/sonnet/haiku.
 MODEL_PREFERENCE_BY_ROUTE: dict[str, str] = {
+    "chatgpt-codex-cli": "models.codex_model",
     "chatgpt-api": "models.chatgpt_model",
     "openrouter": "models.openrouter_model",
     "grok": "models.grok_model",
@@ -138,6 +139,21 @@ ACCOUNT_TO_ROUTE_ID: dict[str, str] = {
 
 class RouteUnavailable(Exception):
     pass
+
+
+def route_with_choice(
+    gateway: Any, route_id: str, stage: str | None, choice: dict[str, Any] | None
+) -> ModelRoute:
+    """`gateway.route` for a stage, with a request's model choice (`{provider, model}`, the +
+    menu's picker, kept on the session/conversation it was made in) winning when there is one."""
+    if not choice or not choice.get("provider"):
+        return gateway.route(route_id, stage=stage)  # type: ignore[no-any-return]
+    return gateway.route(  # type: ignore[no-any-return]
+        route_id,
+        stage=stage,
+        account_override=str(choice["provider"]),
+        model_override=choice.get("model") or None,
+    )
 
 
 class ModelGateway:
@@ -225,7 +241,9 @@ class ModelGateway:
                     "(ALPHA_ENABLED_MODEL_ROUTES)"
                 )
             route = ROUTES[override_id]
-            return replace(route, model=str(model_override)) if model_override else route
+            if model_override:
+                return replace(route, model=str(model_override))
+            return self._chosen_model(route, stage)
         route = ROUTES.get(route_id)
         if route is None:
             raise RouteUnavailable(f"unknown model route {route_id!r}")
@@ -241,10 +259,17 @@ class ModelGateway:
             raise RouteUnavailable(
                 f"model route {route_id!r} is not enabled on this host (ALPHA_ENABLED_MODEL_ROUTES)"
             )
+        return self._chosen_model(route, stage)
+
+    def _chosen_model(self, route: ModelRoute, stage: str | None) -> ModelRoute:
+        """The route with the model the person chose for it in Settings, when it takes one."""
         if not (stage and self.preferences is not None and route.live):
             return route
         if route.route_id == "claude-code-cli":
-            chosen = self.preferences.get(f"models.{stage}")
+            # One Claude model picked on the Settings row wins; else each stage's own.
+            chosen = self.preferences.get("models.claude_model")
+            if not chosen or chosen == "default":
+                chosen = self.preferences.get(f"models.{stage}")
             if chosen and chosen != "default":
                 return replace(route, model=str(chosen))
             return route

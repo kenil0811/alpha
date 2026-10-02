@@ -77,7 +77,15 @@ from alpha.capabilities.errors import OperationFailed
 from alpha.data.packages import SealedPackage, load_source, sealed_manifest, verify_sealed
 from alpha.execution.profiles import ProfileInventory
 from alpha.execution.supervisor import WorkerHandle, WorkerSupervisor, process_alive
-from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models import claude_oauth
+from alpha.models.accounts import PROVIDERS
+from alpha.models.gateway import (
+    ACCOUNT_TO_ROUTE_ID,
+    ModelGateway,
+    ModelRoute,
+    RouteUnavailable,
+    route_with_choice,
+)
 from alpha.solutions.registry import ANY_RELEASE, Activation, AnyRelease, AppRegistry
 from alpha.storage.control_store import ConflictError, ControlStore, new_id, utc_now
 
@@ -134,6 +142,23 @@ _HARNESS_FAILURES = {
     "no_result": "builder_returned_no_result",
     "launch_failed": "builder_launch_failed",
 }
+
+
+# Harnesses the builder worker can run (alpha.workers.builder.select_harness). The key-based
+# routes (openai-http: ChatGPT API, OpenRouter, Grok) answer single calls but have no builder.
+BUILDER_HARNESSES = frozenset({"fake", "claude-code-cli", "codex-cli"})
+
+
+def builder_unavailable(route: ModelRoute) -> str:
+    """What the person reads when the model they chose can't build a project."""
+    label = next(
+        (PROVIDERS[a]["label"] for a, r in ACCOUNT_TO_ROUTE_ID.items() if r == route.route_id),
+        route.route_id,
+    )
+    return (
+        f"{label} can't build projects in Alpha yet; only Claude and ChatGPT (signed in with "
+        "Codex) can. Pick one of those in the + menu or Settings -> Models and try again."
+    )
 
 
 @dataclass(frozen=True)
@@ -196,6 +221,9 @@ class BuildService:
         # Builds verified on the brief's own examples because the full plan could not be
         # written; their full checks run later through `check_deferred(plan=...)`.
         self._preliminary: set[str] = set()
+        # The request's model choice per build, so a repair runs where the build did. In memory
+        # only: no build survives a restart (reconcile_on_startup).
+        self._choices: dict[str, dict[str, Any]] = {}
         # The one-builder queue. The condition shares self._lock.
         self._waiting: deque[_QueuedBuild] = deque()
         self._wakeup = threading.Condition(self._lock)
@@ -219,16 +247,24 @@ class BuildService:
         base_package: Path | None = None,
         plan_later: Callable[[float], ValidationPlan | None] | None = None,
         fast_lane: bool = False,
+        model: dict[str, Any] | None = None,
     ) -> BuildRecord:
         """Queue a build. `app_id`, when given, is the identity the platform assigned (the
         package must use it); otherwise the builder chooses one. `base_package` is the installed
         Version a change starts from: the first attempt's workspace begins as a writable copy
         of it, so the builder edits the App instead of writing it again. With `fast_lane`, a
         candidate Alpha draws itself is ready after its structural checks; its behaviour
-        checks run through `check_deferred` once it is switched on."""
-        route = self._gateway.route(
-            route_id, stage="builder_change" if base_package is not None else "builder_new"
+        checks run through `check_deferred` once it is switched on. `model` is the request's
+        model choice ({provider, model}); it wins over `route_id` and Settings for every attempt.
+        Raises RouteUnavailable when that route has no builder."""
+        route = route_with_choice(
+            self._gateway,
+            route_id,
+            "builder_change" if base_package is not None else "builder_new",
+            model,
         )
+        if route.harness not in BUILDER_HARNESSES:
+            raise RouteUnavailable(builder_unavailable(route))
         if base_package is not None and not (base_package / "app.yaml").is_file():
             raise SeedUnavailable(f"no installed package at {base_package}")
         budget = self._gateway.budget(route, max_cost_usd)
@@ -275,6 +311,8 @@ class BuildService:
         )
         if fast_lane:
             self._fast_lane.add(build_id)
+        if model:
+            self._choices[build_id] = model
         if plan_later is not None:
             # The builder starts on a preliminary plan (the brief's own examples); the full
             # checks arrive in parallel and replace it before verification.
@@ -916,6 +954,13 @@ class BuildService:
             "instructions": record.instructions,
             "model": route.model,
             "candidate_python": str(targets.runtime.python),
+            # Which Claude sign-in the builder's CLI uses (no secret; the worker reads it), so
+            # it builds on the same account as the chat rather than the CLI's own login.
+            "claude_auth": claude_oauth.auth_mode(
+                self._gateway.preferences.get("models.provider")
+                if self._gateway.preferences is not None
+                else None
+            ),
             "targets": targets.identities(),
             "fake_packages_dir": str(fake_packages)
             if route.harness == "fake" and fake_packages
@@ -995,7 +1040,9 @@ class BuildService:
         ):
             if path.is_file():
                 references += f"\n\n===== {label} =====\n{path.read_text(encoding='utf-8')}"
-        repair_route = self._gateway.route(route.route_id, stage="builder_change")
+        repair_route = route_with_choice(
+            self._gateway, route.route_id, "builder_change", self._choices.get(build_id)
+        )
         inference = self._pipeline.inference
         if inference is None:
             return None

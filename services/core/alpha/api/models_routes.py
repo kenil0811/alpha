@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alpha.models.accounts import ModelAccounts, SignInUnavailable, UnknownProvider
 from alpha.models.keychain import KeychainError
+from alpha.models.preferences import InvalidSetting
 
 
 class CodeRequest(BaseModel):
@@ -23,10 +24,37 @@ class KeyRequest(BaseModel):
     key: str = Field(min_length=1, max_length=400)
 
 
+class ModelPick(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = Field(min_length=1, max_length=100)
+
+
 def register(app: FastAPI, accounts: ModelAccounts) -> None:
     @app.get("/api/model-accounts")
     def list_accounts() -> dict[str, Any]:
         return {"providers": accounts.list_providers()}
+
+    @app.get("/api/model-accounts/{provider}/models")
+    def list_models(provider: str) -> dict[str, Any]:
+        """{"models": [{"id", "label"}], "selected": id | null}; an empty list when the
+        provider can't be reached (no key, offline)."""
+        try:
+            return accounts.models(provider)
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/api/model-accounts/{provider}/model")
+    def select_model(provider: str, body: ModelPick) -> dict[str, Any]:
+        """Save the provider's selected model; returns the same shape as GET .../models."""
+        try:
+            return accounts.select_model(provider, body.model)
+        except UnknownProvider as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except InvalidSetting as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except SignInUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.put("/api/model-accounts/{provider}/key")
     def save_key(provider: str, body: KeyRequest) -> dict[str, Any]:

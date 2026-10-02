@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { OpenQuestion } from "../core/client";
-import { Button } from "../ui";
+import { Button, InfoTip } from "../ui";
 
 /** Every question takes several picks (a person can hold more than one role, want several
  *  outcomes, use many tools) plus their own words; an answer joins them with "; ". Shared by
@@ -23,8 +23,10 @@ export function useAnswers(questions: OpenQuestion[]) {
   }
   const fields = questions.map((q) => (
     <fieldset key={q.id} className="question">
-      <legend>{q.question}</legend>
-      <p className="panel__hint">{q.why_it_matters}</p>
+      <legend>
+        {q.question}
+        {q.why_it_matters ? <InfoTip content={q.why_it_matters} label="Why this matters" /> : null}
+      </legend>
       {q.options.map((option) => (
         <label key={option} className="question__option">
           <input type="checkbox" name={q.id} value={option} checked={(choices[q.id] ?? []).includes(option)} onChange={() => toggle(q.id, option)} />

@@ -40,7 +40,7 @@ from alpha.assistant.research import (
 )
 from alpha.assistant.turn import AssistantTurnOutput, turn_output_schema
 from alpha.models.disclosure import data_notice, ground_output, is_remote
-from alpha.models.gateway import ModelGateway, ModelRoute
+from alpha.models.gateway import ModelGateway, ModelRoute, route_with_choice
 from alpha.models.preferences import stage_effort
 from alpha.models.structured import InferenceError, StructuredInference
 from alpha.storage.control_store import ControlStore, NotFoundError, new_id, utc_now
@@ -134,6 +134,9 @@ class ConversationRecord(BaseModel):
     quick_change: bool = False
     # The session this conversation was started from (a card in that session), if any.
     session_id: str | None = None
+    # The model choice ({provider, model}) the request was made with, the + menu's picker; every
+    # model call for this conversation, its creation and its build runs on it. None: Settings.
+    model: dict[str, Any] | None = None
 
 
 class AssistantService:
@@ -171,10 +174,15 @@ class AssistantService:
                 "proposal_json": "TEXT",
                 "researched": "INTEGER NOT NULL DEFAULT 0",
                 "session_id": "TEXT",
+                "model_json": "TEXT",
             },
         )
         # Set by main once the creation service exists: starts a quick change for a conversation.
         self.on_quick_change: Callable[[str], Any] | None = None
+        # Set by main: called with the conversation id once its brief is made or revised.
+        self.on_brief: Callable[[str], Any] | None = None
+        # Set by main: Alpha's own bug log, told about each turn that fails.
+        self.bugs: Any | None = None
         self._no_triage: set[str] = set()  # conversations continuing a declined quick change
 
     # ----- public ------------------------------------------------------------------------
@@ -186,11 +194,15 @@ class AssistantService:
         *,
         change_of: str | None = None,
         session_id: str | None = None,
+        model: dict[str, Any] | None = None,
     ) -> ConversationRecord:
         """Begin a conversation: about something new, or (`change_of`) about changing an App
         that already exists, which the brief then describes in full. `session_id` is the
-        session it is a card in."""
-        route = self._gateway.route(route_id or self._default_route, stage="assistant")
+        session it is a card in; `model` the request's model choice, kept for the whole
+        conversation (see ConversationRecord.model)."""
+        route = route_with_choice(
+            self._gateway, route_id or self._default_route, "assistant", model
+        )
         if change_of is not None and self._describe_app(change_of) is None:
             raise UnknownApp(f"there is no project {change_of!r} to change")
         conversation_id = new_id("conv")
@@ -198,8 +210,18 @@ class AssistantService:
         with self._store.transaction() as conn:
             conn.execute(
                 """INSERT INTO conversations(conversation_id, state, route_id, created_at,
-                   updated_at, latest_sequence, change_of, session_id) VALUES (?,?,?,?,?,0,?,?)""",
-                (conversation_id, "thinking", route.route_id, now, now, change_of, session_id),
+                   updated_at, latest_sequence, change_of, session_id, model_json)
+                   VALUES (?,?,?,?,?,0,?,?,?)""",
+                (
+                    conversation_id,
+                    "thinking",
+                    route.route_id,
+                    now,
+                    now,
+                    change_of,
+                    session_id,
+                    json.dumps(model, sort_keys=True) if model else None,
+                ),
             )
             self._append_turn_locked(conn, conversation_id, "user", "request", {"text": text})
         self._spawn_turn(conversation_id, route, {"text": text})
@@ -212,13 +234,17 @@ class AssistantService:
         text: str | None = None,
         answers: dict[str, str] | None = None,
         use_defaults: bool = False,
+        model: dict[str, Any] | None = None,
     ) -> ConversationRecord:
+        """`model`, when given, is a new model choice for this conversation from here on."""
         record = self.get(conversation_id)
         if record.state == "thinking":
             raise ConflictError("the assistant is still thinking")
         if not text and not answers and not use_defaults:
             raise ValueError("a reply needs text, answers or use_defaults")
-        route = self._gateway.route(record.route_id, stage="assistant")
+        if model and model != record.model:
+            record = record.model_copy(update={"model": model})
+        route = self.route_for(record)
         content: dict[str, Any] = {}
         if text:
             content["text"] = text
@@ -233,6 +259,12 @@ class AssistantService:
                 " WHERE conversation_id = ?",
                 (_dt(utc_now()), conversation_id),
             )
+            if model:
+                conn.execute(
+                    "UPDATE conversations SET model_json = ?, route_id = ?"
+                    " WHERE conversation_id = ?",
+                    (json.dumps(model, sort_keys=True), route.route_id, conversation_id),
+                )
             self._append_turn_locked(conn, conversation_id, "user", kind, content)
         self._spawn_turn(conversation_id, route, content)
         return self.get(conversation_id)
@@ -254,7 +286,7 @@ class AssistantService:
         latest = next((t for t in reversed(record.turns) if t.role == "user"), None)
         if latest is None:
             raise ConflictError("there is nothing to continue")
-        route = self._gateway.route(record.route_id, stage="assistant")
+        route = self.route_for(record)
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'thinking', error = NULL, quick_change = 0,"
@@ -274,7 +306,7 @@ class AssistantService:
         latest = next((t for t in reversed(record.turns) if t.role == "user"), None)
         if latest is None:
             raise ConflictError("there is nothing to retry")
-        route = self._gateway.route(record.route_id, stage="assistant")
+        route = self.route_for(record)
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'thinking', error = NULL, updated_at = ?"
@@ -283,6 +315,11 @@ class AssistantService:
             )
         self._spawn_turn(conversation_id, route, dict(latest.content))
         return self.get(conversation_id)
+
+    def route_for(self, record: ConversationRecord, stage: str = "assistant") -> ModelRoute:
+        """The route a model call for this conversation runs on: its own model choice when the
+        request made one, else the stage's (Settings -> Models)."""
+        return route_with_choice(self._gateway, record.route_id, stage, record.model)
 
     def _notice(self, route: ModelRoute) -> str:
         apps = None
@@ -384,15 +421,25 @@ class AssistantService:
             if exc.code == "cancelled":
                 return  # the person stopped it; cancel() already said so
             log.warning("assistant turn failed for %s: %s", conversation_id, exc)
-            self._fail(conversation_id, _PLAIN_FAILURE.get(exc.code, "the model service failed"))
+            self._fail(
+                conversation_id,
+                _PLAIN_FAILURE.get(exc.code, "the model service failed"),
+                kind=exc.code,
+            )
             return
         except ValidationError as exc:
             log.warning("assistant turn unusable for %s: %s", conversation_id, exc)
-            self._fail(conversation_id, "the model's answer was incomplete")
+            self._fail(
+                conversation_id, "the model's answer was incomplete", kind="incomplete_answer"
+            )
             return
-        except Exception:  # never leave a conversation stuck in thinking
+        except Exception as exc:  # never leave a conversation stuck in thinking
             log.exception("assistant turn crashed for %s", conversation_id)
-            self._fail(conversation_id, "something went wrong inside Alpha")
+            self._fail(
+                conversation_id,
+                "something went wrong inside Alpha",
+                kind=f"crash: {type(exc).__name__}",
+            )
             return
         proposal: dict[str, Any] | None = None
         if self._should_research(record, output):
@@ -408,6 +455,11 @@ class AssistantService:
         )
         # A change the person asked for needs no second approval: once it is briefed, it goes.
         after = self.get(conversation_id)
+        if after.state == "briefed" and after.current_brief and self.on_brief is not None:
+            try:
+                self.on_brief(conversation_id)
+            except Exception:
+                log.exception("could not keep the plan for %s", conversation_id)
         if after.change_of and after.state == "briefed" and self.on_quick_change is not None:
             try:
                 self.on_quick_change(conversation_id)
@@ -484,7 +536,7 @@ class AssistantService:
         ][:3]
         return {
             "intro": str(proposal.get("intro") or ""),
-            "findings": [str(f) for f in (proposal.get("findings") or []) if f][:4],
+            "findings": [str(f) for f in (proposal.get("findings") or []) if f][:3],
             "questions": questions,
             "options": options,
             "default": default if default in ids else str(options[0].get("id")),
@@ -784,7 +836,11 @@ class AssistantService:
             supersedes_revision=previous.revision if previous else None,
         )
 
-    def _fail(self, conversation_id: str, error: str) -> None:
+    def _fail(self, conversation_id: str, error: str, *, kind: str | None = None) -> None:
+        """End a turn as failed. `kind` (a real failure, not a stop or a restart) also goes to
+        Alpha's bug log."""
+        if kind and self.bugs is not None:
+            self.bugs.record("creation", kind, error)
         with self._store.transaction() as conn:
             conn.execute(
                 "UPDATE conversations SET state = 'failed', error = ?, updated_at = ?"
@@ -860,6 +916,9 @@ class AssistantService:
             conversation_id=row["conversation_id"],
             change_of=row["change_of"],
             session_id=row["session_id"] if "session_id" in row.keys() else None,
+            model=json.loads(row["model_json"])
+            if "model_json" in row.keys() and row["model_json"]
+            else None,
             quick_change=bool(row["quick_change"]),
             proposal=json.loads(row["proposal_json"])
             if "proposal_json" in row.keys() and row["proposal_json"]

@@ -238,7 +238,7 @@ export function AvatarWindow({ client, host, greeting = "Tell me what to do: log
                 autoGrow(e.currentTarget);
               }}
               onPaste={onPaste}
-              placeholder="Ask Chief of Staff…"
+              placeholder="Ask…"
               aria-label="Message"
               rows={1}
               disabled={busy}

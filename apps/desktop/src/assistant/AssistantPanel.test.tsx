@@ -53,7 +53,7 @@ function scriptedTracker(): FakeCoreClient {
 }
 
 describe("assistant surface", () => {
-  it("shows the interpretation, asks a question with options and records the answer as the user's", async () => {
+  it("shows only the questions, records the answer as the user's, and keeps the plan behind See plan", async () => {
     const client = scriptedTracker();
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -61,15 +61,19 @@ describe("assistant surface", () => {
     await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    const understood = await screen.findByLabelText("How Alpha understood it");
-    expect(understood).toHaveTextContent("A personal food diary");
-    expect(screen.getByText(/Two quick questions first/)).toBeInTheDocument();
-    const form = screen.getByRole("form", { name: "A few questions" });
+    const form = await screen.findByRole("form", { name: "A few questions" });
+    // Only the Q&A: no interpretation, no reply paragraph, no plan yet.
+    expect(screen.queryByLabelText("How Alpha understood it")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Two quick questions first/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("What Alpha understood")).not.toBeInTheDocument();
+    expect(screen.getByText(/Waiting for your answers/)).toBeInTheDocument();
+    expect(within(form).getByRole("button", { name: "Why this matters" })).toBeInTheDocument();
     expect(within(form).getByText("How do you want to enter how much you ate?")).toBeInTheDocument();
     await user.click(within(form).getByLabelText("Grams or millilitres"));
     await user.click(within(form).getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(screen.getByText(/Got it: Grams or millilitres/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("See plan")).toBeInTheDocument());
+    expect(screen.queryByText(/Got it: Grams or millilitres/)).not.toBeInTheDocument();
     const brief = screen.getByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent("a reusable tool you can keep using");
     expect(brief).toHaveTextContent("Portions: Grams or millilitres");
@@ -120,6 +124,7 @@ describe("the brief says where data goes", () => {
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("Message"), "Track what I eat");
     await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Use these defaults for now" }));
     const brief = await screen.findByLabelText("What Alpha understood");
     expect(brief).toHaveTextContent(`Where your data goes: ${notice}`);
   });
@@ -134,7 +139,7 @@ describe("a turn that takes long", () => {
     await screen.findByRole("status");
     await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    const waiting = await screen.findByText(/Thinking about your request/);
+    const waiting = await screen.findByText(/Understanding your request/);
     expect(waiting).toHaveTextContent(/0:0\d/);
     await user.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(client.cancelled).toEqual(["conv_1"]));

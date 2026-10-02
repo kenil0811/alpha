@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from alpha.assistant.acting import ActService
 from alpha.assistant.attachments import MAX_ATTACHMENTS, AttachmentIn
 from alpha.assistant.sessions import Session, SessionService, SessionSummary
+from alpha.bugs import BugLog
 from alpha.capabilities.errors import HTTP_STATUS, OperationFailed
 from alpha.context.profile import ProfileService, project_scope
 from alpha.context.projects import Project, ProjectService
@@ -30,6 +31,8 @@ class ProjectPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     goal: str | None = Field(default=None, max_length=600)
     summary: str | None = Field(default=None, max_length=4000)
+    # One of PROJECT_ICONS (alpha.context.projects).
+    icon: str | None = Field(default=None, max_length=40)
     archived: bool | None = None
 
 
@@ -89,6 +92,7 @@ def register(
     sessions: SessionService,
     acting: ActService,
     profile: ProfileService | None = None,
+    bugs: BugLog | None = None,
 ) -> None:
     # ----- projects ------------------------------------------------------------------------
 
@@ -126,10 +130,25 @@ def register(
                 name=body.name,
                 goal=body.goal,
                 summary=body.summary,
+                icon=body.icon,
                 archived=body.archived,
             )
         except OperationFailed as exc:
             raise _fail(exc) from exc
+
+    @app.get("/api/projects/{project_id}/files/{name}")
+    def read_project_file(project_id: str, name: str) -> dict[str, Any]:
+        """One of the project's files (plan.md, bugs.md); text is null until Alpha writes it."""
+        try:
+            found = projects.read_file(project_id, name)
+        except OperationFailed as exc:
+            raise _fail(exc) from exc
+        return found or {"name": name, "text": None, "updated_at": None}
+
+    @app.get("/api/bugs")
+    def read_bugs() -> dict[str, Any]:
+        """Alpha's own bug log (markdown), or null before it has noted anything."""
+        return {"text": bugs.read() if bugs is not None else None}
 
     @app.post("/api/apps/{app_id}/project")
     def file_module(app_id: str, body: FileModule) -> dict[str, Any]:

@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { Creation, WorkflowsClient } from "../core/client";
+import { InfoTip } from "../ui";
 import { ChecksNotice } from "./ChecksNotice";
 import { useCreation } from "./useCreation";
 
@@ -77,15 +78,12 @@ export function CreationCard({
   if (!creation || creation.state === "cancelled") {
     return (
       <div className="creation" aria-label="Create it">
-        <p className="panel__hint">
-          {creation?.state === "cancelled"
-            ? "Stopped. Nothing was switched on."
-            : "When the plan above looks right, Alpha builds it, checks it and switches it on for you."}
-        </p>
+        {creation?.state === "cancelled" ? <p className="panel__hint">Stopped. Nothing was switched on.</p> : null}
         <div className="row">
           <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start()}>
             {creation?.state === "cancelled" ? "Create it again" : "Create it"}
           </button>
+          <InfoTip content="When the plan looks right, Alpha builds it, checks it and switches it on for you." label="What Create it does" />
         </div>
         {error ? (
           <p className="notice" role="alert">
@@ -115,6 +113,22 @@ export function CreationCard({
       <p className="panel__hint" role="status">
         {creation.failure.message}
       </p>
+    );
+  }
+
+  if (creation.state === "failed" && creation.failure?.next_step === "connect") {
+    // Retrying can't help until another model is connected; the one way forward is Settings.
+    return (
+      <div className="creation creation--failed" aria-label="Not made">
+        <p className="notice" role="alert">
+          {creation.failure.message}
+        </p>
+        <div className="row">
+          <button type="button" className="btn btn--primary" onClick={() => (window.location.hash = "#/settings/models")}>
+            Open Settings → Models
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -156,7 +170,6 @@ export function CreationCard({
           Lost contact with Alpha's runtime for a moment. The work carries on; reconnecting…
         </p>
       ) : null}
-      <p className="panel__hint">Usually a few minutes. Keep using Alpha — it stays under Recent requests.</p>
       <div className="row">
         {creation.state === "activating" ? (
           <span className="panel__hint">Switching it on now; this can no longer be stopped.</span>
@@ -170,6 +183,7 @@ export function CreationCard({
             Check now
           </button>
         ) : null}
+        <InfoTip content="Usually a few minutes. Keep using Alpha; it stays under Recent requests." label="How long it takes" />
       </div>
       {error ? (
         <p className="notice" role="alert">

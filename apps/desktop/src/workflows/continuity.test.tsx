@@ -154,13 +154,13 @@ describe("changing a request after its App was made (review finding F07)", () =>
     render(<App client={client} />);
     await askAndCreate(user);
     expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
-    expect(screen.getByText(/You can change the request once this attempt finishes/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "How to change it" })).toBeInTheDocument();
 
     client.nextCreationState = ready;
     await screen.findByLabelText("Notes list is ready", {}, { timeout: 3000 });
     const after = await screen.findByLabelText("After it was made");
-    expect(after).toHaveTextContent("Notes list is in the sidebar");
-    expect(after).toHaveTextContent("To change it later, open it and describe the change here");
+    expect(after).toHaveTextContent("Notes list is ready.");
+    expect(within(after).getByRole("button", { name: "How to change it later" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Change or add something")).not.toBeInTheDocument();
     // The session goes on; nothing was made twice.
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
@@ -199,7 +199,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     expect(updated).toHaveTextContent("Each note now shows a mood next to its title.");
     expect(updated).not.toHaveTextContent("passed all");
     const after = await screen.findByLabelText("After it was made");
-    expect(after).toHaveTextContent("Notes list is updated and its data is kept");
+    expect(after).toHaveTextContent("Notes list is updated.");
   });
 
   it("names the App it made, not the name planned for it", async () => {
@@ -213,7 +213,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     };
     const card = await screen.findByLabelText("Notes (made) is ready", {}, { timeout: 3000 });
     expect(within(card).getByRole("button", { name: "Open Notes (made)" })).toBeInTheDocument();
-    expect(await screen.findByLabelText("After it was made")).toHaveTextContent("Notes (made) is in the sidebar");
+    expect(await screen.findByLabelText("After it was made")).toHaveTextContent("Notes (made) is ready.");
   });
 
   it("still lets the person correct the request before anything is made", async () => {
@@ -224,7 +224,7 @@ describe("changing a request after its App was made (review finding F07)", () =>
     await user.type(screen.getByLabelText("Message"), "Keep a notes list for me");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("button", { name: "Create it" });
-    expect(screen.getByText(/To change or add something before it is made, just say so below/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "How to change it" })).toBeInTheDocument();
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
   });
 });
@@ -261,6 +261,6 @@ describe("a module's own thread", () => {
     expect(within(thread).getByText(/Change · Planned/)).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Recent requests" })).not.toBeInTheDocument();
     await user.click(within(thread).getByText("Add a mood to each note"));
-    expect(await screen.findByText("Changing a project")).toBeInTheDocument();
+    expect(await screen.findByText(/^Changing a project/)).toBeInTheDocument();
   });
 });

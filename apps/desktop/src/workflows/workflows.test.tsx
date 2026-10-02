@@ -114,6 +114,22 @@ describe("creating a result", () => {
     expect(screen.queryByRole("button", { name: /Open/ })).not.toBeInTheDocument();
   });
 
+  it("a connect failure offers Settings → Models, not Try again", async () => {
+    const client = new FakeWorkflowsClient();
+    const user = userEvent.setup();
+    render(<CreationCard client={client} conversationId="conv_1" briefRevision={1} unavailable={[]} onOpen={() => undefined} />);
+    await user.click(await screen.findByRole("button", { name: "Create it" }));
+    client.nextCreationState = (c) => ({
+      ...c,
+      state: "failed",
+      failure: { reason: "model_unavailable", message: "Claude sign-in isn't available for this account. Connect another model in Settings → Models.", next_step: "connect" },
+    });
+    expect(await screen.findByRole("alert", {}, { timeout: 3000 })).toHaveTextContent("Claude sign-in isn't available");
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Settings → Models" }));
+    expect(window.location.hash).toBe("#/settings/models");
+  });
+
   it("stops a creation and offers to start again without switching anything on", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();

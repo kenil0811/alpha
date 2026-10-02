@@ -19,6 +19,7 @@ export function StandardDropdown({
   onAdd,
   addLabel = "Add…",
   addDisabledReason,
+  ariaLabel,
 }: {
   options: StandardDropdownOption[];
   value: string | null;
@@ -27,6 +28,7 @@ export function StandardDropdown({
   onAdd?: () => void;
   addLabel?: string;
   addDisabledReason?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -40,7 +42,7 @@ export function StandardDropdown({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" className="ui-select-trigger ui-std-dropdown__trigger">
+        <button type="button" className="ui-select-trigger ui-std-dropdown__trigger" aria-label={ariaLabel} title={current?.label}>
           <span>{current ? current.label : placeholder}</span>
         </button>
       </PopoverTrigger>

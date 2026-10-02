@@ -1,6 +1,7 @@
 import { FileUp, FolderPlus } from "lucide-react";
 import { useRef, useState } from "react";
 import { isAlphaModuleFile } from "../modules/alphaModuleAttachment";
+import { Button } from "../ui/Button";
 import "./pages.css";
 import "../modules/module.css";
 
@@ -69,7 +70,6 @@ export function NewProjectPage({
                 setDraft(title);
                 setEditing(true);
               }}
-              title="Click to rename"
             >
               {title}
             </h2>
@@ -102,9 +102,9 @@ export function NewProjectPage({
         <div className="row newproject__actions">
           {onImport ? (
             <>
-              <button type="button" className="btn btn--sm" onClick={() => fileRef.current?.click()}>
+              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
                 <FileUp size={14} strokeWidth={1.75} aria-hidden="true" /> Import a project…
-              </button>
+              </Button>
               <input
                 ref={fileRef}
                 type="file"
@@ -120,9 +120,9 @@ export function NewProjectPage({
             </>
           ) : null}
           <span className="rail__spacer" />
-          <button type="submit" className="btn btn--sm btn--primary" disabled={!text.trim()}>
+          <Button type="submit" size="sm" disabled={!text.trim()}>
             Start
-          </button>
+          </Button>
         </div>
       </form>
     </section>

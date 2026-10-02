@@ -167,8 +167,14 @@ Nothing spills out of its box at any window size from the 768x560 minimum up.
   minimum, ~64-96px) before labels or filled values truncate.
 - Placeholders fit their field. Write them short enough not to clip at the narrowest width.
 - Rows wrap rather than squeeze: `.item__body` keeps 180px before its controls wrap below it.
+- Nothing covers text: headers that stay put are opaque, an avatar or tooltip never sits on
+  a label. Nothing is cut at the top or bottom either (a title that wraps inside a fixed-height
+  header, a two-line clamp ending mid-word).
 - Check before shipping a layout change: run `apps/desktop/tools/layout-check.js` in the dev
-  tools console at 768x560, 1100x760 and 1440x900 on every page; it must return `[]`.
+  tools console at 768x560, 1100x760 and 1440x900, with the chat panel at its narrowest, and in
+  every state the flow passes through (empty, thinking, questions, options, plan, building,
+  failed), not only the empty screen. It must return `[]`. Then take a screenshot of each state
+  and read it against the copy and density rules below: the script cannot judge wording.
 
 ## Model providers
 
@@ -209,6 +215,36 @@ The audience is executives: to the point, minimal distraction.
 - Minimal, elegant, professional by default. Depart from it only when explicitly asked.
 - Never drop information needed to act — errors, warnings, destructive confirmations stay
   visible, just kept to one line.
+
+## Type scale (strong rule)
+
+Five sizes, as tokens in `styles/tokens.css`, and nothing else: `--text-xs` 12px (meta),
+`--text-sm` 13px (labels), `--text-md` 15px (body, buttons, inputs), `--text-lg` 19px (section
+headings), `--text-xl` 26px (page titles). No raw px font sizes, no inline `fontSize`. Labels are
+sentence case, never uppercased. The layout check reports `FONTS` when a screen uses more than
+five.
+
+## AI text on screen (strong rule)
+
+- The page shows the questions and answers, options and progress; nothing else from the
+  conversation. A plan Alpha drafts is a project file (`plan.md`), stored with the project and
+  shown in the page's empty space as Plan, not pasted into the chat or the creation card.
+- Chat replies are two short sentences at most; after a plan, one line pointing to it.
+
+## Don't reinvent the wheel (platform rule)
+
+When the person has not explicitly asked for something specific, use what already exists:
+Alpha's own UI components (`ui/`) and standard views first, then a close existing equivalent,
+then a proven open-source library or API. Build new only when nothing existing serves the
+purpose. When the person explicitly asks for something, their requirement wins. This holds for
+Alpha's own UI and for every project Alpha's builder makes (`PACKAGE_CONTRACT`).
+
+## Bugs
+
+`bugs.md` at the repo root lists bugs found in Alpha, open and fixed. Alpha keeps its own
+`bugs.md` in its data folder (`alpha/bugs.py`): failures it detects in creation, builds and
+model replies are recorded there and de-duplicated, and the builder keeps a `BUGS.md` in each
+project it makes.
 
 ## Deps added
 `lucide-react`, `@radix-ui/react-{dialog,dropdown-menu,popover,select,tooltip}`, `react-router`

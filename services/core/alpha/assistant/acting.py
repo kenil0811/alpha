@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from alpha.assistant.attachments import AttachmentIn, attachment_summaries, build_context
 from alpha.assistant.sessions import SessionService, SessionTurn
 from alpha.capabilities.errors import OperationFailed
+from alpha.context.projects import PROJECT_ICONS, UNTITLED
 from alpha.data.views import ViewQueryRequest, resolve_view, run_view
 from alpha.models.gateway import RouteUnavailable
 from alpha.models.structured import InferenceError, StructuredInference
@@ -119,7 +120,7 @@ Step kinds:
 - "done": the work for this sentence is finished (there are OBSERVATIONS). Finish as soon as the observations cover what was asked; do not keep adding. reply says exactly what happened: counts, numbers and dates from the observations, any failure named plainly. Never more than what the observations show.
 - "answer": nothing needs doing (a question you can answer, a greeting, a request outside the projects), or a required detail is missing and you ask one short question. It must be true to FACTS: say that something is in progress only if FACTS list it as running. If the person asks whether you are still working and FACTS show nothing running, say so plainly and offer to do it now.
 
-reply is what the person hears: at most 40 words, warm, specific, no technical words, no field names. For "run" and "query" steps the reply is provisional; the "done" step replaces it. Output only the structured object."""
+reply is what the person hears: at most 2 short sentences, warm, specific, no technical words, no field names. A question is asked with no preamble. For "run" and "query" steps the reply is provisional; the "done" step replaces it. Output only the structured object."""
 
 
 class ActTurn(BaseModel):
@@ -172,8 +173,32 @@ def step_schema() -> dict[str, Any]:
             "skill_id": {"type": ["string", "null"]},
             "inputs": {"type": ["object", "null"]},
             "reply": {"type": "string", "maxLength": 400},
+            # Only when the prompt says the project is untitled: what to call it.
+            "project_name": {"type": ["string", "null"], "maxLength": 40},
+            "project_icon": {"type": ["string", "null"], "enum": [*PROJECT_ICONS, None]},
         },
     }
+
+
+_NAME_STOPWORDS = set(
+    "a an the and or but to of for in on at by with from about into my our your their me us "
+    "i we you it this that these those is are be can could would should will please help "
+    "make build create want need like get keep track set up new some all any just let lets "
+    "hi hello hey thanks thank ok okay yes no".split()
+)
+
+
+def fallback_project_name(text: str) -> str | None:
+    """A short name from the person's words (the first few meaningful ones, Title Case), when
+    the model gave none. None when the message says too little to name anything."""
+    words = [
+        w
+        for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'&-]*", text)
+        if w.lower() not in _NAME_STOPWORDS
+    ]
+    if len(words) < 2:
+        return None
+    return " ".join(w if w.isupper() else w.capitalize() for w in words[:3])[:40]
 
 
 def catalogue_text(sources: list[tuple[str, AppSource]]) -> str:
@@ -220,6 +245,7 @@ def step_prompt(
     skills: str = "",
     project: str = "",
     attachments: str = "",
+    untitled: bool = False,
 ) -> str:
     parts = [f"TODAY: {today}", "", "PROJECTS:", catalogue, ""]
     if skills:
@@ -243,6 +269,13 @@ def step_prompt(
         parts += [attachments, ""]
     parts.append(f"THE PERSON SAID: {text}")
     parts.append("")
+    if untitled:
+        parts += [
+            "THIS SESSION'S PROJECT IS UNTITLED: when the message says what the work is about, "
+            "also give project_name (2-4 words, Title Case, what it is about, no quotes) and "
+            f"project_icon (one of: {', '.join(PROJECT_ICONS)}). Otherwise leave both null.",
+            "",
+        ]
     parts.append("OBSERVATIONS (what this sentence's steps have done so far):")
     if observations:
         body = json.dumps(observations, default=str)
@@ -535,6 +568,8 @@ class ActService:
         self._context = context
         self._skills = skills
         self._projects = projects
+        # Set by main: Alpha's own bug log, told when a model call fails.
+        self.bugs: Any | None = None
         self._repair = repair
         self._browser = browser
         # Settings -> Access's default stance for a session that hasn't picked its own (see
@@ -719,6 +754,13 @@ class ActService:
         model: dict[str, str] | None = None,
     ) -> ActTurn:
         session = self._sessions.get(session_id, window=1)
+        # The + menu's model choice carries through: kept on the session for its later messages
+        # and on every conversation this message opens (see AssistantService.start).
+        model = {k: v for k, v in (model or {}).items() if v} or None
+        if model:
+            self._sessions.set_model(session_id, model)
+        else:
+            model = getattr(session, "model", None)
         sources = self._sources(session.project_id)
         names = {app_id: source.name for app_id, source in sources}
         work = _Work(
@@ -756,6 +798,7 @@ class ActService:
             skills=self._skills.catalogue_text() if self._skills is not None else "",
             project=self._project_text(session.project_id),
             attachments=self._attachments_context(attachments),
+            untitled=self._untitled(session.project_id),
         )
         try:
             route = self._gateway.route(
@@ -771,10 +814,15 @@ class ActService:
                 "menu or Settings → Models."
             )
             return self._finish(work)
+        named: dict[str, Any] = {}
         for _step in range(MAX_STEPS):
             output = self._decide(route, work, prompt_parts)
+            if prompt_parts["untitled"] and not named and output.get("project_name"):
+                named = output
             if not self._apply(work, output):
                 break
+        if prompt_parts["untitled"] and not work.model_error:
+            self._name_project(session.project_id, work.text, named)
         if not work.reply:
             work.reply = (
                 summary_reply(work.observations)
@@ -799,7 +847,7 @@ class ActService:
     def _continue_conversation(self, work: _Work, conversation_id: str) -> ActTurn:
         work.kind, work.conversation_id = "continue", conversation_id
         try:
-            self._assistant.reply(conversation_id, text=work.text)
+            self._assistant.reply(conversation_id, text=work.text, **self._model_kwargs(work))
             work.reply = "Passed on to the request above."
         except Exception as exc:
             log.warning("could not continue %s: %s", conversation_id, exc)
@@ -834,6 +882,32 @@ class ActService:
             lines.append(f"Alpha's notes on it: {project.summary}")
         return "\n".join(lines)
 
+    def _untitled(self, project_id: str | None) -> bool:
+        if not project_id or self._projects is None:
+            return False
+        try:
+            return bool(self._projects.get(project_id).name == UNTITLED)
+        except Exception:
+            return False
+
+    def _name_project(self, project_id: str | None, text: str, output: dict[str, Any]) -> None:
+        """Name a project still called "Untitled project" from the person's first message: the
+        model's name and icon when it gave them, else a few of their own words."""
+        if not project_id or self._projects is None or not self._untitled(project_id):
+            return  # the person (or an earlier message) already named it
+        name = " ".join(str(output.get("project_name") or "").split())[:40] or (
+            fallback_project_name(text)
+        )
+        if not name:
+            return
+        icon = output.get("project_icon")
+        try:
+            self._projects.update(
+                project_id, name=name, icon=icon if icon in PROJECT_ICONS else "folder"
+            )
+        except Exception:
+            log.exception("could not name project %s", project_id)
+
     def _known(self, text: str, app_id: str | None, project_id: str | None) -> str:
         if self._context is None:
             return ""
@@ -866,6 +940,7 @@ class ActService:
                     skills=parts["skills"],
                     project=parts["project"],
                     attachments=parts["attachments"],
+                    untitled=bool(parts.get("untitled")),
                 ),
                 schema=step_schema(),
                 scope_kind="act",
@@ -875,6 +950,8 @@ class ActService:
             return decided.output if isinstance(decided.output, dict) else {}
         except InferenceError as exc:
             log.warning("act step failed: %s", exc)
+            if self.bugs is not None and exc.code != "cancelled":
+                self.bugs.record("model", f"{model_error_kind(exc)} ({exc.code})", str(exc))
             return {
                 "kind": "done" if work.observations else "answer",
                 "reply": model_error_reply(exc),
@@ -1043,6 +1120,13 @@ class ActService:
         work.observe({"step": "run", "module": work.names[app_id], "results": results})
         return work.within_time()
 
+    @staticmethod
+    def _model_kwargs(work: _Work) -> dict[str, Any]:
+        """`model=` for the conversation a message opens or continues, only when one was chosen."""
+        if not work.model_override:
+            return {}
+        return {"model": {"provider": work.model_override, "model": work.model_name_override}}
+
     def _step_start(self, work: _Work, step_kind: str, app_id: str | None) -> None:
         """Hand the message to the assistant as something new to make, or a change; the
         conversation becomes a card in this session."""
@@ -1050,7 +1134,10 @@ class ActService:
         work.app_id = app_id if step_kind == "change" else None
         try:
             record = self._assistant.start(
-                work.text, change_of=work.app_id, session_id=work.session_id
+                work.text,
+                change_of=work.app_id,
+                session_id=work.session_id,
+                **self._model_kwargs(work),
             )
             work.conversation_id = record.conversation_id
             work.opened = {"conversation_id": work.conversation_id, "session_id": work.session_id}

@@ -23,7 +23,7 @@ const GIVE_UP_MS = 5 * 60 * 1000;
 /** `client` is whatever the surface already has (CoreClient or ActClient); only the model-account
  *  methods are used, and only when the runtime actually offers them. `auto` (the newest turn
  *  only) opens the browser sign-in straight away, so an older card in the history never does. */
-export function NotConnectedCard({ info, client, onResend, auto = false }: { info: ModelErrorInfo; client: unknown; onResend: () => void; auto?: boolean }) {
+export function NotConnectedCard({ info, client, onResend, auto = false, reason }: { info: ModelErrorInfo; client: unknown; onResend: () => void; auto?: boolean; reason?: string | null }) {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -178,6 +178,11 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
   return (
     <div className="msg msg--ai notconnected" role="alert">
       <b>{info.kind === "generic" ? `${label} couldn't answer.` : `Not connected to ${label}.`}</b>
+      {info.kind === "generic" && shortReason(reason) ? (
+        <div className="notconnected__why" title={reason ?? undefined}>
+          {shortReason(reason)}
+        </div>
+      ) : null}
       {waiting || needsCode ? (
         <div className="faint" role="status">
           {needsCode ? "Approve in your browser, then paste the code it shows." : "Finish signing in in your browser. Alpha carries on by itself."}
@@ -237,6 +242,17 @@ export function NotConnectedCard({ info, client, onResend, auto = false }: { inf
       )}
     </div>
   );
+}
+
+/** Core's reply for a failed model call (`model_error_reply`) minus its "I can't reach the
+ *  model:" lead-in, which the card's own title already says. */
+export function shortReason(reply: string | null | undefined): string | null {
+  const why = (reply ?? "")
+    .replace(/^I can't reach (the|that) model( right now)?[:.]?\s*/i, "")
+    .replace(/^\((.*?)\)\.?\s*/, "$1. ")
+    .trim();
+  // The generic fallback names no reason, only "Try again", which the card's button already offers.
+  return why && !/^try again/i.test(why) ? why.charAt(0).toUpperCase() + why.slice(1) : null;
 }
 
 /** Read a session/act turn's `model_error` out of its loosely-typed `detail`, if any. */

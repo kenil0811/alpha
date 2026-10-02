@@ -6,12 +6,12 @@
  * owns every session, so leaving and coming back finds the same thread.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowUp, ChevronLeft, Plus, RotateCw } from "lucide-react";
+import { ArrowUp, ChevronLeft, Plus } from "lucide-react";
 import { isSessionsClient, type AdvancedOptions, type AttachmentWire, type Conversation, type CoreClient, type Project, type Session, type SessionsClient, type SessionSummary, type SessionTurn } from "../core/client";
 import { usePoll } from "../core/usePoll";
 import { MicButton, useSpeech } from "../shell/voice";
 import { usePushToTalk } from "../shell/ptt";
-import { ConversationCard, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
+import { ConversationCard, PagePointer, STATE_WORDS, Thinking, requestText } from "./ConversationCard";
 import { ZazooIcon } from "../ui/ZazooIcon";
 import { Button, IconButton } from "../ui";
 import { Markdown } from "./markdown";
@@ -85,7 +85,7 @@ export function AssistantPanel({
   const [ownSession, setOwnSession] = useState<string | null>(null);
   const selected = onSelectSession ? sessionId : ownSession;
   const select = onSelectSession ?? setOwnSession;
-  const { session, loading, error, busy, reconnecting, send, refresh } = useSession(sessions, selected, select, scope);
+  const { session, loading, error, busy, reconnecting, send } = useSession(sessions, selected, select, scope);
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const advanced = useAdvanced(selected ?? "draft", client);
@@ -144,8 +144,8 @@ export function AssistantPanel({
         <div className="assist__title">
           <ZazooIcon size={32} />
           <div className="assist__titletext">
-            <b>Chief of Staff</b>
-            <div className="assist__ctx">{label}</div>
+            <b className="assist__name">Chief of Staff</b>
+            <div className="assist__ctx" title={label}>{label}</div>
           </div>
         </div>
         <div className="assist__headend">
@@ -225,9 +225,7 @@ export function AssistantPanel({
                 </div>
               ) : turn.kind === "work" && turn.conversation_id ? (
                 cards.get(turn.conversation_id) === turn.turn_id && cardsOnPage ? (
-                  <div key={turn.turn_id} className="msg msg--ai faint">
-                    Questions and options are on the page.
-                  </div>
+                  <PagePointer key={turn.turn_id} client={client} conversationId={turn.conversation_id} />
                 ) : cards.get(turn.conversation_id) === turn.turn_id ? (
                   <ConversationCard key={turn.turn_id} client={client} conversationId={turn.conversation_id} onOpenApp={onOpenApp} onStartOver={setText} />
                 ) : (
@@ -239,6 +237,7 @@ export function AssistantPanel({
                 <NotConnectedCard
                   key={turn.turn_id}
                   info={modelErrorOf(turn.detail)!}
+                  reason={turn.text}
                   client={client}
                   onResend={() => void send(precedingUserText(session.turns, index))}
                   auto={index === session.turns.length - 1}
@@ -301,7 +300,7 @@ export function AssistantPanel({
               autoGrow(e.currentTarget);
             }}
             onPaste={onPaste}
-            placeholder="Ask Chief of Staff…"
+            placeholder="Ask…"
             aria-label="Message"
             rows={1}
             onKeyDown={(e) => {
@@ -322,18 +321,11 @@ export function AssistantPanel({
             <ArrowUp size={16} />
           </IconButton>
         </div>
-        {speech.error || session ? (
+        {speech.error ? (
           <div className="composer__row">
-            {speech.error ? (
-              <span className="notice" role="alert">
-                {speech.error}
-              </span>
-            ) : null}
-            {session ? (
-              <IconButton aria-label="Refresh the session" size="sm" style={{ marginLeft: "auto" }} onClick={() => refresh()}>
-                <RotateCw size={12} />
-              </IconButton>
-            ) : null}
+            <span className="notice" role="alert">
+              {speech.error}
+            </span>
           </div>
         ) : null}
       </form>
@@ -404,15 +396,6 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
   const thinking = client && session?.state === "thinking" ? session.session_id : null;
   const { reconnecting } = usePoll(thinking, () => client!.getSession(thinking!), setSession);
 
-  const refresh = useCallback(async () => {
-    if (!client || !session) return;
-    try {
-      setSession(await client.getSession(session.session_id));
-    } catch {
-      /* the next poll or send will say */
-    }
-  }, [client, session]);
-
   const send = useCallback(
     async (text: string, attachments?: AttachmentWire[], options?: AdvancedOptions) => {
       if (!client) {
@@ -447,7 +430,7 @@ function useSession(client: SessionsClient | null, selectedId: string | null, on
     [client, onSelect, scope, selectedId, session],
   );
 
-  return { session, loading, error, busy, reconnecting, send, refresh };
+  return { session, loading, error, busy, reconnecting, send };
 }
 
 /** Earlier sessions in this scope, newest first, for the empty state. */

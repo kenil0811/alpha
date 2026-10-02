@@ -43,6 +43,19 @@ from alpha.builds.harness import (
 )
 from alpha.builds.validate import write_validate_script
 
+# What the CLI says when it will not run on this sign-in: not signed in, or the organization
+# turned subscription access off (it then reports is_error with subtype "success").
+AUTH_MARKERS = (
+    "Not logged in",
+    "disabled Claude subscription access",
+    "Use an Anthropic API key",
+)
+
+
+def is_auth_failure(text: str) -> bool:
+    return any(marker in text for marker in AUTH_MARKERS)
+
+
 PACKAGE_CONTRACT = """You are building an Alpha App: a small tool a nontechnical person will use
 to get real work done. Work ONLY inside the current directory.
 
@@ -115,6 +128,16 @@ Rules:
   parses and matches the contract, files follow the layout, the Python compiles, every handler
   resolves) and lists what is wrong. Run it after writing app.yaml and the handlers, and again
   before you finish; only hand over a package it reports OK.
+- Don't reinvent the wheel: when the person has not explicitly asked for something specific,
+  use what already exists: Alpha's standard UI components and views first (the pages Alpha
+  draws for each table: table, board, list, gallery and calendar views, the record page, saved
+  lists, quick_entry, the Actions tab, and summary metrics, progress and trend cards; screen
+  blocks form and text), then a close existing equivalent, then a proven open-source library
+  or API. Build new only when nothing existing serves the purpose. When the person explicitly
+  asked for something, their requirement wins.
+- Keep package/BUGS.md: every bug you find while building or verifying, one line each with its
+  status, as "- [open] what is wrong" or "- [fixed] what was wrong and how". Update a line's
+  status when you fix it; never delete a line.
 - Never add requirements.txt, pyproject.toml, package.json, lock files, .env files, dist/ or
   dependencies/. Extra packages are not available and are never installed.
 - Model estimates: store every model result with estimated= so people see it as an estimate.
@@ -200,6 +223,9 @@ class ClaudeCliHarness:
                 env[key] = os.environ[key]
         if self._strategy == "private_config_home":
             env["CLAUDE_CONFIG_DIR"] = str(config_home)
+        from alpha.models.claude_oauth import cli_auth_env
+
+        env.update(cli_auth_env(inputs.claude_auth))
         prompt = self._prompt(inputs)
         budget = inputs.request.budget
         argv = [
@@ -325,10 +351,9 @@ class ClaudeCliHarness:
         diagnostics: list[BuildDiagnostic] = []
         final = session.result_message or {}
         text = str(final.get("result", ""))
-        if session.saw_auth_error or "Not logged in" in text:
-            diagnostics.append(
-                BuildDiagnostic(level="error", code="cli_not_logged_in", message=text[:300])
-            )
+        if session.saw_auth_error or is_auth_failure(text):
+            code = "cli_not_logged_in" if "Not logged in" in text else "cli_auth_refused"
+            diagnostics.append(BuildDiagnostic(level="error", code=code, message=text[:300]))
             return HarnessOutcome(
                 BuildResultStatus.FAILED,
                 usage,
@@ -438,7 +463,7 @@ class ClaudeCliHarness:
                     continue
                 if block.get("type") == "text":
                     text = str(block.get("text", ""))
-                    if "Not logged in" in text:
+                    if is_auth_failure(text):
                         session.saw_auth_error = True
                     yield HarnessEvent("harness.assistant_text", {"text": text[:2000]})
                 elif block.get("type") == "tool_use":
@@ -463,7 +488,7 @@ class ClaudeCliHarness:
                     )
         elif kind == "result":
             session.result_message = message
-            if "Not logged in" in str(message.get("result", "")):
+            if is_auth_failure(str(message.get("result", ""))):
                 session.saw_auth_error = True
             yield HarnessEvent(
                 "harness.result",

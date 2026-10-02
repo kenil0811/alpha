@@ -134,8 +134,9 @@ describe("New project", () => {
     expect(client.projects.size).toBe(1);
     const [project] = [...client.projects.values()];
     expect(project.name).toBe("Untitled project");
-    // The answer landed in the session now attached to the real project.
-    within(screen.getByRole("complementary", { name: "Chief of Staff" })).getByText("Plan the product launch");
+    // The answer landed in the session now attached to the real project. The project page can
+    // show before the send's answer renders, so wait for it rather than look once.
+    expect(await within(screen.getByRole("complementary", { name: "Chief of Staff" })).findByText("Plan the product launch")).toBeInTheDocument();
   });
 });
 
@@ -151,7 +152,7 @@ describe("the blank project page", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     await screen.findByText("Alpha's notes"); // the project page, once Core made the project
     expect(client.projects.size).toBe(1);
-    within(screen.getByRole("complementary", { name: "Chief of Staff" })).getByText("Plan the product launch");
+    expect(await within(screen.getByRole("complementary", { name: "Chief of Staff" })).findByText("Plan the product launch")).toBeInTheDocument();
   });
 });
 

@@ -10,6 +10,7 @@ import type {
   ModelAccountsClient,
   ModelProviderAccount,
   Project,
+  ProjectFile,
   Session,
   SessionsClient,
   SessionSummary,
@@ -192,7 +193,24 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
   }
 
   async listModelAccounts(): Promise<ModelProviderAccount[]> {
-    return this.providers.map((p) => ({ ...p, dot: this.describeDot(p) }));
+    const chosen = this.settingsFields.find((f) => f.id === "models.provider")?.value;
+    const inEffect = chosen === "chatgpt_codex" ? "chatgpt" : typeof chosen === "string" && chosen ? chosen : "claude";
+    return this.providers.map((p) => ({ ...p, dot: this.describeDot(p), default: p.id === inEffect }));
+  }
+
+  providerModels: Record<string, { models: { id: string; label: string }[]; selected: string | null }> = {
+    claude: { models: [{ id: "claude-opus", label: "Opus" }, { id: "claude-sonnet", label: "Sonnet" }], selected: "claude-sonnet" },
+  };
+  modelChoices: { provider: string; model: string }[] = [];
+
+  async listProviderModels(provider: string): Promise<{ models: { id: string; label: string }[]; selected: string | null }> {
+    return this.providerModels[provider] ?? { models: [], selected: null };
+  }
+
+  async setProviderModel(provider: string, model: string): Promise<void> {
+    this.modelChoices.push({ provider, model });
+    const entry = this.providerModels[provider];
+    if (entry) this.providerModels[provider] = { ...entry, selected: model };
   }
 
   async saveModelKey(provider: string, key: string): Promise<ModelProviderAccount> {
@@ -321,10 +339,10 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
     return project;
   }
 
-  async updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+  async updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project> {
     const project = this.projects.get(projectId);
     if (!project) throw new Error("project_not_found");
-    const next: Project = { ...project, ...("name" in patch ? { name: patch.name! } : {}), ...("goal" in patch ? { goal: patch.goal ?? null } : {}), ...("summary" in patch ? { summary: patch.summary ?? null } : {}), archived_at: patch.archived === undefined ? project.archived_at : patch.archived ? new Date().toISOString() : null };
+    const next: Project = { ...project, ...("icon" in patch ? { icon: patch.icon ?? null } : {}), ...("name" in patch ? { name: patch.name! } : {}), ...("goal" in patch ? { goal: patch.goal ?? null } : {}), ...("summary" in patch ? { summary: patch.summary ?? null } : {}), archived_at: patch.archived === undefined ? project.archived_at : patch.archived ? new Date().toISOString() : null };
     this.projects.set(projectId, next);
     return next;
   }
@@ -342,6 +360,14 @@ export class FakeCoreClient implements CoreClient, SessionsClient, ModelAccounts
     const project = this.projects.get(projectId);
     if (!project) throw new Error("project_not_found");
     return { project, sessions: await this.listSessions("project", projectId) };
+  }
+
+  /** Test control: a project's stored files, by `${projectId}/${name}`. */
+  projectFiles = new Map<string, string>();
+
+  async projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile> {
+    const text = this.projectFiles.get(`${projectId}/${name}`) ?? null;
+    return { name, text, updated_at: text === null ? null : new Date().toISOString() };
   }
 
   async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {

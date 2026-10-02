@@ -6,17 +6,19 @@ import { App } from "../App";
 import { FakeWorkflowsClient } from "../test/fakeWorkflows";
 
 describe("settings the person can change", () => {
-  it("lists the models per stage and the build limits, and saves a change at once", async () => {
+  it("keeps model choice on the provider rows, lists thinking and build limits, and saves at once", async () => {
     const client = new FakeWorkflowsClient();
     const user = userEvent.setup();
     render(<App client={client} />);
     expect(await screen.findByText("Runtime connected")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Settings" }));
     const models = await screen.findByLabelText("Models");
-    const builder = within(models).getByLabelText("Model for building a new project");
-    await user.selectOptions(builder, "sonnet");
-    await waitFor(() => expect(client.settingsUpdates).toEqual([{ "models.builder_new": "sonnet" }]));
-    expect(await screen.findByText(/^Saved\. Model for building a new project/)).toBeInTheDocument();
+    // The per-stage model lists would repeat the Claude row's model list.
+    expect(within(models).queryByLabelText("Model for building a new project")).not.toBeInTheDocument();
+    const thinking = within(models).getByLabelText("Thinking for the checks");
+    await user.selectOptions(thinking, "high");
+    await waitFor(() => expect(client.settingsUpdates).toEqual([{ "effort.planner": "high" }]));
+    expect(await screen.findByText(/^Saved\. Thinking for the checks/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Builds" }));
     const limits = screen.getByLabelText("Building limits");

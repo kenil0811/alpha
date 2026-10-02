@@ -109,4 +109,28 @@ describe("Settings -> Models provider accounts", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Reconnect" }));
     await waitFor(() => expect(client.providers.find((p) => p.id === "grok")?.state).toBe("not_configured"));
   });
+
+  it("highlights the provider in effect with a filled star and a Default pill", async () => {
+    await openModels();
+    const providers = await screen.findByLabelText("Model providers");
+    const claudeItem = within(providers).getByText("Claude").closest(".item") as HTMLElement;
+    await waitFor(() => expect(claudeItem).toHaveClass("item--default"));
+    expect(within(claudeItem).getByText("Default")).toBeInTheDocument();
+    const chatgptItem = within(providers).getByText("ChatGPT").closest(".item") as HTMLElement;
+    expect(chatgptItem).not.toHaveClass("item--default");
+    expect(within(chatgptItem).queryByText("Default")).not.toBeInTheDocument();
+  });
+
+  it("a connected provider's model dropdown shows the saved model and saves a new one", async () => {
+    const { client, user } = await openModels();
+    const providers = await screen.findByLabelText("Model providers");
+    const picker = await within(providers).findByRole("button", { name: "Claude model" });
+    expect(picker).toHaveTextContent("Sonnet");
+    await user.click(picker);
+    await user.click(await screen.findByRole("option", { name: "Opus" }));
+    await waitFor(() => expect(client.modelChoices).toContainEqual({ provider: "claude", model: "claude-opus" }));
+    expect(within(providers).getByRole("button", { name: "Claude model" })).toHaveTextContent("Opus");
+    // A provider that lists no models (OpenRouter here, not connected either) has no dropdown.
+    expect(within(providers).queryByRole("button", { name: "OpenRouter model" })).not.toBeInTheDocument();
+  });
 });

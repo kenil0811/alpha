@@ -335,6 +335,14 @@ export interface ModelProviderAccount {
   installing?: boolean;
   /** The last background install failed. */
   install_failed?: boolean;
+  /** The provider in effect: the `models.provider` setting, or claude when it is unset. */
+  default?: boolean;
+}
+
+/** One model a provider offers, for the model picker next to it. */
+export interface ProviderModel {
+  id: string;
+  label: string;
 }
 
 /** Model provider accounts: keys live in the macOS Keychain, never round-tripped to the UI. */
@@ -353,6 +361,9 @@ export interface ModelAccountsClient {
   finishModelSignIn(provider: string, code: string): Promise<ModelProviderAccount>;
   /** Make the provider's CLI available without a terminal (ChatGPT: link or install Codex). */
   installModelCli(provider: string): Promise<ModelProviderAccount>;
+  /** The models this provider offers, and the one chosen for it (null = provider's own default). */
+  listProviderModels(provider: string): Promise<{ models: ProviderModel[]; selected: string | null }>;
+  setProviderModel(provider: string, model: string): Promise<void>;
 }
 
 /** A Core older than the status dot sends rows without one; draw those grey rather than crash. */
@@ -543,7 +554,7 @@ export interface RecordRow {
 export interface CreationFailure {
   reason: string;
   message: string;
-  next_step: "retry" | "revise";
+  next_step: "retry" | "revise" | "connect";
   failed_checks?: string[];
   attempts?: number;
 }
@@ -670,9 +681,18 @@ export interface Project {
   /** Alpha's own notes on the project, kept from its sessions; the person may edit or clear them. */
   summary: string | null;
   modules: string[];
+  /** A kebab-case lucide name Core picks (or the person does); null shows the folder. */
+  icon?: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+}
+
+/** A project's stored markdown artifact (its plan, its bug list); text is null until written. */
+export interface ProjectFile {
+  name: string;
+  text: string | null;
+  updated_at: string | null;
 }
 
 /** One turn of a session: what the person said, or what Alpha said and did. */
@@ -732,10 +752,11 @@ export interface AdvancedOptions {
 export interface SessionsClient {
   listProjects(): Promise<Project[]>;
   createProject(name: string, goal?: string | null): Promise<Project>;
-  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project>;
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project>;
   /** Put a module in a project, or (null) take it out of every project. */
   fileModule(appId: string, projectId: string | null): Promise<void>;
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }>;
+  projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile>;
   listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]>;
   createSession(draft: { project_id?: string | null; focus_app_id?: string | null; title?: string | null }): Promise<Session>;
   getSession(sessionId: string): Promise<Session>;
@@ -1305,6 +1326,14 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return withDot(page.provider);
   }
 
+  listProviderModels(provider: string): Promise<{ models: ProviderModel[]; selected: string | null }> {
+    return this.request(`/api/model-accounts/${encodeURIComponent(provider)}/models`);
+  }
+
+  async setProviderModel(provider: string, model: string): Promise<void> {
+    await this.request(`/api/model-accounts/${encodeURIComponent(provider)}/model`, { method: "PUT", body: JSON.stringify({ model }) });
+  }
+
   async listConversations(): Promise<Conversation[]> {
     const page = await this.request<{ conversations: Conversation[] }>("/api/conversations?limit=20");
     return page.conversations;
@@ -1490,7 +1519,7 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
     return this.request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name, goal: goal ?? null }) });
   }
 
-  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; archived?: boolean }): Promise<Project> {
+  updateProject(projectId: string, patch: { name?: string; goal?: string; summary?: string; icon?: string; archived?: boolean }): Promise<Project> {
     return this.request<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { method: "POST", body: JSON.stringify(patch) });
   }
 
@@ -1500,6 +1529,10 @@ export class HttpCoreClient implements CoreClient, AppsClient, WorkflowsClient, 
 
   project(projectId: string): Promise<{ project: Project; sessions: SessionSummary[]; facts?: { facts: ProfileFact[]; suggestions: ProfileFact[] } }> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  projectFile(projectId: string, name: "plan.md" | "bugs.md"): Promise<ProjectFile> {
+    return this.request<ProjectFile>(`/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(name)}`);
   }
 
   async listSessions(scope: "all" | "global" | "project" | "module", projectId?: string | null, focusAppId?: string | null): Promise<SessionSummary[]> {

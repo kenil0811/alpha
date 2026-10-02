@@ -400,6 +400,11 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
     },
     [surface, setSurface],
   );
+  // Core renamed a project (or gave it an icon) on its own: update the rail in place, without
+  // remounting the open project page.
+  const handleProjectChanged = useCallback((project: Project) => {
+    setProjects((all) => all.map((p) => (p.project_id === project.project_id ? project : p)));
+  }, []);
   const handleModuleImported = useCallback(
     (appId: string) => {
       setModulesTick((n) => n + 1);
@@ -530,6 +535,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
               setAssistantOpen(true);
             }}
             onChanged={() => setModulesTick((n) => n + 1)}
+            onProject={handleProjectChanged}
             onRemoved={() => {
               setModulesTick((n) => n + 1);
               setSurface({ kind: "home" });
@@ -641,6 +647,7 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
                 client={client}
                 onModuleRemoved={handleModuleRemoved}
                 onProjectRemoved={handleProjectRemoved}
+                onProjectChanged={() => setModulesTick((n) => n + 1)}
                 onModuleImported={handleModuleImported}
               />
             </div>
@@ -687,7 +694,8 @@ function AppShell({ client: injected, devTools: devOverride }: { client?: CoreCl
           }
           client={client}
           onModuleRemoved={handleModuleRemoved}
-                onProjectRemoved={handleProjectRemoved}
+          onProjectRemoved={handleProjectRemoved}
+          onProjectChanged={() => setModulesTick((n) => n + 1)}
           onModuleImported={handleModuleImported}
         />
       </div>

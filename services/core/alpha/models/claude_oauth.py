@@ -117,6 +117,29 @@ def access_token() -> str | None:
     return str(tokens["access"])
 
 
+def auth_mode(provider_pref: object | None) -> str:
+    """Which sign-in a `claude` CLI call uses: "api_key" when Claude API is the default
+    provider, "oauth" when Alpha holds a sign-in (Settings -> Models), else "cli" (the CLI's own
+    login). Shared by model calls and the builder so both run on the same account."""
+    if provider_pref == "claude_api":
+        return "api_key"
+    return "oauth" if signed_in() else "cli"
+
+
+def cli_auth_env(mode: str) -> dict[str, str]:
+    """The env that makes the `claude` CLI use `mode`'s sign-in. Read here, in whichever
+    process runs the CLI, so a secret never travels in a job or a log."""
+    import os
+
+    if mode == "api_key":
+        key = keychain.get_key("claude_api") or os.environ.get("ANTHROPIC_API_KEY")
+        return {"ANTHROPIC_API_KEY": key} if key else {}
+    if mode == "oauth":
+        token = access_token()
+        return {"CLAUDE_CODE_OAUTH_TOKEN": token} if token else {}
+    return {}
+
+
 def _token_request(body: dict[str, str]) -> dict[str, object]:
     req = urllib.request.Request(
         TOKEN_URL,

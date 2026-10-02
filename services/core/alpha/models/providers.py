@@ -59,6 +59,14 @@ def probe(
     _request(f"{base_url}/models", api_key, None, timeout, headers)
 
 
+def list_models(base_url: str, api_key: str | None, timeout: int = 5) -> list[dict[str, Any]]:
+    """The provider's `GET /models` entries (OpenAI-compatible `data`). Without a key the call
+    goes unauthenticated (OpenRouter's list is public). Raises ProviderHTTPError on failure."""
+    headers = None if api_key else {"Accept": "application/json"}
+    result = _request(f"{base_url}/models", api_key or "", None, timeout, headers)
+    return [m for m in result.get("data") or [] if isinstance(m, dict) and m.get("id")]
+
+
 def chat_structured(
     base_url: str,
     api_key: str,

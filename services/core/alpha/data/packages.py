@@ -3,7 +3,8 @@
 One path for every Version, whether it comes from a builder candidate (F07) or a development
 fixture (F05). Package Layout rules:
 
-- The package supplies `app.yaml`, `src/`, optional `ui/` and `tests/`, optional `README.md`.
+- The package supplies `app.yaml`, `src/`, optional `ui/` and `tests/`, optional `README.md`
+  and `BUGS.md`.
   Dependency declarations, environment files and platform-produced files are refused by name.
 - The platform resolves the exact runtime profile, SDK and optional UI build profile from
   profiles re-verified on disk, compiles the UI with the trusted build tool, copies the profile
@@ -235,6 +236,10 @@ def _check_file(path: Path, rel: str, root: Path, suffixes: set[str]) -> None:
         raise invalid(f"{rel} is larger than {MAX_FILE_BYTES} bytes")
 
 
+# Plain notes a package may carry: what it is, and the bugs its builder found (BUGS.md).
+_NOTES = ("README.md", "BUGS.md")
+
+
 def collect_files(package_dir: Path, source: AppSource) -> list[Path]:
     """Every file that becomes part of the Version, after refusing anything unsafe."""
     root = package_dir.resolve()
@@ -252,7 +257,7 @@ def collect_files(package_dir: Path, source: AppSource) -> list[Path]:
             raise invalid(f"{name} is an environment file; packages cannot contain one")
         if name in _PLATFORM_FILES:
             raise invalid(f"{name} is produced by the platform; the package cannot supply it")
-        if name == "README.md" and entry.is_file() and not entry.is_symlink():
+        if name in _NOTES and entry.is_file() and not entry.is_symlink():
             continue
         if name in {"src", "tests"} or (name == "ui" and has_ui):
             if entry.is_symlink() or not entry.is_dir():
@@ -265,8 +270,7 @@ def collect_files(package_dir: Path, source: AppSource) -> list[Path]:
     if not src.is_dir():
         raise invalid("the package has no src/ directory")
     selected: list[Path] = [package_dir / "app.yaml"]
-    if (package_dir / "README.md").is_file():
-        selected.append(package_dir / "README.md")
+    selected += [package_dir / n for n in _NOTES if (package_dir / n).is_file()]
     areas = [("src", SRC_SUFFIXES), ("tests", TEST_SUFFIXES)]
     if has_ui:
         areas.append(("ui", UI_SUFFIXES))

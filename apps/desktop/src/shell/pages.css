@@ -6,13 +6,13 @@
  * assistant headers); .eyebrow supplies its own top gap below that bar. */
 .page--home { max-width: 896px; margin: 0 auto; padding: 0 24px 40px; }
 .page--home .eyebrow { display: flex; align-items: center; gap: 6px; margin-top: 24px; }
-.page--home .subcopy { color: var(--text-2); font-size: 16px; max-width: 640px; margin: 6px 0 28px; }
+.page--home .subcopy { color: var(--text-2); font-size: var(--text-md); max-width: 640px; margin: 6px 0 28px; }
 
 .stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 28px; }
 .stat-card { flex: 1 1 160px; min-width: 0; padding: 14px 16px; }
-.stat-card__label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
-.stat-card__value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 2px 0; }
-.stat-card__sub { font-size: 12px; color: var(--text-3); }
+.stat-card__label { font-size: var(--text-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-card__value { font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; margin: 2px 0; }
+.stat-card__sub { font-size: var(--text-xs); color: var(--text-3); }
 
 .module-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 @media (max-width: 640px) {
@@ -22,13 +22,13 @@
 .module-card { padding: 20px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
 .module-card__top { display: flex; align-items: flex-start; gap: 12px; }
 .module-card__icon { width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; flex: none; }
-.module-card h2 { font-size: 19px; font-weight: 600; margin: 0; }
-.module-card p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
-.module-card__meta { margin-top: auto; font-size: 12px; color: var(--text-3); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.module-card__open { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 500; font-size: 13px; background: none; border: 0; padding: 0; cursor: pointer; }
+.module-card h2 { font-size: var(--text-lg); font-weight: 600; margin: 0; }
+.module-card p { margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: 1.5; }
+.module-card__meta { margin-top: auto; font-size: var(--text-xs); color: var(--text-3); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.module-card__open { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 500; font-size: var(--text-sm); background: none; border: 0; padding: 0; cursor: pointer; }
 .module-card--new { border-style: dashed; justify-content: center; align-items: flex-start; }
-.module-card--new h2 { font-family: var(--font-ed); font-size: 18px; font-weight: 500; }
-.home-state { padding: 40px 0; text-align: center; color: var(--text-2); font-size: 14px; }
+.module-card--new h2 { font-family: var(--font-ed); font-size: var(--text-lg); font-weight: 500; }
+.home-state { padding: 40px 0; text-align: center; color: var(--text-2); font-size: var(--text-md); }
 .home-state--error { color: var(--bad); }
 
 /* Activity / Connections */
@@ -37,12 +37,12 @@
 /* Settings: Bridge-style header + second nav column beside the content */
 .settings { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .settings__head { flex: none; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.settings__head h2 { margin: 0; font-family: var(--font-ui); font-size: 14px; font-weight: 700; line-height: 1.2; color: var(--text); }
-.settings__head p { margin: 0; font-size: 12px; color: var(--text-2); }
+.settings__head h2 { margin: 0; font-family: var(--font-ui); font-size: var(--text-md); font-weight: 700; line-height: 1.2; color: var(--text); }
+.settings__head p { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
 .settings__headico { width: 32px; height: 32px; border-radius: 8px; background: var(--bg); display: grid; place-items: center; color: var(--text-2); }
 .settings-layout { flex: 1; min-height: 0; display: flex; container-type: inline-size; }
 .settings-nav { flex: none; width: 224px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
-.settings-nav__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 14px; font-weight: 500; color: var(--text-2); cursor: pointer; }
+.settings-nav__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: var(--text-sm); font-weight: 500; color: var(--text-2); cursor: pointer; }
 .settings-nav__item svg { color: var(--bridge-warm-gray, var(--text-3)); flex: none; }
 .settings-nav__item:hover { background: var(--bg); color: var(--text); }
 .settings-nav__item--current, .settings-nav__item--current:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
@@ -63,15 +63,55 @@
 
 /* Command menu */
 .command-menu__list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 320px; overflow-y: auto; }
-.command-menu__item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--text); }
+.command-menu__item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: var(--text-md); cursor: pointer; color: var(--text); }
 .command-menu__item--active { background: var(--primary-soft); color: var(--primary); }
-.command-menu__empty { padding: 8px 10px; color: var(--text-3); font-size: 13px; }
-.command-menu__hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); display: flex; gap: 4px; align-items: center; }
-.command-menu__hint kbd { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+.command-menu__empty { padding: 8px 10px; color: var(--text-3); font-size: var(--text-sm); }
+.command-menu__hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: var(--text-xs); color: var(--text-3); display: flex; gap: 4px; align-items: center; }
+.command-menu__hint kbd { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: var(--text-xs); }
 
 /* The blank project: one centred "Describe your project" box, Import beside Start. */
 .newproject { max-width: 640px; margin: 48px auto 0; display: flex; flex-direction: column; gap: 10px; }
-.newproject__input { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font: inherit; font-size: 15px; background: var(--surface); color: var(--text); }
+.newproject__input { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font: inherit; font-size: var(--text-md); background: var(--surface); color: var(--text); }
 .newproject__input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .newproject__actions { gap: 8px; align-items: center; flex-wrap: nowrap; }
 .newproject__actions .rail__spacer { flex: 1; }
+
+/* The project page. */
+.projpage__actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.projpage__addgoal { margin: 8px 0 14px -10px; color: var(--text-3); }
+.projpage__goalinput { width: 100%; }
+.projpage__notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.projpage__notesinput { width: 100%; min-height: 96px; font: inherit; font-size: var(--text-md); }
+.projpage__pair { gap: 6px; flex-shrink: 0; }
+/* One compact line where a section has nothing yet. */
+.projempty { margin: 0; font-size: var(--text-sm); color: var(--text-3); }
+/* A row's title truncates on one line; its action never shrinks or spills past the card. */
+.projrow__body { min-width: 0; display: flex; flex-direction: column; }
+.projrow__body:has(> .ui-infotip) { flex-direction: row; align-items: center; gap: 4px; }
+.projrow__title { display: block; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projrow__title b { display: inline; }
+.projrow__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projpage .item > .projrow__action { flex: 0 0 auto; }
+/* The stored plan: the shared renderer's paragraphs and bullets, headings as bold lines. */
+.projplan { font-size: var(--text-md); line-height: 1.55; overflow-wrap: anywhere; }
+.projplan > :first-child { margin-top: 0; }
+.projplan > :last-child { margin-bottom: 0; }
+.projplan p { margin: 0 0 8px; }
+.projplan p > strong:only-child { display: block; font-size: var(--text-lg); font-weight: 600; margin-top: 14px; }
+.projplan ul { margin: 0 0 8px; padding-left: 20px; }
+
+/* Rename / Change icon / Delete dialogs. */
+.projedit { display: flex; flex-direction: column; gap: 12px; }
+.projedit__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.projedit .projedit__actions { margin-top: 0; }
+.projicons { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; }
+.projicons__btn { height: 40px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+.projicons__btn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.projicons__btn--current { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+/* Settings -> Models: the provider in effect, and the compact model picker on connected rows. */
+.item--default { background: color-mix(in srgb, var(--color-warning) 7%, transparent); }
+.item--default .ui-badge { flex: none; }
+.provider-model { display: inline-flex; flex: 0 1 160px; min-width: 72px; max-width: 160px; }
+.provider-model .ui-std-dropdown__trigger { min-width: 0; height: 28px; padding: 0 8px; font-size: var(--text-sm); }
+.provider-model .ui-std-dropdown__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
